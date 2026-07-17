@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Persistencia de Pagos y Eventos
+
+El proyecto no contiene actualmente un esquema Prisma ni una base de datos configurada. Pagos y Eventos usan un adaptador de demostración que guarda los datos por navegador para que la interfaz se pueda usar sin credenciales.
+
+Para producción en Vercel, reemplazá el adaptador de `lib/browser-store.ts` por un repositorio con Prisma y una base de datos externa (por ejemplo, PostgreSQL de Vercel, Neon o Supabase). La variable requerida es:
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require"
+```
+
+No hay credenciales inventadas ni archivos de entorno incluidos en el repositorio.
+
 ## Getting Started
 
 First, run the development server:

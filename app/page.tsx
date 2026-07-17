@@ -1,49 +1,7 @@
-export default function Home() {
-  return (
-    <main className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-2">
-          BM Coach
-        </h1>
+import Link from "next/link";
 
-        <p className="text-center text-gray-600 mb-10">
-          Panel de administración
-        </p>
+const modules = [
+  ["Alumnos", "Gestionar alumnos.", "/alumnos"], ["Rutinas", "Crear rutinas.", "/rutinas"], ["Clases", "Organizar horarios.", "/clases"], ["Pagos", "Control de cuotas y vencimientos.", "/pagos"], ["Eventos", "Planificar actividades y encuentros.", "/eventos"], ["Evaluaciones", "Seguimiento físico.", "/evaluaciones"], ["Configuración", "Ajustes del sistema.", "/configuracion"],
+];
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-
-          <a href="/alumnos" className="bg-white rounded-xl shadow p-6 hover:shadow-lg transition">
-            <h2 className="text-2xl font-semibold">👥 Alumnos</h2>
-            <p>Gestionar alumnos.</p>
-          </a>
-
-          <a href="/rutinas" className="bg-white rounded-xl shadow p-6 hover:shadow-lg transition">
-            <h2 className="text-2xl font-semibold">🏋️ Rutinas</h2>
-            <p>Crear rutinas.</p>
-          </a>
-
-          <a href="/clases" className="bg-white rounded-xl shadow p-6 hover:shadow-lg transition">
-            <h2 className="text-2xl font-semibold">📅 Clases</h2>
-            <p>Organizar horarios.</p>
-          </a>
-
-          <a href="/pagos" className="bg-white rounded-xl shadow p-6 hover:shadow-lg transition">
-            <h2 className="text-2xl font-semibold">💳 Pagos</h2>
-            <p>Control de cuotas.</p>
-          </a>
-
-          <a href="/evaluaciones" className="bg-white rounded-xl shadow p-6 hover:shadow-lg transition">
-            <h2 className="text-2xl font-semibold">📈 Evaluaciones</h2>
-            <p>Seguimiento físico.</p>
-          </a>
-
-          <a href="/configuracion" className="bg-white rounded-xl shadow p-6 hover:shadow-lg transition">
-            <h2 className="text-2xl font-semibold">⚙️ Configuración</h2>
-            <p>Ajustes del sistema.</p>
-          </a>
-
-        </div>
-      </div>
-    </main>
-  );
-}
+export default function Home() { return <main className="min-h-screen bg-zinc-950 p-6 text-white md:p-10"><div className="mx-auto max-w-6xl"><header className="mb-10"><p className="text-sm font-bold uppercase tracking-[.2em] text-yellow-400">BM Coach</p><h1 className="mt-2 text-4xl font-bold">Panel de administración</h1><p className="mt-2 text-zinc-400">Todo tu trabajo de coaching, organizado en un solo lugar.</p></header><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{modules.map(([title, description, href]) => <Link key={href} href={href} className="group rounded-2xl border border-zinc-800 bg-zinc-900 p-6 transition hover:-translate-y-1 hover:border-yellow-400/70"><h2 className="text-xl font-semibold group-hover:text-yellow-400">{title}</h2><p className="mt-2 text-sm text-zinc-400">{description}</p><span className="mt-5 inline-block text-sm font-semibold text-yellow-400">Abrir módulo →</span></Link>)}</div></div></main>; }
