@@ -12,6 +12,10 @@ DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require"
 
 No hay credenciales inventadas ni archivos de entorno incluidos en el repositorio.
 
+### Desarrollo local de Clases
+
+El módulo Clases usa Prisma con SQLite. Antes de usarlo localmente, definí `DATABASE_URL="file:./prisma/dev.db"` y ejecutá `npm run prisma:push`. En Vercel, SQLite no es persistente: para producción migrá el modelo `ClassSession` a una base externa compatible y actualizá el proveedor de Prisma.
+
 ## Getting Started
 
 First, run the development server:
