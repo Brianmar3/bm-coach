@@ -1,4 +1,4 @@
-export type PaymentStatus = "pagado" | "pendiente" | "vencido";
+export type PaymentStatus = "pagado" | "pendiente" | "vencido" | "proximo_a_vencer";
 
 export type StudentStatus = "activo" | "inactivo";
 
@@ -37,6 +37,7 @@ export type CoachSettings = {
 
 export type Payment = {
   id: string;
+  studentId: string;
   student: string;
   amount: number;
   concept: string;
@@ -45,6 +46,7 @@ export type Payment = {
   method: string;
   status: PaymentStatus;
   notes: string;
+  createdAt: string;
 };
 
 export type EventStatus = "programado" | "confirmado" | "cancelado" | "finalizado";
