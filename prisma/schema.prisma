@@ -12,8 +12,35 @@ model StudentRecord {
   data      Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  payments  StudentPayment[]
 
   @@map("students")
+}
+
+enum StudentPaymentStatus {
+  PAGADO
+  PENDIENTE
+  VENCIDO
+  PROXIMO_A_VENCER
+}
+
+model StudentPayment {
+  id          String               @id @default(cuid())
+  studentId   String
+  amount      Decimal              @db.Decimal(12, 2)
+  concept     String
+  dueDate     DateTime
+  paidDate    DateTime?
+  method      String
+  status      StudentPaymentStatus @default(PENDIENTE)
+  notes       String               @default("")
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  student     StudentRecord        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@index([studentId])
+  @@index([status, dueDate])
+  @@map("student_payments")
 }
 
 model PaymentRecord {
