@@ -61,6 +61,35 @@ model EventRecord {
   @@map("events")
 }
 
+enum CoachEventType {
+  EVALUACION
+  REUNION
+  COMPETENCIA
+  RECORDATORIO
+}
+
+enum CoachEventStatus {
+  PENDIENTE
+  COMPLETADO
+}
+
+model CoachEvent {
+  id          String           @id @default(cuid())
+  title       String
+  description String           @default("")
+  date        DateTime
+  time        String
+  color       String           @default("#facc15")
+  type        CoachEventType
+  status      CoachEventStatus @default(PENDIENTE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([date, time])
+  @@index([status])
+  @@map("coach_events")
+}
+
 model RoutineRecord {
   id        String   @id
   data      Json

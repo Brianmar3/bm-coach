@@ -49,17 +49,17 @@ export type Payment = {
   createdAt: string;
 };
 
-export type EventStatus = "programado" | "confirmado" | "cancelado" | "finalizado";
+export type EventStatus = "pendiente" | "completado";
+export type EventType = "evaluacion" | "reunion" | "competencia" | "recordatorio";
 
 export type CoachEvent = {
   id: string;
   title: string;
+  type: EventType;
   date: string;
-  startTime: string;
-  endTime: string;
-  location: string;
+  time: string;
+  color: string;
   description: string;
-  type: string;
   status: EventStatus;
-  students: string[];
+  createdAt: string;
 };
