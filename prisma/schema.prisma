@@ -15,8 +15,39 @@ model StudentRecord {
   payments            StudentPayment[]
   physicalEvaluations PhysicalEvaluation[]
   routineAssignments  TrainingRoutineAssignment[]
+  portalCredential    StudentPortalCredential?
 
   @@map("students")
+}
+
+model StudentPortalCredential {
+  studentId           String                 @id
+  username            String                 @unique
+  passwordHash        String
+  active              Boolean                @default(true)
+  mustChangePassword  Boolean                @default(true)
+  failedLoginAttempts Int                    @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  student             StudentRecord          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  sessions            StudentPortalSession[]
+
+  @@map("student_portal_credentials")
+}
+
+model StudentPortalSession {
+  id         String                  @id @default(cuid())
+  studentId  String
+  tokenHash  String                  @unique
+  expiresAt  DateTime
+  createdAt  DateTime                @default(now())
+  lastUsedAt DateTime                @default(now())
+  credential StudentPortalCredential @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([expiresAt])
+  @@map("student_portal_sessions")
 }
 
 enum StudentPaymentStatus {
