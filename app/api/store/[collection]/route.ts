@@ -5,7 +5,6 @@ const collections = {
   "bm-coach-students": prisma.studentRecord,
   "bm-coach-payments": prisma.paymentRecord,
   "bm-coach-events": prisma.eventRecord,
-  "bm-coach-routines": prisma.routineRecord,
   "bm-coach-settings": prisma.coachSettingsRecord,
 };
 

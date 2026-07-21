@@ -90,3 +90,41 @@ export type PhysicalEvaluation = {
   backPhotoUrl: string;
   createdAt: string;
 };
+
+export type TrainingRoutineLevel = "principiante" | "intermedio" | "avanzado";
+export type TrainingRoutineStatus = "activa" | "archivada";
+export type TrainingEffortType = "RPE" | "RIR";
+
+export type TrainingExercise = {
+  id: string;
+  name: string;
+  muscleGroup: string;
+  sets: number;
+  repetitions: string;
+  weight: number | null;
+  effortType: TrainingEffortType;
+  effortValue: number | null;
+  restSeconds: number | null;
+  observations: string;
+  videoUrl: string;
+  order: number;
+};
+
+export type TrainingRoutineDay = {
+  id: string;
+  dayNumber: number;
+  exercises: TrainingExercise[];
+};
+
+export type TrainingRoutine = {
+  id: string;
+  name: string;
+  objective: string;
+  level: TrainingRoutineLevel;
+  status: TrainingRoutineStatus;
+  createdAt: string;
+  updatedAt: string;
+  studentIds: string[];
+  students: Array<{ id: string; name: string }>;
+  days: TrainingRoutineDay[];
+};

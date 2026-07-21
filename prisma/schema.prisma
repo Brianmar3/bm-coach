@@ -8,12 +8,13 @@ datasource db {
 }
 
 model StudentRecord {
-  id                  String               @id
+  id                  String                      @id
   data                Json
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
   payments            StudentPayment[]
   physicalEvaluations PhysicalEvaluation[]
+  routineAssignments  TrainingRoutineAssignment[]
 
   @@map("students")
 }
@@ -98,6 +99,83 @@ model RoutineRecord {
   updatedAt DateTime @updatedAt
 
   @@map("routines")
+}
+
+enum TrainingRoutineLevel {
+  PRINCIPIANTE
+  INTERMEDIO
+  AVANZADO
+}
+
+enum TrainingRoutineStatus {
+  ACTIVA
+  ARCHIVADA
+}
+
+enum TrainingEffortType {
+  RPE
+  RIR
+}
+
+model TrainingRoutine {
+  id          String                      @id @default(cuid())
+  name        String
+  objective   String
+  level       TrainingRoutineLevel
+  status      TrainingRoutineStatus       @default(ACTIVA)
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  days        TrainingRoutineDay[]
+  assignments TrainingRoutineAssignment[]
+
+  @@index([objective])
+  @@index([status])
+  @@map("training_routines")
+}
+
+model TrainingRoutineDay {
+  id        String                    @id @default(cuid())
+  routineId String
+  dayNumber Int
+  routine   TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercises TrainingRoutineExercise[]
+
+  @@unique([routineId, dayNumber])
+  @@map("training_routine_days")
+}
+
+model TrainingRoutineExercise {
+  id           String             @id @default(cuid())
+  dayId        String
+  name         String
+  muscleGroup  String
+  sets         Int
+  repetitions  String
+  weight       Decimal?           @db.Decimal(7, 2)
+  effortType   TrainingEffortType
+  effortValue  Decimal?           @db.Decimal(4, 1)
+  restSeconds  Int?
+  observations String             @default("")
+  videoUrl     String?
+  order        Int
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  day          TrainingRoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([dayId, order])
+  @@map("training_routine_exercises")
+}
+
+model TrainingRoutineAssignment {
+  routineId  String
+  studentId  String
+  assignedAt DateTime        @default(now())
+  routine    TrainingRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  student    StudentRecord   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([routineId, studentId])
+  @@index([studentId])
+  @@map("training_routine_assignments")
 }
 
 model EvaluationRecord {
