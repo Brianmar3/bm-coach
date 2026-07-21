@@ -1,32 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * Demo adapter. Its small surface lets a future API/Prisma adapter replace
- * browser storage without changing the modules' UI or their domain types.
+ * Prisma/PostgreSQL adapter. The UI remains optimistic while the server
+ * persists each collection through the production API.
  */
 export function useBrowserStore<T>(key: string, initialValue: T[]) {
   const [items, setItems] = useState<T[]>(initialValue);
   const [ready, setReady] = useState(false);
+  const initialItems = useRef(initialValue);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      try {
-        const saved = window.localStorage.getItem(key);
-        if (saved) setItems(JSON.parse(saved) as T[]);
-      } catch {
-        // An invalid saved value should never prevent the module from loading.
-      } finally {
-        setReady(true);
-      }
+      fetch(`/api/store/${encodeURIComponent(key)}`)
+        .then(async (response) => response.ok ? response.json() as Promise<T[]> : Promise.reject())
+        .then(setItems)
+        .catch(() => setItems(initialItems.current))
+        .finally(() => setReady(true));
     });
     return () => window.cancelAnimationFrame(frame);
   }, [key]);
 
   function save(next: T[]) {
     setItems(next);
-    window.localStorage.setItem(key, JSON.stringify(next));
+    void fetch(`/api/store/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: next }),
+    });
   }
 
   return { items, save, ready };

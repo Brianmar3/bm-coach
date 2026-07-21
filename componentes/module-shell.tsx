@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 export function ModuleShell({
@@ -17,9 +16,7 @@ export function ModuleShell({
       <div className="mx-auto max-w-7xl">
         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <Link href="/" className="text-sm font-bold uppercase tracking-[.2em] text-yellow-400">
-              BM Coach
-            </Link>
+            <p className="text-sm font-bold uppercase tracking-[.2em] text-yellow-400">Gestión BM Coach</p>
             <h1 className="mt-2 text-3xl font-bold">{title}</h1>
             <p className="mt-1 text-zinc-400">{subtitle}</p>
           </div>

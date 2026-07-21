@@ -6,6 +6,9 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:status": "prisma migrate status",
     "prisma:push": "prisma db push",
     "start": "next start",
     "lint": "eslint"

@@ -8,8 +8,8 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
   const { id } = await context.params;
   const payload = await request.json() as ClassPayload;
   if (!valid(payload)) return Response.json({ error: "Revisá los datos de la clase." }, { status: 400 });
-  const item = await prisma.classSession.update({ where: { id }, data: { ...payload, date: new Date(`${payload.date}T12:00:00.000Z`), students: JSON.stringify(payload.students) } });
-  return Response.json({ ...item, date: item.date.toISOString().slice(0, 10), students: JSON.parse(item.students) });
+  const item = await prisma.classSession.update({ where: { id }, data: { ...payload, date: new Date(`${payload.date}T12:00:00.000Z`), students: payload.students } });
+  return Response.json({ ...item, date: item.date.toISOString().slice(0, 10), students: item.students });
 }
 
 export async function DELETE(_request: Request, context: RouteContext<"/api/clases/[id]">) {

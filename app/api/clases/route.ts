@@ -20,8 +20,8 @@ function validate(payload: ClassPayload) {
   return null;
 }
 
-function serialize(item: { id: string; title: string; date: Date; startTime: string; endTime: string; location: string; capacity: number; status: string; description: string; students: string }) {
-  return { ...item, date: item.date.toISOString().slice(0, 10), students: JSON.parse(item.students) as string[] };
+function serialize(item: { id: string; title: string; date: Date; startTime: string; endTime: string; location: string; capacity: number; status: string; description: string; students: unknown }) {
+  return { ...item, date: item.date.toISOString().slice(0, 10), students: item.students as string[] };
 }
 
 export async function GET() {
@@ -33,6 +33,6 @@ export async function POST(request: Request) {
   const payload = await request.json() as ClassPayload;
   const error = validate(payload);
   if (error) return Response.json({ error }, { status: 400 });
-  const item = await prisma.classSession.create({ data: { ...payload, date: new Date(`${payload.date}T12:00:00.000Z`), students: JSON.stringify(payload.students) } });
+  const item = await prisma.classSession.create({ data: { ...payload, date: new Date(`${payload.date}T12:00:00.000Z`), students: payload.students } });
   return Response.json(serialize(item), { status: 201 });
 }
