@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type { Student, StudentStatus } from "@/types/gestion";
 
+export const runtime = "nodejs";
+
 type StudentInput = Omit<Student, "id">;
 
 function serialize(record: { id: string; data: Prisma.JsonValue }): Student {

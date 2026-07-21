@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type { Student, StudentStatus } from "@/types/gestion";
+
+export const runtime = "nodejs";
 
 type StudentInput = Omit<Student, "id">;
 
@@ -41,7 +44,7 @@ export async function POST(request: Request) {
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const record = await prisma.studentRecord.create({
-      data: { id: crypto.randomUUID(), data: input as Prisma.InputJsonValue },
+      data: { id: randomUUID(), data: input as Prisma.InputJsonValue },
     });
     return Response.json(serialize(record), { status: 201 });
   } catch (error) {
