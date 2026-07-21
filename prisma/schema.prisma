@@ -8,11 +8,12 @@ datasource db {
 }
 
 model StudentRecord {
-  id        String   @id
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  payments  StudentPayment[]
+  id                  String               @id
+  data                Json
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  payments            StudentPayment[]
+  physicalEvaluations PhysicalEvaluation[]
 
   @@map("students")
 }
@@ -25,18 +26,18 @@ enum StudentPaymentStatus {
 }
 
 model StudentPayment {
-  id          String               @id @default(cuid())
-  studentId   String
-  amount      Decimal              @db.Decimal(12, 2)
-  concept     String
-  dueDate     DateTime
-  paidDate    DateTime?
-  method      String
-  status      StudentPaymentStatus @default(PENDIENTE)
-  notes       String               @default("")
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  student     StudentRecord        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  id        String               @id @default(cuid())
+  studentId String
+  amount    Decimal              @db.Decimal(12, 2)
+  concept   String
+  dueDate   DateTime
+  paidDate  DateTime?
+  method    String
+  status    StudentPaymentStatus @default(PENDIENTE)
+  notes     String               @default("")
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  student   StudentRecord        @relation(fields: [studentId], references: [id], onDelete: Restrict)
 
   @@index([studentId])
   @@index([status, dueDate])
@@ -106,6 +107,36 @@ model EvaluationRecord {
   updatedAt DateTime @updatedAt
 
   @@map("evaluations")
+}
+
+model PhysicalEvaluation {
+  id                String        @id @default(cuid())
+  studentId         String
+  date              DateTime
+  weight            Decimal?      @db.Decimal(7, 2)
+  height            Decimal?      @db.Decimal(5, 2)
+  bodyFatPercentage Decimal?      @db.Decimal(5, 2)
+  muscleMass        Decimal?      @db.Decimal(7, 2)
+  visceralFat       Decimal?      @db.Decimal(5, 2)
+  waist             Decimal?      @db.Decimal(7, 2)
+  hip               Decimal?      @db.Decimal(7, 2)
+  chest             Decimal?      @db.Decimal(7, 2)
+  rightArm          Decimal?      @db.Decimal(7, 2)
+  leftArm           Decimal?      @db.Decimal(7, 2)
+  rightThigh        Decimal?      @db.Decimal(7, 2)
+  leftThigh         Decimal?      @db.Decimal(7, 2)
+  rightCalf         Decimal?      @db.Decimal(7, 2)
+  leftCalf          Decimal?      @db.Decimal(7, 2)
+  notes             String        @default("")
+  frontPhotoUrl     String?
+  sidePhotoUrl      String?
+  backPhotoUrl      String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  student           StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, date])
+  @@map("physical_evaluations")
 }
 
 model CoachSettingsRecord {

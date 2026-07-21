@@ -63,3 +63,30 @@ export type CoachEvent = {
   status: EventStatus;
   createdAt: string;
 };
+
+export type PhysicalEvaluation = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  date: string;
+  weight: number | null;
+  height: number | null;
+  bmi: number | null;
+  bodyFatPercentage: number | null;
+  muscleMass: number | null;
+  visceralFat: number | null;
+  waist: number | null;
+  hip: number | null;
+  chest: number | null;
+  rightArm: number | null;
+  leftArm: number | null;
+  rightThigh: number | null;
+  leftThigh: number | null;
+  rightCalf: number | null;
+  leftCalf: number | null;
+  notes: string;
+  frontPhotoUrl: string;
+  sidePhotoUrl: string;
+  backPhotoUrl: string;
+  createdAt: string;
+};
