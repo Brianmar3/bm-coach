@@ -1,38 +1,50 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { parseWeeklyClassInput, serializeWeeklyClass, studentsExist, weeklyClassInclude } from "@/lib/weekly-classes";
 
-type ClassPayload = {
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  location: string;
-  capacity: number;
-  status: string;
-  description: string;
-  students: string[];
-};
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function validate(payload: ClassPayload) {
-  if (!payload.title.trim() || !payload.date || !payload.startTime || !payload.endTime || !payload.location.trim()) return "Completá título, fecha, horario y ubicación.";
-  if (payload.endTime <= payload.startTime) return "La hora de finalización debe ser posterior al inicio.";
-  if (!Number.isInteger(payload.capacity) || payload.capacity < 1) return "La capacidad debe ser al menos 1.";
-  if (payload.students.length > payload.capacity) return "No podés asignar más alumnos que la capacidad de la clase.";
-  return null;
-}
+class UnknownStudentError extends Error {}
 
-function serialize(item: { id: string; title: string; date: Date; startTime: string; endTime: string; location: string; capacity: number; status: string; description: string; students: unknown }) {
-  return { ...item, date: item.date.toISOString().slice(0, 10), students: item.students as string[] };
+function databaseError(error: unknown) {
+  return error instanceof Prisma.PrismaClientInitializationError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
 }
 
 export async function GET() {
-  const items = await prisma.classSession.findMany({ orderBy: [{ date: "asc" }, { startTime: "asc" }] });
-  return Response.json(items.map(serialize));
+  try {
+    const schedules = await prisma.weeklyClassSchedule.findMany({
+      include: weeklyClassInclude,
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }, { classType: "asc" }],
+    });
+    return Response.json(schedules.map(serializeWeeklyClass));
+  } catch (error) {
+    console.error("Error al consultar horarios semanales", error);
+    return Response.json({ error: databaseError(error) ? "Neon no está disponible temporalmente." : "No se pudieron cargar los horarios semanales." }, { status: databaseError(error) ? 503 : 500 });
+  }
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json() as ClassPayload;
-  const error = validate(payload);
-  if (error) return Response.json({ error }, { status: 400 });
-  const item = await prisma.classSession.create({ data: { ...payload, date: new Date(`${payload.date}T12:00:00.000Z`), students: payload.students } });
-  return Response.json(serialize(item), { status: 201 });
+  try {
+    const parsed = parseWeeklyClassInput(await request.json());
+    if (!parsed.data) return Response.json({ error: parsed.error }, { status: 400 });
+    const { studentIds, ...scheduleData } = parsed.data;
+    const schedule = await prisma.$transaction(async (transaction) => {
+      if (!await studentsExist(transaction, studentIds)) throw new UnknownStudentError();
+      return transaction.weeklyClassSchedule.create({
+        data: {
+          ...scheduleData,
+          assignments: { create: studentIds.map((studentId) => ({ studentId })) },
+        },
+        include: weeklyClassInclude,
+      });
+    });
+    return Response.json(serializeWeeklyClass(schedule), { status: 201 });
+  } catch (error) {
+    console.error("Error al crear horario semanal", error);
+    if (error instanceof SyntaxError) return Response.json({ error: "El cuerpo de la solicitud no es válido." }, { status: 400 });
+    if (error instanceof UnknownStudentError) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 400 });
+    return Response.json({ error: databaseError(error) ? "Neon no está disponible temporalmente." : "No se pudo crear el horario semanal." }, { status: databaseError(error) ? 503 : 500 });
+  }
 }

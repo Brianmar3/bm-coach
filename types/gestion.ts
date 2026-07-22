@@ -20,6 +20,30 @@ export type Student = {
   notes: string;
 };
 
+export type WeeklyClassDay = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY";
+
+export type WeeklyClassStudent = {
+  id: string;
+  name: string;
+  status: StudentStatus;
+};
+
+export type WeeklyClassSchedule = {
+  id: string;
+  dayOfWeek: WeeklyClassDay;
+  startTime: string;
+  endTime: string;
+  classType: string;
+  capacity: number | null;
+  active: boolean;
+  studentIds: string[];
+  students: WeeklyClassStudent[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WeeklyClassInput = Omit<WeeklyClassSchedule, "id" | "students" | "createdAt" | "updatedAt">;
+
 export type CoachSettings = {
   systemName: string;
   coachName: string;

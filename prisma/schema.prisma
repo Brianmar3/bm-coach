@@ -15,6 +15,7 @@ model StudentRecord {
   payments            StudentPayment[]
   physicalEvaluations PhysicalEvaluation[]
   routineAssignments  TrainingRoutineAssignment[]
+  weeklyClasses       WeeklyClassAssignment[]
   portalCredential    StudentPortalCredential?
 
   @@map("students")
@@ -255,6 +256,43 @@ model CoachSettingsRecord {
   updatedAt DateTime @updatedAt
 
   @@map("coach_settings")
+}
+
+enum ClassWeekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+}
+
+model WeeklyClassSchedule {
+  id          String                  @id @default(cuid())
+  dayOfWeek   ClassWeekday
+  startTime   String
+  endTime     String
+  classType   String
+  capacity    Int?
+  active      Boolean                 @default(true)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  assignments WeeklyClassAssignment[]
+
+  @@index([dayOfWeek, startTime])
+  @@index([active])
+  @@map("weekly_class_schedules")
+}
+
+model WeeklyClassAssignment {
+  scheduleId String
+  studentId  String
+  assignedAt DateTime            @default(now())
+  schedule   WeeklyClassSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  student    StudentRecord       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([scheduleId, studentId])
+  @@index([studentId])
+  @@map("weekly_class_assignments")
 }
 
 model ClassSession {
