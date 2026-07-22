@@ -43,6 +43,10 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
     const record = await prisma.studentRecord.findUnique({ where: { id } });
     if (!record) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
     const student = record.data as unknown as Student;
+    const studentType = student.studentType ?? "Adulto";
+    const phone = student.phone?.trim() ?? "";
+    const hasPhone = Boolean(phone.replace(/\D/g, ""));
+    if (studentType === "Kids" && !hasPhone) return Response.json({ error: "Los alumnos Kids sin teléfono no tienen acceso al portal." }, { status: 400 });
     const username = await uniqueUsername(student, id);
     const password = temporaryPassword();
     const passwordHash = await hashPassword(password);

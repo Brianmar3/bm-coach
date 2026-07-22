@@ -39,7 +39,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
     const record = await prisma.$transaction(async (transaction) => {
       const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, primaryScheduleId: true } });
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
-      if (await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
+      if (normalizedPhone && await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
       const schedule = input.scheduleId
         ? await transaction.weeklyClassSchedule.findUnique({
             where: { id: input.scheduleId },
@@ -51,7 +51,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       if (input.scheduleId && schedule && schedule.assignments.length === 0 && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
       const updated = await transaction.studentRecord.update({
         where: { id },
-        data: { phoneNormalized: normalizedPhone, primaryScheduleId: input.scheduleId || null, data: studentJsonData(input) },
+        data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleId || null, data: studentJsonData(input) },
         include: studentInclude,
       });
       if (input.scheduleId && schedule) {

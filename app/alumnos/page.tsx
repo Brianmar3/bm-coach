@@ -19,15 +19,15 @@ function age(birthDate: string) { if (!birthDate) return "—"; const now = new 
 function bmi(weight: number, height: number) { return weight > 0 && height > 0 ? (weight / (height * height)).toFixed(1) : "—"; }
 async function responseError(response: Response, fallback: string) { try { return ((await response.json()) as { error?: string }).error ?? fallback; } catch { return fallback; } }
 
-function blank(options: EnrollmentOptions, previous?: Pick<StudentFormValue, "plan" | "joinedAt" | "scheduleId" | "status">): StudentFormValue {
+function blank(options: EnrollmentOptions, previous?: Pick<StudentFormValue, "plan" | "joinedAt" | "scheduleId" | "status" | "studentType" | "responsibleContact">): StudentFormValue {
   const joinedAt = previous?.joinedAt ?? todayKey();
   const plan = options.plans.find((item) => item.name === previous?.plan) ?? options.plans[0];
   const scheduleId = options.schedules.some((item) => item.id === previous?.scheduleId && item.active) ? previous!.scheduleId : options.schedules.find((item) => item.active && (item.capacity === null || item.assigned < item.capacity))?.id ?? "";
-  return { firstName: "", lastName: "", phone: "", email: "", birthDate: "", weight: 0, height: 0, goal: "", plan: plan?.name ?? "2 días por semana", monthlyFee: plan?.price ?? 0, joinedAt, dueDate: nextMonthlyDate(joinedAt), status: previous?.status ?? "activo", notes: "", scheduleId };
+  return { firstName: "", lastName: "", phone: "", email: "", birthDate: "", weight: 0, height: 0, goal: "", plan: plan?.name ?? "2 días por semana", monthlyFee: plan?.price ?? 0, joinedAt, dueDate: nextMonthlyDate(joinedAt), status: previous?.status ?? "activo", notes: "", studentType: previous?.studentType ?? "Adulto", responsibleContact: previous?.responsibleContact ?? "", scheduleId };
 }
 
 function editValue(student: Student): StudentFormValue {
-  return { firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, weight: student.weight, height: student.height, goal: student.goal, plan: student.plan, monthlyFee: student.monthlyFee, joinedAt: student.joinedAt, dueDate: student.dueDate, status: student.status, notes: student.notes, scheduleId: student.scheduleId ?? "" };
+  return { firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, weight: student.weight, height: student.height, goal: student.goal, plan: student.plan, monthlyFee: student.monthlyFee, joinedAt: student.joinedAt, dueDate: student.dueDate, status: student.status, notes: student.notes, studentType: student.studentType ?? "Adulto", responsibleContact: student.responsibleContact ?? "", scheduleId: student.scheduleId ?? "" };
 }
 
 export default function AlumnosPage() {
@@ -64,7 +64,9 @@ export default function AlumnosPage() {
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const addAnother = !editing && submitter?.value === "another";
     if (!form.firstName.trim() || !form.lastName.trim()) { setError("Ingresá nombre y apellido."); return; }
-    if (form.phone.replace(/\D/g, "").length < 6) { setError("Ingresá un teléfono válido de al menos 6 dígitos."); return; }
+    const phoneDigits = form.phone.replace(/\D/g, "");
+    if (form.studentType !== "Kids" && phoneDigits.length < 6) { setError("Ingresá un teléfono válido de al menos 6 dígitos."); return; }
+    if (form.studentType === "Kids" && phoneDigits && phoneDigits.length < 6) { setError("Ingresá un teléfono válido de al menos 6 dígitos."); return; }
     if (!form.plan || !form.joinedAt) { setError("Seleccioná plan y fecha de inicio."); return; }
     setSaving(true); setError(""); setNotice("");
     try {

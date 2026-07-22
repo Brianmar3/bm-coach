@@ -18,6 +18,8 @@ export type Student = {
   dueDate: string;
   status: StudentStatus;
   notes: string;
+  studentType?: "Adulto" | "Kids";
+  responsibleContact?: string;
   scheduleId?: string;
   scheduleLabel?: string;
 };

@@ -68,6 +68,8 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     dueDate: stored.dueDate ?? "",
     status: stored.status === "inactivo" ? "inactivo" : "activo",
     notes: stored.notes ?? "",
+    studentType: stored.studentType === "Kids" ? "Kids" : "Adulto",
+    responsibleContact: stored.responsibleContact ?? "",
     id: record.id,
     scheduleId: record.primaryScheduleId ?? "",
     scheduleLabel: record.primarySchedule ? weeklyScheduleLabel(record.primarySchedule) : "Sin horario principal",
@@ -82,6 +84,8 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const firstName = typeof input.firstName === "string" ? input.firstName.trim() : "";
   const lastName = typeof input.lastName === "string" ? input.lastName.trim() : "";
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
+  const studentType = typeof input.studentType === "string" && (input.studentType === "Adulto" || input.studentType === "Kids") ? input.studentType : "Adulto";
+  const responsibleContact = typeof input.responsibleContact === "string" ? input.responsibleContact.trim() : "";
   const joinedAt = typeof input.joinedAt === "string" ? input.joinedAt : "";
   const scheduleId = typeof input.scheduleId === "string" ? input.scheduleId : "";
   const status = input.status as StudentStatus;
@@ -89,7 +93,8 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const selectedPlan = plans.find((plan) => plan.days === requestedDays);
 
   if (!firstName || !lastName) return { data: null, error: "Ingresá nombre y apellido." };
-  if (!phone || normalizePhone(phone).length < 6) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
+  if (studentType === "Adulto" && (!phone || normalizePhone(phone).length < 6)) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
+  if (studentType === "Kids" && phone && normalizePhone(phone).length < 6) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (!selectedPlan) return { data: null, error: "Seleccioná un plan mensual de 2, 3, 4 o 5 días por semana." };
   if (!monthlyDueDate(joinedAt)) return { data: null, error: "Ingresá una fecha de inicio válida." };
   if (!(status === "activo" || status === "inactivo")) return { data: null, error: "Seleccioná un estado válido." };
@@ -117,6 +122,8 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       dueDate: monthlyDueDate(joinedAt),
       status,
       notes: typeof input.notes === "string" ? input.notes.trim() : "",
+      studentType,
+      responsibleContact,
       scheduleId,
     },
     error: null,
@@ -139,10 +146,13 @@ export function studentJsonData(input: ParsedStudentInput): Prisma.InputJsonObje
     dueDate: input.dueDate,
     status: input.status,
     notes: input.notes,
+    studentType: input.studentType,
+    responsibleContact: input.responsibleContact,
   };
 }
 
 export async function duplicatePhone(transaction: Prisma.TransactionClient, normalizedPhone: string, excludeId?: string) {
+  if (!normalizedPhone) return null;
   const records = await transaction.studentRecord.findMany({ where: excludeId ? { id: { not: excludeId } } : undefined, select: { id: true, phoneNormalized: true, data: true } });
   return records.find((record) => record.phoneNormalized === normalizedPhone || normalizePhone(((record.data as unknown as Partial<Student>).phone ?? "")) === normalizedPhone) ?? null;
 }
