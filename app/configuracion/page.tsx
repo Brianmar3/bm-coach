@@ -5,11 +5,12 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { useBrowserStore } from "@/lib/browser-store";
 import type { CoachSettings } from "@/types/gestion";
 
-const defaults: CoachSettings = { systemName: "BM Coach", coachName: "", phone: "", email: "", address: "", currency: "ARS", dueDay: 10, paymentMethods: ["Transferencia", "Efectivo"], plans: [], primaryColor: "#000000", accentColor: "#facc15", compactMode: false };
+const defaults: CoachSettings = { id: "main", systemName: "BM Coach", coachName: "", phone: "", email: "", address: "", currency: "ARS", dueDay: 10, paymentMethods: ["Transferencia", "Efectivo"], plans: [{ name: "2 días por semana", price: 0 }, { name: "3 días por semana", price: 0 }, { name: "4 días por semana", price: 0 }, { name: "5 días por semana", price: 0 }], primaryColor: "#000000", accentColor: "#facc15", compactMode: false };
 
 export default function ConfiguracionPage() {
   const { items, save, ready } = useBrowserStore<CoachSettings>("bm-coach-settings", []); const [settings, setSettings] = useState<CoachSettings | null>(null); const [saved, setSaved] = useState(false);
-  const value = settings ?? items[0] ?? defaults;
+  const stored = items[0];
+  const value = settings ?? (stored ? { ...stored, id: stored.id ?? "main", plans: stored.plans.length ? stored.plans : defaults.plans } : defaults);
   function update<K extends keyof CoachSettings>(key: K, next: CoachSettings[K]) { setSettings({ ...value, [key]: next }); setSaved(false); }
   function submit(event: FormEvent) { event.preventDefault(); save([value]); setSettings(value); setSaved(true); }
   function addPlan() { update("plans", [...value.plans, { name: "Nuevo plan", price: 0 }]); }

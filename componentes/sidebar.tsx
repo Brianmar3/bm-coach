@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const links = [
-  ["Dashboard", "/"], ["Alumnos", "/alumnos"], ["Rutinas", "/rutinas"], ["Clases", "/clases"], ["Evaluaciones", "/evaluaciones"], ["Pagos", "/pagos"], ["Eventos", "/eventos"], ["Configuración", "/configuracion"],
+  ["Dashboard", "/"], ["Alumnos", "/alumnos"], ["Rutinas", "/rutinas"], ["Clases", "/clases"], ["Asistencias", "/asistencias"], ["Evaluaciones", "/evaluaciones"], ["Pagos", "/pagos"], ["Eventos", "/eventos"], ["Configuración", "/configuracion"],
 ];
 
 export function Sidebar() {

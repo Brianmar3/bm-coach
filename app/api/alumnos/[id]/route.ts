@@ -1,50 +1,68 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
-import type { Student, StudentStatus } from "@/types/gestion";
+import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInput, serializeStudent, studentInclude, studentJsonData } from "@/lib/student-enrollment";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-type StudentInput = Omit<Student, "id">;
+class EnrollmentError extends Error {}
 
-function serialize(record: { id: string; data: Prisma.JsonValue }): Student {
-  return { ...(record.data as Omit<Student, "id">), id: record.id };
+function databaseUnavailable(error: unknown) {
+  return error instanceof Prisma.PrismaClientInitializationError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
 }
 
-function validate(input: StudentInput): string | null {
-  if (!input.firstName?.trim() || !input.lastName?.trim() || !input.phone?.trim()) return "Nombre, apellido y teléfono son obligatorios.";
-  if (!input.plan?.trim() || !input.joinedAt || !input.dueDate) return "Plan, fecha de ingreso y vencimiento son obligatorios.";
-  if (!Number.isFinite(input.monthlyFee) || input.monthlyFee < 0) return "El importe mensual no es válido.";
-  if (!(["activo", "inactivo"] satisfies StudentStatus[]).includes(input.status)) return "El estado no es válido.";
-  return null;
+function missingRecord(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
 }
 
 export async function GET(_request: Request, context: RouteContext<"/api/alumnos/[id]">) {
   try {
     const { id } = await context.params;
-    const record = await prisma.studentRecord.findUnique({ where: { id } });
+    const record = await prisma.studentRecord.findUnique({ where: { id }, include: studentInclude });
     if (!record) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
-    return Response.json(serialize(record));
+    return Response.json(serializeStudent(record));
   } catch (error) {
     console.error("Error al consultar alumno", error);
-    return Response.json({ error: "No se pudo cargar el alumno." }, { status: 500 });
+    return Response.json({ error: databaseUnavailable(error) ? "Neon no está disponible temporalmente." : "No se pudo cargar el alumno." }, { status: databaseUnavailable(error) ? 503 : 500 });
   }
 }
 
 export async function PUT(request: Request, context: RouteContext<"/api/alumnos/[id]">) {
   try {
     const { id } = await context.params;
-    const input = await request.json() as StudentInput;
-    const validationError = validate(input);
-    if (validationError) return Response.json({ error: validationError }, { status: 400 });
-
-    const record = await prisma.studentRecord.update({
-      where: { id },
-      data: { data: input as Prisma.InputJsonValue },
+    const plans = await getStudentPlanOptions();
+    const parsed = parseStudentInput(await request.json(), plans);
+    if (!parsed.data) return Response.json({ error: parsed.error }, { status: 400 });
+    const input = parsed.data;
+    const normalizedPhone = normalizePhone(input.phone);
+    const record = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, primaryScheduleId: true } });
+      if (!current) throw new EnrollmentError("Alumno no encontrado.");
+      if (await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
+      const schedule = await transaction.weeklyClassSchedule.findUnique({
+        where: { id: input.scheduleId },
+        select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { studentId: true } }, _count: { select: { assignments: true } } },
+      });
+      if (!schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
+      if (!schedule.active && current.primaryScheduleId !== schedule.id) throw new EnrollmentError("No podés asignar un horario inactivo como grupo principal.");
+      if (schedule.assignments.length === 0 && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
+      const updated = await transaction.studentRecord.update({
+        where: { id },
+        data: { phoneNormalized: normalizedPhone, primaryScheduleId: schedule.id, data: studentJsonData(input) },
+        include: studentInclude,
+      });
+      await transaction.weeklyClassAssignment.upsert({ where: { scheduleId_studentId: { scheduleId: schedule.id, studentId: id } }, create: { scheduleId: schedule.id, studentId: id }, update: {} });
+      return updated;
     });
-    return Response.json(serialize(record));
+    return Response.json(serializeStudent(record));
   } catch (error) {
     console.error("Error al actualizar alumno", error);
-    return Response.json({ error: "No se pudo actualizar el alumno." }, { status: 500 });
+    if (error instanceof SyntaxError) return Response.json({ error: "Los datos enviados no son válidos." }, { status: 400 });
+    if (error instanceof EnrollmentError) return Response.json({ error: error.message }, { status: error.message.includes("teléfono") ? 409 : error.message === "Alumno no encontrado." ? 404 : 400 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return Response.json({ error: "Ya existe otro alumno registrado con ese teléfono." }, { status: 409 });
+    if (missingRecord(error)) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
+    return Response.json({ error: databaseUnavailable(error) ? "Neon no está disponible temporalmente." : "No se pudo actualizar el alumno." }, { status: databaseUnavailable(error) ? 503 : 500 });
   }
 }
 
@@ -59,6 +77,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/alum
     return new Response(null, { status: 204 });
   } catch (error) {
     console.error("Error al eliminar alumno", error);
-    return Response.json({ error: "No se pudo eliminar el alumno." }, { status: 500 });
+    if (missingRecord(error)) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
+    return Response.json({ error: databaseUnavailable(error) ? "Neon no está disponible temporalmente." : "No se pudo eliminar el alumno porque tiene información relacionada." }, { status: databaseUnavailable(error) ? 503 : 409 });
   }
 }

@@ -9,6 +9,8 @@ datasource db {
 
 model StudentRecord {
   id                  String                      @id
+  phoneNormalized     String?                     @unique
+  primaryScheduleId   String?
   data                Json
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
@@ -16,8 +18,11 @@ model StudentRecord {
   physicalEvaluations PhysicalEvaluation[]
   routineAssignments  TrainingRoutineAssignment[]
   weeklyClasses       WeeklyClassAssignment[]
+  attendances         ClassAttendance[]
+  primarySchedule     WeeklyClassSchedule?        @relation("StudentPrimarySchedule", fields: [primaryScheduleId], references: [id], onDelete: SetNull)
   portalCredential    StudentPortalCredential?
 
+  @@index([primaryScheduleId])
   @@map("students")
 }
 
@@ -267,16 +272,18 @@ enum ClassWeekday {
 }
 
 model WeeklyClassSchedule {
-  id          String                  @id @default(cuid())
-  dayOfWeek   ClassWeekday
-  startTime   String
-  endTime     String
-  classType   String
-  capacity    Int?
-  active      Boolean                 @default(true)
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
-  assignments WeeklyClassAssignment[]
+  id              String                  @id @default(cuid())
+  dayOfWeek       ClassWeekday
+  startTime       String
+  endTime         String
+  classType       String
+  capacity        Int?
+  active          Boolean                 @default(true)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  assignments     WeeklyClassAssignment[]
+  attendances     ClassAttendance[]
+  primaryStudents StudentRecord[]         @relation("StudentPrimarySchedule")
 
   @@index([dayOfWeek, startTime])
   @@index([active])
@@ -293,6 +300,32 @@ model WeeklyClassAssignment {
   @@id([scheduleId, studentId])
   @@index([studentId])
   @@map("weekly_class_assignments")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  JUSTIFIED
+}
+
+model ClassAttendance {
+  id                String               @id @default(cuid())
+  scheduleId        String?
+  studentId         String
+  date              DateTime             @db.Date
+  status            AttendanceStatus
+  scheduleLabel     String
+  scheduleStartTime String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  schedule          WeeklyClassSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  student           StudentRecord        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, studentId, date])
+  @@index([date])
+  @@index([studentId, date])
+  @@index([status, date])
+  @@map("class_attendances")
 }
 
 model ClassSession {

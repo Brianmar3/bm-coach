@@ -18,6 +18,15 @@ export type Student = {
   dueDate: string;
   status: StudentStatus;
   notes: string;
+  scheduleId?: string;
+  scheduleLabel?: string;
+};
+
+export type StudentPlanOption = {
+  days: 2 | 3 | 4 | 5;
+  name: string;
+  price: number;
+  configured: boolean;
 };
 
 export type WeeklyClassDay = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY";
@@ -44,7 +53,55 @@ export type WeeklyClassSchedule = {
 
 export type WeeklyClassInput = Omit<WeeklyClassSchedule, "id" | "students" | "createdAt" | "updatedAt">;
 
+export type AttendanceStatus = "presente" | "ausente" | "justificado";
+
+export type AttendanceEntry = {
+  id: string;
+  date: string;
+  status: AttendanceStatus;
+  studentId: string;
+  studentName: string;
+  scheduleId: string;
+  scheduleLabel: string;
+  scheduleStartTime: string;
+  exceptional: boolean;
+};
+
+export type AttendanceRosterStudent = {
+  id: string;
+  name: string;
+  phone: string;
+  assigned: boolean;
+  status: AttendanceStatus | null;
+  attendanceId: string | null;
+};
+
+export type AttendanceRoster = {
+  date: string;
+  schedule: { id: string; label: string; startTime: string; endTime: string };
+  students: AttendanceRosterStudent[];
+};
+
+export type StudentAttendanceSummary = {
+  month: string;
+  attended: number;
+  absent: number;
+  justified: number;
+  percentage: number;
+  lastAttendanceDate: string | null;
+  history: AttendanceEntry[];
+};
+
+export type AttendanceGeneralSummary = {
+  date: string;
+  month: string;
+  today: { present: number; absent: number; justified: number; total: number };
+  monthlyPercentage: number;
+  recentAbsences: Array<{ studentId: string; studentName: string; count: number }>;
+};
+
 export type CoachSettings = {
+  id?: string;
   systemName: string;
   coachName: string;
   phone: string;

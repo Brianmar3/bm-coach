@@ -1,72 +1,57 @@
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import type { Student, StudentStatus } from "@/types/gestion";
+import { prisma } from "@/lib/prisma";
+import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInput, serializeStudent, studentInclude, studentJsonData } from "@/lib/student-enrollment";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-type StudentInput = Omit<Student, "id">;
+class EnrollmentError extends Error {}
 
-function serialize(record: { id: string; data: Prisma.JsonValue }): Student {
-  return { ...(record.data as Omit<Student, "id">), id: record.id };
-}
-
-function validate(input: StudentInput): string | null {
-  if (!input.firstName?.trim() || !input.lastName?.trim() || !input.phone?.trim()) {
-    return "Nombre, apellido y teléfono son obligatorios.";
-  }
-  if (!input.plan?.trim() || !input.joinedAt || !input.dueDate) {
-    return "Plan, fecha de ingreso y vencimiento son obligatorios.";
-  }
-  if (!Number.isFinite(input.monthlyFee) || input.monthlyFee < 0) {
-    return "El importe mensual no es válido.";
-  }
-  if (!(["activo", "inactivo"] satisfies StudentStatus[]).includes(input.status)) {
-    return "El estado no es válido.";
-  }
-  return null;
-}
-
-function isConnectionError(error: unknown) {
+function databaseUnavailable(error: unknown) {
   return error instanceof Prisma.PrismaClientInitializationError ||
     (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
 }
 
-async function createStudent(input: StudentInput) {
-  const data = { id: randomUUID(), data: input as Prisma.InputJsonValue };
-  try {
-    return await prisma.studentRecord.create({ data });
-  } catch (error) {
-    if (!isConnectionError(error)) throw error;
-    await new Promise((resolve) => setTimeout(resolve, 750));
-    await prisma.$connect();
-    return prisma.studentRecord.create({ data });
-  }
-}
-
 export async function GET() {
   try {
-    const records = await prisma.studentRecord.findMany({ orderBy: { updatedAt: "desc" } });
-    return Response.json(records.map(serialize));
+    const records = await prisma.studentRecord.findMany({ include: studentInclude, orderBy: { updatedAt: "desc" } });
+    return Response.json(records.map(serializeStudent));
   } catch (error) {
     console.error("Error al consultar alumnos", error);
-    return Response.json({ error: "No se pudieron cargar los alumnos." }, { status: 500 });
+    return Response.json({ error: databaseUnavailable(error) ? "Neon no está disponible temporalmente." : "No se pudieron cargar los alumnos." }, { status: databaseUnavailable(error) ? 503 : 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const input = await request.json() as StudentInput;
-    const validationError = validate(input);
-    if (validationError) return Response.json({ error: validationError }, { status: 400 });
-
-    const record = await createStudent(input);
-    return Response.json(serialize(record), { status: 201 });
+    const plans = await getStudentPlanOptions();
+    const parsed = parseStudentInput(await request.json(), plans);
+    if (!parsed.data) return Response.json({ error: parsed.error }, { status: 400 });
+    const input = parsed.data;
+    const normalizedPhone = normalizePhone(input.phone);
+    const record = await prisma.$transaction(async (transaction) => {
+      if (await duplicatePhone(transaction, normalizedPhone)) throw new EnrollmentError("Ya existe un alumno registrado con ese teléfono.");
+      const schedule = await transaction.weeklyClassSchedule.findUnique({
+        where: { id: input.scheduleId },
+        select: { id: true, active: true, capacity: true, _count: { select: { assignments: true } } },
+      });
+      if (!schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
+      if (!schedule.active) throw new EnrollmentError("Seleccioná un horario activo para el alta.");
+      if (schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
+      const created = await transaction.studentRecord.create({
+        data: { id: randomUUID(), phoneNormalized: normalizedPhone, primaryScheduleId: schedule.id, data: studentJsonData(input) },
+        include: studentInclude,
+      });
+      await transaction.weeklyClassAssignment.create({ data: { scheduleId: schedule.id, studentId: created.id } });
+      return created;
+    });
+    return Response.json(serializeStudent(record), { status: 201 });
   } catch (error) {
     console.error("Error al crear alumno", error);
-    if (isConnectionError(error)) {
-      return Response.json({ error: "La base de datos no está disponible temporalmente. Intentá nuevamente." }, { status: 503 });
-    }
-    return Response.json({ error: "No se pudo guardar el alumno." }, { status: 500 });
+    if (error instanceof SyntaxError) return Response.json({ error: "Los datos enviados no son válidos." }, { status: 400 });
+    if (error instanceof EnrollmentError) return Response.json({ error: error.message }, { status: error.message.includes("teléfono") ? 409 : 400 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return Response.json({ error: "Ya existe un alumno registrado con ese teléfono." }, { status: 409 });
+    return Response.json({ error: databaseUnavailable(error) ? "La base de datos no está disponible temporalmente." : "No se pudo guardar el alumno." }, { status: databaseUnavailable(error) ? 503 : 500 });
   }
 }
