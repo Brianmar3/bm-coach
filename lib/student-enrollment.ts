@@ -69,7 +69,9 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     status: stored.status === "inactivo" ? "inactivo" : "activo",
     notes: stored.notes ?? "",
     studentType: stored.studentType === "Kids" ? "Kids" : "Adulto",
-    responsibleContact: stored.responsibleContact ?? "",
+    responsibleName: typeof stored.responsibleName === "string" ? stored.responsibleName : "",
+    responsiblePhone: typeof stored.responsiblePhone === "string" ? stored.responsiblePhone : "",
+    responsibleRelation: typeof stored.responsibleRelation === "string" ? stored.responsibleRelation : "",
     id: record.id,
     scheduleId: record.primaryScheduleId ?? "",
     scheduleLabel: record.primarySchedule ? weeklyScheduleLabel(record.primarySchedule) : "Sin horario principal",
@@ -85,7 +87,9 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const lastName = typeof input.lastName === "string" ? input.lastName.trim() : "";
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
   const studentType = typeof input.studentType === "string" && (input.studentType === "Adulto" || input.studentType === "Kids") ? input.studentType : "Adulto";
-  const responsibleContact = typeof input.responsibleContact === "string" ? input.responsibleContact.trim() : "";
+  const responsibleName = typeof input.responsibleName === "string" ? input.responsibleName.trim() : "";
+  const responsiblePhone = typeof input.responsiblePhone === "string" ? input.responsiblePhone.trim() : "";
+  const responsibleRelation = typeof input.responsibleRelation === "string" ? input.responsibleRelation.trim() : "";
   const joinedAt = typeof input.joinedAt === "string" ? input.joinedAt : "";
   const scheduleId = typeof input.scheduleId === "string" ? input.scheduleId : "";
   const status = input.status as StudentStatus;
@@ -123,7 +127,9 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       status,
       notes: typeof input.notes === "string" ? input.notes.trim() : "",
       studentType,
-      responsibleContact,
+      responsibleName,
+      responsiblePhone,
+      responsibleRelation,
       scheduleId,
     },
     error: null,
@@ -147,7 +153,9 @@ export function studentJsonData(input: ParsedStudentInput): Prisma.InputJsonObje
     status: input.status,
     notes: input.notes,
     studentType: input.studentType,
-    responsibleContact: input.responsibleContact,
+    responsibleName: input.responsibleName,
+    responsiblePhone: input.responsiblePhone,
+    responsibleRelation: input.responsibleRelation,
   };
 }
 

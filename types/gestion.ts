@@ -19,7 +19,9 @@ export type Student = {
   status: StudentStatus;
   notes: string;
   studentType?: "Adulto" | "Kids";
-  responsibleContact?: string;
+  responsibleName?: string;
+  responsiblePhone?: string;
+  responsibleRelation?: string;
   scheduleId?: string;
   scheduleLabel?: string;
 };
