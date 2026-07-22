@@ -92,7 +92,6 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   if (!phone || normalizePhone(phone).length < 6) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (!selectedPlan) return { data: null, error: "Seleccioná un plan mensual de 2, 3, 4 o 5 días por semana." };
   if (!monthlyDueDate(joinedAt)) return { data: null, error: "Ingresá una fecha de inicio válida." };
-  if (!scheduleId) return { data: null, error: "Seleccioná un horario o grupo." };
   if (!(status === "activo" || status === "inactivo")) return { data: null, error: "Seleccioná un estado válido." };
 
   const weight = input.weight === "" || input.weight === undefined ? 0 : Number(input.weight);

@@ -18,7 +18,26 @@ export async function GET(request: Request) {
     const scheduleId = url.searchParams.get("scheduleId") ?? "";
     const dateValue = url.searchParams.get("date") ?? "";
     const date = attendanceDate(dateValue);
-    if (!scheduleId || !date) return Response.json({ error: "Seleccioná una fecha y un horario válidos." }, { status: 400 });
+    if (!date) return Response.json({ error: "Seleccioná una fecha válida." }, { status: 400 });
+
+    if (!scheduleId) {
+      const students = await prisma.studentRecord.findMany({ include: { primarySchedule: true }, orderBy: { updatedAt: "desc" } });
+      const activeStudents = students.filter((student) => (student.data as unknown as Partial<Student>).status === "activo");
+      const attendanceRecords = await prisma.classAttendance.findMany({ where: { date, scheduleId: null }, include: { student: true }, orderBy: { updatedAt: "desc" } });
+      const attendanceByStudent = new Map(attendanceRecords.map((attendance) => [attendance.studentId, attendance]));
+      const rosterStudents = activeStudents.map((student) => {
+        const data = student.data as unknown as Partial<Student>;
+        const attendance = attendanceByStudent.get(student.id);
+        return { id: student.id, name: studentName(student.data), phone: data.phone ?? "", assigned: false, status: attendance ? apiAttendanceStatus(attendance.status) : null, attendanceId: attendance?.id ?? null };
+      }).sort((left, right) => left.name.localeCompare(right.name, "es"));
+      const roster: AttendanceRoster = {
+        date: dateValue,
+        schedule: { id: "", label: "Sin horario", startTime: "", endTime: "" },
+        students: rosterStudents,
+      };
+      return Response.json(roster);
+    }
+
     const schedule = await prisma.weeklyClassSchedule.findUnique({
       where: { id: scheduleId },
       include: {
@@ -58,26 +77,41 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const body = await request.json() as { date?: string; scheduleId?: string; records?: Array<{ studentId?: string; status?: unknown }> };
+    const body = await request.json() as { date?: string; scheduleId?: string | null; records?: Array<{ studentId?: string; status?: unknown }> };
     const date = attendanceDate(body.date ?? "");
-    if (!date || !body.scheduleId || !Array.isArray(body.records) || body.records.length === 0) return Response.json({ error: "Seleccioná fecha, horario y al menos una asistencia." }, { status: 400 });
+    if (!date || !Array.isArray(body.records) || body.records.length === 0) return Response.json({ error: "Seleccioná fecha y al menos una asistencia." }, { status: 400 });
     const parsedRecords = body.records.map((record) => ({ studentId: record.studentId?.trim() ?? "", status: attendanceStatus(record.status) }));
     if (parsedRecords.some((record) => !record.studentId || !record.status)) return Response.json({ error: "Todos los registros deben tener alumno y estado válido." }, { status: 400 });
     if (new Set(parsedRecords.map((record) => record.studentId)).size !== parsedRecords.length) return Response.json({ error: "Un alumno no puede repetirse en la misma clase y fecha." }, { status: 400 });
 
     const result = await prisma.$transaction(async (transaction) => {
-      const schedule = await transaction.weeklyClassSchedule.findUnique({ where: { id: body.scheduleId }, select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true } });
-      if (!schedule) throw new Error("SCHEDULE_NOT_FOUND");
-      if (classDayForDate(date) !== schedule.dayOfWeek) throw new Error("DAY_MISMATCH");
+      const schedule = body.scheduleId
+        ? await transaction.weeklyClassSchedule.findUnique({ where: { id: body.scheduleId }, select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true } })
+        : null;
+      if (body.scheduleId && !schedule) throw new Error("SCHEDULE_NOT_FOUND");
+      if (body.scheduleId && schedule && classDayForDate(date) !== schedule.dayOfWeek) throw new Error("DAY_MISMATCH");
       const students = await transaction.studentRecord.findMany({ where: { id: { in: parsedRecords.map((record) => record.studentId) } }, select: { id: true } });
       if (students.length !== parsedRecords.length) throw new Error("STUDENT_NOT_FOUND");
-      const label = weeklyScheduleLabel(schedule);
+      const label = schedule ? weeklyScheduleLabel(schedule) : "Sin horario";
+      const startTime = schedule?.startTime ?? "";
       for (const record of parsedRecords) {
-        await transaction.classAttendance.upsert({
-          where: { scheduleId_studentId_date: { scheduleId: schedule.id, studentId: record.studentId, date } },
-          create: { scheduleId: schedule.id, studentId: record.studentId, date, status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: schedule.startTime },
-          update: { status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: schedule.startTime },
+        const existingAttendance = await transaction.classAttendance.findFirst({
+          where: {
+            studentId: record.studentId,
+            date,
+            ...(body.scheduleId ? { scheduleId: body.scheduleId } : { scheduleId: null }),
+          },
         });
+        if (existingAttendance) {
+          await transaction.classAttendance.update({
+            where: { id: existingAttendance.id },
+            data: { status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: startTime },
+          });
+        } else {
+          await transaction.classAttendance.create({
+            data: { scheduleId: body.scheduleId ?? null, studentId: record.studentId, date, status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: startTime },
+          });
+        }
       }
       return parsedRecords.length;
     });

@@ -32,18 +32,22 @@ export async function POST(request: Request) {
     const normalizedPhone = normalizePhone(input.phone);
     const record = await prisma.$transaction(async (transaction) => {
       if (await duplicatePhone(transaction, normalizedPhone)) throw new EnrollmentError("Ya existe un alumno registrado con ese teléfono.");
-      const schedule = await transaction.weeklyClassSchedule.findUnique({
-        where: { id: input.scheduleId },
-        select: { id: true, active: true, capacity: true, _count: { select: { assignments: true } } },
-      });
-      if (!schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
-      if (!schedule.active) throw new EnrollmentError("Seleccioná un horario activo para el alta.");
-      if (schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
+      const schedule = input.scheduleId
+        ? await transaction.weeklyClassSchedule.findUnique({
+            where: { id: input.scheduleId },
+            select: { id: true, active: true, capacity: true, _count: { select: { assignments: true } } },
+          })
+        : null;
+      if (input.scheduleId && !schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
+      if (input.scheduleId && schedule && !schedule.active) throw new EnrollmentError("Seleccioná un horario activo para el alta.");
+      if (input.scheduleId && schedule && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
       const created = await transaction.studentRecord.create({
-        data: { id: randomUUID(), phoneNormalized: normalizedPhone, primaryScheduleId: schedule.id, data: studentJsonData(input) },
+        data: { id: randomUUID(), phoneNormalized: normalizedPhone, primaryScheduleId: input.scheduleId || null, data: studentJsonData(input) },
         include: studentInclude,
       });
-      await transaction.weeklyClassAssignment.create({ data: { scheduleId: schedule.id, studentId: created.id } });
+      if (input.scheduleId && schedule) {
+        await transaction.weeklyClassAssignment.create({ data: { scheduleId: schedule.id, studentId: created.id } });
+      }
       return created;
     });
     return Response.json(serializeStudent(record), { status: 201 });

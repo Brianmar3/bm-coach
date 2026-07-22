@@ -40,19 +40,23 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, primaryScheduleId: true } });
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
       if (await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
-      const schedule = await transaction.weeklyClassSchedule.findUnique({
-        where: { id: input.scheduleId },
-        select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { studentId: true } }, _count: { select: { assignments: true } } },
-      });
-      if (!schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
-      if (!schedule.active && current.primaryScheduleId !== schedule.id) throw new EnrollmentError("No podés asignar un horario inactivo como grupo principal.");
-      if (schedule.assignments.length === 0 && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
+      const schedule = input.scheduleId
+        ? await transaction.weeklyClassSchedule.findUnique({
+            where: { id: input.scheduleId },
+            select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { studentId: true } }, _count: { select: { assignments: true } } },
+          })
+        : null;
+      if (input.scheduleId && !schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
+      if (input.scheduleId && schedule && !schedule.active && current.primaryScheduleId !== schedule.id) throw new EnrollmentError("No podés asignar un horario inactivo como grupo principal.");
+      if (input.scheduleId && schedule && schedule.assignments.length === 0 && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
       const updated = await transaction.studentRecord.update({
         where: { id },
-        data: { phoneNormalized: normalizedPhone, primaryScheduleId: schedule.id, data: studentJsonData(input) },
+        data: { phoneNormalized: normalizedPhone, primaryScheduleId: input.scheduleId || null, data: studentJsonData(input) },
         include: studentInclude,
       });
-      await transaction.weeklyClassAssignment.upsert({ where: { scheduleId_studentId: { scheduleId: schedule.id, studentId: id } }, create: { scheduleId: schedule.id, studentId: id }, update: {} });
+      if (input.scheduleId && schedule) {
+        await transaction.weeklyClassAssignment.upsert({ where: { scheduleId_studentId: { scheduleId: schedule.id, studentId: id } }, create: { scheduleId: schedule.id, studentId: id }, update: {} });
+      }
       return updated;
     });
     return Response.json(serializeStudent(record));
