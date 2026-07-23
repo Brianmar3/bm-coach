@@ -2,48 +2,205 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
-import type { Payment, PaymentStatus, Student } from "@/types/gestion";
+import { addMonthsToDateKey } from "@/lib/payment-dates";
+import type { PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
 
-type PaymentDraft = Omit<Payment, "id" | "student" | "createdAt">;
-const statuses: PaymentStatus[] = ["pagado", "pendiente", "vencido", "proximo_a_vencer"];
-const today = () => new Date().toISOString().slice(0, 10);
-const emptyPayment = (): PaymentDraft => ({ studentId: "", amount: 0, concept: "Cuota mensual", dueDate: today(), paidDate: today(), method: "Transferencia", status: "pagado", notes: "" });
-const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
-const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
-const label = (status: PaymentStatus) => status === "proximo_a_vencer" ? "Próximo a vencer" : status.charAt(0).toUpperCase() + status.slice(1);
+type AccountFilter = "TODOS" | PaymentStudentAccount["status"];
+type PaymentForm = { studentId: string; amount: number; paidDate: string; method: string; dueDate: string; notes: string };
+type CreatePaymentResponse = { dashboard: PaymentDashboard };
 
-async function responseError(response: Response, fallback: string) { try { return (await response.json() as { error?: string }).error ?? fallback; } catch { return fallback; } }
+const emptyDashboard: PaymentDashboard = {
+  asOf: "",
+  students: [],
+  summary: { collectedThisMonth: 0, overdueCount: 0, dueSoonCount: 0, currentCount: 0, unconfiguredCount: 0, estimatedOutstanding: 0 },
+};
+const filters: Array<{ value: AccountFilter; label: string }> = [
+  { value: "TODOS", label: "Todos" },
+  { value: "VENCIDA", label: "Vencidos" },
+  { value: "VENCE_PRONTO", label: "Vencen pronto" },
+  { value: "AL_DIA", label: "Al día" },
+  { value: "SIN_CONFIGURAR", label: "Sin configurar" },
+];
+const statusDetails = {
+  VENCIDA: { label: "Vencida", className: "border-red-400/30 bg-red-400/10 text-red-200" },
+  VENCE_PRONTO: { label: "Vence pronto", className: "border-orange-400/30 bg-orange-400/10 text-orange-200" },
+  AL_DIA: { label: "Al día", className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200" },
+  SIN_CONFIGURAR: { label: "Sin configurar", className: "border-zinc-600 bg-zinc-800 text-zinc-300" },
+} as const;
+
+function money(value: number) {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
+}
+function showDate(value: string) {
+  return value ? new Date(`${value}T12:00:00`).toLocaleDateString("es-AR") : "Sin definir";
+}
+function whatsappUrl(account: PaymentStudentAccount) {
+  const phone = account.phone.replace(/\D/g, "");
+  const greeting = `Hola ${account.student}, te recordamos que tu cuota de ${money(account.monthlyFee)} ${account.status === "VENCIDA" ? "está vencida" : `vence el ${showDate(account.nextDueDate)}`}.`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(greeting)}`;
+}
+async function responseError(response: Response, fallback: string) {
+  try { return ((await response.json()) as { error?: string }).error ?? fallback; } catch { return fallback; }
+}
 
 export default function PagosPage() {
-  const [items, setItems] = useState<Payment[]>([]); const [students, setStudents] = useState<Student[]>([]); const [ready, setReady] = useState(false); const [query, setQuery] = useState(""); const [filter, setFilter] = useState("todos"); const [form, setForm] = useState<PaymentDraft>(emptyPayment()); const [open, setOpen] = useState(false); const [editing, setEditing] = useState<Payment | null>(null); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
+  const [data, setData] = useState(emptyDashboard);
+  const [ready, setReady] = useState(false);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<AccountFilter>("TODOS");
+  const [form, setForm] = useState<PaymentForm | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [savingId, setSavingId] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch("/api/pagos", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los pagos.")); return response.json() as Promise<Payment[]>; }),
-      fetch("/api/alumnos", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los alumnos.")); return response.json() as Promise<Student[]>; }),
-    ]).then(([payments, realStudents]) => { setItems(payments); setStudents(realStudents); }).catch((loadError: Error) => { if (loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
+    fetch("/api/pagos", { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await responseError(response, "No se pudo cargar el panel de pagos."));
+        return response.json() as Promise<PaymentDashboard>;
+      })
+      .then(setData)
+      .catch((loadError: unknown) => {
+        if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message);
+      })
+      .finally(() => setReady(true));
     return () => controller.abort();
   }, []);
 
-  const visible = useMemo(() => items.filter((item) => item.student.toLowerCase().includes(query.toLowerCase()) && (filter === "todos" || item.status === filter)), [filter, items, query]);
-  const outstanding = items.filter((item) => item.status !== "pagado"); const upcoming = items.filter((item) => item.status === "proximo_a_vencer"); const paid = items.filter((item) => item.status === "pagado");
+  const visible = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("es");
+    return data.students.filter((account) =>
+      (!normalized || `${account.student} ${account.plan}`.toLocaleLowerCase("es").includes(normalized)) &&
+      (filter === "TODOS" || account.status === filter),
+    );
+  }, [data.students, filter, query]);
 
-  function selectStudent(studentId: string) { const student = students.find((item) => item.id === studentId); setForm((current) => ({ ...current, studentId, amount: student?.monthlyFee ?? current.amount, concept: student?.plan || current.concept, dueDate: student?.dueDate || current.dueDate })); }
-  function begin(payment?: Payment) { if (!payment && students.length === 0) { setError("Primero necesitás crear un alumno real para registrar un pago."); return; } setEditing(payment ?? null); if (payment) setForm({ studentId: payment.studentId, amount: payment.amount, concept: payment.concept, dueDate: payment.dueDate, paidDate: payment.paidDate, method: payment.method, status: payment.status, notes: payment.notes }); else { const first = students[0]; setForm({ ...emptyPayment(), studentId: first.id, amount: first.monthlyFee, concept: first.plan, dueDate: first.dueDate || today() }); } setError(""); setOpen(true); }
+  function begin(account: PaymentStudentAccount) {
+    const paidDate = data.asOf;
+    setForm({
+      studentId: account.studentId,
+      amount: account.monthlyFee,
+      paidDate,
+      method: "Transferencia",
+      dueDate: addMonthsToDateKey(account.nextDueDate || paidDate),
+      notes: "",
+    });
+    setError("");
+    setNotice("");
+  }
 
-  async function submit(event: FormEvent) { event.preventDefault(); if (!form.studentId || form.amount <= 0 || !form.concept.trim() || !form.dueDate || !form.method.trim() || (form.status === "pagado" && !form.paidDate)) { setError("Completá alumno, importe, concepto, vencimiento, estado y método de pago."); return; } setSaving(true); setError(""); try { const response = await fetch(editing ? `/api/pagos/${editing.id}` : "/api/pagos", { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }); if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar el pago.")); const saved = await response.json() as Payment; setItems((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]); setOpen(false); } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "No se pudo guardar el pago."); } finally { setSaving(false); } }
-  async function markPaid(payment: Payment) { setError(""); try { const response = await fetch(`/api/pagos/${payment.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "pagado", paidDate: today() }) }); if (!response.ok) throw new Error(await responseError(response, "No se pudo marcar el pago.")); const updated = await response.json() as Payment; setItems((current) => current.map((item) => item.id === updated.id ? updated : item)); } catch (markError) { setError(markError instanceof Error ? markError.message : "No se pudo marcar el pago."); } }
-  async function remove(payment: Payment) { if (!window.confirm(`¿Eliminar el pago de ${payment.student}?`)) return; setError(""); try { const response = await fetch(`/api/pagos/${payment.id}`, { method: "DELETE" }); if (!response.ok) throw new Error(await responseError(response, "No se pudo eliminar el pago.")); setItems((current) => current.filter((item) => item.id !== payment.id)); } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el pago."); } }
+  async function createPayment(account: PaymentStudentAccount, payment: PaymentForm) {
+    setSavingId(account.studentId);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/pagos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payment),
+      });
+      if (!response.ok) throw new Error(await responseError(response, "No se pudo registrar el pago."));
+      const saved = await response.json() as CreatePaymentResponse;
+      setData(saved.dashboard);
+      setForm(null);
+      setNotice(`Pago de ${account.student} registrado correctamente.`);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "No se pudo registrar el pago.");
+    } finally {
+      setSavingId("");
+    }
+  }
 
-  return <ModuleShell title="Pagos" subtitle="Cobrá cuotas en segundos y detectá vencimientos a tiempo." action={<button onClick={() => begin()} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950">+ Registrar pago</button>}>
-    {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
-    <section className="grid gap-4 md:grid-cols-3"><Notice title="Deben pagar" value={outstanding.length} detail={outstanding.length ? [...new Set(outstanding.map((item) => item.student))].join(" · ") : "Todos están al día"} tone="red" /><Notice title="Pagos registrados" value={paid.length} detail={money(paid.reduce((sum, item) => sum + item.amount, 0))} tone="green" /><Notice title="Vencen esta semana" value={upcoming.length} detail={upcoming.length ? upcoming.map((item) => item.student).join(" · ") : "Sin próximos vencimientos"} tone="yellow" /></section>
-    <section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900"><div className="flex flex-col gap-3 border-b border-zinc-800 p-4 md:flex-row"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alumno" className={inputClass} /><div className="flex flex-wrap gap-2">{["todos", ...statuses].map((status) => <button key={status} onClick={() => setFilter(status)} className={`rounded-lg px-3 py-2 text-sm ${filter === status ? "bg-yellow-400 font-bold text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}>{status === "todos" ? "Todos" : label(status as PaymentStatus)}</button>)}</div></div><div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-4">Alumno</th><th>Importe</th><th>Fecha</th><th>Vencimiento</th><th>Método</th><th>Estado</th><th>Observaciones</th><th aria-label="Acciones" /></tr></thead><tbody>{!ready ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">Cargando pagos…</td></tr> : visible.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">No hay pagos que coincidan con los filtros.</td></tr> : visible.map((item) => <tr key={item.id} className="border-t border-zinc-800"><td className="p-4 font-medium">{item.student}<span className="block text-xs font-normal text-zinc-500">{item.concept}</span></td><td className="font-semibold">{money(item.amount)}</td><td>{date(item.paidDate || item.createdAt)}</td><td>{date(item.dueDate)}</td><td>{item.method}</td><td><Status status={item.status} /></td><td className="max-w-48 truncate text-zinc-400">{item.notes || "—"}</td><td className="space-x-3 whitespace-nowrap pr-4 text-yellow-400">{item.status !== "pagado" && <button onClick={() => markPaid(item)}>Marcar pagado</button>}<button onClick={() => begin(item)}>Editar</button><button onClick={() => remove(item)} className="text-red-300">Eliminar</button></td></tr>)}</tbody></table></div></section>
-    {open && <PaymentModal form={form} students={students} selectStudent={selectStudent} setForm={setForm} error={error} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving} />}
+  async function paidToday(account: PaymentStudentAccount) {
+    if (!window.confirm(`¿Registrar el pago de ${money(account.monthlyFee)} de ${account.student} hoy?`)) return;
+    const paidDate = data.asOf;
+    await createPayment(account, {
+      studentId: account.studentId,
+      amount: account.monthlyFee,
+      paidDate,
+      method: "Transferencia",
+      dueDate: addMonthsToDateKey(account.nextDueDate || paidDate),
+      notes: "Registro rápido: Pagó hoy",
+    });
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!form) return;
+    const account = data.students.find((item) => item.studentId === form.studentId);
+    if (!account) { setError("El alumno ya no está disponible."); return; }
+    await createPayment(account, form);
+  }
+
+  const summary = data.summary;
+  return <ModuleShell title="Pagos" subtitle="Estado de cuotas y cobros rápidos desde el celular." action={null}>
+    {(error || notice) && !form && <p role={error ? "alert" : "status"} className={`mb-5 rounded-xl border p-4 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
+
+    <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <Summary label="Cobrado este mes" value={money(summary.collectedThisMonth)} tone="green" wide />
+      <Summary label="Vencidos" value={String(summary.overdueCount)} tone="red" />
+      <Summary label="Vencen pronto" value={String(summary.dueSoonCount)} tone="orange" />
+      <Summary label="Al día" value={String(summary.currentCount)} tone="green" />
+      <Summary label="Pendiente estimado" value={money(summary.estimatedOutstanding)} tone="yellow" wide />
+    </section>
+
+    <section className="mt-5 space-y-3">
+      <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alumno o plan" className={inputClass} />
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {filters.map((item) => <button key={item.value} onClick={() => setFilter(item.value)} className={`shrink-0 rounded-xl px-4 py-3 text-sm font-semibold ${filter === item.value ? "bg-yellow-400 text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}>{item.label}</button>)}
+      </div>
+    </section>
+
+    <section className="mt-5 grid gap-4 lg:grid-cols-2">
+      {!ready ? <p className="rounded-2xl bg-zinc-900 p-10 text-center text-zinc-500 lg:col-span-2">Cargando cuotas…</p>
+        : visible.length === 0 ? <p className="rounded-2xl bg-zinc-900 p-10 text-center text-zinc-500 lg:col-span-2">No hay alumnos que coincidan con el filtro.</p>
+        : visible.map((account) => <AccountCard key={account.studentId} account={account} saving={savingId === account.studentId} begin={() => begin(account)} paidToday={() => paidToday(account)} />)}
+    </section>
+
+    {form && <PaymentModal form={form} account={data.students.find((item) => item.studentId === form.studentId)!} setForm={setForm} error={error} saving={Boolean(savingId)} close={() => { setForm(null); setError(""); }} submit={submit} />}
   </ModuleShell>;
 }
 
-function Notice({ title, value, detail, tone }: { title: string; value: number; detail: string; tone: "red" | "green" | "yellow" }) { const color = tone === "red" ? "text-red-300" : tone === "green" ? "text-emerald-300" : "text-yellow-300"; return <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><p className="text-sm text-zinc-400">{title}</p><p className={`mt-1 text-3xl font-bold ${color}`}>{value}</p><p className="mt-2 text-xs text-zinc-500">{detail}</p></div>; }
-function Status({ status }: { status: PaymentStatus }) { const tone = status === "pagado" ? "bg-emerald-400/15 text-emerald-300" : status === "vencido" ? "bg-red-400/15 text-red-300" : status === "proximo_a_vencer" ? "bg-orange-400/15 text-orange-300" : "bg-yellow-400/15 text-yellow-300"; return <span className={`rounded-full px-2 py-1 text-xs font-bold ${tone}`}>{label(status)}</span>; }
-function PaymentModal({ form, students, selectStudent, setForm, error, close, submit, editing, saving }: { form: PaymentDraft; students: Student[]; selectStudent: (id: string) => void; setForm: (form: PaymentDraft) => void; error: string; close: () => void; submit: (event: FormEvent) => void; editing: boolean; saving: boolean }) { return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><form onSubmit={submit} className="mx-auto my-8 w-full max-w-2xl rounded-2xl bg-zinc-900 p-6 text-white"><div className="flex justify-between"><h2 className="text-xl font-bold">{editing ? "Editar pago" : "Registrar pago"}</h2><button type="button" onClick={close} className="text-zinc-400">Cerrar</button></div><p className="mt-2 text-sm text-zinc-400">Elegí el alumno: su plan completa el importe, que podés editar.</p>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}<div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="sm:col-span-2">Alumno<select required value={form.studentId} onChange={(event) => selectStudent(event.target.value)} className={`${inputClass} mt-1`}>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName} · {student.plan}</option>)}</select></label><label>Concepto<input required value={form.concept} onChange={(event) => setForm({ ...form, concept: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Importe<input required type="number" min="1" step="0.01" value={form.amount || ""} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} className={`${inputClass} mt-1`} /></label><label>Estado<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as PaymentStatus, paidDate: event.target.value === "pagado" ? form.paidDate || today() : "" })} className={`${inputClass} mt-1`}>{statuses.map((status) => <option key={status} value={status}>{label(status)}</option>)}</select></label><label>Método<select value={form.method} onChange={(event) => setForm({ ...form, method: event.target.value })} className={`${inputClass} mt-1`}><option>Transferencia</option><option>Efectivo</option><option>Mercado Pago</option><option>Tarjeta</option></select></label><label>Vencimiento<input required type="date" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Fecha de pago<input type="date" disabled={form.status !== "pagado"} value={form.paidDate} onChange={(event) => setForm({ ...form, paidDate: event.target.value })} className={`${inputClass} mt-1 disabled:opacity-50`} /></label><label className="sm:col-span-2">Observaciones<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} className={`${inputClass} mt-1`} /></label></div><button disabled={saving} className="mt-6 w-full rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 disabled:opacity-60">{saving ? "Guardando…" : "Guardar pago"}</button></form></div>; }
+function Summary({ label, value, tone, wide = false }: { label: string; value: string; tone: "red" | "orange" | "green" | "yellow"; wide?: boolean }) {
+  const color = { red: "text-red-300", orange: "text-orange-300", green: "text-emerald-300", yellow: "text-yellow-300" }[tone];
+  return <div className={`rounded-2xl border border-zinc-800 bg-zinc-900 p-4 ${wide ? "col-span-2 lg:col-span-1" : ""}`}><p className="text-xs text-zinc-500">{label}</p><p className={`mt-1 text-xl font-bold sm:text-2xl ${color}`}>{value}</p></div>;
+}
+
+function AccountCard({ account, saving, begin, paidToday }: { account: PaymentStudentAccount; saving: boolean; begin: () => void; paidToday: () => void }) {
+  const status = statusDetails[account.status];
+  const canMessage = Boolean(account.phone) && (account.status === "VENCIDA" || account.status === "VENCE_PRONTO");
+  return <article className={`rounded-2xl border p-4 shadow-lg ${status.className}`}>
+    <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-white">{account.student}</h2><p className="mt-1 text-sm text-zinc-400">{account.plan}</p></div><span className="shrink-0 rounded-full bg-black/25 px-3 py-1 text-xs font-bold">{status.label}</span></div>
+    <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-black/20 p-3 text-sm">
+      <Info label="Cuota mensual" value={money(account.monthlyFee)} />
+      <Info label="Próximo vencimiento" value={showDate(account.nextDueDate)} />
+      <Info label="Último pago" value={showDate(account.lastPaymentDate)} />
+      <Info label="Importe último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} />
+    </div>
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      <button onClick={begin} disabled={saving} className="rounded-xl border border-yellow-400/60 px-3 py-3 font-bold text-yellow-300 disabled:opacity-50">Registrar pago</button>
+      <button onClick={paidToday} disabled={saving || account.monthlyFee <= 0} className="rounded-xl bg-yellow-400 px-3 py-3 font-bold text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Pagó hoy"}</button>
+      {canMessage && <a href={whatsappUrl(account)} target="_blank" rel="noreferrer" className="col-span-2 rounded-xl border border-emerald-400/50 px-3 py-3 text-center font-bold text-emerald-300">Abrir WhatsApp</a>}
+    </div>
+  </article>;
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 font-semibold text-zinc-100">{value}</p></div>;
+}
+
+function PaymentModal({ form, account, setForm, error, saving, close, submit }: { form: PaymentForm; account: PaymentStudentAccount; setForm: (form: PaymentForm) => void; error: string; saving: boolean; close: () => void; submit: (event: FormEvent<HTMLFormElement>) => void }) {
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3"><form onSubmit={submit} className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10 sm:p-6">
+    <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-yellow-400">Registrar pago</p><h2 className="mt-1 text-xl font-bold">{account.student}</h2><p className="mt-1 text-sm text-zinc-400">{account.plan}</p></div><button type="button" onClick={close} disabled={saving} className="p-2 text-zinc-400">Cerrar</button></div>
+    {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
+    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <label className="text-sm">Importe<input required type="number" min="1" step="0.01" inputMode="decimal" value={form.amount || ""} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} className={`${inputClass} mt-1`} /></label>
+      <label className="text-sm">Fecha de pago<input required type="date" value={form.paidDate} onChange={(event) => setForm({ ...form, paidDate: event.target.value })} className={`${inputClass} mt-1`} /></label>
+      <label className="text-sm">Medio de pago<select value={form.method} onChange={(event) => setForm({ ...form, method: event.target.value })} className={`${inputClass} mt-1`}><option>Transferencia</option><option>Efectivo</option><option>Mercado Pago</option><option>Tarjeta</option></select></label>
+      <label className="text-sm">Próximo vencimiento<input required type="date" value={form.dueDate} onChange={(event) => setForm({ ...form, dueDate: event.target.value })} className={`${inputClass} mt-1`} /></label>
+      <label className="text-sm sm:col-span-2">Observaciones<textarea rows={2} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className={`${inputClass} mt-1`} /></label>
+    </div>
+    <button disabled={saving} className="mt-6 w-full rounded-xl bg-yellow-400 px-5 py-4 font-bold text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : `Registrar ${money(form.amount)}`}</button>
+  </form></div>;
+}
