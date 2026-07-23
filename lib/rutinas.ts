@@ -1,8 +1,8 @@
 import { Prisma } from "@prisma/client";
 import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
-export type ExerciseInput = Omit<TrainingExercise, "id">;
-export type RoutineDayInput = { dayNumber: number; exercises: ExerciseInput[] };
+export type ExerciseInput = Omit<TrainingExercise, "id"> & { id?: string };
+export type RoutineDayInput = { id?: string; dayNumber: number; exercises: ExerciseInput[] };
 export type RoutineInput = {
   name: string;
   objective: string;
@@ -13,7 +13,7 @@ export type RoutineInput = {
 };
 
 export const routineInclude = {
-  days: { include: { exercises: { orderBy: { order: "asc" as const } } }, orderBy: { dayNumber: "asc" as const } },
+  days: { where: { active: true }, include: { exercises: { where: { active: true }, orderBy: { order: "asc" as const } } }, orderBy: { dayNumber: "asc" as const } },
   assignments: { include: { student: true } },
 };
 

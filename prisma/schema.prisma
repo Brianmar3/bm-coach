@@ -180,8 +180,11 @@ model TrainingRoutineDay {
   routine   TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises TrainingRoutineExercise[]
   workoutSessions WorkoutSession[]
+  active      Boolean                   @default(true)
+  archivedAt  DateTime?
 
   @@unique([routineId, dayNumber])
+  @@index([routineId, active])
   @@map("training_routine_days")
 }
 
@@ -204,8 +207,11 @@ model TrainingRoutineExercise {
   day          TrainingRoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
   workoutLogs  WorkoutExerciseLog[]
   followUpComments FollowUpComment[]
+  active       Boolean            @default(true)
+  archivedAt   DateTime?
 
   @@index([dayId, order])
+  @@index([dayId, active])
   @@map("training_routine_exercises")
 }
 

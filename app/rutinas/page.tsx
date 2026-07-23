@@ -5,8 +5,8 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
-type ExerciseDraft = Omit<TrainingExercise, "id"> & { clientId: string };
-type DayDraft = { dayNumber: number; exercises: ExerciseDraft[] };
+type ExerciseDraft = Omit<TrainingExercise, "id"> & { id?: string; clientId: string };
+type DayDraft = { id?: string; dayNumber: number; exercises: ExerciseDraft[] };
 type RoutineDraft = { name: string; objective: string; level: TrainingRoutineLevel; status: TrainingRoutineStatus; studentIds: string[]; days: DayDraft[] };
 
 const objectives = ["Hipertrofia", "Fuerza", "Descenso de grasa", "Rehabilitación", "Funcional", "Resistencia", "Movilidad"];
@@ -31,7 +31,7 @@ function routineDraft(routine: TrainingRoutine): RoutineDraft {
     studentIds: routine.studentIds,
     days: Array.from({ length: 7 }, (_, index) => {
       const stored = routine.days.find((day) => day.dayNumber === index + 1);
-      return { dayNumber: index + 1, exercises: (stored?.exercises ?? []).map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })) };
+      return { id: stored?.id, dayNumber: index + 1, exercises: (stored?.exercises ?? []).map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })) };
     }),
   };
 }
@@ -95,7 +95,7 @@ export default function RutinasPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!form.name.trim() || !form.objective.trim() || form.studentIds.length === 0) { setError("Completá nombre, objetivo y al menos un alumno."); return; }
-    const payload = { ...form, days: form.days.map((day) => ({ dayNumber: day.dayNumber, exercises: [...day.exercises].sort((a, b) => a.order - b.order).map((exercise, index) => ({ name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets, repetitions: exercise.repetitions, weight: exercise.weight, effortType: exercise.effortType, effortValue: exercise.effortValue, restSeconds: exercise.restSeconds, observations: exercise.observations, videoUrl: exercise.videoUrl, order: index + 1 })) })) };
+    const payload = { ...form, days: form.days.map((day) => ({ id: day.id, dayNumber: day.dayNumber, exercises: [...day.exercises].sort((a, b) => a.order - b.order).map((exercise, index) => ({ id: exercise.id, name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets, repetitions: exercise.repetitions, weight: exercise.weight, effortType: exercise.effortType, effortValue: exercise.effortValue, restSeconds: exercise.restSeconds, observations: exercise.observations, videoUrl: exercise.videoUrl, order: index + 1 })) })) };
     setSaving(true); setError("");
     try {
       const response = await fetch(editing ? `/api/rutinas/${editing.id}` : "/api/rutinas", { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
