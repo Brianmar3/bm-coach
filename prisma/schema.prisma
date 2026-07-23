@@ -21,6 +21,8 @@ model StudentRecord {
   attendances         ClassAttendance[]
   primarySchedule     WeeklyClassSchedule?        @relation("StudentPrimarySchedule", fields: [primaryScheduleId], references: [id], onDelete: SetNull)
   portalCredential    StudentPortalCredential?
+  workoutSessions     WorkoutSession[]
+  followUpComments    FollowUpComment[]
 
   @@index([primaryScheduleId])
   @@map("students")
@@ -164,6 +166,7 @@ model TrainingRoutine {
   updatedAt   DateTime                    @updatedAt
   days        TrainingRoutineDay[]
   assignments TrainingRoutineAssignment[]
+  workoutSessions WorkoutSession[]
 
   @@index([objective])
   @@index([status])
@@ -176,6 +179,7 @@ model TrainingRoutineDay {
   dayNumber Int
   routine   TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises TrainingRoutineExercise[]
+  workoutSessions WorkoutSession[]
 
   @@unique([routineId, dayNumber])
   @@map("training_routine_days")
@@ -198,6 +202,8 @@ model TrainingRoutineExercise {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   day          TrainingRoutineDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  workoutLogs  WorkoutExerciseLog[]
+  followUpComments FollowUpComment[]
 
   @@index([dayId, order])
   @@map("training_routine_exercises")
@@ -249,9 +255,127 @@ model PhysicalEvaluation {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   student           StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  followUpComments  FollowUpComment[]
 
   @@index([studentId, date])
   @@map("physical_evaluations")
+}
+
+enum WorkoutSessionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+model WorkoutSession {
+  id            String               @id @default(cuid())
+  studentId     String
+  routineId     String
+  dayId         String
+  date          DateTime             @db.Date
+  startTime     String
+  durationMinutes Int?
+  energyBefore  Int?
+  difficulty    Int?
+  energyAfter   Int?
+  finalComment  String               @default("")
+  hasPain       Boolean              @default(false)
+  painDetails   String               @default("")
+  status        WorkoutSessionStatus @default(PENDING)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  student       StudentRecord        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  routine       TrainingRoutine      @relation(fields: [routineId], references: [id], onDelete: Restrict)
+  day           TrainingRoutineDay   @relation(fields: [dayId], references: [id], onDelete: Restrict)
+  exercises     WorkoutExerciseLog[]
+  comments      FollowUpComment[]
+
+  @@index([studentId, date])
+  @@index([status, updatedAt])
+  @@map("workout_sessions")
+}
+
+model WorkoutExerciseLog {
+  id          String                  @id @default(cuid())
+  sessionId   String
+  exerciseId  String
+  observation String                  @default("")
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  session     WorkoutSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise    TrainingRoutineExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sets        WorkoutSetLog[]
+
+  @@unique([sessionId, exerciseId])
+  @@index([exerciseId, updatedAt])
+  @@map("workout_exercise_logs")
+}
+
+model WorkoutSetLog {
+  id            String             @id @default(cuid())
+  exerciseLogId String
+  setNumber     Int
+  weight        Decimal?           @db.Decimal(7, 2)
+  repetitions   Int?
+  effort        Decimal?           @db.Decimal(4, 1)
+  completed     Boolean            @default(false)
+  observation   String             @default("")
+  exerciseLog   WorkoutExerciseLog @relation(fields: [exerciseLogId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseLogId, setNumber])
+  @@map("workout_set_logs")
+}
+
+enum FollowUpAuthor {
+  STUDENT
+  COACH
+}
+
+enum FollowUpContext {
+  SESSION
+  EXERCISE
+  EVALUATION
+  GENERAL
+}
+
+enum FollowUpCategory {
+  QUESTION
+  DIFFICULTY
+  PAIN
+  FEEDBACK
+}
+
+enum FollowUpStatus {
+  PENDING
+  REVIEWED
+}
+
+model FollowUpComment {
+  id           String           @id @default(cuid())
+  studentId    String
+  author       FollowUpAuthor
+  context      FollowUpContext
+  category     FollowUpCategory
+  status       FollowUpStatus   @default(PENDING)
+  body         String
+  private      Boolean          @default(false)
+  sessionId    String?
+  exerciseId   String?
+  evaluationId String?
+  parentId     String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  student      StudentRecord    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  session      WorkoutSession?  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise     TrainingRoutineExercise? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  evaluation   PhysicalEvaluation? @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  parent       FollowUpComment? @relation("FollowUpReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      FollowUpComment[] @relation("FollowUpReplies")
+
+  @@index([studentId, createdAt])
+  @@index([status, category])
+  @@index([parentId])
+  @@map("follow_up_comments")
 }
 
 model CoachSettingsRecord {

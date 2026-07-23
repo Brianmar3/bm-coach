@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { PaymentStatus, PhysicalEvaluation } from "@/types/gestion";
-import type { PortalData } from "@/types/portal";
+import type { PortalData, PortalWorkoutSession } from "@/types/portal";
 
-type Section = "inicio" | "rutina" | "evaluaciones" | "pagos" | "perfil";
+type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
 const number = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
@@ -19,10 +19,26 @@ export function PortalSection({ section }: { section: Section }) {
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
   if (!data) return null;
   if (section === "rutina") return <RoutineView data={data} />;
-  if (section === "evaluaciones") return <EvaluationsView data={data} />;
+  if (section === "entrenamiento") return <WorkoutView data={data} />;
+  if (section === "comentarios") return <CommentsView data={data} />;
+  if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
   if (section === "perfil") return <ProfileView data={data} />;
-  return <Overview data={data} />;
+  return <PortalOverview data={data} />;
+}
+
+function PortalOverview({ data }: { data: PortalData }) {
+  const nextDue = data.profile.dueDate;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  const dueState = !nextDue ? "Sin configurar" : nextDue < today ? "Cuota vencida" : `Vence ${date(nextDue)}`;
+  const accesses = [["Mi rutina", "/portal/rutina"], ["Registrar entrenamiento", "/portal/entrenamiento"], ["Evaluaciones", "/portal/evaluaciones"], ["Pagos", "/portal/pagos"], ["Comentarios", "/portal/comentarios"], ["Mi perfil", "/portal/perfil"]];
+  return <><section className="rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.12),transparent_40%),#18181b] p-5 sm:p-7"><p className="text-sm text-yellow-400">Hola, {data.profile.firstName}</p><h1 className="mt-1 text-2xl font-bold">Tu entrenamiento, en un solo lugar</h1><p className="mt-2 text-sm text-zinc-400">{data.profile.plan} · {dueState}</p><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><SmallMetric title="Rutina activa" value={data.routine?.name ?? "Sin rutina"} /><SmallMetric title="Esta semana" value={`${data.weeklyWorkouts} entrenamientos`} /><SmallMetric title="Próxima clase" value={data.nextClass ? `${data.nextClass.label} · ${data.nextClass.startTime}` : "Sin clase"} /><SmallMetric title="Comentarios" value={`${data.pendingResponses} pendientes`} /></div></section><section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">{accesses.map(([label, href]) => <Link key={href} href={href} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 font-bold transition hover:border-yellow-400/50 hover:text-yellow-300">{label}<span className="mt-3 block text-yellow-400">→</span></Link>)}</section><div className="mt-6"><Overview data={data} /></div></>;
+}
+
+function ComparativeEvaluationsView({ data }: { data: PortalData }) {
+  const latest = data.evaluations[0]; const previous = data.evaluations[1];
+  const metrics: Array<{ label: string; key: keyof PhysicalEvaluation; unit: string }> = [{ label: "Peso", key: "weight", unit: "kg" }, { label: "Cintura", key: "waist", unit: "cm" }, { label: "Grasa", key: "bodyFatPercentage", unit: "%" }, { label: "Masa muscular", key: "muscleMass", unit: "kg" }];
+  return <><PageHeader title="Comparación de evaluaciones" subtitle="Última evaluación frente a la anterior">{latest && previous ? <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{metrics.map((metric) => { const current = latest[metric.key] as number | null; const before = previous[metric.key] as number | null; const change = current !== null && before !== null ? current - before : null; const percent = change !== null && before ? change / before * 100 : null; return <article key={metric.label} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><p className="text-xs text-zinc-500">{metric.label}</p><p className="mt-2 text-xl font-bold">{number(current, ` ${metric.unit}`)}</p><p className={`mt-2 text-xs ${change === null ? "text-zinc-600" : change <= 0 ? "text-emerald-300" : "text-yellow-300"}`}>{change === null ? "Sin comparación" : `${change > 0 ? "+" : ""}${change.toFixed(1)} ${metric.unit}${percent === null ? "" : ` · ${percent > 0 ? "+" : ""}${percent.toFixed(1)}%`}`}</p></article>; })}</section> : <Notice>Se necesitan al menos dos evaluaciones para comparar cambios.</Notice>}</PageHeader><EvaluationsView data={data} /></>;
 }
 
 function Overview({ data }: { data: PortalData }) {
@@ -55,6 +71,71 @@ function ProfileView({ data }: { data: PortalData }) {
   const profile = data.profile;
   return <PageHeader title="Mi perfil" subtitle="Datos personales básicos"><section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><dl className="grid gap-4 sm:grid-cols-2"><ProfileItem title="Nombre" value={`${profile.firstName} ${profile.lastName}`} /><ProfileItem title="Teléfono" value={profile.phone} /><ProfileItem title="Correo" value={profile.email || "Sin correo"} /><ProfileItem title="Fecha de nacimiento" value={date(profile.birthDate)} /><ProfileItem title="Objetivo" value={profile.goal || "No definido"} /><ProfileItem title="Plan" value={profile.plan} /><ProfileItem title="Fecha de ingreso" value={date(profile.joinedAt)} /><ProfileItem title="Estado" value={profile.status} /></dl><p className="mt-5 text-xs text-zinc-500">Para modificar estos datos, contactá a tu entrenador.</p></section><ChangePasswordCard /></PageHeader>;
 }
+
+function WorkoutView({ data }: { data: PortalData }) {
+  const routine = data.routine;
+  const trainingDays = useMemo(() => routine?.days.filter((day) => day.exercises.length) ?? [], [routine]);
+  const [selectedDayId, setSelectedDayId] = useState(trainingDays[0]?.id ?? "");
+  const [draft, setDraft] = useState<PortalWorkoutSession | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
+
+  function freshDraft(dayId: string) {
+    const day = trainingDays.find((item) => item.id === dayId);
+    if (!routine || !day) return null;
+    const saved = typeof window === "undefined" ? null : window.localStorage.getItem(`bm-workout-${data.profile.id}-${dayId}`);
+    if (saved) {
+      try { return JSON.parse(saved) as PortalWorkoutSession; } catch { /* use a new draft */ }
+    }
+    const now = new Date();
+    const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(now);
+    const startTime = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
+    return { routineId: routine.id, routineName: routine.name, dayId: day.id, dayNumber: day.dayNumber, date: dateKey, startTime, durationMinutes: null, energyBefore: null, difficulty: null, energyAfter: null, finalComment: "", hasPain: false, painDetails: "", status: "en_progreso" as const, exercises: day.exercises.map((exercise) => {
+      const previousLogs = data.workoutSessions.flatMap((session) => session.exercises.filter((item) => item.exerciseId === exercise.id).map((item) => ({ session, item })));
+      const previous = previousLogs[0];
+      return { exerciseId: exercise.id, exerciseName: exercise.name, observation: "", previous: previous?.item.sets[0] ? { date: previous.session.date, weight: previous.item.sets[0].weight, repetitions: previous.item.sets[0].repetitions, effort: previous.item.sets[0].effort } : null, history: previousLogs.slice(0, 8).flatMap(({ session, item }) => item.sets[0] ? [{ date: session.date, weight: item.sets[0].weight, repetitions: item.sets[0].repetitions, effort: item.sets[0].effort }] : []), sets: Array.from({ length: exercise.sets }, (_, index) => ({ setNumber: index + 1, weight: previous?.item.sets[index]?.weight ?? exercise.weight, repetitions: previous?.item.sets[index]?.repetitions ?? null, effort: previous?.item.sets[index]?.effort ?? exercise.effortValue, completed: false, observation: "" })) };
+    }) };
+  }
+
+  function chooseDay(dayId: string) { setSelectedDayId(dayId); setDraft(freshDraft(dayId)); setMessage(""); setError(""); }
+  useEffect(() => { if (draft) window.localStorage.setItem(`bm-workout-${data.profile.id}-${draft.dayId}`, JSON.stringify(draft)); }, [data.profile.id, draft]);
+  async function save(finalize = false) {
+    if (!draft) return;
+    setSaving(true); setError(""); setMessage("");
+    try {
+      const payload = { ...draft, status: finalize ? "finalizado" as const : "en_progreso" as const };
+      const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const body = await response.json() as { id?: string; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
+      const updated = { ...payload, id: body.id }; setDraft(updated);
+      if (finalize) window.localStorage.removeItem(`bm-workout-${data.profile.id}-${draft.dayId}`);
+      setMessage(finalize ? "Entrenamiento finalizado." : "Progreso guardado.");
+    } catch (value) { setError(value instanceof Error ? value.message : "No se pudo guardar."); }
+    finally { setSaving(false); }
+  }
+  function setExercise(index: number, value: PortalWorkoutSession["exercises"][number]) { if (!draft) return; const exercises = [...draft.exercises]; exercises[index] = value; setDraft({ ...draft, exercises }); }
+  if (!routine || !selectedDay) return <PageHeader title="Registrar entrenamiento" subtitle="Tu sesión de hoy"><Notice>No tenés ejercicios asignados en una rutina activa.</Notice></PageHeader>;
+  return <PageHeader title="Registrar entrenamiento" subtitle={`${routine.name} · Día ${selectedDay.dayNumber}`}>
+    <div className="mb-5 flex gap-2 overflow-x-auto">{trainingDays.map((day) => <button key={day.id} onClick={() => chooseDay(day.id)} className={`shrink-0 rounded-xl px-4 py-3 font-bold ${day.id === selectedDayId ? "bg-yellow-400 text-zinc-950" : "bg-zinc-900 text-zinc-300"}`}>Día {day.dayNumber}</button>)}</div>
+    {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && <button onClick={() => chooseDay(selectedDayId)} className="mb-5 w-full rounded-2xl bg-yellow-400 p-4 font-bold text-zinc-950">Comenzar día {selectedDay.dayNumber}</button>}
+    {draft && <><section className="grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:grid-cols-3"><Field label="Fecha"><input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} className={portalInput} /></Field><Field label="Hora de inicio"><input type="time" value={draft.startTime} onChange={(event) => setDraft({ ...draft, startTime: event.target.value })} className={portalInput} /></Field><Field label="Duración (min)"><input type="number" min="1" value={draft.durationMinutes ?? ""} onChange={(event) => setDraft({ ...draft, durationMinutes: event.target.value ? Number(event.target.value) : null })} className={portalInput} /></Field><Rating label="Energía antes" value={draft.energyBefore} set={(value) => setDraft({ ...draft, energyBefore: value })} /><Rating label="Dificultad" value={draft.difficulty} set={(value) => setDraft({ ...draft, difficulty: value })} /><Rating label="Energía después" value={draft.energyAfter} set={(value) => setDraft({ ...draft, energyAfter: value })} /></section>
+      <div className="mt-5 space-y-4">{draft.exercises.map((exercise, exerciseIndex) => <article key={exercise.exerciseId} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between"><div><p className="text-xs text-yellow-400">Ejercicio {exerciseIndex + 1}</p><h2 className="mt-1 text-lg font-bold">{exercise.exerciseName}</h2></div>{exercise.previous && <span className="rounded-lg bg-zinc-950 p-2 text-right text-[10px] text-zinc-400">Última: {exercise.previous.weight ?? "—"} kg · {exercise.previous.repetitions ?? "—"} reps<br />{date(exercise.previous.date)}</span>}</div><div className="mt-4 space-y-3">{exercise.sets.map((set, setIndex) => <div key={set.setNumber} className="grid grid-cols-[auto_1fr_1fr_1fr] items-end gap-2 rounded-xl bg-zinc-950 p-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-yellow-400/10 font-bold text-yellow-300">{set.setNumber}</span><Field label="Kg"><input inputMode="decimal" type="number" min="0" step=".5" value={set.weight ?? ""} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, weight: event.target.value ? Number(event.target.value) : null }; setExercise(exerciseIndex, { ...exercise, sets }); }} className={portalInput} /></Field><Field label="Reps"><input inputMode="numeric" type="number" min="0" value={set.repetitions ?? ""} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, repetitions: event.target.value ? Number(event.target.value) : null }; setExercise(exerciseIndex, { ...exercise, sets }); }} className={portalInput} /></Field><Field label="RIR/RPE"><input inputMode="decimal" type="number" min="0" max="10" step=".5" value={set.effort ?? ""} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, effort: event.target.value ? Number(event.target.value) : null }; setExercise(exerciseIndex, { ...exercise, sets }); }} className={portalInput} /></Field><label className="col-span-4 flex items-center gap-3 text-sm"><input type="checkbox" checked={set.completed} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, completed: event.target.checked }; setExercise(exerciseIndex, { ...exercise, sets }); }} className="h-5 w-5 accent-yellow-400" /> Serie completada</label></div>)}</div>{exercise.history.length > 0 && <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-yellow-400">Ver historial ({exercise.history.length})</summary><div className="mt-2 grid gap-2 sm:grid-cols-2">{exercise.history.map((item, index) => <p key={`${item.date}-${index}`} className="rounded-lg bg-zinc-950 p-2 text-xs text-zinc-400">{date(item.date)} · {item.weight ?? "—"} kg · {item.repetitions ?? "—"} reps · esfuerzo {item.effort ?? "—"}</p>)}</div></details>}</article>)}</div>
+      <section className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><label className="flex items-center gap-3 font-semibold text-red-200"><input type="checkbox" checked={draft.hasPain} onChange={(event) => setDraft({ ...draft, hasPain: event.target.checked })} className="h-5 w-5 accent-red-400" /> Tuve dolor o molestias</label>{draft.hasPain && <textarea required value={draft.painDetails} onChange={(event) => setDraft({ ...draft, painDetails: event.target.value })} placeholder="¿Dónde y cuándo apareció?" rows={2} className={`${portalInput} mt-3`} />}<textarea value={draft.finalComment} onChange={(event) => setDraft({ ...draft, finalComment: event.target.value })} placeholder="Comentario final (opcional)" rows={3} className={`${portalInput} mt-3`} /></section><div className="sticky bottom-3 mt-5 grid grid-cols-2 gap-3 rounded-2xl border border-zinc-800 bg-black/95 p-3"><button disabled={saving} onClick={() => save(false)} className="rounded-xl border border-yellow-400/50 p-4 font-bold text-yellow-300">Guardar progreso</button><button disabled={saving} onClick={() => save(true)} className="rounded-xl bg-yellow-400 p-4 font-bold text-zinc-950">Finalizar</button></div></>}
+  </PageHeader>;
+}
+
+function CommentsView({ data }: { data: PortalData }) {
+  const [category, setCategory] = useState("consulta"); const [body, setBody] = useState(""); const [saving, setSaving] = useState(false); const [message, setMessage] = useState("");
+  async function submit(event: FormEvent) { event.preventDefault(); setSaving(true); setMessage(""); const response = await fetch("/api/portal/comentarios", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ context: "general", category, body }) }); const result = await response.json() as { error?: string }; setMessage(response.ok ? "Tu comentario fue enviado." : result.error ?? "No se pudo enviar."); if (response.ok) setBody(""); setSaving(false); }
+  const roots = data.comments.filter((item) => !item.parentId);
+  return <PageHeader title="Comentarios" subtitle="Consultas y devoluciones para tu entrenador"><form onSubmit={submit} className="rounded-2xl border border-yellow-400/20 bg-zinc-900 p-4"><select value={category} onChange={(event) => setCategory(event.target.value)} className={portalInput}><option value="consulta">Consulta</option><option value="dificultad">Dificultad</option><option value="dolor">Dolor o molestia</option><option value="devolucion">Devolución</option></select><textarea required value={body} onChange={(event) => setBody(event.target.value)} placeholder="Escribí tu mensaje…" rows={4} className={`${portalInput} mt-3`} /><button disabled={saving} className="mt-3 w-full rounded-xl bg-yellow-400 p-3 font-bold text-zinc-950">Enviar comentario</button>{message && <p className="mt-3 text-sm text-yellow-200">{message}</p>}</form><div className="mt-5 space-y-3">{roots.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex justify-between"><span className="text-xs capitalize text-zinc-500">{item.category} · {item.contextLabel}</span><span className={`rounded-full px-2 py-1 text-[10px] ${item.status === "pendiente" ? "bg-yellow-400/10 text-yellow-300" : "bg-emerald-400/10 text-emerald-300"}`}>{item.status}</span></div><p className="mt-3 text-sm">{item.body}</p>{data.comments.filter((reply) => reply.parentId === item.id).map((reply) => <p key={reply.id} className="mt-3 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200"><strong>Entrenador:</strong> {reply.body}</p>)}</article>)}</div></PageHeader>;
+}
+
+const portalInput = "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-yellow-400";
+function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="text-xs text-zinc-500">{label}{children}</label>; }
+function Rating({ label, value, set }: { label: string; value: number | null; set: (value: number) => void }) { return <div><p className="mb-2 text-xs text-zinc-500">{label}</p><div className="flex gap-1">{[1, 2, 3, 4, 5].map((item) => <button type="button" key={item} onClick={() => set(item)} className={`grid h-10 flex-1 place-items-center rounded-lg font-bold ${value === item ? "bg-yellow-400 text-zinc-950" : "bg-zinc-950 text-zinc-400"}`}>{item}</button>)}</div></div>; }
 
 function ChangePasswordCard({ forced = false, onSuccess }: { forced?: boolean; onSuccess?: () => void }) {
   const [currentPassword, setCurrentPassword] = useState(""); const [newPassword, setNewPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [saving, setSaving] = useState(false);
