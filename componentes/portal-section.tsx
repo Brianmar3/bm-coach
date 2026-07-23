@@ -18,7 +18,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); setLoading(true); setReload((value) => value + 1); }} />;
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
   if (!data) return null;
-  if (section === "rutina") return <RoutineView data={data} />;
+  if (section === "rutina") return <><RoutineView data={data} /><div className="mt-8 border-t border-zinc-800 pt-8"><WorkoutView data={data} /></div></>;
   if (section === "entrenamiento") return <WorkoutView data={data} />;
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
@@ -31,7 +31,7 @@ function PortalOverview({ data }: { data: PortalData }) {
   const nextDue = data.profile.dueDate;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
   const dueState = !nextDue ? "Sin configurar" : nextDue < today ? "Cuota vencida" : `Vence ${date(nextDue)}`;
-  const accesses = [["Mi rutina", "/portal/rutina"], ["Registrar entrenamiento", "/portal/entrenamiento"], ["Evaluaciones", "/portal/evaluaciones"], ["Pagos", "/portal/pagos"], ["Comentarios", "/portal/comentarios"], ["Mi perfil", "/portal/perfil"]];
+  const accesses = [["Mi rutina", "/portal/rutina"], ["Evaluaciones", "/portal/evaluaciones"], ["Pagos", "/portal/pagos"], ["Mi perfil", "/portal/perfil"]];
   return <><section className="rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.12),transparent_40%),#18181b] p-5 sm:p-7"><p className="text-sm text-yellow-400">Hola, {data.profile.firstName}</p><h1 className="mt-1 text-2xl font-bold">Tu entrenamiento, en un solo lugar</h1><p className="mt-2 text-sm text-zinc-400">{data.profile.plan} · {dueState}</p><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><SmallMetric title="Rutina activa" value={data.routine?.name ?? "Sin rutina"} /><SmallMetric title="Esta semana" value={`${data.weeklyWorkouts} entrenamientos`} /><SmallMetric title="Próxima clase" value={data.nextClass ? `${data.nextClass.label} · ${data.nextClass.startTime}` : "Sin clase"} /><SmallMetric title="Comentarios" value={`${data.pendingResponses} pendientes`} /></div></section><section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">{accesses.map(([label, href]) => <Link key={href} href={href} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 font-bold transition hover:border-yellow-400/50 hover:text-yellow-300">{label}<span className="mt-3 block text-yellow-400">→</span></Link>)}</section><div className="mt-6"><Overview data={data} /></div></>;
 }
 
@@ -42,8 +42,17 @@ function ComparativeEvaluationsView({ data }: { data: PortalData }) {
 }
 
 function Overview({ data }: { data: PortalData }) {
+  return <PortalHomeDetails data={data} />;
+  /*
   const latestEvaluation = data.evaluations[0]; const currentPayment = data.payments.find((payment) => payment.status !== "pagado") ?? data.payments[0];
   return <><header><p className="text-sm text-yellow-400">Hola, {data.profile.firstName}</p><h1 className="mt-1 text-2xl font-bold">Tu espacio de entrenamiento</h1><p className="mt-2 text-sm text-zinc-500">Rutina, evolución y estado de tu cuota en un solo lugar.</p></header><section className="mt-6 grid gap-4 sm:grid-cols-3"><Link href="/portal/rutina" className="rounded-2xl border border-yellow-400/20 bg-zinc-900 p-5"><p className="text-sm text-zinc-500">Rutina activa</p><p className="mt-2 text-lg font-bold text-yellow-300">{data.routine?.name ?? "Sin rutina asignada"}</p><p className="mt-2 text-xs text-zinc-500">{data.routine ? `${data.routine.objective} · ${data.routine.days.reduce((sum, day) => sum + day.exercises.length, 0)} ejercicios` : "Consultá a tu entrenador"}</p></Link><Link href="/portal/evaluaciones" className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><p className="text-sm text-zinc-500">Última evaluación</p><p className="mt-2 text-lg font-bold">{latestEvaluation ? date(latestEvaluation.date) : "Sin evaluaciones"}</p><p className="mt-2 text-xs text-zinc-500">{latestEvaluation ? `${number(latestEvaluation.weight, " kg")} · IMC ${number(latestEvaluation.bmi)}` : "Todavía no hay mediciones"}</p></Link><Link href="/portal/pagos" className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><p className="text-sm text-zinc-500">Estado de cuota</p><p className={`mt-2 text-lg font-bold ${currentPayment?.status === "vencido" ? "text-red-300" : currentPayment?.status === "pagado" ? "text-emerald-300" : "text-yellow-300"}`}>{currentPayment ? paymentLabel(currentPayment.status) : "Sin pagos"}</p><p className="mt-2 text-xs text-zinc-500">{currentPayment ? `${money(currentPayment.amount)} · Vence ${date(currentPayment.dueDate)}` : "Sin registros disponibles"}</p></Link></section><section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><h2 className="font-semibold text-yellow-300">Próximos eventos</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{data.events.length ? data.events.slice(0, 6).map((event) => <article key={event.id} className="rounded-xl border-l-4 bg-zinc-950 p-3" style={{ borderLeftColor: event.color }}><p className="font-medium">{event.title}</p><p className="mt-1 text-xs capitalize text-zinc-500">{date(event.date)} · {event.time} · {event.type}</p></article>) : <p className="text-sm text-zinc-500">No hay eventos próximos.</p>}</div></section></>;
+  */
+}
+
+function PortalHomeDetails({ data }: { data: PortalData }) {
+  const latestEvaluation = data.evaluations[0];
+  const coachReplies = data.comments.filter((item) => item.author === "entrenador").slice(0, 3);
+  return <div className="space-y-5"><Link href="/portal/rutina" className="block rounded-2xl border border-yellow-400/25 bg-zinc-900 p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Rutina activa</p><h2 className="mt-2 text-xl font-bold">{data.routine?.name ?? "Sin rutina asignada"}</h2><p className="mt-2 text-sm text-zinc-500">{data.routine ? `${data.routine.objective} · ${data.routine.days.filter((day) => day.exercises.length).length} días de entrenamiento` : "Consultá a tu entrenador"}</p></div><span className="text-yellow-400">→</span></div></Link>{latestEvaluation && <Link href="/portal/evaluaciones" className="block rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><p className="text-xs uppercase tracking-wider text-zinc-500">Última evaluación</p><div className="mt-3 flex items-end justify-between"><div><p className="text-lg font-bold">{date(latestEvaluation.date)}</p><p className="mt-1 text-sm text-zinc-500">{number(latestEvaluation.weight, " kg")} · IMC {number(latestEvaluation.bmi)}</p></div><span className="text-yellow-400">Ver progreso →</span></div></Link>}{coachReplies.length > 0 && <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-5"><h2 className="font-bold text-emerald-200">Novedades del entrenador</h2><div className="mt-3 space-y-2">{coachReplies.map((item) => <p key={item.id} className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{item.body}</p>)}</div></section>}</div>;
 }
 
 function RoutineView({ data }: { data: PortalData }) {
@@ -85,12 +94,15 @@ function WorkoutView({ data }: { data: PortalData }) {
   function freshDraft(dayId: string) {
     const day = trainingDays.find((item) => item.id === dayId);
     if (!routine || !day) return null;
+    const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+    const databaseSession = data.workoutSessions.find((item) => item.dayId === dayId && item.date === todayKey);
+    if (databaseSession) return databaseSession;
     const saved = typeof window === "undefined" ? null : window.localStorage.getItem(`bm-workout-${data.profile.id}-${dayId}`);
     if (saved) {
       try { return JSON.parse(saved) as PortalWorkoutSession; } catch { /* use a new draft */ }
     }
     const now = new Date();
-    const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(now);
+    const dateKey = todayKey;
     const startTime = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
     return { routineId: routine.id, routineName: routine.name, dayId: day.id, dayNumber: day.dayNumber, date: dateKey, startTime, durationMinutes: null, energyBefore: null, difficulty: null, energyAfter: null, finalComment: "", hasPain: false, painDetails: "", status: "en_progreso" as const, exercises: day.exercises.map((exercise) => {
       const previousLogs = data.workoutSessions.flatMap((session) => session.exercises.filter((item) => item.exerciseId === exercise.id).map((item) => ({ session, item })));

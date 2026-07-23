@@ -15,6 +15,8 @@ function validate(input: PortalWorkoutSession) {
   if (input.durationMinutes !== null && (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 1 || input.durationMinutes > 1440)) return "La duración debe estar entre 1 y 1440 minutos.";
   if (![input.energyBefore, input.difficulty, input.energyAfter].every(rating)) return "Las escalas de energía y dificultad deben estar entre 1 y 5.";
   if (input.hasPain && !input.painDetails.trim()) return "Contanos dónde sentís dolor o molestia.";
+  if (input.status === "finalizado" && (input.durationMinutes === null || input.energyBefore === null || input.difficulty === null || input.energyAfter === null)) return "Para finalizar, completá duración, energía antes, dificultad y energía después.";
+  if (input.status === "finalizado" && !input.exercises.some((exercise) => exercise.sets.some((set) => set.completed))) return "Marcá al menos una serie como completada antes de finalizar.";
   if (input.finalComment.length > 2000 || input.painDetails.length > 1000) return "El comentario es demasiado extenso.";
   if (!["pendiente", "en_progreso", "finalizado"].includes(input.status)) return "El estado no es válido.";
   for (const exercise of input.exercises) {
@@ -48,6 +50,9 @@ export async function POST(request: Request) {
     if (!assignment || !day) return Response.json({ error: "La rutina o el día ya no están asignados a tu perfil." }, { status: 403 });
     const validExerciseIds = new Set(day.exercises.map((exercise) => exercise.id));
     if (input.exercises.some((exercise) => !validExerciseIds.has(exercise.exerciseId))) return Response.json({ error: "Uno de los ejercicios no pertenece a tu rutina." }, { status: 403 });
+    const sameDaySession = await prisma.workoutSession.findFirst({ where: { studentId: session.studentId, dayId: input.dayId, date: dateKeyToDatabase(input.date) }, select: { id: true, status: true } });
+    if (!input.id && sameDaySession) return Response.json({ error: "Ya existe una sesión para este día y fecha. Volvé a cargar Mi rutina para continuarla." }, { status: 409 });
+    if (input.id && sameDaySession?.id === input.id && sameDaySession.status === "COMPLETED") return Response.json({ id: sameDaySession.id, status: "finalizado" });
 
     const saved = await prisma.$transaction(async (transaction) => {
       if (input.id) {

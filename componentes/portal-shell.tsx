@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-const links = [["Inicio", "/portal"], ["Mi rutina", "/portal/rutina"], ["Registrar", "/portal/entrenamiento"], ["Comentarios", "/portal/comentarios"], ["Evaluaciones", "/portal/evaluaciones"], ["Pagos", "/portal/pagos"], ["Mi perfil", "/portal/perfil"]];
+const links = [["Inicio", "/portal"], ["Mi rutina", "/portal/rutina"], ["Evaluaciones", "/portal/evaluaciones"], ["Pagos", "/portal/pagos"], ["Mi perfil", "/portal/perfil"]];
 
 export function PortalShell({ studentName, children }: { studentName: string; children: ReactNode }) {
   const pathname = usePathname(); const router = useRouter(); const [loggingOut, setLoggingOut] = useState(false);
