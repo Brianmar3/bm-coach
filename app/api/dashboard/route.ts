@@ -1,45 +1,46 @@
+import { Prisma, type ClassWeekday } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
-import type { Student } from "@/types/gestion";
-import type { DashboardData, DashboardPaymentItem } from "@/types/dashboard";
+import {
+  addMonthsToDateKey,
+  argentinaDateKey,
+  databaseDateKey,
+  dateKeyToDatabase,
+  paymentAccountStatus,
+} from "@/lib/payment-dates";
+import type { DashboardData } from "@/types/dashboard";
+import type { PaymentAccountStatus, Student } from "@/types/gestion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function argentinaDateKey() {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}`;
-}
-
-function addDays(date: Date, days: number) {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
-}
+const WEEKDAY: Partial<Record<number, ClassWeekday>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
+const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const STATUS_ORDER: Record<PaymentAccountStatus, number> = { VENCIDA: 0, VENCE_PRONTO: 1, AL_DIA: 2, SIN_CONFIGURAR: 3 };
 
 function studentData(data: Prisma.JsonValue) {
   return data as unknown as Student;
 }
 
-function studentName(data: Prisma.JsonValue) {
-  const student = studentData(data);
-  return `${student.firstName} ${student.lastName}`.trim();
+function studentName(student: Student) {
+  return `${student.firstName ?? ""} ${student.lastName ?? ""}`.trim() || "Alumno sin nombre";
 }
 
-function paymentItem(payment: { id: string; amount: Prisma.Decimal; dueDate: Date; student: { data: Prisma.JsonValue } }): DashboardPaymentItem {
-  return { id: payment.id, studentName: studentName(payment.student.data), amount: Number(payment.amount), dueDate: payment.dueDate.toISOString().slice(0, 10) };
+function addDays(value: string, days: number) {
+  const date = dateKeyToDatabase(value);
+  date.setUTCDate(date.getUTCDate() + days);
+  return databaseDateKey(date);
 }
 
-function monthKeys(todayKey: string) {
-  const [year, month] = todayKey.split("-").map(Number);
-  return Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(Date.UTC(year, month - 6 + index, 1));
-    return {
-      month: date.toISOString().slice(0, 7),
-      label: new Intl.DateTimeFormat("es-AR", { month: "short", year: "2-digit", timeZone: "UTC" }).format(date).replace(".", ""),
-    };
-  });
+function startOfWeek(value: string) {
+  const date = dateKeyToDatabase(value);
+  const offset = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - offset);
+  return databaseDateKey(date);
+}
+
+function planDays(value: string) {
+  const match = value.match(/(?:^|\D)([1-7])(?:\D|$)/);
+  return match ? Number(match[1]) : null;
 }
 
 function databaseUnavailable(error: unknown) {
@@ -49,64 +50,143 @@ function databaseUnavailable(error: unknown) {
 
 export async function GET() {
   try {
-    const todayKey = argentinaDateKey();
-    const today = new Date(`${todayKey}T00:00:00.000Z`);
-    const inSevenDays = addDays(today, 7);
-    inSevenDays.setUTCHours(23, 59, 59, 999);
-    const monthStart = new Date(`${todayKey.slice(0, 7)}-01T00:00:00.000Z`);
-    const nextMonth = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1));
-    const months = monthKeys(todayKey);
-    const chartStart = new Date(`${months[0].month}-01T00:00:00.000Z`);
+    const today = argentinaDateKey();
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const nextMonthStart = addMonthsToDateKey(monthStart);
+    const previousMonthStart = addMonthsToDateKey(monthStart, -1);
+    const weekStart = startOfWeek(today);
+    const nextWeekStart = addDays(weekStart, 7);
+    const todayDate = dateKeyToDatabase(today);
+    const tomorrowDate = dateKeyToDatabase(addDays(today, 1));
+    const weekday = WEEKDAY[todayDate.getUTCDay()];
 
-    const [students, income, overdue, dueSoon, events, latestEvaluations, chartEvaluations, routines] = await Promise.all([
-      prisma.studentRecord.findMany({ select: { data: true } }),
-      prisma.studentPayment.aggregate({ where: { status: "PAGADO", paidDate: { gte: monthStart, lt: nextMonth } }, _sum: { amount: true } }),
-      prisma.studentPayment.findMany({ where: { status: { not: "PAGADO" }, dueDate: { lt: today } }, include: { student: true }, orderBy: { dueDate: "asc" } }),
-      prisma.studentPayment.findMany({ where: { status: { not: "PAGADO" }, dueDate: { gte: today, lte: inSevenDays } }, include: { student: true }, orderBy: { dueDate: "asc" } }),
-      prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 5 }),
-      prisma.physicalEvaluation.findMany({ include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 5 }),
-      prisma.physicalEvaluation.findMany({ where: { date: { gte: chartStart } }, select: { date: true, weight: true, height: true } }),
-      prisma.trainingRoutine.findMany({ include: { assignments: { include: { student: true } }, days: { include: { _count: { select: { exercises: true } } } } }, orderBy: { createdAt: "desc" }, take: 5 }),
+    const [studentRecords, paymentRecords, todaySchedules, todayAttendances, weeklyAttendances, events] = await Promise.all([
+      prisma.studentRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.studentPayment.findMany({
+        where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
+        select: { amount: true, paidDate: true },
+        orderBy: { paidDate: "asc" },
+      }),
+      weekday ? prisma.weeklyClassSchedule.findMany({
+        where: { active: true, dayOfWeek: weekday },
+        include: { assignments: { include: { student: { select: { data: true } } } } },
+        orderBy: { startTime: "asc" },
+      }) : Promise.resolve([]),
+      prisma.classAttendance.groupBy({
+        by: ["scheduleId"],
+        where: { date: { gte: todayDate, lt: tomorrowDate }, status: "PRESENT" },
+        _count: { _all: true },
+      }),
+      prisma.classAttendance.groupBy({
+        by: ["date", "status"],
+        where: { date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
+        _count: { _all: true },
+        orderBy: { date: "asc" },
+      }),
+      prisma.coachEvent.findMany({
+        where: { status: "PENDIENTE", date: { gte: todayDate } },
+        orderBy: [{ date: "asc" }, { time: "asc" }],
+        take: 3,
+      }),
     ]);
 
-    const evaluationGroups = new Map<string, { weights: number[]; bmis: number[] }>();
-    for (const evaluation of chartEvaluations) {
-      const key = evaluation.date.toISOString().slice(0, 7);
-      const group = evaluationGroups.get(key) ?? { weights: [], bmis: [] };
-      const weight = evaluation.weight === null ? null : Number(evaluation.weight);
-      const height = evaluation.height === null ? null : Number(evaluation.height);
-      if (weight !== null) group.weights.push(weight);
-      if (weight !== null && height !== null && height > 0) group.bmis.push(weight / (height * height));
-      evaluationGroups.set(key, group);
-    }
+    const students = studentRecords.map((record) => ({ ...record, student: studentData(record.data) }));
+    const active = students.filter(({ student }) => student.status !== "inactivo");
+    const accounts = active.map(({ id, student }) => ({
+      studentId: id,
+      studentName: studentName(student),
+      plan: student.plan ?? "",
+      dueDate: student.dueDate ?? "",
+      amount: Number(student.monthlyFee ?? 0),
+      status: paymentAccountStatus(student.dueDate ?? "", today),
+    }));
+    const actionableAccounts = accounts
+      .filter((account) => account.status === "VENCIDA" || account.status === "VENCE_PRONTO")
+      .sort((left, right) => STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.dueDate.localeCompare(right.dueDate));
 
-    const studentMonths = new Map<string, number>();
-    for (const record of students) {
-      const joinedAt = studentData(record.data).joinedAt;
-      if (joinedAt) studentMonths.set(joinedAt.slice(0, 7), (studentMonths.get(joinedAt.slice(0, 7)) ?? 0) + 1);
+    const currentPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) >= monthStart);
+    const previousPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) < monthStart);
+    const monthIncome = currentPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const previousIncome = previousPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const incomeByDate = new Map<string, number>();
+    for (const payment of currentPayments) {
+      if (!payment.paidDate) continue;
+      const key = databaseDateKey(payment.paidDate);
+      incomeByDate.set(key, (incomeByDate.get(key) ?? 0) + Number(payment.amount));
     }
+    const elapsedDays = Number(today.slice(8, 10));
+    const income = Array.from({ length: elapsedDays }, (_, index) => {
+      const date = addDays(monthStart, index);
+      return { date, label: String(index + 1), amount: incomeByDate.get(date) ?? 0 };
+    });
 
-    const average = (values: number[]) => values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null;
+    const attendanceTodayBySchedule = new Map(todayAttendances.map((item) => [item.scheduleId ?? "", item._count._all]));
+    const todayClasses = todaySchedules.map((schedule) => ({
+      id: schedule.id,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      name: schedule.classType,
+      enrolled: schedule.assignments.filter(({ student }) => studentData(student.data).status !== "inactivo").length,
+      attendance: attendanceTodayBySchedule.get(schedule.id) ?? 0,
+    }));
+
+    const weeklyAttendance = Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(weekStart, index);
+      const records = weeklyAttendances.filter((item) => databaseDateKey(item.date) === date);
+      const present = records.find((item) => item.status === "PRESENT")?._count._all ?? 0;
+      const total = records.reduce((sum, item) => sum + item._count._all, 0);
+      return { date, label: DAY_LABELS[new Date(`${date}T12:00:00.000Z`).getUTCDay()], present, total, percentage: total ? Math.round((present / total) * 100) : 0 };
+    });
+    const weeklyPresent = weeklyAttendance.reduce((sum, day) => sum + day.present, 0);
+    const weeklyTotal = weeklyAttendance.reduce((sum, day) => sum + day.total, 0);
+    const bestDay = weeklyAttendance.reduce((best, day) => day.present > best.present ? day : best, weeklyAttendance[0]);
+
+    const currentNewStudents = students.filter(({ createdAt }) => databaseDateKey(createdAt) >= monthStart).length;
+    const previousNewStudents = students.filter(({ createdAt }) => {
+      const key = databaseDateKey(createdAt);
+      return key >= previousMonthStart && key < monthStart;
+    }).length;
     const data: DashboardData = {
       generatedAt: new Date().toISOString(),
+      today,
       metrics: {
-        activeStudents: students.filter((record) => studentData(record.data).status === "activo").length,
-        monthIncome: Number(income._sum.amount ?? 0),
-        overdueCount: overdue.length,
-        overdueAmount: overdue.reduce((sum, payment) => sum + Number(payment.amount), 0),
-        dueSoonCount: dueSoon.length,
-        dueSoonAmount: dueSoon.reduce((sum, payment) => sum + Number(payment.amount), 0),
+        activeStudents: active.length,
+        activeStudentsMonthChange: currentNewStudents - previousNewStudents,
+        monthIncome,
+        incomeChangePercent: previousIncome > 0 ? Math.round(((monthIncome - previousIncome) / previousIncome) * 100) : null,
+        pendingCount: actionableAccounts.length,
+        pendingAmount: actionableAccounts.reduce((sum, account) => sum + account.amount, 0),
+        overdueCount: actionableAccounts.filter((account) => account.status === "VENCIDA").length,
+        classesToday: todayClasses.length,
+        attendanceToday: todayAttendances.reduce((sum, item) => sum + item._count._all, 0),
+        newStudents: currentNewStudents,
       },
-      overduePayments: overdue.slice(0, 5).map(paymentItem),
-      dueSoonPayments: dueSoon.slice(0, 5).map(paymentItem),
-      upcomingEvents: events.map((event) => ({ id: event.id, title: event.title, type: event.type.toLowerCase(), date: event.date.toISOString().slice(0, 10), time: event.time, color: event.color })),
-      latestEvaluations: latestEvaluations.map((evaluation) => {
-        const weight = evaluation.weight === null ? null : Number(evaluation.weight);
-        const height = evaluation.height === null ? null : Number(evaluation.height);
-        return { id: evaluation.id, studentName: studentName(evaluation.student.data), date: evaluation.date.toISOString().slice(0, 10), weight, bmi: weight !== null && height !== null && height > 0 ? Math.round((weight / (height * height)) * 10) / 10 : null, bodyFatPercentage: evaluation.bodyFatPercentage === null ? null : Number(evaluation.bodyFatPercentage) };
-      }),
-      latestRoutines: routines.map((routine) => ({ id: routine.id, name: routine.name, objective: routine.objective, level: routine.level.toLowerCase(), status: routine.status.toLowerCase(), createdAt: routine.createdAt.toISOString(), students: routine.assignments.map((assignment) => studentName(assignment.student.data)).sort((a, b) => a.localeCompare(b, "es")), daysCount: routine.days.filter((day) => day._count.exercises > 0).length, exercisesCount: routine.days.reduce((sum, day) => sum + day._count.exercises, 0) })),
-      evolution: months.map(({ month, label }) => { const group = evaluationGroups.get(month) ?? { weights: [], bmis: [] }; return { month, label, averageWeight: average(group.weights), averageBmi: average(group.bmis), newStudents: studentMonths.get(month) ?? 0 }; }),
+      income,
+      todayClasses,
+      upcomingPayments: actionableAccounts.slice(0, 3),
+      recentStudents: active.slice(0, 6).map(({ id, student }) => ({
+        id,
+        studentName: studentName(student),
+        plan: student.plan ?? "",
+        days: planDays(student.plan ?? ""),
+        dueDate: student.dueDate ?? "",
+        status: paymentAccountStatus(student.dueDate ?? "", today),
+      })),
+      weeklyAttendance,
+      attendanceSummary: {
+        weeklyAverage: weeklyTotal ? Math.round((weeklyPresent / weeklyTotal) * 100) : 0,
+        bestDay: bestDay?.present ? bestDay.label : "Sin datos",
+        totalAttendance: weeklyPresent,
+      },
+      upcomingEvents: events.map((event) => ({
+        id: event.id,
+        title: event.title,
+        type: event.type.toLowerCase(),
+        date: databaseDateKey(event.date),
+        time: event.time,
+        color: event.color,
+        status: event.status.toLowerCase(),
+      })),
     };
     return Response.json(data);
   } catch (error) {

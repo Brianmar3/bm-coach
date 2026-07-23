@@ -47,7 +47,11 @@ export default function PagosPage() {
   const [data, setData] = useState(emptyDashboard);
   const [ready, setReady] = useState(false);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<AccountFilter>("TODOS");
+  const [filter, setFilter] = useState<AccountFilter>(() => {
+    if (typeof window === "undefined") return "TODOS";
+    const requested = new URLSearchParams(window.location.search).get("estado");
+    return requested === "VENCIDA" || requested === "VENCE_PRONTO" || requested === "AL_DIA" || requested === "SIN_CONFIGURAR" ? requested : "TODOS";
+  });
   const [form, setForm] = useState<PaymentForm | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");

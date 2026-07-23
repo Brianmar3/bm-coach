@@ -50,7 +50,13 @@ export default function AlumnosPage() {
     Promise.all([
       fetch("/api/alumnos", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los alumnos.")); return response.json() as Promise<Student[]>; }),
       fetch("/api/alumnos/opciones", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar planes y horarios.")); return response.json() as Promise<EnrollmentOptions>; }),
-    ]).then(([students, enrollmentOptions]) => { setItems(students); setOptions(enrollmentOptions); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
+    ]).then(([students, enrollmentOptions]) => {
+      setItems(students);
+      setOptions(enrollmentOptions);
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("estado") === "activo") setStatus("activo");
+      if (params.get("accion") === "nuevo") { setForm(blank(enrollmentOptions)); setOpen(true); }
+    }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
     return () => controller.abort();
   }, []);
 
