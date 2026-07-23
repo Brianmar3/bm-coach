@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
 type ExerciseDraft = Omit<TrainingExercise, "id"> & { clientId: string };
@@ -45,6 +46,13 @@ async function responseError(response: Response, fallback: string) {
 }
 
 export default function RutinasPage() {
+  const [activeTab, setActiveTab] = useState<"rutinas" | "asignaciones" | "seguimiento">(() => {
+    if (typeof window === "undefined") return "rutinas";
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return requested === "asignaciones" || requested === "seguimiento" ? requested : "rutinas";
+  });
+  const [trackingRoutineId, setTrackingRoutineId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("routineId") ?? "");
+  const [trackingStudentId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("studentId") ?? "");
   const [items, setItems] = useState<TrainingRoutine[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [query, setQuery] = useState("");
@@ -121,11 +129,14 @@ export default function RutinasPage() {
     } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar la rutina de Neon."); }
   }
 
-  return <ModuleShell title="Rutinas" subtitle="Diseñá planes personalizados, organizados por días y asignados a alumnos reales." action={<button onClick={() => begin()} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300">+ Crear rutina</button>}>
+  return <ModuleShell title="Rutinas" subtitle="Diseñá planes personalizados, organizados por días y asignados a alumnos reales." action={activeTab === "seguimiento" ? null : <button onClick={() => begin()} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300">+ Crear rutina</button>}>
     {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+    <nav className="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-2">{([["rutinas", "Rutinas"], ["asignaciones", "Asignaciones"], ["seguimiento", "Seguimiento de alumnos"]] as const).map(([value, title]) => <button key={value} onClick={() => { setActiveTab(value); if (value !== "seguimiento") setTrackingRoutineId(""); }} className={`shrink-0 rounded-xl px-4 py-3 text-sm font-bold ${activeTab === value ? "bg-yellow-400 text-zinc-950" : "text-zinc-400 hover:bg-zinc-800"}`}>{title}</button>)}</nav>
+    {activeTab === "seguimiento" ? <RoutineFollowUp initialRoutineId={trackingRoutineId} initialStudentId={trackingStudentId} /> : <>
     <section className="grid gap-4 sm:grid-cols-3"><Summary label="Rutinas activas" value={items.filter((item) => item.status === "activa").length} /><Summary label="Alumnos con rutina" value={new Set(items.flatMap((item) => item.studentIds)).size} /><Summary label="Ejercicios planificados" value={items.reduce((total, item) => total + exerciseCount(item), 0)} /></section>
     <section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="grid gap-3 md:grid-cols-3"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina, objetivo o alumno" className={inputClass} /><select value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
-    <section className="mt-6 grid gap-4 lg:grid-cols-2">{!ready ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando rutinas…</p> : visible.length === 0 ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">No hay rutinas que coincidan con los filtros.</p> : visible.map((routine) => <RoutineCard key={routine.id} routine={routine} view={() => setViewing(routine)} edit={() => begin(routine)} duplicate={() => duplicate(routine)} remove={() => remove(routine)} duplicating={duplicatingId === routine.id} />)}</section>
+    <section className="mt-6 grid gap-4 lg:grid-cols-2">{!ready ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando rutinas…</p> : visible.length === 0 ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">No hay rutinas que coincidan con los filtros.</p> : visible.map((routine) => <RoutineCard key={routine.id} routine={routine} view={() => { setTrackingRoutineId(routine.id); setActiveTab("seguimiento"); }} edit={() => begin(routine)} duplicate={() => duplicate(routine)} remove={() => remove(routine)} duplicating={duplicatingId === routine.id} />)}</section>
+    </>}
     {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving} />}
     {viewing && <RoutineDetail routine={viewing} close={() => setViewing(null)} />}
   </ModuleShell>;

@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const links = [
-  ["Seguimiento", "/seguimiento"],
   ["Dashboard", "/"], ["Alumnos", "/alumnos"], ["Rutinas", "/rutinas"], ["Clases", "/clases"], ["Asistencias", "/asistencias"], ["Evaluaciones", "/evaluaciones"], ["Pagos", "/pagos"], ["Eventos", "/eventos"], ["Configuración", "/configuracion"],
 ];
 
