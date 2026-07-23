@@ -41,13 +41,15 @@ export async function GET(request: Request) {
     }) : [];
     const trained = new Set(sessions.filter((item) => item.status === "COMPLETED").map((item) => item.studentId));
     return Response.json({
-      sessions: sessions.map((session) => ({
+      sessions: sessions.map((session) => {
+        const sessionSnapshot = session.exercises.find((log) => log.snapshotVersion === 1);
+        return {
         id: session.id,
         studentId: session.studentId,
         studentName: name(session.student.data),
         routineId: session.routineId,
-        routine: session.routine.name,
-        dayNumber: session.day.dayNumber,
+        routine: sessionSnapshot?.routineName ?? session.routine.name,
+        dayNumber: sessionSnapshot?.routineDayNumber ?? session.day.dayNumber,
         date: session.date.toISOString().slice(0, 10),
         startTime: session.startTime,
         durationMinutes: session.durationMinutes,
@@ -62,26 +64,29 @@ export async function GET(request: Request) {
         exerciseCount: session.exercises.length,
         completedSets: session.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).length, 0),
         pendingComments: session.comments.length,
-        exercises: session.exercises.map((log) => {
+        exercises: [...session.exercises].sort((left, right) => (left.exerciseOrder ?? left.exercise.order) - (right.exerciseOrder ?? right.exercise.order)).map((log) => {
           const previous = previousLogs.find((candidate) => candidate.exerciseId === log.exerciseId && candidate.session.studentId === session.studentId && candidate.session.id !== session.id && candidate.session.date < session.date);
           const bestPrevious = previous?.sets.filter((set) => set.completed).sort((left, right) => Number(right.weight ?? 0) - Number(left.weight ?? 0))[0] ?? null;
+          const legacySnapshot = log.snapshotVersion !== 1;
           return {
             id: log.id,
             exerciseId: log.exerciseId,
-            name: log.exercise.name,
-            targetSets: log.exercise.sets,
-            targetRepetitions: log.exercise.repetitions,
-            suggestedWeight: decimal(log.exercise.weight),
-            effortType: log.exercise.effortType,
-            targetEffort: decimal(log.exercise.effortValue),
-            restSeconds: log.exercise.restSeconds,
-            coachInstructions: log.exercise.observations,
+            name: legacySnapshot ? log.exercise.name : log.exerciseName!,
+            targetSets: legacySnapshot ? log.exercise.sets : log.targetSets!,
+            targetRepetitions: legacySnapshot ? log.exercise.repetitions : log.targetRepetitions!,
+            suggestedWeight: decimal(legacySnapshot ? log.exercise.weight : log.suggestedWeight),
+            effortType: legacySnapshot ? log.exercise.effortType : log.targetEffortType!,
+            targetEffort: decimal(legacySnapshot ? log.exercise.effortValue : log.targetEffortValue),
+            restSeconds: legacySnapshot ? log.exercise.restSeconds : log.targetRestSeconds,
+            coachInstructions: legacySnapshot ? log.exercise.observations : log.coachInstructions!,
+            legacySnapshot,
             studentObservation: log.observation,
             sets: log.sets.map((set) => ({ id: set.id, setNumber: set.setNumber, weight: decimal(set.weight), repetitions: set.repetitions, effort: decimal(set.effort), completed: set.completed, observation: set.observation })),
             previous: previous && bestPrevious ? { date: previous.session.date.toISOString().slice(0, 10), weight: decimal(bestPrevious.weight), repetitions: bestPrevious.repetitions, effort: decimal(bestPrevious.effort) } : null,
           };
         }),
-      })),
+        };
+      }),
       routines,
       studentsWithoutTraining: students.filter((item) => (item.data as unknown as Student).status !== "inactivo" && !trained.has(item.id)).map((item) => ({ id: item.id, name: name(item.data) })).slice(0, 20),
     });

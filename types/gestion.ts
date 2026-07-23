@@ -237,6 +237,7 @@ export type TrainingRoutine = {
   status: TrainingRoutineStatus;
   createdAt: string;
   updatedAt: string;
+  archivedAt: string;
   studentIds: string[];
   students: Array<{ id: string; name: string }>;
   days: TrainingRoutineDay[];

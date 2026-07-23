@@ -164,6 +164,7 @@ model TrainingRoutine {
   status      TrainingRoutineStatus       @default(ACTIVA)
   createdAt   DateTime                    @default(now())
   updatedAt   DateTime                    @updatedAt
+  archivedAt  DateTime?
   days        TrainingRoutineDay[]
   assignments TrainingRoutineAssignment[]
   workoutSessions WorkoutSession[]
@@ -219,11 +220,14 @@ model TrainingRoutineAssignment {
   routineId  String
   studentId  String
   assignedAt DateTime        @default(now())
+  active     Boolean         @default(true)
+  archivedAt DateTime?
   routine    TrainingRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
   student    StudentRecord   @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@id([routineId, studentId])
   @@index([studentId])
+  @@index([studentId, active])
   @@map("training_routine_assignments")
 }
 
@@ -306,6 +310,18 @@ model WorkoutExerciseLog {
   sessionId   String
   exerciseId  String
   observation String                  @default("")
+  snapshotVersion Int?
+  exerciseName String?
+  targetSets Int?
+  targetRepetitions String?
+  suggestedWeight Decimal?            @db.Decimal(7, 2)
+  targetEffortType TrainingEffortType?
+  targetEffortValue Decimal?          @db.Decimal(4, 1)
+  targetRestSeconds Int?
+  coachInstructions String?
+  exerciseOrder Int?
+  routineName String?
+  routineDayNumber Int?
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
   session     WorkoutSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)

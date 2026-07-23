@@ -1,15 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { adminAuthorization, hashPassword, normalizeUsername, temporaryPassword, validRequestOrigin } from "@/lib/portal-auth";
+import { hashPassword, normalizeUsername, temporaryPassword } from "@/lib/portal-auth";
 import type { Student } from "@/types/gestion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function authorize(request: Request) {
-  if (!validRequestOrigin(request)) return { ok: false as const, response: Response.json({ error: "Origen de solicitud inválido." }, { status: 403 }) };
-  const authorization = adminAuthorization(request);
-  return authorization.ok ? { ok: true as const } : { ok: false as const, response: Response.json({ error: authorization.error }, { status: authorization.status }) };
-}
 
 function accessResponse(credential: { username: string; active: boolean; mustChangePassword: boolean; createdAt: Date; updatedAt: Date }) {
   return { exists: true, username: credential.username, active: credential.active, mustChangePassword: credential.mustChangePassword, createdAt: credential.createdAt.toISOString(), updatedAt: credential.updatedAt.toISOString() };
@@ -27,15 +21,13 @@ async function uniqueUsername(student: Student, studentId: string) {
   throw new Error("No se pudo generar un usuario único.");
 }
 
-export async function GET(request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
-  const authorization = authorize(request); if (!authorization.ok) return authorization.response;
+export async function GET(_request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
   const { id } = await context.params;
   const credential = await prisma.studentPortalCredential.findUnique({ where: { studentId: id } });
   return Response.json(credential ? accessResponse(credential) : { exists: false, active: false });
 }
 
 export async function POST(request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
-  const authorization = authorize(request); if (!authorization.ok) return authorization.response;
   try {
     const { id } = await context.params;
     const existing = await prisma.studentPortalCredential.findUnique({ where: { studentId: id } });
@@ -59,7 +51,6 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
 }
 
 export async function PATCH(request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
-  const authorization = authorize(request); if (!authorization.ok) return authorization.response;
   try {
     const { id } = await context.params;
     const body = (await request.json()) as { action?: "reset" | "activate" | "deactivate" };
@@ -92,8 +83,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
   }
 }
 
-export async function DELETE(request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
-  const authorization = authorize(request); if (!authorization.ok) return authorization.response;
+export async function DELETE(_request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
   const { id } = await context.params;
   await prisma.studentPortalCredential.deleteMany({ where: { studentId: id } });
   return new Response(null, { status: 204 });

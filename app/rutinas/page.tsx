@@ -56,6 +56,7 @@ export default function RutinasPage() {
   const [items, setItems] = useState<TrainingRoutine[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"activas" | "archivadas" | "todas">("activas");
   const [objectiveFilter, setObjectiveFilter] = useState("todos");
   const [studentFilter, setStudentFilter] = useState("todos");
   const [form, setForm] = useState<RoutineDraft>(blankRoutine());
@@ -67,6 +68,7 @@ export default function RutinasPage() {
   const [saving, setSaving] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,8 +82,12 @@ export default function RutinasPage() {
   const objectiveOptions = useMemo(() => [...new Set([...objectives, ...items.map((item) => item.objective)])].sort((a, b) => a.localeCompare(b, "es")), [items]);
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es");
-    return items.filter((routine) => (!normalized || `${routine.name} ${routine.objective} ${routine.students.map((student) => student.name).join(" ")}`.toLocaleLowerCase("es").includes(normalized)) && (objectiveFilter === "todos" || routine.objective === objectiveFilter) && (studentFilter === "todos" || routine.studentIds.includes(studentFilter)));
-  }, [items, objectiveFilter, query, studentFilter]);
+    return items.filter((routine) =>
+      (statusFilter === "todas" || (statusFilter === "activas" ? routine.status === "activa" : routine.status === "archivada"))
+      && (!normalized || `${routine.name} ${routine.objective} ${routine.students.map((student) => student.name).join(" ")}`.toLocaleLowerCase("es").includes(normalized))
+      && (objectiveFilter === "todos" || routine.objective === objectiveFilter)
+      && (studentFilter === "todos" || routine.studentIds.includes(studentFilter)));
+  }, [items, objectiveFilter, query, statusFilter, studentFilter]);
 
   function begin(routine?: TrainingRoutine) {
     if (!routine && students.length === 0) { setError("Primero necesitás crear un alumno real para asignar una rutina."); return; }
@@ -94,7 +100,7 @@ export default function RutinasPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!form.name.trim() || !form.objective.trim() || form.studentIds.length === 0) { setError("Completá nombre, objetivo y al menos un alumno."); return; }
+    if (!form.name.trim() || !form.objective.trim()) { setError("Completá nombre y objetivo."); return; }
     const payload = { ...form, days: form.days.map((day) => ({ id: day.id, dayNumber: day.dayNumber, exercises: [...day.exercises].sort((a, b) => a.order - b.order).map((exercise, index) => ({ id: exercise.id, name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets, repetitions: exercise.repetitions, weight: exercise.weight, effortType: exercise.effortType, effortValue: exercise.effortValue, restSeconds: exercise.restSeconds, observations: exercise.observations, videoUrl: exercise.videoUrl, order: index + 1 })) })) };
     setSaving(true); setError("");
     try {
@@ -119,23 +125,53 @@ export default function RutinasPage() {
   }
 
   async function remove(routine: TrainingRoutine) {
-    if (!window.confirm(`¿Eliminar la rutina “${routine.name}”? Se eliminarán también sus días y ejercicios.`)) return;
-    setError("");
+    const confirmation = routine.status === "archivada"
+      ? `¿Eliminar definitivamente “${routine.name}” si no tiene historial?`
+      : `¿Archivar o eliminar “${routine.name}”? Si tiene historial, se conservará archivada.`;
+    if (!window.confirm(confirmation)) return;
+    setError(""); setNotice("");
     try {
       const response = await fetch(`/api/rutinas/${routine.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo eliminar la rutina."));
-      setItems((current) => current.filter((item) => item.id !== routine.id));
-      if (viewing?.id === routine.id) setViewing(null);
+      const result = await response.json() as { action: "archived" | "deleted"; message: string; routine?: TrainingRoutine };
+      if (result.action === "archived" && result.routine) {
+        setItems((current) => current.map((item) => item.id === routine.id ? result.routine! : item));
+        setViewing((current) => current?.id === routine.id ? result.routine! : current);
+      } else {
+        setItems((current) => current.filter((item) => item.id !== routine.id));
+        if (viewing?.id === routine.id) setViewing(null);
+      }
+      setNotice(result.message);
     } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar la rutina de Neon."); }
+  }
+
+  async function restore(routine: TrainingRoutine) {
+    if (!window.confirm(`¿Restaurar “${routine.name}” como rutina activa?`)) return;
+    setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/rutinas/${routine.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore" }),
+      });
+      if (!response.ok) throw new Error(await responseError(response, "No se pudo restaurar la rutina."));
+      const result = await response.json() as { message: string; routine: TrainingRoutine };
+      setItems((current) => current.map((item) => item.id === routine.id ? result.routine : item));
+      setViewing((current) => current?.id === routine.id ? result.routine : current);
+      setNotice(result.message);
+    } catch (restoreError) {
+      setError(restoreError instanceof Error ? restoreError.message : "No se pudo restaurar la rutina.");
+    }
   }
 
   return <ModuleShell title="Rutinas" subtitle="Diseñá planes personalizados, organizados por días y asignados a alumnos reales." action={activeTab === "seguimiento" ? null : <button onClick={() => begin()} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300">+ Crear rutina</button>}>
     {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+    {notice && !open && <p role="status" className="mb-5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-200">{notice}</p>}
     <nav className="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-2">{([["rutinas", "Rutinas"], ["asignaciones", "Asignaciones"], ["seguimiento", "Seguimiento de alumnos"]] as const).map(([value, title]) => <button key={value} onClick={() => { setActiveTab(value); if (value !== "seguimiento") setTrackingRoutineId(""); }} className={`shrink-0 rounded-xl px-4 py-3 text-sm font-bold ${activeTab === value ? "bg-yellow-400 text-zinc-950" : "text-zinc-400 hover:bg-zinc-800"}`}>{title}</button>)}</nav>
     {activeTab === "seguimiento" ? <RoutineFollowUp initialRoutineId={trackingRoutineId} initialStudentId={trackingStudentId} /> : <>
     <section className="grid gap-4 sm:grid-cols-3"><Summary label="Rutinas activas" value={items.filter((item) => item.status === "activa").length} /><Summary label="Alumnos con rutina" value={new Set(items.flatMap((item) => item.studentIds)).size} /><Summary label="Ejercicios planificados" value={items.reduce((total, item) => total + exerciseCount(item), 0)} /></section>
-    <section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="grid gap-3 md:grid-cols-3"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina, objetivo o alumno" className={inputClass} /><select value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
-    <section className="mt-6 grid gap-4 lg:grid-cols-2">{!ready ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando rutinas…</p> : visible.length === 0 ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">No hay rutinas que coincidan con los filtros.</p> : visible.map((routine) => <RoutineCard key={routine.id} routine={routine} view={() => { setTrackingRoutineId(routine.id); setActiveTab("seguimiento"); }} edit={() => begin(routine)} duplicate={() => duplicate(routine)} remove={() => remove(routine)} duplicating={duplicatingId === routine.id} />)}</section>
+    <section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina, objetivo o alumno" className={inputClass} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={inputClass}><option value="activas">Activas</option><option value="archivadas">Archivadas</option><option value="todas">Todas</option></select><select value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
+    <section className="mt-6 grid gap-4 lg:grid-cols-2">{!ready ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando rutinas…</p> : visible.length === 0 ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">No hay rutinas que coincidan con los filtros.</p> : visible.map((routine) => <RoutineCard key={routine.id} routine={routine} view={() => setViewing(routine)} tracking={() => { setTrackingRoutineId(routine.id); setActiveTab("seguimiento"); }} edit={() => begin(routine)} duplicate={() => duplicate(routine)} remove={() => remove(routine)} restore={() => restore(routine)} duplicating={duplicatingId === routine.id} />)}</section>
     </>}
     {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving} />}
     {viewing && <RoutineDetail routine={viewing} close={() => setViewing(null)} />}
@@ -144,8 +180,43 @@ export default function RutinasPage() {
 
 function Summary({ label: title, value }: { label: string; value: number }) { return <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><p className="text-sm text-zinc-400">{title}</p><p className="mt-1 text-3xl font-bold text-yellow-400">{value}</p></article>; }
 
-function RoutineCard({ routine, view, edit, duplicate, remove, duplicating }: { routine: TrainingRoutine; view: () => void; edit: () => void; duplicate: () => void; remove: () => void; duplicating: boolean }) {
-  return <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-yellow-400/40"><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold">{routine.name}</h2><span className={`rounded-full px-2 py-1 text-xs font-bold ${routine.status === "activa" ? "bg-emerald-400/10 text-emerald-300" : "bg-zinc-700 text-zinc-300"}`}>{label(routine.status)}</span></div><p className="mt-1 text-sm text-yellow-400">{routine.objective} · {label(routine.level)}</p></div><span className="text-xs text-zinc-500">{showDate(routine.createdAt)}</span></div><div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3"><Info label="Días con ejercicios" value={`${activeDays(routine)}/7`} /><Info label="Ejercicios" value={String(exerciseCount(routine))} /><Info label="Alumnos" value={String(routine.students.length)} /></div><p className="mt-4 truncate text-sm text-zinc-400">{routine.students.map((student) => student.name).join(" · ")}</p><div className="mt-5 flex flex-wrap gap-4 text-sm font-semibold"><button onClick={view} className="text-yellow-400">Ver</button><button onClick={edit} className="text-yellow-400">Editar</button><button onClick={duplicate} disabled={duplicating} className="text-sky-300 disabled:opacity-50">{duplicating ? "Duplicando…" : "Duplicar"}</button><button onClick={remove} className="text-red-300">Eliminar</button></div></article>;
+function RoutineCard({ routine, view, tracking, edit, duplicate, remove, restore, duplicating }: {
+  routine: TrainingRoutine;
+  view: () => void;
+  tracking: () => void;
+  edit: () => void;
+  duplicate: () => void;
+  remove: () => void;
+  restore: () => void;
+  duplicating: boolean;
+}) {
+  const archived = routine.status === "archivada";
+  return <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-yellow-400/40">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-bold">{routine.name}</h2>
+          <span className={`rounded-full px-2 py-1 text-xs font-bold ${archived ? "bg-zinc-700 text-zinc-300" : "bg-emerald-400/10 text-emerald-300"}`}>{label(routine.status)}</span>
+        </div>
+        <p className="mt-1 text-sm text-yellow-400">{routine.objective} · {label(routine.level)}</p>
+      </div>
+      <span className="text-xs text-zinc-500">{showDate(routine.createdAt)}</span>
+    </div>
+    <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+      <Info label="Días con ejercicios" value={`${activeDays(routine)}/7`} />
+      <Info label="Ejercicios" value={String(exerciseCount(routine))} />
+      <Info label={archived ? "Asignaciones activas" : "Alumnos"} value={String(routine.students.length)} />
+    </div>
+    <p className="mt-4 truncate text-sm text-zinc-400">{routine.students.map((student) => student.name).join(" · ") || (archived ? "Sin asignaciones activas" : "Sin alumnos asignados")}</p>
+    <div className="mt-5 flex flex-wrap gap-4 text-sm font-semibold">
+      <button onClick={view} className="text-yellow-400">Ver contenido</button>
+      <button onClick={tracking} className="text-yellow-400">Ver seguimiento</button>
+      {!archived && <button onClick={edit} className="text-yellow-400">Editar</button>}
+      {archived && <button onClick={restore} className="text-emerald-300">Restaurar</button>}
+      <button onClick={duplicate} disabled={duplicating} className="text-sky-300 disabled:opacity-50">{duplicating ? "Duplicando…" : "Duplicar"}</button>
+      <button onClick={remove} className="text-red-300">{archived ? "Eliminar definitivamente" : "Archivar o eliminar"}</button>
+    </div>
+  </article>;
 }
 
 function Info({ label: title, value }: { label: string; value: string }) { return <div className="rounded-xl bg-zinc-950 p-3"><p className="text-xs text-zinc-500">{title}</p><p className="mt-1 font-semibold">{value}</p></div>; }

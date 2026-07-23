@@ -38,7 +38,7 @@ export async function GET() {
     const today = dateKeyToDatabase(todayKey);
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass] = await Promise.all([
-      prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
+      prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
       prisma.studentPayment.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }] }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
@@ -68,9 +68,9 @@ export async function GET() {
       workoutSessions: workoutSessions.map((workout) => ({
         id: workout.id,
         routineId: workout.routineId,
-        routineName: workout.routine.name,
+        routineName: workout.exercises.find((log) => log.snapshotVersion === 1)?.routineName ?? workout.routine.name,
         dayId: workout.dayId,
-        dayNumber: workout.day.dayNumber,
+        dayNumber: workout.exercises.find((log) => log.snapshotVersion === 1)?.routineDayNumber ?? workout.day.dayNumber,
         date: workout.date.toISOString().slice(0, 10),
         startTime: workout.startTime,
         durationMinutes: workout.durationMinutes,
@@ -81,7 +81,7 @@ export async function GET() {
         hasPain: workout.hasPain,
         painDetails: workout.painDetails,
         status: workout.status === "COMPLETED" ? "finalizado" as const : workout.status === "IN_PROGRESS" ? "en_progreso" as const : "pendiente" as const,
-        exercises: workout.exercises.map((log) => {
+        exercises: [...workout.exercises].sort((left, right) => (left.exerciseOrder ?? left.exercise.order) - (right.exerciseOrder ?? right.exercise.order)).map((log) => {
           const older = workoutSessions
             .filter((candidate) => candidate.id !== workout.id && candidate.date <= workout.date)
             .flatMap((candidate) => candidate.exercises.filter((item) => item.exerciseId === log.exerciseId).map((item) => ({ candidate, item })))
@@ -93,7 +93,7 @@ export async function GET() {
           return {
             id: log.id,
             exerciseId: log.exerciseId,
-            exerciseName: log.exercise.name,
+            exerciseName: log.snapshotVersion === 1 ? log.exerciseName! : log.exercise.name,
             observation: log.observation,
             sets: log.sets.map((set) => ({ id: set.id, setNumber: set.setNumber, weight: set.weight === null ? null : Number(set.weight), repetitions: set.repetitions, effort: set.effort === null ? null : Number(set.effort), completed: set.completed, observation: set.observation })),
             previous: history[0] ?? null,

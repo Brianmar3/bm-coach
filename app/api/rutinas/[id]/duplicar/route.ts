@@ -30,9 +30,9 @@ export async function POST(_request: Request, context: RouteContext<"/api/rutina
         name: `${source.name} (copia)`,
         objective: source.objective,
         level: source.level,
-        status: source.status,
+        status: "ACTIVA",
+        archivedAt: null,
         days: { create: nestedDays(days) },
-        assignments: { create: source.assignments.map((assignment) => ({ studentId: assignment.studentId })) },
       },
       include: routineInclude,
     });

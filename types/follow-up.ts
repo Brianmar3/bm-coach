@@ -19,6 +19,7 @@ export type AdminWorkoutExercise = {
   targetEffort: number | null;
   restSeconds: number | null;
   coachInstructions: string;
+  legacySnapshot: boolean;
   studentObservation: string;
   sets: AdminWorkoutSet[];
   previous: { date: string; weight: number | null; repetitions: number | null; effort: number | null } | null;

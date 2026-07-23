@@ -99,13 +99,3 @@ export function validRequestOrigin(request: Request) {
     return false;
   }
 }
-
-export function adminAuthorization(request: Request) {
-  const configured = process.env.BM_COACH_ADMIN_TOKEN;
-  if (!configured || configured.length < 32) return { ok: false as const, status: 503, error: "Configurá BM_COACH_ADMIN_TOKEN con al menos 32 caracteres." };
-  const supplied = request.headers.get("x-bm-admin-token") ?? "";
-  const expectedBuffer = Buffer.from(configured);
-  const suppliedBuffer = Buffer.from(supplied);
-  const ok = expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer);
-  return ok ? { ok: true as const } : { ok: false as const, status: 401, error: "Autorización administrativa inválida." };
-}

@@ -25,10 +25,15 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
     if (!Number.isInteger(input.dayNumber) || input.dayNumber < 1 || input.dayNumber > 7) return Response.json({ error: "El día debe estar entre 1 y 7." }, { status: 400 });
     const validationError = validateExercise(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const day = await prisma.trainingRoutineDay.findUnique({ where: { routineId_dayNumber: { routineId: id, dayNumber: input.dayNumber } } });
+    const day = await prisma.trainingRoutineDay.findFirst({
+      where: { routineId: id, dayNumber: input.dayNumber, active: true, routine: { status: "ACTIVA" } },
+    });
     if (!day) return Response.json({ error: "Rutina o día no encontrado." }, { status: 404 });
-    const exercise = await prisma.trainingRoutineExercise.create({ data: { dayId: day.id, ...exerciseData(input) } });
-    await prisma.trainingRoutine.update({ where: { id }, data: { updatedAt: new Date() } });
+    const exercise = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.trainingRoutineExercise.create({ data: { dayId: day.id, ...exerciseData(input) } });
+      await transaction.trainingRoutine.update({ where: { id }, data: { updatedAt: new Date() } });
+      return created;
+    });
     return Response.json({ ...serializeExercise(exercise), dayNumber: input.dayNumber }, { status: 201 });
   } catch (error) {
     console.error("Error al crear ejercicio", error);

@@ -14,7 +14,7 @@ export type RoutineInput = {
 
 export const routineInclude = {
   days: { where: { active: true }, include: { exercises: { where: { active: true }, orderBy: { order: "asc" as const } } }, orderBy: { dayNumber: "asc" as const } },
-  assignments: { include: { student: true } },
+  assignments: { where: { active: true }, include: { student: true } },
 };
 
 export type RoutineWithRelations = Prisma.TrainingRoutineGetPayload<{ include: typeof routineInclude }>;
@@ -57,7 +57,7 @@ export function validateRoutine(input: RoutineInput) {
   if (!input.objective?.trim() || input.objective.trim().length > 100) return "Seleccioná un objetivo válido.";
   if (!levels.includes(input.level)) return "Seleccioná un nivel válido.";
   if (!statuses.includes(input.status)) return "Seleccioná un estado válido.";
-  if (!Array.isArray(input.studentIds) || input.studentIds.length === 0) return "Asigná la rutina al menos a un alumno.";
+  if (!Array.isArray(input.studentIds)) return "La asignación de alumnos no es válida.";
   if (new Set(input.studentIds).size !== input.studentIds.length || input.studentIds.some((id) => !id?.trim())) return "La asignación de alumnos no es válida.";
   if (!Array.isArray(input.days) || input.days.length !== 7) return "La rutina debe incluir los días 1 al 7.";
   const dayNumbers = input.days.map((day) => day.dayNumber);
@@ -94,6 +94,7 @@ export function routineData(input: RoutineInput) {
     objective: input.objective.trim(),
     level: levelToDatabase[input.level],
     status: statusToDatabase[input.status],
+    archivedAt: input.status === "archivada" ? new Date() : null,
   };
 }
 
@@ -134,6 +135,7 @@ export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine 
     status: statusFromDatabase[record.status],
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
+    archivedAt: record.archivedAt?.toISOString() ?? "",
     studentIds: students.map((student) => student.id),
     students,
     days: record.days.map((day) => ({ id: day.id, dayNumber: day.dayNumber, exercises: day.exercises.map(serializeExercise) })),

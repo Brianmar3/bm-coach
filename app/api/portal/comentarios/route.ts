@@ -26,7 +26,20 @@ export async function POST(request: Request) {
 
     if (input.sessionId && !await prisma.workoutSession.findFirst({ where: { id: input.sessionId, studentId: session.studentId }, select: { id: true } })) return Response.json({ error: "La sesión no te pertenece." }, { status: 403 });
     if (input.evaluationId && !await prisma.physicalEvaluation.findFirst({ where: { id: input.evaluationId, studentId: session.studentId }, select: { id: true } })) return Response.json({ error: "La evaluación no te pertenece." }, { status: 403 });
-    if (input.exerciseId && !await prisma.trainingRoutineExercise.findFirst({ where: { id: input.exerciseId, day: { routine: { assignments: { some: { studentId: session.studentId } } } } }, select: { id: true } })) return Response.json({ error: "El ejercicio no pertenece a tu rutina." }, { status: 403 });
+    if (input.exerciseId && !await prisma.trainingRoutineExercise.findFirst({
+      where: {
+        id: input.exerciseId,
+        active: true,
+        day: {
+          active: true,
+          routine: {
+            status: "ACTIVA",
+            assignments: { some: { studentId: session.studentId, active: true } },
+          },
+        },
+      },
+      select: { id: true },
+    })) return Response.json({ error: "El ejercicio no pertenece a tu rutina activa." }, { status: 403 });
 
     const created = await prisma.followUpComment.create({
       data: {
