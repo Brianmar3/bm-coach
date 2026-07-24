@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { ClassOccurrenceAdmin } from "@/componentes/class-occurrence-admin";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
@@ -200,16 +201,20 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void }) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
   return (
-    <button onClick={() => open(schedule)} className={`w-full rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:border-yellow-400/70 ${schedule.active ? "border-yellow-400/25 bg-yellow-400/5" : "border-zinc-700 bg-zinc-950/70 opacity-65"}`}>
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-xs font-bold text-yellow-400">{schedule.startTime} – {schedule.endTime}</span>
-        <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${schedule.active ? "bg-emerald-400" : "bg-zinc-600"}`} title={schedule.active ? "Activo" : "Inactivo"} />
-      </div>
-      <p className="mt-2 font-semibold leading-tight text-white">{schedule.classType}</p>
-      <p className="mt-2 text-xs text-zinc-400">{occupancy(schedule)}</p>
-      {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-zinc-500">{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
-    </button>
+    <article className={`w-full rounded-xl border p-3 text-left transition hover:border-yellow-400/70 ${schedule.active ? "border-yellow-400/25 bg-yellow-400/5" : "border-zinc-700 bg-zinc-950/70 opacity-65"}`}>
+      <button onClick={() => open(schedule)} className="w-full text-left">
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-xs font-bold text-yellow-400">{schedule.startTime} – {schedule.endTime}</span>
+          <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${schedule.active ? "bg-emerald-400" : "bg-zinc-600"}`} title={schedule.active ? "Activo" : "Inactivo"} />
+        </div>
+        <p className="mt-2 font-semibold leading-tight text-white">{schedule.classType}</p>
+        <p className="mt-2 text-xs text-zinc-400">{occupancy(schedule)}</p>
+        {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-zinc-500">{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
+      </button>
+      <Link href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${today}`} className="mt-3 block rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
+    </article>
   );
 }
 

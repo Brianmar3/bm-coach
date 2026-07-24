@@ -95,6 +95,14 @@ export async function PUT(request: Request) {
       const label = schedule ? weeklyScheduleLabel(schedule) : "Sin horario";
       const startTime = schedule?.startTime ?? "";
       for (const record of parsedRecords) {
+        if (body.scheduleId) {
+          await transaction.classAttendance.upsert({
+            where: { scheduleId_studentId_date: { scheduleId: body.scheduleId, studentId: record.studentId, date } },
+            create: { scheduleId: body.scheduleId, studentId: record.studentId, date, status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: startTime },
+            update: { status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: startTime },
+          });
+          continue;
+        }
         const existingAttendance = await transaction.classAttendance.findFirst({
           where: {
             studentId: record.studentId,
