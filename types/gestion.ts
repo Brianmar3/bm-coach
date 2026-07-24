@@ -240,5 +240,6 @@ export type TrainingRoutine = {
   archivedAt: string;
   studentIds: string[];
   students: Array<{ id: string; name: string }>;
+  historicalStudents: Array<{ id: string; name: string }>;
   days: TrainingRoutineDay[];
 };

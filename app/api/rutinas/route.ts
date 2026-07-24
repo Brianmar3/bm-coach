@@ -1,4 +1,4 @@
-import { databaseUnavailable, nestedDays, routineData, routineInclude, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
+import { databaseUnavailable, nestedDays, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
@@ -39,18 +39,23 @@ export async function POST(request: Request) {
     if (students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {
+      const archivedAt = input.status === "archivada" ? new Date() : null;
       if (input.status === "activa") {
         const conflicts = await transaction.trainingRoutineAssignment.count({ where: { studentId: { in: input.studentIds }, active: true, routine: { status: "ACTIVA" } } });
         if (conflicts) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
       }
-      return transaction.trainingRoutine.create({
+      const created = await transaction.trainingRoutine.create({
         data: {
           ...routineData(input),
+          archivedAt,
           days: { create: nestedDays(input.days) },
-          assignments: { create: input.studentIds.map((studentId) => ({ studentId, active: input.status === "activa", archivedAt: input.status === "archivada" ? new Date() : null })) },
+          assignments: { create: input.studentIds.map((studentId) => ({ studentId, active: input.status === "activa", archivedAt })) },
         },
         include: routineInclude,
       });
+      const snapshot = routineVersionSnapshot(input);
+      await transaction.trainingRoutineVersion.create({ data: { routineId: created.id, version: 1, summary: "Versión inicial", fingerprint: routineFingerprint(input), snapshot: snapshot as unknown as Prisma.InputJsonValue } });
+      return created;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return Response.json(serializeRoutine(record), { status: 201 });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
 import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
 export type ExerciseInput = Omit<TrainingExercise, "id"> & { id?: string };
@@ -14,7 +15,7 @@ export type RoutineInput = {
 
 export const routineInclude = {
   days: { where: { active: true }, include: { exercises: { where: { active: true }, orderBy: { order: "asc" as const } } }, orderBy: { dayNumber: "asc" as const } },
-  assignments: { where: { active: true }, include: { student: true } },
+  assignments: { include: { student: true } },
 };
 
 export type RoutineWithRelations = Prisma.TrainingRoutineGetPayload<{ include: typeof routineInclude }>;
@@ -105,6 +106,29 @@ export function nestedDays(days: RoutineDayInput[]) {
   }));
 }
 
+export function routineVersionSnapshot(input: RoutineInput) {
+  return {
+    name: input.name.trim(),
+    objective: input.objective.trim(),
+    level: input.level,
+    status: input.status,
+    studentIds: [...input.studentIds].sort(),
+    days: [...input.days].sort((left, right) => left.dayNumber - right.dayNumber).map((day) => ({
+      id: day.id,
+      dayNumber: day.dayNumber,
+      exercises: [...day.exercises].sort((left, right) => left.order - right.order).map((exercise) => ({
+        ...exercise,
+        observations: exercise.observations?.trim() ?? "",
+        videoUrl: exercise.videoUrl?.trim() ?? "",
+      })),
+    })),
+  } satisfies RoutineInput;
+}
+
+export function routineFingerprint(input: RoutineInput) {
+  return createHash("sha256").update(JSON.stringify(routineVersionSnapshot(input))).digest("hex");
+}
+
 export function serializeExercise(record: RoutineWithRelations["days"][number]["exercises"][number]): TrainingExercise {
   return {
     id: record.id,
@@ -123,10 +147,11 @@ export function serializeExercise(record: RoutineWithRelations["days"][number]["
 }
 
 export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine {
-  const students = record.assignments.map((assignment) => {
+  const assignmentStudents = record.assignments.map((assignment) => {
     const student = assignment.student.data as unknown as Student;
-    return { id: assignment.studentId, name: `${student.firstName} ${student.lastName}`.trim() };
+    return { id: assignment.studentId, name: `${student.firstName} ${student.lastName}`.trim(), active: assignment.active };
   }).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  const students = assignmentStudents.filter((student) => student.active).map(({ id, name }) => ({ id, name }));
   return {
     id: record.id,
     name: record.name,
@@ -138,6 +163,7 @@ export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine 
     archivedAt: record.archivedAt?.toISOString() ?? "",
     studentIds: students.map((student) => student.id),
     students,
+    historicalStudents: assignmentStudents.map(({ id, name }) => ({ id, name })),
     days: record.days.map((day) => ({ id: day.id, dayNumber: day.dayNumber, exercises: day.exercises.map(serializeExercise) })),
   };
 }

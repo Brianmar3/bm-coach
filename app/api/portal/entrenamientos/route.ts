@@ -54,6 +54,7 @@ export async function POST(request: Request) {
           exercises: {
             select: {
               exerciseId: true,
+              exerciseReferenceId: true,
               snapshotVersion: true,
               exerciseName: true,
               targetSets: true,
@@ -111,6 +112,8 @@ export async function POST(request: Request) {
         studentId: session.studentId,
         routineId: input.routineId,
         dayId: input.dayId,
+        routineNameSnapshot: existingSession ? undefined : assignment.routine.name,
+        routineDayNumberSnapshot: existingSession ? undefined : day.dayNumber,
         date: dateKeyToDatabase(input.date),
         startTime: input.startTime,
         durationMinutes: input.durationMinutes,
@@ -127,6 +130,7 @@ export async function POST(request: Request) {
             const previousSnapshot = existingSession?.exercises.find((item) => item.exerciseId === exercise.exerciseId);
             return {
               exerciseId: exercise.exerciseId,
+              exerciseReferenceId: previousSnapshot?.exerciseReferenceId ?? previousSnapshot?.exerciseId ?? exercise.exerciseId,
               observation: exercise.observation.trim(),
               snapshotVersion: previousSnapshot ? previousSnapshot.snapshotVersion : 1,
               exerciseName: previousSnapshot ? previousSnapshot.exerciseName : programmed.name,

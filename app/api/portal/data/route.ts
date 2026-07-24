@@ -58,7 +58,7 @@ export async function GET() {
         : Promise.resolve(null),
     ]);
     const student = session.credential.student.data as unknown as Student;
-    const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
+    const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
       profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, dueDate: student.dueDate },
       routine: privateRoutine,
@@ -67,10 +67,10 @@ export async function GET() {
       events: events.map(serializeEvent),
       workoutSessions: workoutSessions.map((workout) => ({
         id: workout.id,
-        routineId: workout.routineId,
-        routineName: workout.exercises.find((log) => log.snapshotVersion === 1)?.routineName ?? workout.routine.name,
-        dayId: workout.dayId,
-        dayNumber: workout.exercises.find((log) => log.snapshotVersion === 1)?.routineDayNumber ?? workout.day.dayNumber,
+        routineId: workout.routineId ?? "",
+        routineName: workout.routineNameSnapshot ?? workout.exercises.find((log) => log.snapshotVersion !== null)?.routineName ?? workout.routine?.name ?? "Rutina eliminada",
+        dayId: workout.dayId ?? "",
+        dayNumber: workout.routineDayNumberSnapshot ?? workout.exercises.find((log) => log.snapshotVersion !== null)?.routineDayNumber ?? workout.day?.dayNumber ?? 0,
         date: workout.date.toISOString().slice(0, 10),
         startTime: workout.startTime,
         durationMinutes: workout.durationMinutes,
@@ -81,10 +81,10 @@ export async function GET() {
         hasPain: workout.hasPain,
         painDetails: workout.painDetails,
         status: workout.status === "COMPLETED" ? "finalizado" as const : workout.status === "IN_PROGRESS" ? "en_progreso" as const : "pendiente" as const,
-        exercises: [...workout.exercises].sort((left, right) => (left.exerciseOrder ?? left.exercise.order) - (right.exerciseOrder ?? right.exercise.order)).map((log) => {
+        exercises: [...workout.exercises].sort((left, right) => (left.exerciseOrder ?? left.exercise?.order ?? 0) - (right.exerciseOrder ?? right.exercise?.order ?? 0)).map((log) => {
           const older = workoutSessions
             .filter((candidate) => candidate.id !== workout.id && candidate.date <= workout.date)
-            .flatMap((candidate) => candidate.exercises.filter((item) => item.exerciseId === log.exerciseId).map((item) => ({ candidate, item })))
+            .flatMap((candidate) => candidate.exercises.filter((item) => (item.exerciseReferenceId ?? item.exerciseId) === (log.exerciseReferenceId ?? log.exerciseId)).map((item) => ({ candidate, item })))
             .sort((left, right) => right.candidate.date.getTime() - left.candidate.date.getTime());
           const history = older.slice(0, 8).map(({ candidate, item }) => {
             const best = [...item.sets].filter((set) => set.completed).sort((left, right) => Number(right.weight ?? 0) - Number(left.weight ?? 0))[0] ?? item.sets[0];
@@ -92,8 +92,8 @@ export async function GET() {
           });
           return {
             id: log.id,
-            exerciseId: log.exerciseId,
-            exerciseName: log.snapshotVersion === 1 ? log.exerciseName! : log.exercise.name,
+            exerciseId: log.exerciseReferenceId ?? log.exerciseId ?? log.id,
+            exerciseName: log.snapshotVersion !== null ? log.exerciseName ?? "Ejercicio eliminado" : log.exercise?.name ?? "Ejercicio eliminado",
             observation: log.observation,
             sets: log.sets.map((set) => ({ id: set.id, setNumber: set.setNumber, weight: set.weight === null ? null : Number(set.weight), repetitions: set.repetitions, effort: set.effort === null ? null : Number(set.effort), completed: set.completed, observation: set.observation })),
             previous: history[0] ?? null,

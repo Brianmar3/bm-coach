@@ -33,23 +33,23 @@ export async function GET(request: Request) {
       prisma.studentRecord.findMany({ select: { id: true, data: true } }),
       prisma.trainingRoutine.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     ]);
-    const exerciseIds = [...new Set(sessions.flatMap((session) => session.exercises.map((log) => log.exerciseId)))];
+    const exerciseIds = [...new Set(sessions.flatMap((session) => session.exercises.map((log) => log.exerciseReferenceId ?? log.exerciseId).filter((id): id is string => Boolean(id))))];
     const previousLogs = exerciseIds.length ? await prisma.workoutExerciseLog.findMany({
-      where: { exerciseId: { in: exerciseIds }, session: { status: "COMPLETED" } },
+      where: { OR: [{ exerciseReferenceId: { in: exerciseIds } }, { exerciseId: { in: exerciseIds } }], session: { status: "COMPLETED" } },
       include: { sets: true, session: { select: { id: true, studentId: true, date: true } } },
       orderBy: { session: { date: "desc" } },
     }) : [];
     const trained = new Set(sessions.filter((item) => item.status === "COMPLETED").map((item) => item.studentId));
     return Response.json({
       sessions: sessions.map((session) => {
-        const sessionSnapshot = session.exercises.find((log) => log.snapshotVersion === 1);
+        const sessionSnapshot = session.exercises.find((log) => log.snapshotVersion !== null);
         return {
         id: session.id,
         studentId: session.studentId,
         studentName: name(session.student.data),
-        routineId: session.routineId,
-        routine: sessionSnapshot?.routineName ?? session.routine.name,
-        dayNumber: sessionSnapshot?.routineDayNumber ?? session.day.dayNumber,
+        routineId: session.routineId ?? "",
+        routine: session.routineNameSnapshot ?? sessionSnapshot?.routineName ?? session.routine?.name ?? "Rutina eliminada",
+        dayNumber: session.routineDayNumberSnapshot ?? sessionSnapshot?.routineDayNumber ?? session.day?.dayNumber ?? 0,
         date: session.date.toISOString().slice(0, 10),
         startTime: session.startTime,
         durationMinutes: session.durationMinutes,
@@ -64,21 +64,23 @@ export async function GET(request: Request) {
         exerciseCount: session.exercises.length,
         completedSets: session.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).length, 0),
         pendingComments: session.comments.length,
-        exercises: [...session.exercises].sort((left, right) => (left.exerciseOrder ?? left.exercise.order) - (right.exerciseOrder ?? right.exercise.order)).map((log) => {
-          const previous = previousLogs.find((candidate) => candidate.exerciseId === log.exerciseId && candidate.session.studentId === session.studentId && candidate.session.id !== session.id && candidate.session.date < session.date);
+        exercises: [...session.exercises].sort((left, right) => (left.exerciseOrder ?? left.exercise?.order ?? 0) - (right.exerciseOrder ?? right.exercise?.order ?? 0)).map((log) => {
+          const referenceId = log.exerciseReferenceId ?? log.exerciseId;
+          const previous = previousLogs.find((candidate) => (candidate.exerciseReferenceId ?? candidate.exerciseId) === referenceId && candidate.session.studentId === session.studentId && candidate.session.id !== session.id && candidate.session.date < session.date);
           const bestPrevious = previous?.sets.filter((set) => set.completed).sort((left, right) => Number(right.weight ?? 0) - Number(left.weight ?? 0))[0] ?? null;
           const legacySnapshot = log.snapshotVersion !== 1;
+          const hasSnapshot = log.snapshotVersion !== null;
           return {
             id: log.id,
-            exerciseId: log.exerciseId,
-            name: legacySnapshot ? log.exercise.name : log.exerciseName!,
-            targetSets: legacySnapshot ? log.exercise.sets : log.targetSets!,
-            targetRepetitions: legacySnapshot ? log.exercise.repetitions : log.targetRepetitions!,
-            suggestedWeight: decimal(legacySnapshot ? log.exercise.weight : log.suggestedWeight),
-            effortType: legacySnapshot ? log.exercise.effortType : log.targetEffortType!,
-            targetEffort: decimal(legacySnapshot ? log.exercise.effortValue : log.targetEffortValue),
-            restSeconds: legacySnapshot ? log.exercise.restSeconds : log.targetRestSeconds,
-            coachInstructions: legacySnapshot ? log.exercise.observations : log.coachInstructions!,
+            exerciseId: referenceId ?? log.id,
+            name: hasSnapshot ? log.exerciseName ?? "Ejercicio eliminado" : log.exercise?.name ?? "Ejercicio eliminado",
+            targetSets: hasSnapshot ? log.targetSets ?? 0 : log.exercise?.sets ?? 0,
+            targetRepetitions: hasSnapshot ? log.targetRepetitions ?? "—" : log.exercise?.repetitions ?? "—",
+            suggestedWeight: decimal(hasSnapshot ? log.suggestedWeight : log.exercise?.weight ?? null),
+            effortType: hasSnapshot ? log.targetEffortType ?? "RIR" : log.exercise?.effortType ?? "RIR",
+            targetEffort: decimal(hasSnapshot ? log.targetEffortValue : log.exercise?.effortValue ?? null),
+            restSeconds: hasSnapshot ? log.targetRestSeconds : log.exercise?.restSeconds ?? null,
+            coachInstructions: hasSnapshot ? log.coachInstructions ?? "" : log.exercise?.observations ?? "",
             legacySnapshot,
             studentObservation: log.observation,
             sets: log.sets.map((set) => ({ id: set.id, setNumber: set.setNumber, weight: decimal(set.weight), repetitions: set.repetitions, effort: decimal(set.effort), completed: set.completed, observation: set.observation })),
@@ -112,5 +114,30 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Error al responder seguimiento", error);
     return Response.json({ error: "No se pudo actualizar el seguimiento." }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+    const input = await request.json().catch(() => null) as { sessionId?: string; studentId?: string; routineId?: string; deleteAll?: boolean } | null;
+    if (input?.deleteAll) {
+      if (!input.studentId?.trim() || !input.routineId?.trim()) return Response.json({ error: "Alumno y rutina son obligatorios." }, { status: 400 });
+      const result = await prisma.$transaction(async (transaction) => {
+        const where = { studentId: input.studentId!, routineId: input.routineId! };
+        const count = await transaction.workoutSession.count({ where });
+        if (!count) return 0;
+        const deleted = await transaction.workoutSession.deleteMany({ where });
+        return deleted.count;
+      });
+      return Response.json({ message: `${result} registros de entrenamiento eliminados definitivamente.`, deleted: result });
+    }
+    if (!input?.sessionId?.trim()) return Response.json({ error: "El registro seleccionado no es válido." }, { status: 400 });
+    const deleted = await prisma.workoutSession.deleteMany({ where: { id: input.sessionId } });
+    if (!deleted.count) return Response.json({ error: "Registro de entrenamiento no encontrado." }, { status: 404 });
+    return Response.json({ message: "Registro de entrenamiento eliminado correctamente.", deleted: 1 });
+  } catch (error) {
+    console.error("Error al eliminar seguimiento", error);
+    return Response.json({ error: "No se pudo eliminar el registro de entrenamiento." }, { status: 500 });
   }
 }
