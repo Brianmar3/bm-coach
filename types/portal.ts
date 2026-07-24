@@ -38,6 +38,8 @@ export type PortalWorkoutSession = {
   id?: string;
   routineId: string;
   routineName: string;
+  routineNameSnapshot?: string;
+  routineDayNumberSnapshot?: number;
   dayId: string;
   dayNumber: number;
   date: string;

@@ -50,6 +50,8 @@ export async function POST(request: Request) {
           id: true,
           routineId: true,
           dayId: true,
+          routineNameSnapshot: true,
+          routineDayNumberSnapshot: true,
           status: true,
           exercises: {
             select: {
@@ -95,6 +97,50 @@ export async function POST(request: Request) {
     if (!input.id && sameDaySession) return Response.json({ error: "Ya existe una sesión para este día y fecha. Volvé a cargar Mi rutina para continuarla." }, { status: 409 });
     if (input.id && sameDaySession?.id === input.id && sameDaySession.status === "COMPLETED") return Response.json({ id: sameDaySession.id, status: "finalizado" });
 
+    const inputRoutineName = input.routineNameSnapshot?.trim() ?? "";
+    const storedRoutineName = existingSession?.routineNameSnapshot.trim() ?? "";
+    const assignedRoutineName = assignment.routine.name.trim();
+    const detachedHistory = Boolean(existingSession && existingSession.routineId === null);
+    const routineNameSnapshot = inputRoutineName || storedRoutineName || assignedRoutineName || (detachedHistory ? "Rutina eliminada" : "");
+    if (!routineNameSnapshot) return Response.json({ error: "No se pudo identificar el nombre histórico de la rutina." }, { status: 400 });
+
+    const requestedDayNumber = input.routineDayNumberSnapshot;
+    const routineDayNumberSnapshot = Number.isInteger(requestedDayNumber) && requestedDayNumber !== undefined && requestedDayNumber >= 1
+      ? requestedDayNumber
+      : existingSession?.routineDayNumberSnapshot ?? day.dayNumber;
+    if (!Number.isInteger(routineDayNumberSnapshot) || routineDayNumberSnapshot < 1) {
+      return Response.json({ error: "No se pudo identificar el día histórico de la rutina." }, { status: 400 });
+    }
+
+    const programmedExercises = new Map(day.exercises.map((exercise) => [exercise.id, exercise]));
+    const exerciseCreates: Prisma.WorkoutExerciseLogUncheckedCreateWithoutSessionInput[] = [];
+    for (const exercise of input.exercises) {
+      const programmed = programmedExercises.get(exercise.exerciseId);
+      if (!programmed) return Response.json({ error: "Uno de los ejercicios no pertenece al día seleccionado." }, { status: 400 });
+      const previousSnapshot = existingSession?.exercises.find((item) => item.exerciseId === exercise.exerciseId);
+      const exerciseName = previousSnapshot?.exerciseName?.trim() || programmed.name.trim();
+      const exerciseReferenceId = previousSnapshot?.exerciseReferenceId ?? previousSnapshot?.exerciseId ?? exercise.exerciseId;
+      if (!exerciseName || !exerciseReferenceId) return Response.json({ error: "No se pudo construir el snapshot histórico de un ejercicio." }, { status: 400 });
+      exerciseCreates.push({
+        exerciseId: exercise.exerciseId,
+        exerciseReferenceId,
+        observation: exercise.observation.trim(),
+        snapshotVersion: previousSnapshot ? previousSnapshot.snapshotVersion : 1,
+        exerciseName,
+        targetSets: previousSnapshot?.targetSets ?? programmed.sets,
+        targetRepetitions: previousSnapshot?.targetRepetitions ?? programmed.repetitions,
+        suggestedWeight: previousSnapshot ? previousSnapshot.suggestedWeight : programmed.weight,
+        targetEffortType: previousSnapshot?.targetEffortType ?? programmed.effortType,
+        targetEffortValue: previousSnapshot ? previousSnapshot.targetEffortValue : programmed.effortValue,
+        targetRestSeconds: previousSnapshot ? previousSnapshot.targetRestSeconds : programmed.restSeconds,
+        coachInstructions: previousSnapshot?.coachInstructions ?? programmed.observations,
+        exerciseOrder: previousSnapshot?.exerciseOrder ?? programmed.order,
+        routineName: previousSnapshot?.routineName?.trim() || routineNameSnapshot,
+        routineDayNumber: previousSnapshot?.routineDayNumber ?? routineDayNumberSnapshot,
+        sets: { create: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight, repetitions: set.repetitions, effort: set.effort, completed: set.completed, observation: set.observation.trim() })) },
+      });
+    }
+
     const saved = await prisma.$transaction(async (transaction) => {
       if (!input.id) {
         const duplicate = await transaction.workoutSession.findFirst({
@@ -112,8 +158,8 @@ export async function POST(request: Request) {
         studentId: session.studentId,
         routineId: input.routineId,
         dayId: input.dayId,
-        routineNameSnapshot: existingSession ? undefined : assignment.routine.name,
-        routineDayNumberSnapshot: existingSession ? undefined : day.dayNumber,
+        routineNameSnapshot,
+        routineDayNumberSnapshot,
         date: dateKeyToDatabase(input.date),
         startTime: input.startTime,
         durationMinutes: input.durationMinutes,
@@ -125,28 +171,7 @@ export async function POST(request: Request) {
         painDetails: input.painDetails.trim(),
         status: input.status === "finalizado" ? "COMPLETED" as const : input.status === "en_progreso" ? "IN_PROGRESS" as const : "PENDING" as const,
         exercises: {
-          create: input.exercises.map((exercise) => {
-            const programmed = day.exercises.find((item) => item.id === exercise.exerciseId)!;
-            const previousSnapshot = existingSession?.exercises.find((item) => item.exerciseId === exercise.exerciseId);
-            return {
-              exerciseId: exercise.exerciseId,
-              exerciseReferenceId: previousSnapshot?.exerciseReferenceId ?? previousSnapshot?.exerciseId ?? exercise.exerciseId,
-              observation: exercise.observation.trim(),
-              snapshotVersion: previousSnapshot ? previousSnapshot.snapshotVersion : 1,
-              exerciseName: previousSnapshot ? previousSnapshot.exerciseName : programmed.name,
-              targetSets: previousSnapshot ? previousSnapshot.targetSets : programmed.sets,
-              targetRepetitions: previousSnapshot ? previousSnapshot.targetRepetitions : programmed.repetitions,
-              suggestedWeight: previousSnapshot ? previousSnapshot.suggestedWeight : programmed.weight,
-              targetEffortType: previousSnapshot ? previousSnapshot.targetEffortType : programmed.effortType,
-              targetEffortValue: previousSnapshot ? previousSnapshot.targetEffortValue : programmed.effortValue,
-              targetRestSeconds: previousSnapshot ? previousSnapshot.targetRestSeconds : programmed.restSeconds,
-              coachInstructions: previousSnapshot ? previousSnapshot.coachInstructions : programmed.observations,
-              exerciseOrder: previousSnapshot ? previousSnapshot.exerciseOrder : programmed.order,
-              routineName: previousSnapshot ? previousSnapshot.routineName : assignment.routine.name,
-              routineDayNumber: previousSnapshot ? previousSnapshot.routineDayNumber : day.dayNumber,
-              sets: { create: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight, repetitions: set.repetitions, effort: set.effort, completed: set.completed, observation: set.observation.trim() })) },
-            };
-          }),
+          create: exerciseCreates,
         },
       };
       return input.id
