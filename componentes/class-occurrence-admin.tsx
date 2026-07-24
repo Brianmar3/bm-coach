@@ -34,7 +34,12 @@ export function ClassOccurrenceAdmin() {
         if (!response.ok) throw new Error(body.error ?? "No se pudieron cargar las clases.");
         return body;
       })
-      .then((body) => { setItems(body); setLoading(false); })
+      .then((body) => {
+        setItems(body);
+        const occurrenceId = new URLSearchParams(window.location.search).get("occurrenceId");
+        if (occurrenceId && body.some((item) => item.id === occurrenceId)) setSelectedId(occurrenceId);
+        setLoading(false);
+      })
       .catch((value: unknown) => { if (value instanceof Error && value.name !== "AbortError") { setError(value.message); setLoading(false); } });
     return () => controller.abort();
   }, [date]);

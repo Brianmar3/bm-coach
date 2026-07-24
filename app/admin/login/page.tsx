@@ -22,8 +22,7 @@ export default function AdminLoginPage() {
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? "No se pudo iniciar sesión.");
       setToken("");
-      const destination = new URLSearchParams(window.location.search).get("next");
-      router.replace(destination?.startsWith("/") && !destination.startsWith("//") ? destination : "/");
+      router.replace("/dashboard");
       router.refresh();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "No se pudo iniciar sesión.");

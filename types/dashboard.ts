@@ -1,66 +1,52 @@
 import type { PaymentAccountStatus } from "@/types/gestion";
 
+export type DashboardActivity = {
+  id: string;
+  type: "payment" | "evaluation" | "routine" | "attendance";
+  title: string;
+  detail: string;
+  date: string;
+  href: string;
+};
+
 export type DashboardData = {
   generatedAt: string;
   today: string;
   metrics: {
     activeStudents: number;
-    activeStudentsMonthChange: number;
-    monthIncome: number;
-    incomeChangePercent: number | null;
-    pendingCount: number;
-    pendingAmount: number;
-    overdueCount: number;
     classesToday: number;
     attendanceToday: number;
-    newStudents: number;
+    monthIncome: number;
+    overdueCount: number;
+    dueSoonCount: number;
   };
-  income: Array<{ date: string; label: string; amount: number }>;
   todayClasses: Array<{
     id: string;
+    scheduleId: string | null;
     startTime: string;
     endTime: string;
     name: string;
     enrolled: number;
     attendance: number;
-    confirmed: number;
-    confirmedStudents: string[];
+    status: "programada" | "en_curso" | "finalizada" | "cancelada";
   }>;
-  upcomingPayments: Array<{
+  paymentAlerts: Array<{
     studentId: string;
     studentName: string;
-    plan: string;
     dueDate: string;
     amount: number;
     status: PaymentAccountStatus;
   }>;
-  recentStudents: Array<{
-    id: string;
+  absenceAlerts: Array<{
+    studentId: string;
     studentName: string;
-    plan: string;
-    days: number | null;
-    dueDate: string;
-    status: PaymentAccountStatus;
+    count: number;
   }>;
-  weeklyAttendance: Array<{
-    date: string;
-    label: string;
-    present: number;
-    total: number;
-    percentage: number;
-  }>;
-  attendanceSummary: {
-    weeklyAverage: number;
-    bestDay: string;
-    totalAttendance: number;
-  };
-  upcomingEvents: Array<{
+  evaluationAlerts: Array<{
     id: string;
     title: string;
-    type: string;
     date: string;
     time: string;
-    color: string;
-    status: string;
   }>;
+  recentActivity: DashboardActivity[];
 };
