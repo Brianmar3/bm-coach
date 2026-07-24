@@ -2,10 +2,20 @@
 
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ClassesModuleHeader } from "@/componentes/classes-module-header";
 import { Sidebar } from "@/componentes/sidebar";
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const standalone = pathname.startsWith("/portal") || pathname === "/admin/login";
-  return <>{!standalone && <Sidebar />}<div className={`min-h-full ${standalone ? "" : "lg:pl-64"}`}>{children}</div></>;
+  const classesModule = pathname === "/clases" || pathname === "/asistencias";
+  return (
+    <>
+      {!standalone && <Sidebar />}
+      <div className={`min-h-full ${standalone ? "" : "lg:pl-64"}`}>
+        {classesModule && <ClassesModuleHeader />}
+        {children}
+      </div>
+    </>
+  );
 }
