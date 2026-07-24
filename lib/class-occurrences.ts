@@ -70,6 +70,6 @@ export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = 
 
 export function occurrenceStatusLabel(status: string, started: boolean) {
   if (status === "CANCELLED") return "Cancelada";
-  if (status === "COMPLETED" || started) return "Clase finalizada";
+  if (status === "COMPLETED" || started) return "Finalizada";
   return "Programada";
 }

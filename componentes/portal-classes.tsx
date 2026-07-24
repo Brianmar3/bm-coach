@@ -11,6 +11,17 @@ type ClassData = {
 };
 
 const dateLabel = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const argentinaToday = () => new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
+const addDays = (value: string, days: number) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
 const bestWeight = (exercise: ClassStrengthExerciseLog) => {
   const values = exercise.sets.flatMap((set) => set.weight === null ? [] : [set.weight]);
   return values.length ? Math.max(...values) : null;
@@ -33,6 +44,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState("");
   const [editing, setEditing] = useState<PortalClassOccurrence | null>(null);
+  const [showWeek, setShowWeek] = useState(false);
 
   async function load() {
     const response = await fetch("/api/portal/clases", { cache: "no-store" });
@@ -65,22 +77,36 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     } catch (value) { setError(value instanceof Error ? value.message : "No se pudo guardar."); } finally { setSavingId(""); }
   }
 
-  const next = data?.occurrences.find((item) => item.status === "SCHEDULED" && item.canRespond);
+  const today = argentinaToday();
+  const todayItems = useMemo(() => (data?.occurrences ?? [])
+    .filter((item) => item.date === today)
+    .sort((left, right) => {
+      const leftUpcoming = left.status === "SCHEDULED" && left.canRespond;
+      const rightUpcoming = right.status === "SCHEDULED" && right.canRespond;
+      return Number(rightUpcoming) - Number(leftUpcoming) || left.startTime.localeCompare(right.startTime);
+    }), [data, today]);
+  const nextToday = todayItems.find((item) => item.status === "SCHEDULED" && item.canRespond);
+  const next = nextToday ?? data?.occurrences.find((item) => item.date > today && item.status === "SCHEDULED" && item.canRespond);
+  const weekEnd = addDays(today, 6);
   const grouped = useMemo(() => {
     const map = new Map<string, PortalClassOccurrence[]>();
-    for (const item of data?.occurrences ?? []) map.set(item.date, [...(map.get(item.date) ?? []), item]);
+    const visible = showWeek
+      ? (data?.occurrences ?? []).filter((item) => item.date >= today && item.date <= weekEnd)
+      : todayItems;
+    for (const item of visible) map.set(item.date, [...(map.get(item.date) ?? []), item]);
     return [...map.entries()];
-  }, [data]);
+  }, [data, showWeek, today, todayItems, weekEnd]);
   if (!data && !error) return <div className="h-36 animate-pulse rounded-2xl bg-zinc-900" />;
   if (compact) return <section className="rounded-2xl border border-yellow-400/20 bg-zinc-900 p-5">
-    <div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Clases</p><h2 className="mt-1 text-lg font-bold">{next?.name ?? "Sin clases próximas"}</h2></div><Link href="/portal/clases" className="text-sm font-bold text-yellow-400">Ver horarios →</Link></div>
-    {next ? <><p className="mt-2 text-sm capitalize text-zinc-400">{dateLabel(next.date)} · {next.startTime}</p><p className="mt-1 text-xs text-zinc-500">{next.response === "GOING" ? "Asistiré" : next.response === "NOT_GOING" ? "No asistiré" : "Sin responder"}</p><ResponseButtons item={next} saving={savingId === next.id} respond={respond} /></> : <p className="mt-3 text-sm text-zinc-500">Consultá la grilla sin quitar protagonismo a tu rutina.</p>}
+    <div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Clases</p><h2 className="mt-1 text-lg font-bold">{next ? `${next.date === today ? "Próxima hoy" : "Próxima clase"}: ${next.name}` : "Sin clases próximas"}</h2></div><Link href="/portal/clases" className="text-sm font-bold text-yellow-400">Ver horarios →</Link></div>
+    {next ? <><p className="mt-2 text-sm capitalize text-zinc-400">{next.date === today ? `Hoy · ${next.startTime}` : `${dateLabel(next.date)} · ${next.startTime}`}</p><p className="mt-1 text-xs text-zinc-500">{next.response === "GOING" ? "Asistiré" : next.response === "NOT_GOING" ? "No asistiré" : "Sin responder"}</p>{next.date === today && <ResponseButtons item={next} saving={savingId === next.id} respond={respond} />}</> : <p className="mt-3 text-sm text-zinc-500">Hoy no hay más clases programadas.</p>}
     <Feedback error={error} notice={notice} />
   </section>;
 
   return <div>
-    <header><p className="text-sm text-yellow-400">Agenda presencial</p><h1 className="mt-1 text-2xl font-bold">Clases y horarios</h1><p className="mt-2 text-sm text-zinc-500">Confirmá tu lugar y registrá el bloque de fuerza después de la clase.</p></header>
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm text-yellow-400">Agenda presencial</p><h1 className="mt-1 text-2xl font-bold">{showWeek ? "Semana completa" : "Clases de hoy"}</h1><p className="mt-2 text-sm text-zinc-500">Confirmá tu lugar y registrá el bloque de fuerza después de la clase.</p></div><button onClick={() => setShowWeek((value) => !value)} className="self-start rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:border-yellow-400/50 hover:text-yellow-300 sm:self-auto">{showWeek ? "Ver solo hoy" : "Ver semana completa"}</button></header>
     <Feedback error={error} notice={notice} />
+    {!showWeek && todayItems.length === 0 && <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Hoy no hay clases programadas.</p>}
     <div className="mt-6 space-y-5">{grouped.map(([date, items]) => <section key={date}><h2 className="mb-3 capitalize font-bold text-yellow-300">{dateLabel(date)}</h2><div className="grid gap-3 sm:grid-cols-2">{items.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{item.name}</h3><p className="mt-1 text-sm text-zinc-400">{item.startTime}–{item.endTime} · {item.category}</p></div><span className="rounded-full bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{item.statusLabel}</span></div><p className="mt-3 text-xs text-zinc-500">{item.confirmedCount} confirmados{item.capacity === null ? "" : ` · cupo ${item.capacity}`}</p>{item.canRespond && <ResponseButtons item={item} saving={savingId === item.id} respond={respond} />}{item.strengthAvailable && <button onClick={() => setEditing(item)} className="mt-3 w-full rounded-xl border border-yellow-400/40 p-3 font-bold text-yellow-300">Registrar bloque de fuerza</button>}</article>)}</div></section>)}</div>
     <section className="mt-8"><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Historial de clases</h2>{data?.history.length ? <div className="mt-4 space-y-3">{data.history.map((log, logIndex) => <details key={log.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer font-bold">{log.name} · {dateLabel(log.date)}</summary><div className="mt-3 space-y-2">{log.exercises.map((exercise) => { const current = bestWeight(exercise); const previous = previousClassResult(data.history, logIndex, exercise.exerciseName); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${log.id}-${exercise.order}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-semibold">{exercise.exerciseName}</p>{previous && <span className={`rounded-full px-2 py-1 text-xs font-bold ${difference !== null && difference > 0 ? "bg-emerald-400/10 text-emerald-300" : difference !== null && difference < 0 ? "bg-red-400/10 text-red-300" : "bg-zinc-800 text-zinc-300"}`}>Anterior {previous.weight} kg · {difference === null ? "sin comparación" : `${difference > 0 ? "+" : ""}${difference} kg`}</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${set.weight ?? "—"} kg × ${set.repetitions ?? "—"}`).join(" · ")}</p>{!previous && <p className="mt-2 text-xs text-zinc-600">Primer registro de este ejercicio en clases.</p>}</div>; })}</div></details>)}</div> : <p className="mt-3 rounded-2xl border border-dashed border-zinc-800 p-6 text-center text-zinc-500">Todavía no hay registros de clases presenciales.</p>}</section>
     {editing && <StrengthEditor occurrence={editing} close={() => setEditing(null)} saved={async (message) => { setNotice(message); setEditing(null); await load(); }} />}
