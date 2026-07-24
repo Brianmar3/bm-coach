@@ -1,19 +1,28 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type ClassWeekday } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { argentinaClock, ensureClassOccurrences } from "@/lib/class-occurrences";
-import { addMonthsToDateKey, argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
-import type { DashboardActivity, DashboardData } from "@/types/dashboard";
-import type { Student } from "@/types/gestion";
+import {
+  addMonthsToDateKey,
+  argentinaDateKey,
+  databaseDateKey,
+  dateKeyToDatabase,
+  paymentAccountStatus,
+} from "@/lib/payment-dates";
+import type { DashboardData } from "@/types/dashboard";
+import type { PaymentAccountStatus, Student } from "@/types/gestion";
+import { ensureClassOccurrences } from "@/lib/class-occurrences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const WEEKDAY: Partial<Record<number, ClassWeekday>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
+const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const STATUS_ORDER: Record<PaymentAccountStatus, number> = { VENCIDA: 0, VENCE_PRONTO: 1, AL_DIA: 2, SIN_CONFIGURAR: 3 };
 
 function studentData(data: Prisma.JsonValue) {
   return data as unknown as Student;
 }
 
-function studentName(data: Prisma.JsonValue) {
-  const student = studentData(data);
+function studentName(student: Student) {
   return `${student.firstName ?? ""} ${student.lastName ?? ""}`.trim() || "Alumno sin nombre";
 }
 
@@ -23,7 +32,19 @@ function addDays(value: string, days: number) {
   return databaseDateKey(date);
 }
 
-function unavailable(error: unknown) {
+function startOfWeek(value: string) {
+  const date = dateKeyToDatabase(value);
+  const offset = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - offset);
+  return databaseDateKey(date);
+}
+
+function planDays(value: string) {
+  const match = value.match(/(?:^|\D)([1-7])(?:\D|$)/);
+  return match ? Number(match[1]) : null;
+}
+
+function databaseUnavailable(error: unknown) {
   return error instanceof Prisma.PrismaClientInitializationError ||
     (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
 }
@@ -31,232 +52,179 @@ function unavailable(error: unknown) {
 export async function GET() {
   try {
     const today = argentinaDateKey();
-    const clock = argentinaClock();
-    const todayDate = dateKeyToDatabase(today);
-    const tomorrowDate = dateKeyToDatabase(addDays(today, 1));
-    const recentStart = dateKeyToDatabase(addDays(today, -29));
     const monthStart = `${today.slice(0, 7)}-01`;
     const nextMonthStart = addMonthsToDateKey(monthStart);
-    const dueSoonLimit = addDays(today, 3);
-
+    const threeDaysFromToday = addDays(today, 3);
+    const previousMonthStart = addMonthsToDateKey(monthStart, -1);
+    const weekStart = startOfWeek(today);
+    const nextWeekStart = addDays(weekStart, 7);
+    const todayDate = dateKeyToDatabase(today);
+    const tomorrowDate = dateKeyToDatabase(addDays(today, 1));
+    const weekday = WEEKDAY[todayDate.getUTCDay()];
     await ensureClassOccurrences(35);
 
-    const [
-      studentRecords,
-      monthPayments,
-      recentPayments,
-      todayOccurrences,
-      legacyTodayAttendances,
-      legacyAbsences,
-      occurrenceAbsences,
-      evaluationEvents,
-      recentEvaluations,
-      recentRoutines,
-      recentLegacyAttendances,
-      recentOccurrenceAttendances,
-    ] = await Promise.all([
-      prisma.studentRecord.findMany({ select: { id: true, data: true } }),
-      prisma.studentPayment.aggregate({
-        where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(monthStart), lt: dateKeyToDatabase(nextMonthStart) } },
-        _sum: { amount: true },
-      }),
+    const [studentRecords, paymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events] = await Promise.all([
+      prisma.studentRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
       prisma.studentPayment.findMany({
-        where: { status: "PAGADO" },
-        select: { id: true, amount: true, paidDate: true, createdAt: true, student: { select: { data: true } } },
-        orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }],
-        take: 5,
+        where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
+        select: { amount: true, paidDate: true },
+        orderBy: { paidDate: "asc" },
       }),
-      prisma.classOccurrence.findMany({
+      weekday ? prisma.classOccurrence.findMany({
         where: { date: todayDate },
         include: {
           schedule: { include: { assignments: { include: { student: { select: { data: true } } } } } },
-          responses: true,
+          responses: { include: { student: { select: { data: true } } } },
         },
         orderBy: { startTime: "asc" },
-      }),
-      prisma.classAttendance.findMany({
+      }) : Promise.resolve([]),
+      prisma.classAttendance.groupBy({
+        by: ["scheduleId"],
         where: { date: { gte: todayDate, lt: tomorrowDate }, status: "PRESENT" },
-        select: { scheduleId: true, studentId: true },
+        _count: { _all: true },
       }),
-      prisma.classAttendance.findMany({
-        where: { date: { gte: recentStart, lt: tomorrowDate }, status: "ABSENT" },
-        select: { studentId: true, scheduleId: true, date: true, student: { select: { data: true } } },
+      prisma.classAttendance.groupBy({
+        by: ["date", "status"],
+        where: { date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
+        _count: { _all: true },
+        orderBy: { date: "asc" },
       }),
       prisma.classOccurrenceAttendance.findMany({
-        where: { actualAttendance: "ABSENT", occurrence: { date: { gte: recentStart, lt: tomorrowDate } } },
-        select: { studentId: true, student: { select: { data: true } }, occurrence: { select: { date: true, scheduleId: true } } },
+        where: {
+          actualAttendance: { not: "UNKNOWN" },
+          occurrence: { date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
+        },
+        select: { actualAttendance: true, occurrence: { select: { date: true } } },
       }),
       prisma.coachEvent.findMany({
-        where: { type: "EVALUACION", status: "PENDIENTE", date: { gte: todayDate } },
-        select: { id: true, title: true, date: true, time: true },
+        where: { status: "PENDIENTE", date: { gte: todayDate } },
         orderBy: [{ date: "asc" }, { time: "asc" }],
-        take: 4,
-      }),
-      prisma.physicalEvaluation.findMany({
-        select: { id: true, date: true, createdAt: true, student: { select: { data: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      }),
-      prisma.trainingRoutine.findMany({
-        select: { id: true, name: true, createdAt: true, assignments: { where: { active: true }, select: { student: { select: { data: true } } }, take: 1 } },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      }),
-      prisma.classAttendance.findMany({
-        select: { id: true, status: true, date: true, scheduleId: true, scheduleLabel: true, studentId: true, student: { select: { data: true } } },
-        orderBy: { updatedAt: "desc" },
-        take: 8,
-      }),
-      prisma.classOccurrenceAttendance.findMany({
-        where: { actualAttendance: { not: "UNKNOWN" } },
-        select: { id: true, studentId: true, actualAttendance: true, updatedAt: true, student: { select: { data: true } }, occurrence: { select: { date: true, scheduleId: true, classNameSnapshot: true } } },
-        orderBy: { updatedAt: "desc" },
-        take: 8,
+        take: 3,
       }),
     ]);
 
-    const activeStudents = studentRecords
-      .map((record) => ({ id: record.id, student: studentData(record.data) }))
-      .filter(({ student }) => student.status !== "inactivo");
-    const studentNameById = new Map(activeStudents.map(({ id, student }) => [id, `${student.firstName ?? ""} ${student.lastName ?? ""}`.trim() || "Alumno"]));
-
-    const accounts = activeStudents.map(({ id, student }) => ({
+    const students = studentRecords.map((record) => ({ ...record, student: studentData(record.data) }));
+    const active = students.filter(({ student }) => student.status !== "inactivo");
+    const accounts = active.map(({ id, student }) => ({
       studentId: id,
-      studentName: studentNameById.get(id) ?? "Alumno",
+      studentName: studentName(student),
+      plan: student.plan ?? "",
       dueDate: student.dueDate ?? "",
       amount: Number(student.monthlyFee ?? 0),
+      status: paymentAccountStatus(student.dueDate ?? "", today),
     }));
-    const overdue = accounts.filter((item) => item.dueDate && item.dueDate < today);
-    const dueSoon = accounts.filter((item) => item.dueDate >= today && item.dueDate <= dueSoonLimit);
-    const paymentAlerts: DashboardData["paymentAlerts"] = [
-      ...overdue.map((item) => ({ ...item, status: "VENCIDA" as const })),
-      ...dueSoon.map((item) => ({ ...item, status: "VENCE_PRONTO" as const })),
-    ].sort((left, right) => left.dueDate.localeCompare(right.dueDate)).slice(0, 8);
+    const actionableAccounts = accounts
+      .filter((account) => account.status === "VENCIDA" || account.status === "VENCE_PRONTO")
+      .sort((left, right) => STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.dueDate.localeCompare(right.dueDate));
+    const threeDayAccounts = accounts.filter((account) =>
+      account.dueDate &&
+      (account.dueDate < today || (account.dueDate >= today && account.dueDate <= threeDaysFromToday)),
+    );
+    const dueSoonThreeDaysCount = accounts.filter((account) =>
+      account.dueDate >= today && account.dueDate <= threeDaysFromToday,
+    ).length;
+    const estimatedPendingBalance = threeDayAccounts.every((account) => account.amount > 0)
+      ? threeDayAccounts.reduce((sum, account) => sum + account.amount, 0)
+      : null;
 
-    const legacyPresentKeys = new Set(legacyTodayAttendances.map((item) => `${item.scheduleId ?? ""}:${item.studentId}`));
-    const todayClasses: DashboardData["todayClasses"] = todayOccurrences.map((occurrence) => {
-      const hasNewAttendance = occurrence.responses.some((item) => item.actualAttendance !== "UNKNOWN");
-      const enrolled = occurrence.schedule?.assignments.filter(({ student }) => studentData(student.data).status !== "inactivo").length ?? 0;
-      const attendance = hasNewAttendance
-        ? occurrence.responses.filter((item) => item.actualAttendance === "PRESENT").length
-        : occurrence.schedule?.assignments.filter((item) => legacyPresentKeys.has(`${occurrence.scheduleId ?? ""}:${item.studentId}`)).length ?? 0;
-      const status = occurrence.status === "CANCELLED"
-        ? "cancelada"
-        : occurrence.status === "COMPLETED" || clock.time >= occurrence.endTime
-          ? "finalizada"
-          : clock.time >= occurrence.startTime
-            ? "en_curso"
-            : "programada";
-      return {
-        id: occurrence.id,
-        scheduleId: occurrence.scheduleId,
-        startTime: occurrence.startTime,
-        endTime: occurrence.endTime,
-        name: occurrence.classNameSnapshot,
-        enrolled,
-        attendance,
-        status,
-      };
+    const currentPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) >= monthStart);
+    const previousPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) < monthStart);
+    const monthIncome = currentPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const previousIncome = previousPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const incomeByDate = new Map<string, number>();
+    for (const payment of currentPayments) {
+      if (!payment.paidDate) continue;
+      const key = databaseDateKey(payment.paidDate);
+      incomeByDate.set(key, (incomeByDate.get(key) ?? 0) + Number(payment.amount));
+    }
+    const elapsedDays = Number(today.slice(8, 10));
+    const income = Array.from({ length: elapsedDays }, (_, index) => {
+      const date = addDays(monthStart, index);
+      return { date, label: String(index + 1), amount: incomeByDate.get(date) ?? 0 };
     });
 
-    const absenceKeys = new Set<string>();
-    const absenceCounts = new Map<string, { studentName: string; count: number }>();
-    for (const item of occurrenceAbsences) {
-      const key = `${item.studentId}:${databaseDateKey(item.occurrence.date)}:${item.occurrence.scheduleId ?? ""}`;
-      absenceKeys.add(key);
-      const current = absenceCounts.get(item.studentId);
-      absenceCounts.set(item.studentId, { studentName: studentName(item.student.data), count: (current?.count ?? 0) + 1 });
-    }
-    for (const item of legacyAbsences) {
-      const key = `${item.studentId}:${databaseDateKey(item.date)}:${item.scheduleId ?? ""}`;
-      if (absenceKeys.has(key)) continue;
-      const current = absenceCounts.get(item.studentId);
-      absenceCounts.set(item.studentId, { studentName: studentName(item.student.data), count: (current?.count ?? 0) + 1 });
-    }
-    const absenceAlerts = [...absenceCounts.entries()]
-      .filter(([, item]) => item.count >= 2)
-      .map(([studentId, item]) => ({ studentId, ...item }))
-      .sort((left, right) => right.count - left.count)
-      .slice(0, 6);
+    const attendanceTodayBySchedule = new Map(todayAttendances.map((item) => [item.scheduleId ?? "", item._count._all]));
+    const todayClasses = todayOccurrences.map((occurrence) => ({
+      id: occurrence.id,
+      startTime: occurrence.startTime,
+      endTime: occurrence.endTime,
+      name: occurrence.classNameSnapshot,
+      enrolled: occurrence.schedule?.assignments.filter(({ student }) => studentData(student.data).status !== "inactivo").length ?? 0,
+      attendance: occurrence.responses.some((item) => item.actualAttendance !== "UNKNOWN")
+        ? occurrence.responses.filter((item) => item.actualAttendance === "PRESENT").length
+        : occurrence.scheduleId ? attendanceTodayBySchedule.get(occurrence.scheduleId) ?? 0 : 0,
+      confirmed: occurrence.responses.filter((item) => item.response === "GOING").length,
+      confirmedStudents: occurrence.responses.filter((item) => item.response === "GOING").map(({ student }) => studentName(studentData(student.data))),
+    }));
 
-    const attendanceActivityKeys = new Set<string>();
-    const attendanceActivity: DashboardActivity[] = [];
-    for (const item of recentOccurrenceAttendances) {
-      const date = databaseDateKey(item.occurrence.date);
-      attendanceActivityKeys.add(`${item.studentId}:${date}:${item.occurrence.scheduleId ?? ""}`);
-      attendanceActivity.push({
-        id: `new-attendance-${item.id}`,
-        type: "attendance",
-        title: studentName(item.student.data),
-        detail: `${item.occurrence.classNameSnapshot} · ${item.actualAttendance === "PRESENT" ? "Presente" : item.actualAttendance === "ABSENT" ? "Ausente" : "Justificado"}`,
-        date: item.updatedAt.toISOString(),
-        href: `/asistencias?date=${date}`,
-      });
-    }
-    for (const item of recentLegacyAttendances) {
-      const date = databaseDateKey(item.date);
-      if (attendanceActivityKeys.has(`${item.studentId}:${date}:${item.scheduleId ?? ""}`)) continue;
-      attendanceActivity.push({
-        id: `legacy-attendance-${item.id}`,
-        type: "attendance",
-        title: studentName(item.student.data),
-        detail: `${item.scheduleLabel || "Clase"} · ${item.status === "PRESENT" ? "Presente" : item.status === "ABSENT" ? "Ausente" : "Justificado"}`,
-        date: item.date.toISOString(),
-        href: `/asistencias?date=${date}`,
-      });
-    }
+    const weeklyAttendance = Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(weekStart, index);
+      const newRecords = newWeeklyAttendances.filter((item) => databaseDateKey(item.occurrence.date) === date);
+      const legacyRecords = weeklyAttendances.filter((item) => databaseDateKey(item.date) === date);
+      const present = newRecords.length
+        ? newRecords.filter((item) => item.actualAttendance === "PRESENT").length
+        : legacyRecords.find((item) => item.status === "PRESENT")?._count._all ?? 0;
+      const total = newRecords.length ? newRecords.length : legacyRecords.reduce((sum, item) => sum + item._count._all, 0);
+      return { date, label: DAY_LABELS[new Date(`${date}T12:00:00.000Z`).getUTCDay()], present, total, percentage: total ? Math.round((present / total) * 100) : 0 };
+    });
+    const weeklyPresent = weeklyAttendance.reduce((sum, day) => sum + day.present, 0);
+    const weeklyTotal = weeklyAttendance.reduce((sum, day) => sum + day.total, 0);
+    const bestDay = weeklyAttendance.reduce((best, day) => day.present > best.present ? day : best, weeklyAttendance[0]);
 
-    const recentActivity: DashboardActivity[] = [
-      ...recentPayments.map((item) => ({
-        id: `payment-${item.id}`,
-        type: "payment" as const,
-        title: studentName(item.student.data),
-        detail: `Pago registrado · ${new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(Number(item.amount))}`,
-        date: (item.paidDate ?? item.createdAt).toISOString(),
-        href: "/pagos",
-      })),
-      ...recentEvaluations.map((item) => ({
-        id: `evaluation-${item.id}`,
-        type: "evaluation" as const,
-        title: studentName(item.student.data),
-        detail: "Evaluación registrada",
-        date: item.createdAt.toISOString(),
-        href: "/evaluaciones",
-      })),
-      ...recentRoutines.map((item) => ({
-        id: `routine-${item.id}`,
-        type: "routine" as const,
-        title: item.name,
-        detail: item.assignments[0] ? `Asignada a ${studentName(item.assignments[0].student.data)}` : "Rutina creada",
-        date: item.createdAt.toISOString(),
-        href: "/rutinas",
-      })),
-      ...attendanceActivity,
-    ].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 12);
-
+    const currentNewStudents = students.filter(({ createdAt }) => databaseDateKey(createdAt) >= monthStart).length;
+    const previousNewStudents = students.filter(({ createdAt }) => {
+      const key = databaseDateKey(createdAt);
+      return key >= previousMonthStart && key < monthStart;
+    }).length;
     const data: DashboardData = {
       generatedAt: new Date().toISOString(),
       today,
       metrics: {
-        activeStudents: activeStudents.length,
+        activeStudents: active.length,
+        activeStudentsMonthChange: currentNewStudents - previousNewStudents,
+        monthIncome,
+        monthPaymentCount: currentPayments.length,
+        incomeChangePercent: previousIncome > 0 ? Math.round(((monthIncome - previousIncome) / previousIncome) * 100) : null,
+        pendingCount: actionableAccounts.length,
+        pendingAmount: actionableAccounts.reduce((sum, account) => sum + account.amount, 0),
+        overdueCount: actionableAccounts.filter((account) => account.status === "VENCIDA").length,
+        dueSoonThreeDaysCount,
+        estimatedPendingBalance,
         classesToday: todayClasses.length,
-        attendanceToday: todayClasses.reduce((sum, item) => sum + item.attendance, 0),
-        monthIncome: Number(monthPayments._sum.amount ?? 0),
-        overdueCount: overdue.length,
-        dueSoonCount: dueSoon.length,
+        attendanceToday: todayAttendances.reduce((sum, item) => sum + item._count._all, 0),
+        newStudents: currentNewStudents,
       },
+      income,
       todayClasses,
-      paymentAlerts,
-      absenceAlerts,
-      evaluationAlerts: evaluationEvents.map((item) => ({ id: item.id, title: item.title, date: databaseDateKey(item.date), time: item.time })),
-      recentActivity,
+      upcomingPayments: actionableAccounts.slice(0, 3),
+      recentStudents: active.slice(0, 6).map(({ id, student }) => ({
+        id,
+        studentName: studentName(student),
+        plan: student.plan ?? "",
+        days: planDays(student.plan ?? ""),
+        dueDate: student.dueDate ?? "",
+        status: paymentAccountStatus(student.dueDate ?? "", today),
+      })),
+      weeklyAttendance,
+      attendanceSummary: {
+        weeklyAverage: weeklyTotal ? Math.round((weeklyPresent / weeklyTotal) * 100) : 0,
+        bestDay: bestDay?.present ? bestDay.label : "Sin datos",
+        totalAttendance: weeklyPresent,
+      },
+      upcomingEvents: events.map((event) => ({
+        id: event.id,
+        title: event.title,
+        type: event.type.toLowerCase(),
+        date: databaseDateKey(event.date),
+        time: event.time,
+        color: event.color,
+        status: event.status.toLowerCase(),
+      })),
     };
     return Response.json(data);
   } catch (error) {
     console.error("Error al construir el dashboard", error);
-    return Response.json(
-      { error: unavailable(error) ? "Neon no está disponible temporalmente." : "No se pudo cargar el Dashboard desde PostgreSQL." },
-      { status: unavailable(error) ? 503 : 500 },
-    );
+    const unavailable = databaseUnavailable(error);
+    return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudo cargar el Dashboard desde PostgreSQL." }, { status: unavailable ? 503 : 500 });
   }
 }
