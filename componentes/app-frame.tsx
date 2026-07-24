@@ -12,7 +12,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   return (
     <>
       {!standalone && <Sidebar />}
-      <div className={`min-h-full ${standalone ? "" : "lg:pl-64"}`}>
+      <div className={`min-h-full ${standalone ? "" : "pt-[calc(env(safe-area-inset-top)+3.5rem)] lg:pl-64 lg:pt-0"}`}>
         {classesModule && <ClassesModuleHeader />}
         {children}
       </div>
