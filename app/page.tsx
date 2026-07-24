@@ -134,7 +134,7 @@ function TodayClasses({ items }: { items: DashboardData["todayClasses"] }) {
   return <Panel title="Clases de hoy" subtitle={`${items.length} clases programadas`} action={<Link href="/clases" className="text-xs font-semibold text-yellow-400">Ver agenda →</Link>}>
     <div className="mt-4 space-y-3">{items.length ? items.map((item) => <Link href="/clases" key={item.id} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 transition hover:border-yellow-400/30">
       <div className="w-14 shrink-0 rounded-lg bg-yellow-400/10 py-2 text-center"><p className="text-sm font-bold text-yellow-300">{item.startTime}</p><p className="text-[9px] text-zinc-500">{item.endTime}</p></div>
-      <div className="min-w-0"><p className="truncate text-sm font-semibold">{item.name}</p><p className="mt-1 text-xs text-zinc-500">{item.enrolled} anotados · {item.attendance} presentes</p></div>
+      <div className="min-w-0"><p className="truncate text-sm font-semibold">{item.name}</p><p className="mt-1 text-xs text-zinc-500">{item.confirmed} confirmados · {item.attendance} presentes</p>{item.confirmedStudents.length > 0 && <p className="mt-1 truncate text-[10px] text-zinc-600">{item.confirmedStudents.join(", ")}</p>}</div>
     </Link>) : <EmptyState text="No hay clases programadas para hoy." href="/clases" action="Crear clase" />}</div>
   </Panel>;
 }

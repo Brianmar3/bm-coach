@@ -61,8 +61,17 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
 export async function DELETE(_request: Request, context: RouteContext<"/api/clases/[id]">) {
   try {
     const { id } = await context.params;
+    const schedule = await prisma.weeklyClassSchedule.findUnique({
+      where: { id },
+      select: { id: true, _count: { select: { occurrences: true, attendances: true } } },
+    });
+    if (!schedule) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });
+    if (schedule._count.occurrences > 0 || schedule._count.attendances > 0) {
+      await prisma.weeklyClassSchedule.update({ where: { id }, data: { active: false } });
+      return Response.json({ action: "archived", message: "El horario fue desactivado porque tiene historial asociado." });
+    }
     await prisma.weeklyClassSchedule.delete({ where: { id } });
-    return new Response(null, { status: 204 });
+    return Response.json({ action: "deleted", message: "Horario eliminado definitivamente." });
   } catch (error) {
     console.error("Error al eliminar horario semanal", error);
     if (notFound(error)) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });

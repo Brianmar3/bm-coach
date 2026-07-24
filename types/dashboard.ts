@@ -23,6 +23,8 @@ export type DashboardData = {
     name: string;
     enrolled: number;
     attendance: number;
+    confirmed: number;
+    confirmedStudents: string[];
   }>;
   upcomingPayments: Array<{
     studentId: string;

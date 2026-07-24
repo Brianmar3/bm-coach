@@ -9,6 +9,7 @@ import {
 } from "@/lib/payment-dates";
 import type { DashboardData } from "@/types/dashboard";
 import type { PaymentAccountStatus, Student } from "@/types/gestion";
+import { ensureClassOccurrences } from "@/lib/class-occurrences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,17 +60,21 @@ export async function GET() {
     const todayDate = dateKeyToDatabase(today);
     const tomorrowDate = dateKeyToDatabase(addDays(today, 1));
     const weekday = WEEKDAY[todayDate.getUTCDay()];
+    await ensureClassOccurrences(35);
 
-    const [studentRecords, paymentRecords, todaySchedules, todayAttendances, weeklyAttendances, events] = await Promise.all([
+    const [studentRecords, paymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events] = await Promise.all([
       prisma.studentRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
       prisma.studentPayment.findMany({
         where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
         select: { amount: true, paidDate: true },
         orderBy: { paidDate: "asc" },
       }),
-      weekday ? prisma.weeklyClassSchedule.findMany({
-        where: { active: true, dayOfWeek: weekday },
-        include: { assignments: { include: { student: { select: { data: true } } } } },
+      weekday ? prisma.classOccurrence.findMany({
+        where: { date: todayDate },
+        include: {
+          schedule: { include: { assignments: { include: { student: { select: { data: true } } } } } },
+          responses: { include: { student: { select: { data: true } } } },
+        },
         orderBy: { startTime: "asc" },
       }) : Promise.resolve([]),
       prisma.classAttendance.groupBy({
@@ -82,6 +87,13 @@ export async function GET() {
         where: { date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
         _count: { _all: true },
         orderBy: { date: "asc" },
+      }),
+      prisma.classOccurrenceAttendance.findMany({
+        where: {
+          actualAttendance: { not: "UNKNOWN" },
+          occurrence: { date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
+        },
+        select: { actualAttendance: true, occurrence: { select: { date: true } } },
       }),
       prisma.coachEvent.findMany({
         where: { status: "PENDIENTE", date: { gte: todayDate } },
@@ -121,20 +133,27 @@ export async function GET() {
     });
 
     const attendanceTodayBySchedule = new Map(todayAttendances.map((item) => [item.scheduleId ?? "", item._count._all]));
-    const todayClasses = todaySchedules.map((schedule) => ({
-      id: schedule.id,
-      startTime: schedule.startTime,
-      endTime: schedule.endTime,
-      name: schedule.classType,
-      enrolled: schedule.assignments.filter(({ student }) => studentData(student.data).status !== "inactivo").length,
-      attendance: attendanceTodayBySchedule.get(schedule.id) ?? 0,
+    const todayClasses = todayOccurrences.map((occurrence) => ({
+      id: occurrence.id,
+      startTime: occurrence.startTime,
+      endTime: occurrence.endTime,
+      name: occurrence.classNameSnapshot,
+      enrolled: occurrence.schedule?.assignments.filter(({ student }) => studentData(student.data).status !== "inactivo").length ?? 0,
+      attendance: occurrence.responses.some((item) => item.actualAttendance !== "UNKNOWN")
+        ? occurrence.responses.filter((item) => item.actualAttendance === "PRESENT").length
+        : occurrence.scheduleId ? attendanceTodayBySchedule.get(occurrence.scheduleId) ?? 0 : 0,
+      confirmed: occurrence.responses.filter((item) => item.response === "GOING").length,
+      confirmedStudents: occurrence.responses.filter((item) => item.response === "GOING").map(({ student }) => studentName(studentData(student.data))),
     }));
 
     const weeklyAttendance = Array.from({ length: 7 }, (_, index) => {
       const date = addDays(weekStart, index);
-      const records = weeklyAttendances.filter((item) => databaseDateKey(item.date) === date);
-      const present = records.find((item) => item.status === "PRESENT")?._count._all ?? 0;
-      const total = records.reduce((sum, item) => sum + item._count._all, 0);
+      const newRecords = newWeeklyAttendances.filter((item) => databaseDateKey(item.occurrence.date) === date);
+      const legacyRecords = weeklyAttendances.filter((item) => databaseDateKey(item.date) === date);
+      const present = newRecords.length
+        ? newRecords.filter((item) => item.actualAttendance === "PRESENT").length
+        : legacyRecords.find((item) => item.status === "PRESENT")?._count._all ?? 0;
+      const total = newRecords.length ? newRecords.length : legacyRecords.reduce((sum, item) => sum + item._count._all, 0);
       return { date, label: DAY_LABELS[new Date(`${date}T12:00:00.000Z`).getUTCDay()], present, total, percentage: total ? Math.round((present / total) * 100) : 0 };
     });
     const weeklyPresent = weeklyAttendance.reduce((sum, day) => sum + day.present, 0);

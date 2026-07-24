@@ -23,6 +23,8 @@ model StudentRecord {
   portalCredential    StudentPortalCredential?
   workoutSessions     WorkoutSession[]
   followUpComments    FollowUpComment[]
+  classResponses      ClassOccurrenceAttendance[]
+  classWorkoutLogs    ClassWorkoutLog[]
 
   @@index([primaryScheduleId])
   @@map("students")
@@ -450,10 +452,152 @@ model WeeklyClassSchedule {
   assignments     WeeklyClassAssignment[]
   attendances     ClassAttendance[]
   primaryStudents StudentRecord[]         @relation("StudentPrimarySchedule")
+  occurrences     ClassOccurrence[]
 
   @@index([dayOfWeek, startTime])
   @@index([active])
   @@map("weekly_class_schedules")
+}
+
+enum ClassOccurrenceStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum ClassResponseStatus {
+  GOING
+  NOT_GOING
+}
+
+enum ClassActualAttendance {
+  UNKNOWN
+  PRESENT
+  ABSENT
+  CANCELLED
+}
+
+enum ClassWorkoutLogStatus {
+  DRAFT
+  COMPLETED
+}
+
+model ClassOccurrence {
+  id                String                      @id @default(cuid())
+  scheduleId        String?
+  date              DateTime                    @db.Date
+  startTime         String
+  endTime           String
+  classNameSnapshot String
+  categorySnapshot  String
+  status            ClassOccurrenceStatus       @default(SCHEDULED)
+  capacityOverride  Int?
+  internalNotes     String                      @default("")
+  strengthEnabled   Boolean                     @default(false)
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  schedule          WeeklyClassSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  responses         ClassOccurrenceAttendance[]
+  strengthBlock     ClassStrengthBlock?
+  workoutLogs       ClassWorkoutLog[]
+
+  @@unique([scheduleId, date])
+  @@index([date, startTime])
+  @@index([status, date])
+  @@map("class_occurrences")
+}
+
+model ClassOccurrenceAttendance {
+  id               String                @id @default(cuid())
+  occurrenceId     String
+  studentId        String
+  response         ClassResponseStatus?
+  actualAttendance ClassActualAttendance @default(UNKNOWN)
+  respondedAt      DateTime?
+  checkedInAt      DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  occurrence       ClassOccurrence       @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+  student          StudentRecord         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([occurrenceId, studentId])
+  @@index([studentId, updatedAt])
+  @@index([occurrenceId, response])
+  @@map("class_occurrence_attendances")
+}
+
+model ClassStrengthBlock {
+  id           String                  @id @default(cuid())
+  occurrenceId String                  @unique
+  name         String
+  notes        String                  @default("")
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  occurrence   ClassOccurrence         @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  exercises    ClassStrengthExercise[]
+
+  @@map("class_strength_blocks")
+}
+
+model ClassStrengthExercise {
+  id              String             @id @default(cuid())
+  strengthBlockId String
+  exerciseName    String
+  order           Int
+  suggestedSets   Int
+  suggestedReps   String
+  instructions    String             @default("")
+  strengthBlock   ClassStrengthBlock @relation(fields: [strengthBlockId], references: [id], onDelete: Cascade)
+
+  @@unique([strengthBlockId, order])
+  @@map("class_strength_exercises")
+}
+
+model ClassWorkoutLog {
+  id                String                @id @default(cuid())
+  occurrenceId      String
+  studentId         String
+  classNameSnapshot String
+  classDateSnapshot DateTime              @db.Date
+  status            ClassWorkoutLogStatus @default(DRAFT)
+  notes             String                @default("")
+  completedAt       DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  occurrence        ClassOccurrence       @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+  student           StudentRecord         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  exercises         ClassExerciseLog[]
+
+  @@unique([occurrenceId, studentId])
+  @@index([studentId, classDateSnapshot])
+  @@map("class_workout_logs")
+}
+
+model ClassExerciseLog {
+  id                   String          @id @default(cuid())
+  classWorkoutLogId    String
+  exerciseNameSnapshot String
+  order                Int
+  notes                String          @default("")
+  workoutLog           ClassWorkoutLog @relation(fields: [classWorkoutLogId], references: [id], onDelete: Cascade)
+  sets                 ClassSetLog[]
+
+  @@unique([classWorkoutLogId, order])
+  @@map("class_exercise_logs")
+}
+
+model ClassSetLog {
+  id                 String           @id @default(cuid())
+  classExerciseLogId String
+  setNumber          Int
+  weight             Decimal?         @db.Decimal(7, 2)
+  repetitions        Int?
+  unit               String           @default("kg")
+  notes              String           @default("")
+  exerciseLog        ClassExerciseLog @relation(fields: [classExerciseLogId], references: [id], onDelete: Cascade)
+
+  @@unique([classExerciseLogId, setNumber])
+  @@map("class_set_logs")
 }
 
 model WeeklyClassAssignment {

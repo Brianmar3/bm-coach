@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const routineId = params.get("routineId") || undefined;
     const studentId = params.get("studentId") || undefined;
-    const [sessions, students, routines] = await Promise.all([
+    const [sessions, students, routines, classSessions] = await Promise.all([
       prisma.workoutSession.findMany({
         where: { ...(routineId ? { routineId } : {}), ...(studentId ? { studentId } : {}) },
         include: {
@@ -32,6 +32,12 @@ export async function GET(request: Request) {
       }),
       prisma.studentRecord.findMany({ select: { id: true, data: true } }),
       prisma.trainingRoutine.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+      prisma.classWorkoutLog.findMany({
+        where: { ...(studentId ? { studentId } : {}) },
+        include: { student: true, exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } } } } },
+        orderBy: { classDateSnapshot: "desc" },
+        take: 100,
+      }),
     ]);
     const exerciseIds = [...new Set(sessions.flatMap((session) => session.exercises.map((log) => log.exerciseReferenceId ?? log.exerciseId).filter((id): id is string => Boolean(id))))];
     const previousLogs = exerciseIds.length ? await prisma.workoutExerciseLog.findMany({
@@ -90,6 +96,20 @@ export async function GET(request: Request) {
         };
       }),
       routines,
+      classSessions: classSessions.map((session) => ({
+        id: session.id,
+        studentId: session.studentId,
+        studentName: name(session.student.data),
+        className: session.classNameSnapshot,
+        date: session.classDateSnapshot.toISOString().slice(0, 10),
+        status: session.status,
+        notes: session.notes,
+        exercises: session.exercises.map((exercise) => ({
+          name: exercise.exerciseNameSnapshot,
+          notes: exercise.notes,
+          sets: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: decimal(set.weight), repetitions: set.repetitions, unit: set.unit })),
+        })),
+      })),
       studentsWithoutTraining: students.filter((item) => (item.data as unknown as Student).status !== "inactivo" && !trained.has(item.id)).map((item) => ({ id: item.id, name: name(item.data) })).slice(0, 20),
     });
   } catch (error) {

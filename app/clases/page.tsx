@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { ClassOccurrenceAdmin } from "@/componentes/class-occurrence-admin";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
 
 const days: Array<{ value: WeeklyClassDay; label: string; short: string }> = [
@@ -139,7 +140,8 @@ export default function ClasesPage() {
     try {
       const response = await fetch(`/api/clases/${schedule.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo eliminar el horario."));
-      setSchedules((current) => current.filter((item) => item.id !== schedule.id));
+      const result = await response.json() as { action: "archived" | "deleted"; message: string };
+      setSchedules((current) => result.action === "deleted" ? current.filter((item) => item.id !== schedule.id) : current.map((item) => item.id === schedule.id ? { ...item, active: false } : item));
       setViewing(null);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el horario.");
@@ -159,6 +161,8 @@ export default function ClasesPage() {
         <Metric label="Alumnos con horario" value={assignedCount} />
         <Metric label="Bloques semanales" value={schedules.length} />
       </section>
+
+      <ClassOccurrenceAdmin />
 
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
         <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">

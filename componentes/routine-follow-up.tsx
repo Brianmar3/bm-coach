@@ -4,10 +4,27 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { inputClass } from "@/componentes/module-shell";
 import type { AdminFollowUpData, AdminWorkoutExercise, AdminWorkoutSession } from "@/types/follow-up";
 
-const emptyData: AdminFollowUpData = { sessions: [], routines: [], studentsWithoutTraining: [] };
+const emptyData: AdminFollowUpData = { sessions: [], classSessions: [], routines: [], studentsWithoutTraining: [] };
 const moneyNumber = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
 const showDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR");
 const statusLabel = { pending: "Pendiente", in_progress: "En progreso", completed: "Finalizado" } as const;
+type AdminClassSession = AdminFollowUpData["classSessions"][number];
+const classExerciseBest = (exercise: AdminClassSession["exercises"][number]) => {
+  const weights = exercise.sets.flatMap((set) => set.weight === null ? [] : [set.weight]);
+  return weights.length ? Math.max(...weights) : null;
+};
+function previousClassExercise(sessions: AdminClassSession[], currentIndex: number, studentId: string, exerciseName: string) {
+  const normalized = exerciseName.trim().toLocaleLowerCase("es");
+  for (let index = currentIndex + 1; index < sessions.length; index += 1) {
+    if (sessions[index].studentId !== studentId) continue;
+    const exercise = sessions[index].exercises.find((item) => item.name.trim().toLocaleLowerCase("es") === normalized);
+    if (exercise) {
+      const weight = classExerciseBest(exercise);
+      if (weight !== null) return { weight, date: sessions[index].date };
+    }
+  }
+  return null;
+}
 
 export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }: { initialRoutineId?: string; initialStudentId?: string }) {
   const [data, setData] = useState(emptyData);
@@ -116,6 +133,7 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
       <label className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm"><input type="checkbox" checked={painOnly} onChange={(event) => setPainOnly(event.target.checked)} className="accent-yellow-400" /> Con dolor o molestias</label>
     </div>
     <div className="mt-5 grid gap-4 lg:grid-cols-2">{loading ? <p className="col-span-full rounded-2xl bg-zinc-900 p-10 text-center text-zinc-500">Cargando seguimiento…</p> : visible.length ? visible.map((session) => <SessionCard key={session.id} session={session} open={() => setSelected(session)} />) : <p className="col-span-full rounded-2xl border border-dashed border-zinc-700 p-10 text-center text-zinc-500">No hay sesiones que coincidan con los filtros.</p>}</div>
+    {data.classSessions.length > 0 && <section className="mt-8"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Bloques de fuerza en clases</h2></div><div className="mt-4 grid gap-4 lg:grid-cols-2">{data.classSessions.map((session, sessionIndex) => ({ session, sessionIndex })).filter(({ session }) => !query.trim() || session.studentName.toLocaleLowerCase("es").includes(query.trim().toLocaleLowerCase("es"))).map(({ session, sessionIndex }) => <details key={session.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><summary className="cursor-pointer"><span className="font-bold">{session.studentName}</span><span className="ml-2 text-sm text-yellow-400">{session.className} · {showDate(session.date)}</span></summary><div className="mt-4 space-y-3">{session.exercises.map((exercise, index) => { const current = classExerciseBest(exercise); const previous = previousClassExercise(data.classSessions, sessionIndex, session.studentId, exercise.name); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${session.id}-${index}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap justify-between gap-2"><p className="font-semibold">{exercise.name}</p>{previous && <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${difference !== null && difference > 0 ? "bg-emerald-400/10 text-emerald-300" : difference !== null && difference < 0 ? "bg-red-400/10 text-red-300" : "bg-zinc-800 text-zinc-300"}`}>Último {previous.weight} kg · {difference !== null && difference > 0 ? "+" : ""}{difference ?? 0} kg</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${moneyNumber(set.weight, ` ${set.unit}`)} × ${set.repetitions ?? "—"}`).join(" · ")}</p>{exercise.notes && <p className="mt-2 text-xs text-zinc-500">{exercise.notes}</p>}</div>; })}{session.notes && <p className="text-sm text-zinc-400">{session.notes}</p>}</div></details>)}</div></section>}
     {selected && <SessionDetail session={selected} close={() => setSelected(null)} reply={reply} setReply={setReply} privateNote={privateNote} setPrivateNote={setPrivateNote} reviewed={reviewed} setReviewed={setReviewed} saving={saving} deleting={deleting} submit={sendFeedback} deleteSession={deleteSession} deleteAll={deleteAllForRoutine} />}
   </section>;
 }

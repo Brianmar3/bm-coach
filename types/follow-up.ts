@@ -51,6 +51,16 @@ export type AdminWorkoutSession = {
 
 export type AdminFollowUpData = {
   sessions: AdminWorkoutSession[];
+  classSessions: Array<{
+    id: string;
+    studentId: string;
+    studentName: string;
+    className: string;
+    date: string;
+    status: "DRAFT" | "COMPLETED";
+    notes: string;
+    exercises: Array<{ name: string; notes: string; sets: Array<{ setNumber: number; weight: number | null; repetitions: number | null; unit: string }> }>;
+  }>;
   routines: Array<{ id: string; name: string }>;
   studentsWithoutTraining: Array<{ id: string; name: string }>;
 };
