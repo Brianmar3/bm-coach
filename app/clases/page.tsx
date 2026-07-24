@@ -157,15 +157,22 @@ export default function ClasesPage() {
     >
       {error && !editorOpen && <p className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
 
+      <nav aria-label="Navegación de Clases" className="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-2">
+        <a href="#calendario-semanal" className="shrink-0 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950">Calendario semanal</a>
+        <a href="#clases-hoy" className="shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800">Clases de hoy</a>
+        <Link href="/asistencias" className="shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800">Asistencias</Link>
+        <Link href="/asistencias" className="shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800">Historial y estadísticas</Link>
+      </nav>
+
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
         <Metric label="Horarios activos" value={activeCount} />
         <Metric label="Alumnos con horario" value={assignedCount} />
         <Metric label="Bloques semanales" value={schedules.length} />
       </section>
 
-      <ClassOccurrenceAdmin />
+      <div id="clases-hoy" className="scroll-mt-6"><ClassOccurrenceAdmin /></div>
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+      <section id="calendario-semanal" className="scroll-mt-6 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
         <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold">Calendario semanal</h2>
