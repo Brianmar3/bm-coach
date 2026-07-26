@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import type { PhysicalEvaluation, Student } from "@/types/gestion";
 
@@ -97,7 +97,10 @@ export default function EvaluacionesPage() {
     ]).then(([evaluations, realStudents]) => {
       setItems(evaluations);
       setStudents(realStudents);
-      setSelectedStudentId(evaluations[0]?.studentId ?? realStudents[0]?.id ?? "");
+      const requestedStudentId = new URLSearchParams(window.location.search).get("studentId") ?? "";
+      const requestedStudent = realStudents.find((student) => student.id === requestedStudentId);
+      setSelectedStudentId(requestedStudent?.id ?? "");
+      setStudentQuery(requestedStudent ? `${requestedStudent.firstName} ${requestedStudent.lastName}`.trim() : "");
     }).catch((loadError: unknown) => {
       if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message);
     }).finally(() => setReady(true));
@@ -110,12 +113,16 @@ export default function EvaluacionesPage() {
   const latest = history[0] ?? null;
   const previous = history[1] ?? null;
   const selectedStudent = students.find((student) => student.id === selectedStudentId);
-  const visibleStudents = useMemo(() => {
-    const normalized = studentQuery.trim().toLocaleLowerCase("es");
-    const matches = students.filter((student) => !normalized || `${student.firstName} ${student.lastName} ${student.phone}`.toLocaleLowerCase("es").includes(normalized)).slice(0, 30);
-    const selected = students.find((student) => student.id === selectedStudentId);
-    return selected && !matches.some((student) => student.id === selected.id) ? [selected, ...matches].slice(0, 30) : matches;
-  }, [selectedStudentId, studentQuery, students]);
+
+  function selectStudent(studentId: string) {
+    setSelectedStudentId(studentId);
+    const student = students.find((item) => item.id === studentId);
+    setStudentQuery(student ? `${student.firstName} ${student.lastName}`.trim() : "");
+    const url = new URL(window.location.href);
+    if (studentId) url.searchParams.set("studentId", studentId);
+    else url.searchParams.delete("studentId");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }
 
   function begin(item?: PhysicalEvaluation) {
     if (!item && students.length === 0) {
@@ -200,14 +207,10 @@ export default function EvaluacionesPage() {
     {(error || notice) && !open && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
 
     <section className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
-      <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(220px,1fr)_auto] sm:items-end">
-        <label className="text-xs text-zinc-400">Buscar alumno<input type="search" value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Nombre, apellido o teléfono" className={`${inputClass} mt-1 py-2`} /></label>
-        <label className="text-xs text-zinc-400">Historial del alumno<select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)} className={`${inputClass} mt-1 py-2`}>{visibleStudents.length === 0 && <option value="">Sin coincidencias</option>}{visibleStudents.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></label>
-        <p className="rounded-lg bg-zinc-950 px-3 py-2 text-xs text-zinc-400">{selectedStudent ? <><strong className="block text-sm text-white">{selectedStudent.firstName} {selectedStudent.lastName}</strong>{history.length} evaluación{history.length === 1 ? "" : "es"} · Última: {latest ? showDate(latest.date) : "sin datos"}</> : "Seleccioná un alumno"}</p>
-      </div>
+      <StudentSearch students={students} evaluations={items} selectedStudentId={selectedStudentId} query={studentQuery} setQuery={setStudentQuery} select={selectStudent} />
     </section>
 
-    {!ready ? <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Array.from({ length: 12 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-xl bg-zinc-900" />)}</section> : <>
+    {!ready ? <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Array.from({ length: 12 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-xl bg-zinc-900" />)}</section> : !selectedStudent ? <section className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900 p-8 text-center text-sm text-zinc-500">Buscá y seleccioná un alumno para ver sus evaluaciones.</section> : <>
       <EvaluationSummary latest={latest} previous={previous} />
       <ComparisonSection latest={latest} previous={previous} />
       <SymmetrySection latest={latest} />
@@ -219,8 +222,110 @@ export default function EvaluacionesPage() {
   </ModuleShell>;
 }
 
+function normalizedSearch(value: string) {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ").trim().toLocaleLowerCase("es");
+}
+
+function StudentSearch({ students, evaluations, selectedStudentId, query, setQuery, select }: {
+  students: Student[];
+  evaluations: PhysicalEvaluation[];
+  selectedStudentId: string;
+  query: string;
+  setQuery: (value: string) => void;
+  select: (studentId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selected = students.find((student) => student.id === selectedStudentId);
+  const results = useMemo(() => {
+    const normalized = normalizedSearch(query);
+    return students
+      .filter((student) => !normalized || normalizedSearch(`${student.firstName} ${student.lastName} ${student.phone}`).includes(normalized))
+      .sort((left, right) => `${left.firstName} ${left.lastName}`.localeCompare(`${right.firstName} ${right.lastName}`, "es"))
+      .slice(0, 10);
+  }, [query, students]);
+
+  useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
+  function choose(student: Student) {
+    select(student.id);
+    setOpen(false);
+    setActiveIndex(0);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") { setOpen(false); return; }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => Math.min(index + 1, Math.max(results.length - 1, 0)));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Enter" && open && results[activeIndex]) {
+      event.preventDefault();
+      choose(results[activeIndex]);
+    }
+  }
+
+  return <div ref={containerRef} className="relative">
+    <label htmlFor="evaluation-student-search" className="text-xs text-zinc-400">Alumno</label>
+    <div className="relative mt-1">
+      <input
+        id="evaluation-student-search"
+        type="search"
+        role="combobox"
+        aria-label="Buscar alumno por nombre, apellido o teléfono"
+        aria-expanded={open}
+        aria-controls="evaluation-student-results"
+        aria-activedescendant={open && results[activeIndex] ? `evaluation-student-${results[activeIndex].id}` : undefined}
+        autoComplete="off"
+        value={query}
+        onFocus={() => { setOpen(true); setActiveIndex(0); }}
+        onChange={(event) => {
+          if (selectedStudentId) select("");
+          setQuery(event.target.value);
+          setOpen(true);
+          setActiveIndex(0);
+        }}
+        onKeyDown={onKeyDown}
+        placeholder="Buscar alumno por nombre, apellido o teléfono"
+        className={`${inputClass} py-3 pr-11 focus:border-yellow-400`}
+      />
+      {(query || selectedStudentId) && <button type="button" onClick={() => { select(""); setOpen(false); }} aria-label="Limpiar alumno seleccionado" className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-yellow-400">×</button>}
+    </div>
+    {open && <div id="evaluation-student-results" role="listbox" className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 shadow-2xl">
+      {results.length === 0 ? <p className="p-4 text-center text-sm text-zinc-500">No se encontraron alumnos</p> : results.map((student, index) => {
+        const studentEvaluations = evaluations.filter((evaluation) => evaluation.studentId === student.id).sort((left, right) => `${right.date}${right.createdAt}`.localeCompare(`${left.date}${left.createdAt}`));
+        const last = studentEvaluations[0];
+        return <button
+          type="button"
+          role="option"
+          aria-selected={student.id === selectedStudentId}
+          id={`evaluation-student-${student.id}`}
+          key={student.id}
+          onMouseEnter={() => setActiveIndex(index)}
+          onClick={() => choose(student)}
+          className={`block min-h-14 w-full rounded-lg px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-yellow-400 ${activeIndex === index ? "bg-zinc-800" : "hover:bg-zinc-900"}`}
+        >
+          <span className="block font-semibold text-white">{student.firstName} {student.lastName}</span>
+          <span className="mt-0.5 block text-xs text-zinc-500">{student.phone ? `${student.phone} · ` : ""}{studentEvaluations.length} evaluación{studentEvaluations.length === 1 ? "" : "es"}{last ? ` · Última: ${showDate(last.date)}` : ""}</span>
+        </button>;
+      })}
+    </div>}
+    {selected && !open && <div className="mt-2 flex items-center justify-between rounded-lg bg-zinc-950 px-3 py-2"><div><p className="text-sm font-bold text-white">{selected.firstName} {selected.lastName}</p><p className="text-xs text-zinc-500">{selected.phone || "Sin teléfono"} · {evaluations.filter((evaluation) => evaluation.studentId === selected.id).length} evaluaciones</p></div><button type="button" onClick={() => select("")} className="rounded-lg px-3 py-2 text-xs font-bold text-zinc-400 hover:bg-zinc-800">Limpiar</button></div>}
+  </div>;
+}
+
 function EvaluationSummary({ latest, previous }: { latest: PhysicalEvaluation | null; previous: PhysicalEvaluation | null }) {
-  if (!latest) return <section className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900 p-8 text-center"><h2 className="font-semibold text-white">Sin evaluaciones para este alumno</h2><p className="mt-2 text-sm text-zinc-500">Registrá la primera medición para comenzar el historial.</p></section>;
+  if (!latest) return <section className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900 p-8 text-center"><h2 className="font-semibold text-white">No hay evaluaciones registradas para este alumno.</h2><p className="mt-2 text-sm text-zinc-500">Usá “+ Nueva evaluación” para registrar la primera medición.</p></section>;
   const metrics: Array<[string, number | null, string]> = [
     ["Peso", latest.weight, " kg"], ["Altura", latest.height, " m"], ["IMC", latest.bmi, ""],
     ["Grasa corporal", latest.bodyFatPercentage, " %"], ["Masa muscular", latest.muscleMass, " kg"],
