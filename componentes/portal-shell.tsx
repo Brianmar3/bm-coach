@@ -7,8 +7,8 @@ import { useState, type ReactNode } from "react";
 const links = [
   ["Inicio", "/portal", "⌂"],
   ["Rutina", "/portal/rutina", "◫"],
-  ["Historial", "/portal/historial", "↺"],
   ["Clases", "/portal/clases", "◷"],
+  ["Evaluaciones", "/portal/evaluaciones", "◇"],
   ["Perfil", "/portal/perfil", "○"],
 ] as const;
 

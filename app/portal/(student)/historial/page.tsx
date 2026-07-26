@@ -1,5 +1,5 @@
-import { PortalSection } from "@/componentes/portal-section";
+import { redirect } from "next/navigation";
 
 export default function PortalHistoryPage() {
-  return <PortalSection section="historial" />;
+  redirect("/portal/rutina#historial-entrenamientos");
 }

@@ -56,11 +56,12 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
   if (session.credential.mustChangePassword) return Response.json({ error: "Primero cambiá tu contraseña.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   try {
+    const summaryOnly = new URL(request.url).searchParams.get("summary") === "1";
     const range = await ensureClassOccurrences(35);
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
@@ -74,9 +75,21 @@ export async function GET() {
       include: occurrenceInclude(session.studentId),
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     });
-    const history = await prisma.classWorkoutLog.findMany({
+    const history = summaryOnly ? [] : await prisma.classWorkoutLog.findMany({
       where: { studentId: session.studentId, status: "COMPLETED" },
-      include: { exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } } } } },
+      include: {
+        occurrence: {
+          select: {
+            startTime: true,
+            strengthBlock: { select: { name: true } },
+            responses: {
+              where: { studentId: session.studentId },
+              select: { response: true, actualAttendance: true },
+            },
+          },
+        },
+        exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } } } },
+      },
       orderBy: { classDateSnapshot: "desc" },
       take: 20,
     });
@@ -87,6 +100,10 @@ export async function GET() {
         occurrenceId: log.occurrenceId,
         date: databaseDateKey(log.classDateSnapshot),
         name: log.classNameSnapshot,
+        startTime: log.occurrence.startTime,
+        attendanceResponse: log.occurrence.responses[0]?.response ?? null,
+        actualAttendance: log.occurrence.responses[0]?.actualAttendance ?? "UNKNOWN",
+        strengthBlockName: log.occurrence.strengthBlock?.name ?? "",
         notes: log.notes,
         exercises: log.exercises.map((exercise) => ({
           exerciseName: exercise.exerciseNameSnapshot,

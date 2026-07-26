@@ -4,7 +4,17 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ClassStrengthExerciseLog, PortalClassOccurrence } from "@/types/classes";
 
-type ClassHistory = { id: string; date: string; name: string; notes: string; exercises: ClassStrengthExerciseLog[] };
+type ClassHistory = {
+  id: string;
+  date: string;
+  name: string;
+  startTime: string;
+  attendanceResponse: "GOING" | "NOT_GOING" | null;
+  actualAttendance: "UNKNOWN" | "PRESENT" | "ABSENT" | "CANCELLED";
+  strengthBlockName: string;
+  notes: string;
+  exercises: ClassStrengthExerciseLog[];
+};
 type ClassData = {
   occurrences: PortalClassOccurrence[];
   history: ClassHistory[];
@@ -38,6 +48,15 @@ function previousClassResult(history: ClassHistory[], currentIndex: number, exer
   return null;
 }
 
+function attendanceLabel(log: ClassHistory) {
+  if (log.actualAttendance === "PRESENT") return "Presente";
+  if (log.actualAttendance === "ABSENT") return "Ausente";
+  if (log.actualAttendance === "CANCELLED") return "Cancelada";
+  if (log.attendanceResponse === "GOING") return "Asistencia confirmada";
+  if (log.attendanceResponse === "NOT_GOING") return "No asistió";
+  return "Sin registro de asistencia";
+}
+
 export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<ClassData | null>(null);
   const [notice, setNotice] = useState("");
@@ -45,9 +64,10 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [savingId, setSavingId] = useState("");
   const [editing, setEditing] = useState<PortalClassOccurrence | null>(null);
   const [showWeek, setShowWeek] = useState(false);
+  const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
   async function load() {
-    const response = await fetch("/api/portal/clases", { cache: "no-store" });
+    const response = await fetch(endpoint, { cache: "no-store" });
     const body = await response.json() as ClassData & { error?: string };
     if (response.status === 401) { window.location.href = "/portal/login"; return; }
     if (!response.ok) throw new Error(body.error ?? "No se pudieron cargar las clases.");
@@ -55,7 +75,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   }
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/portal/clases", { cache: "no-store", signal: controller.signal })
+    fetch(endpoint, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as ClassData & { error?: string };
         if (response.status === 401) { window.location.href = "/portal/login"; return null; }
@@ -65,7 +85,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
       .then((body) => { if (body) setData(body); })
       .catch((value: unknown) => { if (value instanceof Error && value.name !== "AbortError") setError(value.message); });
     return () => controller.abort();
-  }, []);
+  }, [endpoint]);
 
   async function respond(item: PortalClassOccurrence, value: "GOING" | "NOT_GOING") {
     setSavingId(item.id); setError(""); setNotice("");
@@ -106,7 +126,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     <Feedback error={error} notice={notice} />
     {!showWeek && todayItems.length === 0 && <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Hoy no hay clases programadas.</p>}
     <div className="mt-6 space-y-5">{grouped.map(([date, items]) => <section key={date}><h2 className="mb-3 capitalize font-bold text-yellow-300">{dateLabel(date)}</h2><div className="grid gap-3 sm:grid-cols-2">{items.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{item.name}</h3><p className="mt-1 text-sm text-zinc-400">{item.startTime}–{item.endTime} · {item.category}</p></div><span className="rounded-full bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{item.statusLabel}</span></div><p className="mt-3 text-xs text-zinc-500">{item.confirmedCount} confirmados{item.capacity === null ? "" : ` · cupo ${item.capacity}`}</p>{item.canRespond && <ResponseButtons item={item} saving={savingId === item.id} respond={respond} />}{item.strengthAvailable && <button onClick={() => setEditing(item)} className="mt-3 w-full rounded-xl border border-yellow-400/40 p-3 font-bold text-yellow-300">Registrar bloque de fuerza</button>}</article>)}</div></section>)}</div>
-    <section className="mt-8"><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Historial de clases</h2>{data?.history.length ? <div className="mt-4 space-y-3">{data.history.map((log, logIndex) => <details key={log.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer font-bold">{log.name} · {dateLabel(log.date)}</summary><div className="mt-3 space-y-2">{log.exercises.map((exercise) => { const current = bestWeight(exercise); const previous = previousClassResult(data.history, logIndex, exercise.exerciseName); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${log.id}-${exercise.order}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-semibold">{exercise.exerciseName}</p>{previous && <span className={`rounded-full px-2 py-1 text-xs font-bold ${difference !== null && difference > 0 ? "bg-emerald-400/10 text-emerald-300" : difference !== null && difference < 0 ? "bg-red-400/10 text-red-300" : "bg-zinc-800 text-zinc-300"}`}>Anterior {previous.weight} kg · {difference === null ? "sin comparación" : `${difference > 0 ? "+" : ""}${difference} kg`}</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${set.weight ?? "—"} kg × ${set.repetitions ?? "—"}`).join(" · ")}</p>{!previous && <p className="mt-2 text-xs text-zinc-600">Primer registro de este ejercicio en clases.</p>}</div>; })}</div></details>)}</div> : <p className="mt-3 rounded-2xl border border-dashed border-zinc-800 p-6 text-center text-zinc-500">Todavía no hay registros de clases presenciales.</p>}</section>
+    <section id="historial-clases" className="mt-8 scroll-mt-24"><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Historial de clases</h2>{data?.history.length ? <div className="mt-4 space-y-3">{data.history.map((log, logIndex) => <details key={log.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer list-none"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{log.name}</p><p className="mt-1 text-xs text-zinc-400">{dateLabel(log.date)} · {log.startTime} · {attendanceLabel(log)}</p><p className="mt-2 text-xs text-zinc-500">{log.strengthBlockName || "Bloque de fuerza registrado"} · {log.exercises.length} ejercicios</p></div><span className="text-sm font-bold text-yellow-400">Ver detalle</span></div></summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{log.exercises.map((exercise) => { const current = bestWeight(exercise); const previous = previousClassResult(data.history, logIndex, exercise.exerciseName); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${log.id}-${exercise.order}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-semibold">{exercise.exerciseName}</p>{previous && <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs font-bold text-zinc-300">Anterior {previous.weight} kg · {difference === null ? "sin comparación" : `${difference > 0 ? "↑ +" : difference < 0 ? "↓ " : ""}${difference} kg`}</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${set.weight ?? "—"} kg × ${set.repetitions ?? "—"}`).join(" · ")}</p>{exercise.notes && <p className="mt-2 text-xs text-zinc-500">{exercise.notes}</p>}{!previous && <p className="mt-2 text-xs text-zinc-600">Primer registro de este ejercicio en clases.</p>}</div>; })}{log.notes && <p className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{log.notes}</p>}</div></details>)}</div> : <p className="mt-3 rounded-2xl border border-dashed border-zinc-800 p-6 text-center text-zinc-500">Todavía no hay clases registradas.</p>}</section>
     {editing && <StrengthEditor occurrence={editing} close={() => setEditing(null)} saved={async (message) => { setNotice(message); setEditing(null); await load(); }} />}
   </div>;
 }

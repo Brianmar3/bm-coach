@@ -29,25 +29,29 @@ function serializePayment(record: PaymentWithStudent): Payment {
   return { id: record.id, studentId: record.studentId, student: `${student.firstName} ${student.lastName}`.trim(), amount: Number(record.amount), concept: record.concept, billingPeriod: record.billingPeriod?.toISOString().slice(0, 10) ?? "", dueDate: record.dueDate.toISOString().slice(0, 10), paidDate: record.paidDate?.toISOString().slice(0, 10) ?? "", method: record.method, status: effectiveStatus(record.status, record.dueDate), notes: record.notes, voidedAt: record.voidedAt?.toISOString() ?? "", voidReason: record.voidReason ?? "", createdAt: record.createdAt.toISOString() };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getPortalSession();
     if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
     if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
     const studentId = session.studentId;
+    const section = new URL(request.url).searchParams.get("section") ?? "inicio";
+    const fullWorkoutHistory = section === "rutina" || section === "entrenamiento";
+    const fullEvaluationHistory = section === "evaluaciones";
+    const fullPaymentHistory = section === "pagos";
     const todayKey = argentinaDateKey();
     const today = dateKeyToDatabase(todayKey);
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
-      prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
-      prisma.studentPayment.findMany({ where: { studentId, status: { not: "ANULADO" } }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }] }),
+      prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : 2 }),
+      prisma.studentPayment.findMany({ where: { studentId, status: { not: "ANULADO" } }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? undefined : 1 }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
         where: { studentId },
         include: { day: true, routine: true, exercises: { include: { exercise: true, sets: { orderBy: { setNumber: "asc" } } } } },
         orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-        take: 30,
+        take: fullWorkoutHistory ? 30 : 5,
       }),
       prisma.followUpComment.findMany({
         where: { studentId, private: false },
