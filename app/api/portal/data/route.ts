@@ -3,32 +3,15 @@ import { getPortalSession } from "@/lib/portal-auth";
 import { routineInclude, serializeRoutine } from "@/lib/rutinas";
 import { serializeEvaluation } from "@/lib/evaluaciones";
 import { serializeEvent } from "@/lib/eventos";
-import type { Payment, PaymentStatus, Student } from "@/types/gestion";
+import type { CoachSettings, Student } from "@/types/gestion";
 import type { PortalData } from "@/types/portal";
-import type { Prisma, StudentPaymentStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { calculatePortalAchievements } from "@/lib/portal-achievements";
+import { portalPaymentAccount, serializePayment } from "@/lib/payments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type PaymentWithStudent = Prisma.StudentPaymentGetPayload<{ include: { student: true } }>;
-
-function effectiveStatus(status: StudentPaymentStatus, dueDate: Date): PaymentStatus {
-  if (status === "ANULADO") return "anulado";
-  if (status === "PAGADO") return "pagado";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate); due.setHours(0, 0, 0, 0);
-  const days = Math.ceil((due.getTime() - today.getTime()) / 86400000);
-  if (days < 0) return "vencido";
-  if (days <= 7) return "proximo_a_vencer";
-  return "pendiente";
-}
-
-function serializePayment(record: PaymentWithStudent): Payment {
-  const student = record.student.data as unknown as Student;
-  return { id: record.id, studentId: record.studentId, student: `${student.firstName} ${student.lastName}`.trim(), amount: Number(record.amount), concept: record.concept, billingPeriod: record.billingPeriod?.toISOString().slice(0, 10) ?? "", dueDate: record.dueDate.toISOString().slice(0, 10), paidDate: record.paidDate?.toISOString().slice(0, 10) ?? "", method: record.method, status: effectiveStatus(record.status, record.dueDate), notes: record.notes, voidedAt: record.voidedAt?.toISOString() ?? "", voidReason: record.voidReason ?? "", createdAt: record.createdAt.toISOString() };
-}
 
 async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, todayKey: string, weekStart: Date) {
   const today = dateKeyToDatabase(todayKey);
@@ -110,10 +93,10 @@ export async function GET(request: Request) {
     const homeInsightsPromise = section === "inicio"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, todayKey, weekStart)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, hasClassParticipation: false, achievements: [] });
-    const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights] = await Promise.all([
+    const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
-      prisma.studentPayment.findMany({ where: { studentId, status: { not: "ANULADO" } }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? undefined : 1 }),
+      prisma.studentPayment.findMany({ where: { studentId, status: "PAGADO" }, include: { student: true }, orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? 50 : section === "inicio" ? 1 : 0 }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
         where: { studentId },
@@ -130,13 +113,17 @@ export async function GET(request: Request) {
         ? prisma.weeklyClassSchedule.findUnique({ where: { id: session.credential.student.primaryScheduleId } })
         : Promise.resolve(null),
       homeInsightsPromise,
+      section === "pagos" ? prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
     ]);
+    const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
       profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, dueDate: student.dueDate },
       routine: privateRoutine,
       evaluations: evaluations.map(serializeEvaluation),
       payments: payments.map(serializePayment),
+      paymentAccount: portalPaymentAccount(student, payments, todayKey),
+      paymentMethods: settings?.paymentMethods?.filter((method) => method.trim().length > 0) ?? [],
       events: events.map(serializeEvent),
       workoutSessions: workoutSessions.map((workout) => ({
         id: workout.id,

@@ -1,4 +1,4 @@
-import type { CoachEvent, Payment, PhysicalEvaluation, TrainingRoutine } from "@/types/gestion";
+import type { CoachEvent, Payment, PhysicalEvaluation, PortalPaymentAccount, TrainingRoutine } from "@/types/gestion";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 
 export type PortalProfile = {
@@ -75,6 +75,8 @@ export type PortalData = {
   routine: TrainingRoutine | null;
   evaluations: PhysicalEvaluation[];
   payments: Payment[];
+  paymentAccount: PortalPaymentAccount;
+  paymentMethods: string[];
   events: CoachEvent[];
   workoutSessions: PortalWorkoutSession[];
   comments: PortalComment[];

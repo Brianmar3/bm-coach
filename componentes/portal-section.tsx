@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { PaymentStatus, PhysicalEvaluation } from "@/types/gestion";
+import type { PaymentAccountStatus, PhysicalEvaluation } from "@/types/gestion";
 import type { PortalData, PortalWorkoutSession } from "@/types/portal";
 import { PortalClasses } from "@/componentes/portal-classes";
 import { dailyFocusForDate } from "@/lib/daily-focus";
@@ -12,7 +12,15 @@ type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaci
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
 const number = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
-const paymentLabel = (status: PaymentStatus) => status === "proximo_a_vencer" ? "Próximo a vencer" : status.charAt(0).toUpperCase() + status.slice(1);
+const accountStatus: Record<PaymentAccountStatus, { label: string; className: string }> = {
+  AL_DIA: { label: "Al día", className: "bg-emerald-400/10 text-emerald-300" },
+  VENCE_PRONTO: { label: "Vence pronto", className: "bg-amber-400/10 text-amber-300" },
+  VENCIDA: { label: "Vencida", className: "bg-red-400/10 text-red-300" },
+  SIN_CONFIGURAR: { label: "Sin configurar", className: "bg-zinc-800 text-zinc-400" },
+};
+const billingPeriod = (value: string) => value
+  ? new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric" }).format(new Date(`${value.slice(0, 10)}T12:00:00`))
+  : "";
 
 export function PortalSection({ section }: { section: Section }) {
   const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false); const [reload, setReload] = useState(0);
@@ -57,6 +65,7 @@ function PortalOverview({ data }: { data: PortalData }) {
     <section className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-1.5 text-sm leading-relaxed text-zinc-300">{dailyFocusForDate(todayKey)}</p></section>
     {routine && suggestedDay ? <section className="rounded-2xl border border-yellow-400/25 bg-zinc-900 p-4 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{inProgress ? "Entrenamiento en progreso" : "Entrenamiento de hoy"}</p><h2 className="mt-1 text-xl font-bold">{routine.name}</h2><p className="mt-1 text-sm text-zinc-300">Día {suggestedDay.dayNumber} — {suggestedDay.name}</p></div><span className="rounded-lg bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{suggestedDay.exercises.length} ejercicios</span></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">{suggestedDay.estimatedMinutes && <span>Duración estimada: {suggestedDay.estimatedMinutes} min</span>}{lastCompleted && <span>Última sesión: {date(lastCompleted.date)}</span>}</div><Link href="/portal/entrenamiento" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-yellow-400 px-5 py-2.5 font-bold text-zinc-950">{inProgress ? "Continuar entrenamiento" : "Comenzar entrenamiento"}</Link></section> : !data.home.hasClassParticipation && <section className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900 px-4 py-3"><p className="text-sm font-semibold">Todavía no tenés una rutina activa.</p><p className="mt-1 text-xs text-zinc-500">Cuando tu entrenador la asigne, aparecerá acá.</p></section>}
     {data.home.hasClassParticipation && <PortalClasses compact />}
+    {data.paymentAccount.configured && <QuotaSummaryCard data={data} />}
     <section><h2 className="text-sm font-bold">Mi progreso</h2><div className="mt-2 grid gap-3 lg:grid-cols-2">{progress.length > 0 && <div className="grid grid-cols-2 content-start gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">{progress.map((item) => <SmallMetric key={item.title} title={item.title} value={item.value} />)}</div>}<BodyEvolutionCard evaluations={data.evaluations} compact /></div></section>
     <AchievementsOverview data={data} />
     {coachReplies.length > 0 && <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4"><h2 className="font-bold text-emerald-200">Novedades del entrenador</h2><div className="mt-3 space-y-2">{coachReplies.map((item) => <p key={item.id} className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{item.body}</p>)}</div></section>}
@@ -72,6 +81,26 @@ function AchievementsOverview({ data }: { data: PortalData }) {
 
 function ComparativeEvaluationsView({ data }: { data: PortalData }) {
   return <EvaluationsView data={data} />;
+}
+
+function QuotaSummaryCard({ data }: { data: PortalData }) {
+  const account = data.paymentAccount;
+  const status = accountStatus[account.status];
+  return <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-3">
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">Tu cuota</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-2 py-1 text-xs font-bold ${status.className}`}>{status.label}</span>
+          {account.nextDueDate && <span className="text-xs text-zinc-400">{account.status === "VENCIDA" ? "Venció" : "Próximo vencimiento"}: {date(account.nextDueDate)}</span>}
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        {account.monthlyFee > 0 && <p className="font-bold">{money(account.monthlyFee)}</p>}
+        <Link href="/portal/pagos" className="mt-1 inline-block text-xs font-bold text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400">Ver detalle</Link>
+      </div>
+    </div>
+  </section>;
 }
 
 function RoutineView({ data }: { data: PortalData }) {
@@ -129,12 +158,26 @@ function EvaluationsView({ data }: { data: PortalData }) {
 }
 
 function PaymentsView({ data }: { data: PortalData }) {
-  return <PageHeader title="Mis pagos" subtitle="Cuotas y vencimientos"><div className="space-y-3">{data.payments.length ? data.payments.map((payment) => <article key={payment.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="font-semibold">{payment.concept}</h2><p className="mt-1 text-sm text-zinc-500">Vencimiento {date(payment.dueDate)}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${payment.status === "pagado" ? "bg-emerald-400/10 text-emerald-300" : payment.status === "vencido" ? "bg-red-400/10 text-red-300" : "bg-yellow-400/10 text-yellow-300"}`}>{paymentLabel(payment.status)}</span></div><div className="mt-4 flex items-end justify-between"><p className="text-2xl font-bold">{money(payment.amount)}</p><p className="text-xs text-zinc-500">{payment.paidDate ? `Pagado ${date(payment.paidDate)} · ${payment.method}` : payment.method}</p></div>{payment.notes && <p className="mt-3 border-t border-zinc-800 pt-3 text-sm text-zinc-400">{payment.notes}</p>}</article>) : <Notice>No hay pagos registrados.</Notice>}</div></PageHeader>;
+  const [visibleCount, setVisibleCount] = useState(8);
+  const account = data.paymentAccount;
+  const status = accountStatus[account.status];
+  return <PageHeader title="Mi cuota" subtitle="Estado e historial personal de pagos">
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-zinc-500">Estado actual</p><span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-bold ${status.className}`}>{status.label}</span></div>{account.monthlyFee > 0 && <p className="text-2xl font-bold">{money(account.monthlyFee)}<span className="ml-1 text-xs font-normal text-zinc-500">por mes</span></p>}</div>
+      {account.configured ? <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><SmallMetric title="Próximo vencimiento" value={date(account.nextDueDate)} /><SmallMetric title="Plan" value={account.plan || "Sin detalle"} /><SmallMetric title="Último pago" value={account.lastPaymentDate ? date(account.lastPaymentDate) : "Sin pagos"} /><SmallMetric title="Importe del último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /></dl> : <p className="mt-4 text-sm text-zinc-400">Todavía no tenés una cuota configurada.</p>}
+    </section>
+    <section className="mt-5">
+      <h2 className="font-semibold">Historial de pagos</h2>
+      {data.payments.length ? <div className="mt-3 space-y-2">{data.payments.slice(0, visibleCount).map((payment) => <article key={payment.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{date(payment.paidDate || payment.createdAt)}</p><p className="mt-1 text-xs capitalize text-zinc-500">{billingPeriod(payment.billingPeriod) || payment.concept}</p></div><div className="text-right"><p className="font-bold">{money(payment.amount)}</p><span className="mt-1 inline-flex rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">Confirmado</span></div></div><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400"><span>{payment.method || "Medio no informado"}</span>{payment.concept && billingPeriod(payment.billingPeriod) && <span>{payment.concept}</span>}</div>{payment.notes && <p className="mt-2 border-t border-zinc-800 pt-2 text-xs text-zinc-400">{payment.notes}</p>}</article>)}</div> : <Notice>Todavía no hay pagos registrados.</Notice>}
+      {visibleCount < data.payments.length && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400">Ver más pagos</button>}
+    </section>
+    <section className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900 p-4"><h2 className="font-semibold">Medios de pago</h2>{data.paymentMethods.length ? <ul className="mt-3 space-y-2">{data.paymentMethods.map((method) => <li key={method} className="rounded-lg bg-zinc-950 px-3 py-2 text-sm text-zinc-300">{method}</li>)}</ul> : <p className="mt-2 text-sm text-zinc-500">Consultá con tu entrenador para conocer los medios de pago.</p>}<p className="mt-3 text-xs text-zinc-600">Los pagos son confirmados únicamente por el entrenador.</p></section>
+  </PageHeader>;
 }
 
 function ProfileView({ data }: { data: PortalData }) {
   const profile = data.profile;
-  return <PageHeader title="Mi perfil" subtitle="Datos personales básicos"><section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><dl className="grid gap-4 sm:grid-cols-2"><ProfileItem title="Nombre" value={`${profile.firstName} ${profile.lastName}`} /><ProfileItem title="Teléfono" value={profile.phone} /><ProfileItem title="Correo" value={profile.email || "Sin correo"} /><ProfileItem title="Fecha de nacimiento" value={date(profile.birthDate)} /><ProfileItem title="Objetivo" value={profile.goal || "No definido"} /><ProfileItem title="Plan" value={profile.plan} /><ProfileItem title="Fecha de ingreso" value={date(profile.joinedAt)} /><ProfileItem title="Estado" value={profile.status} /></dl><p className="mt-5 text-xs text-zinc-500">Para modificar estos datos, contactá a tu entrenador.</p></section><ChangePasswordCard /></PageHeader>;
+  return <PageHeader title="Mi perfil" subtitle="Datos personales básicos"><Link href="/portal/pagos" className="mb-4 flex min-h-12 items-center justify-between rounded-xl border border-yellow-400/25 bg-yellow-400/5 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-400"><span><span className="block font-bold text-yellow-300">Mi cuota</span><span className="mt-0.5 block text-xs text-zinc-500">Estado e historial de pagos</span></span><span aria-hidden="true" className="text-yellow-400">›</span></Link><section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><dl className="grid gap-4 sm:grid-cols-2"><ProfileItem title="Nombre" value={`${profile.firstName} ${profile.lastName}`} /><ProfileItem title="Teléfono" value={profile.phone} /><ProfileItem title="Correo" value={profile.email || "Sin correo"} /><ProfileItem title="Fecha de nacimiento" value={date(profile.birthDate)} /><ProfileItem title="Objetivo" value={profile.goal || "No definido"} /><ProfileItem title="Plan" value={profile.plan} /><ProfileItem title="Fecha de ingreso" value={date(profile.joinedAt)} /><ProfileItem title="Estado" value={profile.status} /></dl><p className="mt-5 text-xs text-zinc-500">Para modificar estos datos, contactá a tu entrenador.</p></section><ChangePasswordCard /></PageHeader>;
 }
 
 function WorkoutView({ data }: { data: PortalData }) {

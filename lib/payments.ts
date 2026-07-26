@@ -7,7 +7,7 @@ import {
   dateKeyToDatabase,
   paymentAccountStatus,
 } from "@/lib/payment-dates";
-import type { Payment, PaymentDashboard, PaymentStatus, PaymentStudentAccount, Student } from "@/types/gestion";
+import type { Payment, PaymentDashboard, PaymentStatus, PaymentStudentAccount, PortalPaymentAccount, Student } from "@/types/gestion";
 
 export const PAYMENT_METHODS = ["Efectivo", "Transferencia", "Mercado Pago", "Otro"] as const;
 export type PaymentMethod = typeof PAYMENT_METHODS[number];
@@ -51,6 +51,25 @@ export function serializePayment(record: PaymentWithStudent): Payment {
     voidedAt: record.voidedAt?.toISOString() ?? "",
     voidReason: record.voidReason ?? "",
     createdAt: record.createdAt.toISOString(),
+  };
+}
+
+type PaymentAccountRecord = Pick<Prisma.StudentPaymentGetPayload<object>, "amount" | "paidDate" | "status">;
+
+export function portalPaymentAccount(student: Student, payments: PaymentAccountRecord[], asOf = argentinaDateKey()): PortalPaymentAccount {
+  const lastPayment = payments
+    .filter((payment) => payment.status === "PAGADO" && payment.paidDate)
+    .sort((left, right) => (right.paidDate?.getTime() ?? 0) - (left.paidDate?.getTime() ?? 0))[0];
+  const monthlyFee = Math.max(Number(student.monthlyFee ?? 0), 0);
+  const nextDueDate = student.dueDate ?? "";
+  return {
+    configured: monthlyFee > 0 || Boolean(nextDueDate),
+    status: paymentAccountStatus(nextDueDate, asOf),
+    monthlyFee,
+    nextDueDate,
+    plan: student.plan ?? "",
+    lastPaymentDate: lastPayment?.paidDate ? databaseDateKey(lastPayment.paidDate) : "",
+    lastPaymentAmount: lastPayment ? Number(lastPayment.amount) : null,
   };
 }
 

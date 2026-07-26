@@ -152,6 +152,16 @@ export type PaymentStudentAccount = {
   status: PaymentAccountStatus;
 };
 
+export type PortalPaymentAccount = {
+  configured: boolean;
+  status: PaymentAccountStatus;
+  monthlyFee: number;
+  nextDueDate: string;
+  plan: string;
+  lastPaymentDate: string;
+  lastPaymentAmount: number | null;
+};
+
 export type PaymentDashboardSummary = {
   collectedThisMonth: number;
   overdueCount: number;
