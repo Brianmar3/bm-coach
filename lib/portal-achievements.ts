@@ -15,6 +15,8 @@ type AchievementFacts = {
   attendedClassDates: string[];
   attendedClassCount: number;
   firstEvaluationDate: string;
+  latestEvaluationDate: string;
+  evaluationCount: number;
   firstStrengthLogDate: string;
   joinedAt: string;
   today: string;
@@ -71,6 +73,26 @@ export function calculatePortalAchievements(facts: AchievementFacts): PortalAchi
       unlockedAt: facts.firstEvaluationDate,
       progress: facts.firstEvaluationDate ? 1 : 0,
       target: 1,
+    },
+    {
+      id: "two-evaluations",
+      icon: "◇",
+      name: "Dos evaluaciones completadas",
+      description: "Ya podés comparar dos momentos de tu evolución corporal.",
+      unlocked: facts.evaluationCount >= 2,
+      unlockedAt: facts.evaluationCount >= 2 ? facts.latestEvaluationDate : "",
+      progress: Math.min(facts.evaluationCount, 2),
+      target: 2,
+    },
+    {
+      id: "three-months-body-tracking",
+      icon: "◇",
+      name: "Tres meses de seguimiento corporal",
+      description: "Tus evaluaciones abarcan al menos tres meses.",
+      unlocked: facts.evaluationCount >= 2 && daysBetween(facts.firstEvaluationDate, facts.latestEvaluationDate) >= 90,
+      unlockedAt: facts.evaluationCount >= 2 && daysBetween(facts.firstEvaluationDate, facts.latestEvaluationDate) >= 90 ? facts.latestEvaluationDate : "",
+      progress: Math.min(Math.max(0, daysBetween(facts.firstEvaluationDate, facts.latestEvaluationDate)), 90),
+      target: 90,
     },
     {
       id: "first-strength-log",

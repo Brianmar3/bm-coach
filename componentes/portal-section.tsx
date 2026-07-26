@@ -6,6 +6,7 @@ import type { PaymentStatus, PhysicalEvaluation } from "@/types/gestion";
 import type { PortalData, PortalWorkoutSession } from "@/types/portal";
 import { PortalClasses } from "@/componentes/portal-classes";
 import { dailyFocusForDate } from "@/lib/daily-focus";
+import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/body-evolution-card";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -39,6 +40,8 @@ function PortalOverview({ data }: { data: PortalData }) {
     ? trainingDays.find((day) => day.id === inProgress.dayId)
     : trainingDays[(lastDayIndex + 1) % Math.max(trainingDays.length, 1)] ?? trainingDays[0];
   const latestEvaluation = data.evaluations[0];
+  const latestWorkout = data.workoutSessions.find((session) => session.status === "finalizado");
+  const latestAchievement = data.home.achievements.filter((achievement) => achievement.unlocked).sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt))[0];
   const coachReplies = data.comments.filter((item) => item.author === "entrenador").slice(0, 3);
   const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
@@ -46,12 +49,14 @@ function PortalOverview({ data }: { data: PortalData }) {
     data.weeklyWorkouts > 0 ? { title: "Esta semana", value: `${data.weeklyWorkouts} entrenamientos` } : null,
     data.home.classesAttendedThisMonth > 0 ? { title: "Clases este mes", value: `${data.home.classesAttendedThisMonth} asistidas` } : null,
     latestEvaluation ? { title: "Última evaluación", value: date(latestEvaluation.date) } : null,
+    latestWorkout ? { title: "Último entrenamiento", value: date(latestWorkout.date) } : null,
+    latestAchievement ? { title: "Último logro", value: latestAchievement.name } : null,
   ].filter((item): item is { title: string; value: string } => item !== null);
   return <div className="space-y-4">
     <header><p className="text-xs capitalize text-zinc-500">{todayLabel}</p><h1 className="mt-1 text-2xl font-bold">Hola, {data.profile.firstName}</h1><p className="mt-1 text-sm text-zinc-500">Esto es lo importante para hoy.</p></header>
     {routine && suggestedDay ? <section className="rounded-2xl border border-yellow-400/25 bg-zinc-900 p-4 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{inProgress ? "Entrenamiento en progreso" : "Entrenamiento de hoy"}</p><h2 className="mt-1 text-xl font-bold">{routine.name}</h2><p className="mt-1 text-sm text-zinc-300">Día {suggestedDay.dayNumber} — {suggestedDay.name}</p></div><span className="rounded-lg bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{suggestedDay.exercises.length} ejercicios</span></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">{suggestedDay.estimatedMinutes && <span>Duración estimada: {suggestedDay.estimatedMinutes} min</span>}{lastCompleted && <span>Última sesión: {date(lastCompleted.date)}</span>}</div><Link href="/portal/entrenamiento" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-yellow-400 px-5 py-2.5 font-bold text-zinc-950">{inProgress ? "Continuar entrenamiento" : "Comenzar entrenamiento"}</Link></section> : !data.home.hasClassParticipation && <section className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900 px-4 py-3"><p className="text-sm font-semibold">Todavía no tenés una rutina activa.</p><p className="mt-1 text-xs text-zinc-500">Cuando tu entrenador la asigne, aparecerá acá.</p></section>}
     {data.home.hasClassParticipation && <PortalClasses compact />}
-    {progress.length > 0 && <section><h2 className="text-sm font-bold">Mi progreso</h2><div className="mt-2 grid max-w-xl grid-cols-2 gap-2">{progress.map((item) => <SmallMetric key={item.title} title={item.title} value={item.value} />)}</div></section>}
+    <section><h2 className="text-sm font-bold">Mi progreso</h2><div className="mt-2 grid gap-3 lg:grid-cols-2">{progress.length > 0 && <div className="grid grid-cols-2 content-start gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">{progress.map((item) => <SmallMetric key={item.title} title={item.title} value={item.value} />)}</div>}<BodyEvolutionCard evaluations={data.evaluations} compact /></div></section>
     <AchievementsOverview data={data} />
     <section className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-2 text-sm text-zinc-300">{dailyFocusForDate(todayKey)}</p></section>
     {coachReplies.length > 0 && <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4"><h2 className="font-bold text-emerald-200">Novedades del entrenador</h2><div className="mt-3 space-y-2">{coachReplies.map((item) => <p key={item.id} className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{item.body}</p>)}</div></section>}
@@ -66,9 +71,7 @@ function AchievementsOverview({ data }: { data: PortalData }) {
 }
 
 function ComparativeEvaluationsView({ data }: { data: PortalData }) {
-  const latest = data.evaluations[0]; const previous = data.evaluations[1];
-  const metrics: Array<{ label: string; key: keyof PhysicalEvaluation; unit: string }> = [{ label: "Peso", key: "weight", unit: "kg" }, { label: "Cintura", key: "waist", unit: "cm" }, { label: "Grasa", key: "bodyFatPercentage", unit: "%" }, { label: "Masa muscular", key: "muscleMass", unit: "kg" }];
-  return <><PageHeader title="Comparación anterior" subtitle="Indicadores neutros: una subida o bajada depende de tu objetivo">{latest && previous ? <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">{metrics.map((metric) => { const current = latest[metric.key] as number | null; const before = previous[metric.key] as number | null; const change = current !== null && before !== null ? current - before : null; const percent = change !== null && before ? change / before * 100 : null; return <article key={metric.label} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><p className="text-xs text-zinc-500">{metric.label}</p><p className="mt-2 text-xl font-bold">{number(current, ` ${metric.unit}`)}</p><p className="mt-2 text-xs text-zinc-300">{change === null ? "Sin comparación" : `${change > 0 ? "↑ +" : change < 0 ? "↓ " : ""}${change.toFixed(1)} ${metric.unit}${percent === null ? "" : ` · ${percent > 0 ? "+" : ""}${percent.toFixed(1)}%`}`}</p></article>; })}</section> : <Notice>Todavía no hay datos suficientes para comparar.</Notice>}</PageHeader><EvaluationsView data={data} /></>;
+  return <EvaluationsView data={data} />;
 }
 
 function RoutineView({ data }: { data: PortalData }) {
@@ -79,29 +82,50 @@ function RoutineView({ data }: { data: PortalData }) {
 
 function evaluationMeasurements(evaluation: PhysicalEvaluation) {
   return [
-    { label: "Peso", value: evaluation.weight, unit: " kg" }, { label: "Altura", value: evaluation.height, unit: " cm" },
-    { label: "IMC", value: evaluation.bmi, unit: "" }, { label: "Grasa corporal", value: evaluation.bodyFatPercentage, unit: " %" },
-    { label: "Masa muscular", value: evaluation.muscleMass, unit: " kg" }, { label: "Grasa visceral", value: evaluation.visceralFat, unit: "" },
-    { label: "Cintura", value: evaluation.waist, unit: " cm" }, { label: "Cadera", value: evaluation.hip, unit: " cm" },
-    { label: "Pecho", value: evaluation.chest, unit: " cm" }, { label: "Brazo derecho", value: evaluation.rightArm, unit: " cm" },
-    { label: "Brazo izquierdo", value: evaluation.leftArm, unit: " cm" }, { label: "Muslo derecho", value: evaluation.rightThigh, unit: " cm" },
-    { label: "Muslo izquierdo", value: evaluation.leftThigh, unit: " cm" }, { label: "Pantorrilla derecha", value: evaluation.rightCalf, unit: " cm" },
-    { label: "Pantorrilla izquierda", value: evaluation.leftCalf, unit: " cm" },
-  ].filter((item): item is { label: string; value: number; unit: string } => item.value !== null);
+    { key: "weight", label: "Peso", value: evaluation.weight, unit: "kg" },
+    { key: "height", label: "Altura", value: evaluation.height, unit: "m" },
+    { key: "bmi", label: "IMC", value: evaluation.bmi, unit: "" },
+    { key: "bodyFatPercentage", label: "Grasa corporal", value: evaluation.bodyFatPercentage, unit: "%" },
+    { key: "muscleMass", label: "Masa muscular", value: evaluation.muscleMass, unit: "kg" },
+    { key: "visceralFat", label: "Grasa visceral", value: evaluation.visceralFat, unit: "" },
+    { key: "waist", label: "Cintura", value: evaluation.waist, unit: "cm" },
+    { key: "hip", label: "Cadera", value: evaluation.hip, unit: "cm" },
+    { key: "chest", label: "Pecho", value: evaluation.chest, unit: "cm" },
+    { key: "rightArm", label: "Brazo derecho", value: evaluation.rightArm, unit: "cm" },
+    { key: "leftArm", label: "Brazo izquierdo", value: evaluation.leftArm, unit: "cm" },
+    { key: "rightThigh", label: "Muslo derecho", value: evaluation.rightThigh, unit: "cm" },
+    { key: "leftThigh", label: "Muslo izquierdo", value: evaluation.leftThigh, unit: "cm" },
+    { key: "rightCalf", label: "Pantorrilla derecha", value: evaluation.rightCalf, unit: "cm" },
+    { key: "leftCalf", label: "Pantorrilla izquierda", value: evaluation.leftCalf, unit: "cm" },
+  ].flatMap((item) => item.value === null ? [] : [{
+    ...item,
+    display: item.key === "height"
+      ? `${new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.value)} m`
+      : formatBodyValue(item.value, item.unit),
+  }]);
 }
 
 function EvaluationsView({ data }: { data: PortalData }) {
   const latest = data.evaluations[0];
+  const previous = data.evaluations[1];
   const measurements = latest ? evaluationMeasurements(latest) : [];
   if (!latest) return <PageHeader title="Mis evaluaciones" subtitle="Tu evolución física"><Notice>Todavía no hay evaluaciones registradas.</Notice></PageHeader>;
-  return <PageHeader title="Mis evaluaciones" subtitle="Consulta tus mediciones; solo tu entrenador puede modificarlas"><section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Última evaluación</p><p className="mt-1 font-bold">{date(latest.date)}</p></div><span className="text-xs text-zinc-500">{measurements.length} mediciones</span></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{measurements.map((item) => <SmallMetric key={item.label} title={item.label} value={number(item.value, item.unit)} />)}</div>{latest.notes && <p className="mt-4 rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{latest.notes}</p>}</section><section className="mt-5 grid gap-3 sm:grid-cols-2"><EvolutionChart title="Peso" items={data.evaluations} field="weight" unit="kg" color="#facc15" /><EvolutionChart title="Grasa corporal" items={data.evaluations} field="bodyFatPercentage" unit="%" color="#a1a1aa" /></section><section className="mt-5"><h2 className="font-semibold">Historial de evaluaciones</h2><div className="mt-3 space-y-2">{data.evaluations.map((item) => <details key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="cursor-pointer list-none"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{date(item.date)}</p><p className="mt-1 text-xs text-zinc-500">{number(item.weight, " kg")} · IMC {number(item.bmi)}</p></div><span className="text-sm font-bold text-yellow-400">Ver detalle</span></div></summary><div className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3 sm:grid-cols-4">{evaluationMeasurements(item).map((measurement) => <SmallMetric key={measurement.label} title={measurement.label} value={number(measurement.value, measurement.unit)} />)}</div>{item.notes && <p className="mt-3 rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{item.notes}</p>}</details>)}</div></section></PageHeader>;
-}
-
-function EvolutionChart({ title, items, field, unit, color }: { title: string; items: PhysicalEvaluation[]; field: "weight" | "bmi" | "bodyFatPercentage" | "muscleMass"; unit: string; color: string }) {
-  const points = [...items].reverse().flatMap((item) => item[field] === null ? [] : [{ date: item.date, value: item[field] as number }]);
-  if (!points.length) return <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><h2 className="font-semibold">{title}</h2><p className="grid h-32 place-items-center text-sm text-zinc-500">Sin datos</p></section>;
-  const values = points.map((point) => point.value); const min = Math.min(...values); const max = Math.max(...values); const range = max - min || 1; const coords = points.map((point, index) => ({ ...point, x: 20 + index * 280 / Math.max(points.length - 1, 1), y: 95 - (point.value - min) / range * 65 }));
-  return <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex justify-between"><h2 className="font-semibold">{title}</h2><span className="font-bold" style={{ color }}>{number(points.at(-1)?.value ?? null, unit ? ` ${unit}` : "")}</span></div><svg viewBox="0 0 320 115" className="mt-3 h-32 w-full" role="img" aria-label={`Evolución de ${title}`}><line x1="20" y1="95" x2="300" y2="95" stroke="#3f3f46" /><polyline points={coords.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={color} strokeWidth="3" />{coords.map((point, index) => <circle key={`${point.date}-${index}`} cx={point.x} cy={point.y} r="4" fill={color} />)}</svg></section>;
+  const summaryKeys = new Set(["weight", "bmi", "bodyFatPercentage", "muscleMass"]);
+  const summary = measurements.filter((item) => summaryKeys.has(item.key));
+  const bodyMeasures = measurements.filter((item) => !summaryKeys.has(item.key));
+  const symmetry = [
+    { label: "Brazos", right: latest.rightArm, left: latest.leftArm },
+    { label: "Muslos", right: latest.rightThigh, left: latest.leftThigh },
+    { label: "Pantorrillas", right: latest.rightCalf, left: latest.leftCalf },
+  ].filter((item): item is { label: string; right: number; left: number } => item.right !== null && item.left !== null);
+  return <PageHeader title="Mis evaluaciones" subtitle="Consulta tus mediciones; solo tu entrenador puede modificarlas">
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Última evaluación</p><p className="mt-1 font-bold">{date(latest.date)}</p></div><span className="text-xs text-zinc-500">{measurements.length} mediciones</span></div>{summary.length > 0 && <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{summary.map((item) => <SmallMetric key={item.key} title={item.label} value={item.display} />)}</div>}{latest.notes && <p className="mt-4 rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{latest.notes}</p>}</section>
+    <div className="mt-5"><BodyEvolutionCard evaluations={data.evaluations} /></div>
+    <section className="mt-5"><h2 className="font-semibold">Comparación anterior</h2>{previous ? <><p className="mt-1 text-xs text-zinc-500">{date(previous.date)} → {date(latest.date)}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{BODY_METRICS.flatMap((metric) => { const current = latest[metric.key]; const before = previous[metric.key]; if (current === null || before === null) return []; const difference = current - before; return [<article key={metric.key} className="rounded-xl bg-zinc-900 p-3"><p className="text-xs text-zinc-500">{metric.label}</p><p className="mt-1 text-sm font-semibold">{formatBodyValue(before, metric.unit)} → {formatBodyValue(current, metric.unit)}</p><p className="mt-1 text-xs text-zinc-300">{difference > 0 ? "↑ +" : difference < 0 ? "↓ " : "→ "}{formatBodyValue(difference, metric.unit)}</p></article>]; })}</div></> : <p className="mt-3 text-sm text-zinc-500">Todavía no hay datos suficientes para comparar.</p>}</section>
+    {bodyMeasures.length > 0 && <section className="mt-5"><h2 className="font-semibold">Medidas corporales</h2><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{bodyMeasures.map((item) => <SmallMetric key={item.key} title={item.label} value={item.display} />)}</div></section>}
+    {symmetry.length > 0 && <section className="mt-5"><h2 className="font-semibold">Simetría corporal</h2><p className="mt-1 text-xs text-zinc-500">Comparación informativa, sin interpretación médica.</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{symmetry.map((item) => { const difference = Math.abs(item.right - item.left); const greater = item.right === item.left ? "Sin diferencia" : item.right > item.left ? "Mayor medida: derecho" : "Mayor medida: izquierdo"; return <article key={item.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><p className="font-semibold">{item.label}</p><p className="mt-2 text-xs text-zinc-400">Derecho {formatBodyValue(item.right, "cm")} · Izquierdo {formatBodyValue(item.left, "cm")}</p><p className="mt-2 text-xs text-zinc-500">Diferencia {formatBodyValue(difference, "cm")} · {greater}</p></article>; })}</div></section>}
+    <section className="mt-5"><h2 className="font-semibold">Historial de evaluaciones</h2><div className="mt-3 space-y-2">{data.evaluations.map((item) => <details key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="cursor-pointer list-none"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{date(item.date)}</p><p className="mt-1 text-xs text-zinc-500">{item.weight === null ? "Evaluación corporal" : formatBodyValue(item.weight, "kg")}{item.bmi === null ? "" : ` · IMC ${number(item.bmi)}`}</p></div><span className="text-sm font-bold text-yellow-400">Ver detalle</span></div></summary><div className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3 sm:grid-cols-4">{evaluationMeasurements(item).map((measurement) => <SmallMetric key={measurement.key} title={measurement.label} value={measurement.display} />)}</div>{item.notes && <p className="mt-3 rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{item.notes}</p>}</details>)}</div></section>
+  </PageHeader>;
 }
 
 function PaymentsView({ data }: { data: PortalData }) {

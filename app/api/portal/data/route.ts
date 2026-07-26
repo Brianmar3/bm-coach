@@ -33,6 +33,13 @@ function serializePayment(record: PaymentWithStudent): Payment {
 async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, todayKey: string, weekStart: Date) {
   const today = dateKeyToDatabase(todayKey);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const meaningfulEvaluation = {
+    studentId,
+    OR: [
+      { weight: { not: null } }, { height: { not: null } }, { bodyFatPercentage: { not: null } },
+      { muscleMass: { not: null } }, { waist: { not: null } }, { hip: { not: null } },
+    ],
+  } satisfies Prisma.PhysicalEvaluationWhereInput;
   const [
     completedWorkoutCount,
     completedWorkoutDates,
@@ -44,6 +51,8 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     legacyAttendanceDates,
     legacyAttendanceThisMonth,
     firstEvaluation,
+    latestEvaluation,
+    evaluationCount,
     firstStrengthLog,
   ] = await Promise.all([
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED" } }),
@@ -55,7 +64,9 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     prisma.classAttendance.count({ where: { studentId, status: "PRESENT" } }),
     prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT" }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 10 }),
     prisma.classAttendance.count({ where: { studentId, status: "PRESENT", date: { gte: monthStart, lte: today } } }),
-    prisma.physicalEvaluation.findFirst({ where: { studentId }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+    prisma.physicalEvaluation.findFirst({ where: meaningfulEvaluation, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+    prisma.physicalEvaluation.findFirst({ where: meaningfulEvaluation, select: { date: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
+    prisma.physicalEvaluation.count({ where: meaningfulEvaluation }),
     prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED" }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }),
   ]);
   const usesOccurrenceAttendance = newAttendanceCount > 0;
@@ -73,6 +84,8 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
       attendedClassCount,
       attendedClassDates,
       firstEvaluationDate: firstEvaluation?.date.toISOString().slice(0, 10) ?? "",
+      latestEvaluationDate: latestEvaluation?.date.toISOString().slice(0, 10) ?? "",
+      evaluationCount,
       firstStrengthLogDate: firstStrengthLog?.classDateSnapshot.toISOString().slice(0, 10) ?? "",
       joinedAt,
       today: todayKey,
@@ -99,7 +112,7 @@ export async function GET(request: Request) {
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, hasClassParticipation: false, achievements: [] });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
-      prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : 2 }),
+      prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
       prisma.studentPayment.findMany({ where: { studentId, status: { not: "ANULADO" } }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? undefined : 1 }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
