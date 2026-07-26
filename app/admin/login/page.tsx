@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 export default function AdminLoginPage() {
@@ -33,8 +34,9 @@ export default function AdminLoginPage() {
 
   return <main className="grid min-h-screen place-items-center bg-zinc-950 p-5 text-white">
     <form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-yellow-400/20 bg-zinc-900 p-7 shadow-2xl shadow-black">
-      <p className="text-xs font-bold uppercase tracking-[.25em] text-yellow-400">BM Coach</p>
-      <h1 className="mt-3 text-3xl font-black">Acceso del entrenador</h1>
+      <Image src="/bm-training-logo.png" alt="BM Training — Gestión, entrenamiento y seguimiento" width={300} height={200} priority sizes="(max-width: 480px) 240px, 300px" className="mx-auto h-auto w-full max-w-[260px] object-contain" />
+      <p className="mt-2 text-center text-xs font-bold uppercase tracking-[.25em] text-yellow-400">Panel administrativo</p>
+      <h1 className="mt-3 text-center text-3xl font-black">Acceso del entrenador</h1>
       <p className="mt-2 text-sm text-zinc-400">Ingresá la credencial administrativa para abrir una sesión segura.</p>
       <label className="mt-6 block text-sm font-semibold">Credencial administrativa
         <input type="password" autoComplete="current-password" required minLength={32} value={token} onChange={(event) => setToken(event.target.value)} className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none focus:border-yellow-400" />

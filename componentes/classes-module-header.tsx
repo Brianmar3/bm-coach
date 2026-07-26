@@ -8,7 +8,7 @@ export function ClassesModuleHeader() {
     <>
       <div className="bg-zinc-950 px-6 pt-6 text-white md:px-10 md:pt-10">
         <header className="mx-auto mb-8 max-w-7xl">
-          <p className="text-sm font-bold uppercase tracking-[.2em] text-yellow-400">GESTIÓN BM COACH</p>
+          <p className="text-sm font-bold uppercase tracking-[.2em] text-yellow-400">GESTIÓN BM TRAINING</p>
           <h1 className="mt-2 text-3xl font-bold">Clases</h1>
           <p className="mt-1 text-zinc-400">Organizá tus horarios fijos de lunes a viernes y asigná alumnos a cada grupo.</p>
         </header>

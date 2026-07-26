@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
@@ -12,8 +13,8 @@ const links = [
   ["Perfil", "/portal/perfil", "○"],
 ] as const;
 
-function BrandMark({ small = false }: { small?: boolean }) {
-  return <span aria-hidden="true" className={`grid shrink-0 place-items-center rounded-[35%_35%_42%_42%] border-2 border-yellow-400 bg-black font-black tracking-tighter text-yellow-400 shadow-[inset_0_0_0_2px_rgba(250,204,21,.12)] ${small ? "h-9 w-9 text-xs" : "h-11 w-11 text-sm"}`}>BM</span>;
+function BrandMark() {
+  return <Image src="/bm-training-mark.png" alt="" width={44} height={44} priority className="h-11 w-11 shrink-0 rounded-xl object-contain" />;
 }
 
 export function PortalShell({ studentName, children }: { studentName: string; children: ReactNode }) {

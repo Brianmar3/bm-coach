@@ -26,13 +26,12 @@ export function PortalLoginForm() {
       setLoading(false);
     }
   }
-  return <main className="grid min-h-screen place-items-center bg-zinc-950 p-4 text-white">
-    <section className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl sm:p-8">
+  return <main className="grid min-h-[100dvh] place-items-center overflow-y-auto bg-black p-4 text-white">
+    <section className="w-full max-w-md rounded-3xl border border-yellow-400/25 bg-zinc-900 p-5 shadow-2xl shadow-black sm:p-7">
       <div className="text-center">
-        <Image src="/logo.png" alt="Identidad visual de BM Training" width={96} height={96} priority className="mx-auto h-24 w-24 object-contain" />
-        <p className="mt-4 text-xs font-bold uppercase tracking-[.2em] text-yellow-400">BM Training</p>
-        <p className="mt-1 text-xs text-zinc-500">Gestión, entrenamiento y seguimiento</p>
-        <h1 className="mt-3 text-2xl font-bold">Ingresá a tu cuenta</h1>
+        <Image src="/bm-training-logo.png" alt="BM Training — Gestión, entrenamiento y seguimiento" width={300} height={200} priority sizes="(max-width: 480px) 240px, 300px" className="mx-auto h-auto w-full max-w-[260px] object-contain" />
+        <p className="mt-2 text-xs font-bold uppercase tracking-[.2em] text-yellow-400">Portal del alumno</p>
+        <h1 className="mt-2 text-2xl font-bold">Ingresá a tu cuenta</h1>
         <p className="mt-2 text-sm text-zinc-500">Usá las credenciales entregadas por tu entrenador.</p>
       </div>
       {error && <p role="alert" className="mt-5 rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
