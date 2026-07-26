@@ -85,8 +85,6 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
       const rightUpcoming = right.status === "SCHEDULED" && right.canRespond;
       return Number(rightUpcoming) - Number(leftUpcoming) || left.startTime.localeCompare(right.startTime);
     }), [data, today]);
-  const nextToday = todayItems.find((item) => item.status === "SCHEDULED" && item.canRespond);
-  const next = nextToday ?? data?.occurrences.find((item) => item.date > today && item.status === "SCHEDULED" && item.canRespond);
   const weekEnd = addDays(today, 6);
   const grouped = useMemo(() => {
     const map = new Map<string, PortalClassOccurrence[]>();
@@ -97,9 +95,9 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     return [...map.entries()];
   }, [data, showWeek, today, todayItems, weekEnd]);
   if (!data && !error) return <div className="h-36 animate-pulse rounded-2xl bg-zinc-900" />;
-  if (compact) return <section className="rounded-2xl border border-yellow-400/20 bg-zinc-900 p-5">
-    <div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Clases</p><h2 className="mt-1 text-lg font-bold">{next ? `${next.date === today ? "Próxima hoy" : "Próxima clase"}: ${next.name}` : "Sin clases próximas"}</h2></div><Link href="/portal/clases" className="text-sm font-bold text-yellow-400">Ver horarios →</Link></div>
-    {next ? <><p className="mt-2 text-sm capitalize text-zinc-400">{next.date === today ? `Hoy · ${next.startTime}` : `${dateLabel(next.date)} · ${next.startTime}`}</p><p className="mt-1 text-xs text-zinc-500">{next.response === "GOING" ? "Asistiré" : next.response === "NOT_GOING" ? "No asistiré" : "Sin responder"}</p>{next.date === today && <ResponseButtons item={next} saving={savingId === next.id} respond={respond} />}</> : <p className="mt-3 text-sm text-zinc-500">Hoy no hay más clases programadas.</p>}
+  if (compact) return <section className="rounded-2xl border border-yellow-400/20 bg-zinc-900 p-4">
+    <div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Clases de hoy</p><h2 className="mt-1 text-lg font-bold">{todayItems.length ? `${todayItems.length} ${todayItems.length === 1 ? "clase disponible" : "clases disponibles"}` : "Sin clases presenciales"}</h2></div><Link href="/portal/clases" className="shrink-0 text-sm font-bold text-yellow-400">Ver horarios →</Link></div>
+    {todayItems.length ? <div className="mt-3 space-y-3">{todayItems.slice(0, 2).map((item) => <article key={item.id} className="rounded-xl bg-zinc-950 p-3"><div className="flex items-start justify-between gap-2"><div><p className="font-semibold">{item.name}</p><p className="mt-1 text-xs text-zinc-400">Hoy · {item.startTime} · {item.category}</p></div><span className="rounded-full bg-zinc-900 px-2 py-1 text-[10px] text-zinc-400">{item.statusLabel}</span></div><p className="mt-2 text-xs text-zinc-500">{item.response === "GOING" ? "Confirmaste que asistirás" : item.response === "NOT_GOING" ? "Indicaste que no asistirás" : "Todavía no respondiste"}</p>{item.canRespond && <ResponseButtons item={item} saving={savingId === item.id} respond={respond} />}</article>)}</div> : <p className="mt-3 text-sm text-zinc-500">Hoy no hay clases programadas.</p>}
     <Feedback error={error} notice={notice} />
   </section>;
 

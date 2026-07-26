@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AppFrame } from "@/componentes/app-frame";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "BM Coach", description: "Gestión para entrenadores personales" };
+export const metadata: Metadata = { title: "BM Training", description: "Gestión, entrenamiento y seguimiento" };
 
 export default function RootLayout({
   children,

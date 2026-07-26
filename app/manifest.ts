@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "BM Coach",
-    short_name: "BM Coach",
-    description: "Gestión diaria de BM Coach",
+    name: "BM Training",
+    short_name: "BM Training",
+    description: "Gestión, entrenamiento y seguimiento",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
