@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 type PaymentWithStudent = Prisma.StudentPaymentGetPayload<{ include: { student: true } }>;
 
 function effectiveStatus(status: StudentPaymentStatus, dueDate: Date): PaymentStatus {
+  if (status === "ANULADO") return "anulado";
   if (status === "PAGADO") return "pagado";
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const due = new Date(dueDate); due.setHours(0, 0, 0, 0);
@@ -25,7 +26,7 @@ function effectiveStatus(status: StudentPaymentStatus, dueDate: Date): PaymentSt
 
 function serializePayment(record: PaymentWithStudent): Payment {
   const student = record.student.data as unknown as Student;
-  return { id: record.id, studentId: record.studentId, student: `${student.firstName} ${student.lastName}`.trim(), amount: Number(record.amount), concept: record.concept, dueDate: record.dueDate.toISOString().slice(0, 10), paidDate: record.paidDate?.toISOString().slice(0, 10) ?? "", method: record.method, status: effectiveStatus(record.status, record.dueDate), notes: record.notes, createdAt: record.createdAt.toISOString() };
+  return { id: record.id, studentId: record.studentId, student: `${student.firstName} ${student.lastName}`.trim(), amount: Number(record.amount), concept: record.concept, billingPeriod: record.billingPeriod?.toISOString().slice(0, 10) ?? "", dueDate: record.dueDate.toISOString().slice(0, 10), paidDate: record.paidDate?.toISOString().slice(0, 10) ?? "", method: record.method, status: effectiveStatus(record.status, record.dueDate), notes: record.notes, voidedAt: record.voidedAt?.toISOString() ?? "", voidReason: record.voidReason ?? "", createdAt: record.createdAt.toISOString() };
 }
 
 export async function GET() {
@@ -40,7 +41,7 @@ export async function GET() {
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
-      prisma.studentPayment.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }] }),
+      prisma.studentPayment.findMany({ where: { studentId, status: { not: "ANULADO" } }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }] }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
         where: { studentId },

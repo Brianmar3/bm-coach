@@ -1,4 +1,4 @@
-export type PaymentStatus = "pagado" | "pendiente" | "vencido" | "proximo_a_vencer";
+export type PaymentStatus = "pagado" | "pendiente" | "vencido" | "proximo_a_vencer" | "anulado";
 export type PaymentAccountStatus = "VENCIDA" | "VENCE_PRONTO" | "AL_DIA" | "SIN_CONFIGURAR";
 
 export type StudentStatus = "activo" | "inactivo";
@@ -127,11 +127,14 @@ export type Payment = {
   student: string;
   amount: number;
   concept: string;
+  billingPeriod: string;
   dueDate: string;
   paidDate: string;
   method: string;
   status: PaymentStatus;
   notes: string;
+  voidedAt: string;
+  voidReason: string;
   createdAt: string;
 };
 
@@ -141,6 +144,8 @@ export type PaymentStudentAccount = {
   plan: string;
   monthlyFee: number;
   phone: string;
+  paymentCount: number;
+  paidThisMonth: boolean;
   lastPaymentDate: string;
   lastPaymentAmount: number | null;
   nextDueDate: string;

@@ -55,6 +55,7 @@ export default function AlumnosPage() {
       setOptions(enrollmentOptions);
       const params = new URLSearchParams(window.location.search);
       if (params.get("estado") === "activo") setStatus("activo");
+      if (params.get("buscar")) setQuery(params.get("buscar") ?? "");
       if (params.get("accion") === "nuevo") { setForm(blank(enrollmentOptions)); setOpen(true); }
     }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
     return () => controller.abort();
