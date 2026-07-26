@@ -1,4 +1,5 @@
 import type { CoachEvent, Payment, PhysicalEvaluation, TrainingRoutine } from "@/types/gestion";
+import type { PortalAchievement } from "@/lib/portal-achievements";
 
 export type PortalProfile = {
   id: string;
@@ -80,4 +81,10 @@ export type PortalData = {
   nextClass: { id: string; label: string; startTime: string } | null;
   weeklyWorkouts: number;
   pendingResponses: number;
+  home: {
+    mode: "PRESENCIAL" | "RUTINA_PERSONALIZADA" | "ENTRENAMIENTO_EN_CASA" | "MIXTO" | "SIN_DEFINIR";
+    hasClassParticipation: boolean;
+    classesAttendedThisMonth: number;
+    achievements: PortalAchievement[];
+  };
 };

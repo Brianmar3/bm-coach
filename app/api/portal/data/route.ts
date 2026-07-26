@@ -7,6 +7,7 @@ import type { Payment, PaymentStatus, Student } from "@/types/gestion";
 import type { PortalData } from "@/types/portal";
 import type { Prisma, StudentPaymentStatus } from "@prisma/client";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { calculatePortalAchievements } from "@/lib/portal-achievements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,56 @@ function serializePayment(record: PaymentWithStudent): Payment {
   return { id: record.id, studentId: record.studentId, student: `${student.firstName} ${student.lastName}`.trim(), amount: Number(record.amount), concept: record.concept, billingPeriod: record.billingPeriod?.toISOString().slice(0, 10) ?? "", dueDate: record.dueDate.toISOString().slice(0, 10), paidDate: record.paidDate?.toISOString().slice(0, 10) ?? "", method: record.method, status: effectiveStatus(record.status, record.dueDate), notes: record.notes, voidedAt: record.voidedAt?.toISOString() ?? "", voidReason: record.voidReason ?? "", createdAt: record.createdAt.toISOString() };
 }
 
+async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, todayKey: string, weekStart: Date) {
+  const today = dateKeyToDatabase(todayKey);
+  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const [
+    completedWorkoutCount,
+    completedWorkoutDates,
+    weeklyWorkoutCount,
+    newAttendanceCount,
+    newAttendanceDates,
+    newAttendanceThisMonth,
+    legacyAttendanceCount,
+    legacyAttendanceDates,
+    legacyAttendanceThisMonth,
+    firstEvaluation,
+    firstStrengthLog,
+  ] = await Promise.all([
+    prisma.workoutSession.count({ where: { studentId, status: "COMPLETED" } }),
+    prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED" }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 10 }),
+    prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: weekStart } } }),
+    prisma.classOccurrenceAttendance.count({ where: { studentId, actualAttendance: "PRESENT" } }),
+    prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT" }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } }, take: 10 }),
+    prisma.classOccurrenceAttendance.count({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: monthStart, lte: today } } } }),
+    prisma.classAttendance.count({ where: { studentId, status: "PRESENT" } }),
+    prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT" }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 10 }),
+    prisma.classAttendance.count({ where: { studentId, status: "PRESENT", date: { gte: monthStart, lte: today } } }),
+    prisma.physicalEvaluation.findFirst({ where: { studentId }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+    prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED" }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }),
+  ]);
+  const usesOccurrenceAttendance = newAttendanceCount > 0;
+  const attendedClassCount = usesOccurrenceAttendance ? newAttendanceCount : legacyAttendanceCount;
+  const attendedClassDates = usesOccurrenceAttendance
+    ? newAttendanceDates.map((item) => item.occurrence.date.toISOString().slice(0, 10))
+    : legacyAttendanceDates.map((item) => item.date.toISOString().slice(0, 10));
+  return {
+    weeklyWorkoutCount,
+    classesAttendedThisMonth: usesOccurrenceAttendance ? newAttendanceThisMonth : legacyAttendanceThisMonth,
+    hasClassParticipation: Boolean(primaryScheduleId) || newAttendanceCount > 0 || legacyAttendanceCount > 0 || Boolean(firstStrengthLog),
+    achievements: calculatePortalAchievements({
+      completedWorkoutCount,
+      completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
+      attendedClassCount,
+      attendedClassDates,
+      firstEvaluationDate: firstEvaluation?.date.toISOString().slice(0, 10) ?? "",
+      firstStrengthLogDate: firstStrengthLog?.classDateSnapshot.toISOString().slice(0, 10) ?? "",
+      joinedAt,
+      today: todayKey,
+    }),
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const session = await getPortalSession();
@@ -42,7 +93,11 @@ export async function GET(request: Request) {
     const todayKey = argentinaDateKey();
     const today = dateKeyToDatabase(todayKey);
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
-    const [routine, evaluations, payments, events, workoutSessions, comments, nextClass] = await Promise.all([
+    const student = session.credential.student.data as unknown as Student;
+    const homeInsightsPromise = section === "inicio"
+      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, todayKey, weekStart)
+      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, hasClassParticipation: false, achievements: [] });
+    const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : 2 }),
       prisma.studentPayment.findMany({ where: { studentId, status: { not: "ANULADO" } }, include: { student: true }, orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? undefined : 1 }),
@@ -61,8 +116,8 @@ export async function GET(request: Request) {
       session.credential.student.primaryScheduleId
         ? prisma.weeklyClassSchedule.findUnique({ where: { id: session.credential.student.primaryScheduleId } })
         : Promise.resolve(null),
+      homeInsightsPromise,
     ]);
-    const student = session.credential.student.data as unknown as Student;
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
       profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, dueDate: student.dueDate },
@@ -122,7 +177,14 @@ export async function GET(request: Request) {
       nextClass: nextClass ? { id: nextClass.id, label: nextClass.classType, startTime: nextClass.startTime } : null,
       weeklyWorkouts: workoutSessions.filter((workout) => workout.status === "COMPLETED" && workout.date >= weekStart).length,
       pendingResponses: comments.filter((comment) => comment.author === "STUDENT" && comment.status === "PENDING").length,
+      home: {
+        mode: routine && homeInsights.hasClassParticipation ? "MIXTO" : routine ? "RUTINA_PERSONALIZADA" : homeInsights.hasClassParticipation ? "PRESENCIAL" : "SIN_DEFINIR",
+        hasClassParticipation: homeInsights.hasClassParticipation,
+        classesAttendedThisMonth: homeInsights.classesAttendedThisMonth,
+        achievements: homeInsights.achievements,
+      },
     };
+    if (section === "inicio") data.weeklyWorkouts = homeInsights.weeklyWorkoutCount;
     return Response.json(data);
   } catch (error) {
     console.error("Error al cargar datos del portal", error);
