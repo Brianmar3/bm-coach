@@ -6,21 +6,41 @@ import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
 type ExerciseDraft = Omit<TrainingExercise, "id"> & { id?: string; clientId: string };
-type DayDraft = { id?: string; dayNumber: number; exercises: ExerciseDraft[] };
-type RoutineDraft = { name: string; objective: string; level: TrainingRoutineLevel; status: TrainingRoutineStatus; studentIds: string[]; days: DayDraft[] };
+type DayDraft = { id?: string; clientId: string; dayNumber: number; name: string; estimatedMinutes: number | null; exercises: ExerciseDraft[] };
+type RoutineDraft = {
+  name: string;
+  objective: string;
+  level: TrainingRoutineLevel;
+  status: TrainingRoutineStatus;
+  startDate: string;
+  durationWeeks: number | null;
+  priorityMuscles: string[];
+  studentIds: string[];
+  days: DayDraft[];
+};
 type RoutineVersionItem = { id: string; version: number; summary: string; createdAt: string };
 
 const objectives = ["Hipertrofia", "Fuerza", "Descenso de grasa", "Rehabilitación", "Funcional", "Resistencia", "Movilidad"];
 const levels: TrainingRoutineLevel[] = ["principiante", "intermedio", "avanzado"];
-const statuses: TrainingRoutineStatus[] = ["activa", "archivada"];
+const statuses: TrainingRoutineStatus[] = ["borrador", "activa", "finalizada", "archivada"];
 const muscleGroups = ["Pecho", "Espalda", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Gemelos", "Core", "Cuerpo completo", "Movilidad"];
 
 function newExercise(order: number): ExerciseDraft {
-  return { clientId: crypto.randomUUID(), name: "", muscleGroup: "", sets: 3, repetitions: "10-12", weight: null, effortType: "RPE", effortValue: null, restSeconds: 90, observations: "", videoUrl: "", order };
+  return { clientId: crypto.randomUUID(), name: "", muscleGroup: "", sets: 3, repetitions: "10-12", weight: null, effortType: "RIR", effortValue: 2, restSeconds: 90, observations: "", videoUrl: "", order };
 }
 
-function blankRoutine(studentId = ""): RoutineDraft {
-  return { name: "", objective: "Hipertrofia", level: "principiante", status: "activa", studentIds: studentId ? [studentId] : [], days: Array.from({ length: 7 }, (_, index) => ({ dayNumber: index + 1, exercises: [] })) };
+function blankRoutine(): RoutineDraft {
+  return {
+    name: "",
+    objective: "Hipertrofia",
+    level: "principiante",
+    status: "borrador",
+    startDate: "",
+    durationWeeks: null,
+    priorityMuscles: [],
+    studentIds: [],
+    days: [{ clientId: crypto.randomUUID(), dayNumber: 1, name: "Día 1", estimatedMinutes: null, exercises: [] }],
+  };
 }
 
 function routineDraft(routine: TrainingRoutine): RoutineDraft {
@@ -29,11 +49,18 @@ function routineDraft(routine: TrainingRoutine): RoutineDraft {
     objective: routine.objective,
     level: routine.level,
     status: routine.status,
+    startDate: routine.startDate,
+    durationWeeks: routine.durationWeeks,
+    priorityMuscles: routine.priorityMuscles,
     studentIds: routine.studentIds,
-    days: Array.from({ length: 7 }, (_, index) => {
-      const stored = routine.days.find((day) => day.dayNumber === index + 1);
-      return { id: stored?.id, dayNumber: index + 1, exercises: (stored?.exercises ?? []).map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })) };
-    }),
+    days: routine.days.map((day) => ({
+      id: day.id,
+      clientId: crypto.randomUUID(),
+      dayNumber: day.dayNumber,
+      name: day.name,
+      estimatedMinutes: day.estimatedMinutes,
+      exercises: day.exercises.map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })),
+    })),
   };
 }
 
@@ -57,7 +84,7 @@ export default function RutinasPage() {
   const [items, setItems] = useState<TrainingRoutine[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"activas" | "archivadas" | "todas">("activas");
+  const [statusFilter, setStatusFilter] = useState<"activas" | "borradores" | "finalizadas" | "archivadas" | "todas">("activas");
   const [objectiveFilter, setObjectiveFilter] = useState("todos");
   const [studentFilter, setStudentFilter] = useState("todos");
   const [form, setForm] = useState<RoutineDraft>(blankRoutine());
@@ -87,16 +114,19 @@ export default function RutinasPage() {
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es");
     return items.filter((routine) =>
-      (statusFilter === "todas" || (statusFilter === "activas" ? routine.status === "activa" : routine.status === "archivada"))
+      (statusFilter === "todas"
+        || (statusFilter === "activas" && routine.status === "activa")
+        || (statusFilter === "borradores" && routine.status === "borrador")
+        || (statusFilter === "finalizadas" && routine.status === "finalizada")
+        || (statusFilter === "archivadas" && routine.status === "archivada"))
       && (!normalized || `${routine.name} ${routine.objective} ${routine.historicalStudents.map((student) => student.name).join(" ")}`.toLocaleLowerCase("es").includes(normalized))
       && (objectiveFilter === "todos" || routine.objective === objectiveFilter)
       && (studentFilter === "todos" || (routine.status === "archivada" ? routine.historicalStudents.some((student) => student.id === studentFilter) : routine.studentIds.includes(studentFilter))));
   }, [items, objectiveFilter, query, statusFilter, studentFilter]);
 
   function begin(routine?: TrainingRoutine) {
-    if (!routine && students.length === 0) { setError("Primero necesitás crear un alumno real para asignar una rutina."); return; }
     setEditing(routine ?? null);
-    setForm(routine ? routineDraft(routine) : blankRoutine(students[0].id));
+    setForm(routine ? routineDraft(routine) : blankRoutine());
     setActiveDay(1);
     setError("");
     setOpen(true);
@@ -104,15 +134,42 @@ export default function RutinasPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     if (!form.name.trim() || !form.objective.trim()) { setError("Completá nombre y objetivo."); return; }
-    const payload = { ...form, days: form.days.map((day) => ({ id: day.id, dayNumber: day.dayNumber, exercises: [...day.exercises].sort((a, b) => a.order - b.order).map((exercise, index) => ({ id: exercise.id, name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets, repetitions: exercise.repetitions, weight: exercise.weight, effortType: exercise.effortType, effortValue: exercise.effortValue, restSeconds: exercise.restSeconds, observations: exercise.observations, videoUrl: exercise.videoUrl, order: index + 1 })) })) };
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const intent = submitter instanceof HTMLButtonElement ? submitter.value : "current";
+    const requestedStatus = intent === "draft" ? "borrador" : intent === "activate" ? "activa" : form.status;
+    const payload = {
+      ...form,
+      status: requestedStatus,
+      days: form.days.map((day) => ({
+        id: day.id,
+        dayNumber: day.dayNumber,
+        name: day.name,
+        estimatedMinutes: day.estimatedMinutes,
+        exercises: [...day.exercises].sort((a, b) => a.order - b.order).map((exercise, index) => ({
+          id: exercise.id,
+          name: exercise.name,
+          muscleGroup: exercise.muscleGroup,
+          sets: exercise.sets,
+          repetitions: exercise.repetitions,
+          weight: exercise.weight,
+          effortType: exercise.effortType,
+          effortValue: exercise.effortValue,
+          restSeconds: exercise.restSeconds,
+          observations: exercise.observations,
+          videoUrl: exercise.videoUrl,
+          order: index + 1,
+        })),
+      })),
+    };
     setSaving(true); setError("");
     try {
       const response = await fetch(editing ? `/api/rutinas/${editing.id}` : "/api/rutinas", { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar la rutina."));
       const saved = (await response.json()) as TrainingRoutine;
       setItems((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]);
-      setOpen(false); setEditing(null);
+      setOpen(false); setEditing(null); setNotice(requestedStatus === "activa" ? "Rutina activada correctamente." : "Rutina guardada correctamente.");
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "No se pudo guardar la rutina en Neon."); }
     finally { setSaving(false); }
   }
@@ -204,7 +261,7 @@ export default function RutinasPage() {
     <nav className="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-2">{([["rutinas", "Rutinas"], ["asignaciones", "Asignaciones"], ["seguimiento", "Seguimiento de alumnos"]] as const).map(([value, title]) => <button key={value} onClick={() => { setActiveTab(value); if (value !== "seguimiento") setTrackingRoutineId(""); }} className={`shrink-0 rounded-xl px-4 py-3 text-sm font-bold ${activeTab === value ? "bg-yellow-400 text-zinc-950" : "text-zinc-400 hover:bg-zinc-800"}`}>{title}</button>)}</nav>
     {activeTab === "seguimiento" ? <RoutineFollowUp initialRoutineId={trackingRoutineId} initialStudentId={trackingStudentId} /> : <>
     <section className="grid gap-4 sm:grid-cols-3"><Summary label="Rutinas activas" value={items.filter((item) => item.status === "activa").length} /><Summary label="Alumnos con rutina" value={new Set(items.flatMap((item) => item.studentIds)).size} /><Summary label="Ejercicios planificados" value={items.reduce((total, item) => total + exerciseCount(item), 0)} /></section>
-    <section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina, objetivo o alumno" className={inputClass} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={inputClass}><option value="activas">Activas</option><option value="archivadas">Archivadas</option><option value="todas">Todas</option></select><select value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
+    <section className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina, objetivo o alumno" className={inputClass} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={inputClass}><option value="activas">Activas</option><option value="borradores">Borradores</option><option value="finalizadas">Finalizadas</option><option value="archivadas">Archivadas</option><option value="todas">Todas</option></select><select value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
     <section className="mt-6 grid gap-4 lg:grid-cols-2">{!ready ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando rutinas…</p> : visible.length === 0 ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">{statusFilter === "archivadas" ? "No hay rutinas archivadas." : "No hay rutinas que coincidan con los filtros."}</p> : visible.map((routine) => <RoutineCard key={routine.id} routine={routine} view={() => setViewing(routine)} history={() => openHistory(routine)} tracking={() => { setTrackingRoutineId(routine.id); setActiveTab("seguimiento"); }} edit={() => begin(routine)} duplicate={() => duplicate(routine)} archive={() => archive(routine)} remove={() => remove(routine)} restore={() => restore(routine)} duplicating={duplicatingId === routine.id} busy={actionId === routine.id} />)}</section>
     </>}
     {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving} />}
@@ -241,7 +298,7 @@ function RoutineCard({ routine, view, history, tracking, edit, duplicate, archiv
       <span className="text-xs text-zinc-500">{showDate(routine.createdAt)}</span>
     </div>
     <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-      <Info label="Días con ejercicios" value={`${activeDays(routine)}/7`} />
+      <Info label="Días con ejercicios" value={`${activeDays(routine)}/${routine.days.length}`} />
       <Info label="Ejercicios" value={String(exerciseCount(routine))} />
       <Info label={archived ? "Alumnos históricos" : "Alumnos"} value={String(archived ? routine.historicalStudents.length : routine.students.length)} />
     </div>
@@ -267,20 +324,70 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
   function updateDay(updater: (day: DayDraft) => DayDraft) { setForm({ ...form, days: form.days.map((day) => day.dayNumber === activeDay ? updater(day) : day) }); }
   function addExercise() { updateDay((day) => ({ ...day, exercises: [...day.exercises, newExercise(day.exercises.length + 1)] })); }
   function updateExercise<K extends keyof ExerciseDraft>(clientId: string, key: K, value: ExerciseDraft[K]) { updateDay((day) => ({ ...day, exercises: day.exercises.map((exercise) => exercise.clientId === clientId ? { ...exercise, [key]: value } : exercise) })); }
-  function removeExercise(clientId: string) { updateDay((day) => ({ ...day, exercises: day.exercises.filter((exercise) => exercise.clientId !== clientId).map((exercise, index) => ({ ...exercise, order: index + 1 })) })); }
+  function removeExercise(clientId: string) {
+    if (!window.confirm("¿Eliminar este ejercicio del día? El historial previo se conservará.")) return;
+    updateDay((day) => ({ ...day, exercises: day.exercises.filter((exercise) => exercise.clientId !== clientId).map((exercise, index) => ({ ...exercise, order: index + 1 })) }));
+  }
   function moveExercise(clientId: string, direction: -1 | 1) { updateDay((day) => { const exercises = [...day.exercises].sort((a, b) => a.order - b.order); const index = exercises.findIndex((exercise) => exercise.clientId === clientId); const target = index + direction; if (index < 0 || target < 0 || target >= exercises.length) return day; [exercises[index], exercises[target]] = [exercises[target], exercises[index]]; return { ...day, exercises: exercises.map((exercise, order) => ({ ...exercise, order: order + 1 })) }; }); }
   function toggleStudent(studentId: string) { setForm({ ...form, studentIds: form.studentIds.includes(studentId) ? form.studentIds.filter((id) => id !== studentId) : [...form.studentIds, studentId] }); }
-  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><form onSubmit={submit} className="mx-auto my-6 w-full max-w-7xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">{editing ? "Editar rutina" : "Nueva rutina"}</h2><p className="mt-1 text-sm text-zinc-400">Organizá hasta siete días con todos los ejercicios necesarios.</p></div><button type="button" onClick={close} className="self-start text-zinc-400">Cerrar</button></div>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
-    <div className="mt-5 grid gap-4 md:grid-cols-4"><label className="md:col-span-2">Nombre<input required maxLength={120} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Objetivo<input required list="routine-objectives" maxLength={100} value={form.objective} onChange={(event) => setForm({ ...form, objective: event.target.value })} className={`${inputClass} mt-1`} /><datalist id="routine-objectives">{objectives.map((objective) => <option key={objective} value={objective} />)}</datalist></label><label>Nivel<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as TrainingRoutineLevel })} className={`${inputClass} mt-1`}>{levels.map((level) => <option key={level} value={level}>{label(level)}</option>)}</select></label><label>Estado<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as TrainingRoutineStatus })} className={`${inputClass} mt-1`}>{statuses.map((status) => <option key={status} value={status}>{label(status)}</option>)}</select></label></div>
+  function addDay() {
+    if (form.days.length >= 14) return;
+    const next = form.days.length + 1;
+    setForm({ ...form, days: [...form.days, { clientId: crypto.randomUUID(), dayNumber: next, name: `Día ${next}`, estimatedMinutes: null, exercises: [] }] });
+    setActiveDay(next);
+  }
+  function moveDay(direction: -1 | 1) {
+    const index = form.days.findIndex((day) => day.dayNumber === activeDay);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= form.days.length) return;
+    const days = [...form.days];
+    [days[index], days[target]] = [days[target], days[index]];
+    const reordered = days.map((day, dayIndex) => ({ ...day, dayNumber: dayIndex + 1 }));
+    setForm({ ...form, days: reordered });
+    setActiveDay(target + 1);
+  }
+  function duplicateDay() {
+    if (form.days.length >= 14) return;
+    const index = form.days.findIndex((day) => day.dayNumber === activeDay);
+    if (index < 0) return;
+    const source = form.days[index];
+    const duplicate: DayDraft = {
+      clientId: crypto.randomUUID(),
+      dayNumber: source.dayNumber + 1,
+      name: `${source.name} (copia)`,
+      estimatedMinutes: source.estimatedMinutes,
+      exercises: source.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID() })),
+    };
+    const days = [...form.days.slice(0, index + 1), duplicate, ...form.days.slice(index + 1)].map((day, dayIndex) => ({ ...day, dayNumber: dayIndex + 1 }));
+    setForm({ ...form, days });
+    setActiveDay(index + 2);
+  }
+  function removeDay() {
+    if (form.days.length === 1 || !window.confirm(`¿Eliminar “${currentDay.name}”? Sus sesiones históricas no se modificarán.`)) return;
+    const index = form.days.findIndex((day) => day.dayNumber === activeDay);
+    const days = form.days.filter((day) => day.dayNumber !== activeDay).map((day, dayIndex) => ({ ...day, dayNumber: dayIndex + 1 }));
+    setForm({ ...form, days });
+    setActiveDay(Math.min(index + 1, days.length));
+  }
+  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><form onSubmit={submit} className="mx-auto my-6 w-full max-w-7xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">{editing ? "Editar rutina" : "Nueva rutina"}</h2><p className="mt-1 text-sm text-zinc-400">Organizá la programación por días y conservá el orden de cada ejercicio.</p></div><button type="button" onClick={close} className="self-start text-zinc-400">Cerrar</button></div>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
+    <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"><label className="md:col-span-2">Nombre<input required maxLength={120} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Objetivo<input required list="routine-objectives" maxLength={100} value={form.objective} onChange={(event) => setForm({ ...form, objective: event.target.value })} className={`${inputClass} mt-1`} /><datalist id="routine-objectives">{objectives.map((objective) => <option key={objective} value={objective} />)}</datalist></label><label>Nivel<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as TrainingRoutineLevel })} className={`${inputClass} mt-1`}>{levels.map((level) => <option key={level} value={level}>{label(level)}</option>)}</select></label><label>Fecha de inicio<input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Duración (semanas)<input type="number" min="1" max="104" value={form.durationWeeks ?? ""} onChange={(event) => setForm({ ...form, durationWeeks: event.target.value ? Number(event.target.value) : null })} className={`${inputClass} mt-1`} /></label><label className="md:col-span-2">Músculos prioritarios<input value={form.priorityMuscles.join(", ")} onChange={(event) => setForm({ ...form, priorityMuscles: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Pecho, espalda, glúteos" className={`${inputClass} mt-1`} /></label><label>Estado<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as TrainingRoutineStatus })} className={`${inputClass} mt-1`}>{statuses.map((status) => <option key={status} value={status}>{label(status)}</option>)}</select></label></div>
     <fieldset className="mt-6"><legend className="font-semibold text-yellow-400">Alumnos asignados</legend><div className="mt-3 flex flex-wrap gap-2">{students.map((student) => { const selected = form.studentIds.includes(student.id); return <label key={student.id} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm ${selected ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-zinc-700 text-zinc-400"}`}><input type="checkbox" checked={selected} onChange={() => toggleStudent(student.id)} className="sr-only" />{student.firstName} {student.lastName}</label>; })}</div></fieldset>
-    <div className="mt-7 flex gap-2 overflow-x-auto pb-2">{form.days.map((day) => <button type="button" key={day.dayNumber} onClick={() => setActiveDay(day.dayNumber)} className={`min-w-24 rounded-xl px-3 py-3 text-sm ${activeDay === day.dayNumber ? "bg-yellow-400 font-bold text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}>Día {day.dayNumber}<span className="block text-xs opacity-70">{day.exercises.length} ejercicios</span></button>)}</div>
-    <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4"><div className="flex items-center justify-between"><div><h3 className="font-bold">Día {activeDay}</h3><p className="text-sm text-zinc-500">El orden puede editarse o ajustarse con las flechas.</p></div><button type="button" onClick={addExercise} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">+ Ejercicio</button></div><div className="mt-4 space-y-4">{currentDay.exercises.length === 0 ? <p className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-500">Este día todavía no tiene ejercicios.</p> : [...currentDay.exercises].sort((a, b) => a.order - b.order).map((exercise) => <ExerciseEditor key={exercise.clientId} exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} />)}</div></section>
-    <button disabled={saving} className="mt-6 w-full rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300 disabled:opacity-60">{saving ? "Guardando…" : "Guardar rutina"}</button>
+    <div className="mt-7 flex items-center gap-2 overflow-x-auto pb-2">{form.days.map((day) => <button type="button" key={day.clientId} onClick={() => setActiveDay(day.dayNumber)} className={`min-w-32 rounded-xl px-3 py-3 text-left text-sm ${activeDay === day.dayNumber ? "bg-yellow-400 font-bold text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}><span className="block truncate">Día {day.dayNumber} · {day.name}</span><span className="block text-xs opacity-70">{day.exercises.length} ejercicios</span></button>)}<button type="button" onClick={addDay} disabled={form.days.length >= 14} className="shrink-0 rounded-xl border border-dashed border-zinc-600 px-4 py-3 text-sm text-zinc-300 disabled:opacity-40">+ Día</button></div>
+    <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div className="grid flex-1 gap-3 sm:grid-cols-2"><label>Nombre del día<input required maxLength={100} value={currentDay.name} onChange={(event) => updateDay((day) => ({ ...day, name: event.target.value }))} className={`${inputClass} mt-1`} /></label><label>Duración estimada (min)<input type="number" min="1" max="1440" value={currentDay.estimatedMinutes ?? ""} onChange={(event) => updateDay((day) => ({ ...day, estimatedMinutes: event.target.value ? Number(event.target.value) : null }))} className={`${inputClass} mt-1`} /></label></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => moveDay(-1)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm">← Mover</button><button type="button" onClick={() => moveDay(1)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm">Mover →</button><button type="button" onClick={duplicateDay} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm">Duplicar día</button><button type="button" onClick={removeDay} disabled={form.days.length === 1} className="rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-300 disabled:opacity-40">Eliminar día</button><button type="button" onClick={addExercise} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">+ Ejercicio</button></div></div><div className="mt-4 space-y-4">{currentDay.exercises.length === 0 ? <p className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-500">Este día todavía no tiene ejercicios.</p> : [...currentDay.exercises].sort((a, b) => a.order - b.order).map((exercise) => <ExerciseEditor key={exercise.clientId} exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} />)}</div></section>
+    <div className="mt-6 flex flex-wrap justify-end gap-3"><button type="submit" name="intent" value="draft" disabled={saving} className="rounded-xl border border-yellow-400/50 px-5 py-3 font-bold text-yellow-300 disabled:opacity-60">{saving ? "Guardando…" : "Guardar borrador"}</button><button type="submit" name="intent" value="current" disabled={saving} className="rounded-xl bg-zinc-700 px-5 py-3 font-bold text-white disabled:opacity-60">{saving ? "Guardando…" : `Guardar como ${label(form.status)}`}</button><button type="submit" name="intent" value="activate" disabled={saving} className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300 disabled:opacity-60">{saving ? "Activando…" : "Activar rutina"}</button></div>
   </form></div>;
 }
 
 function ExerciseEditor({ exercise, update, move, remove }: { exercise: ExerciseDraft; update: <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) => void; move: (direction: -1 | 1) => void; remove: () => void }) {
-  return <article className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><span className="text-sm text-zinc-500">Orden</span><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-1 text-zinc-300" aria-label="Mover ejercicio arriba">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-1 text-zinc-300" aria-label="Mover ejercicio abajo">↓</button></div><button type="button" onClick={remove} className="text-sm text-red-300">Eliminar ejercicio</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6"><label className="xl:col-span-2">Ejercicio<input required value={exercise.name} onChange={(event) => update("name", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Grupo muscular<input required list="muscle-groups" value={exercise.muscleGroup} onChange={(event) => update("muscleGroup", event.target.value)} className={`${inputClass} mt-1`} /><datalist id="muscle-groups">{muscleGroups.map((group) => <option key={group} value={group} />)}</datalist></label><label>Series<input required type="number" min="1" max="100" value={exercise.sets} onChange={(event) => update("sets", Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Repeticiones<input required maxLength={50} value={exercise.repetitions} onChange={(event) => update("repetitions", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Peso (kg)<input type="number" min="0" max="1000" step="0.25" value={exercise.weight ?? ""} onChange={(event) => update("weight", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Esfuerzo<select value={exercise.effortType} onChange={(event) => update("effortType", event.target.value as TrainingEffortType)} className={`${inputClass} mt-1`}><option>RPE</option><option>RIR</option></select></label><label>Valor RPE/RIR<input type="number" min="0" max="10" step="0.5" value={exercise.effortValue ?? ""} onChange={(event) => update("effortValue", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Descanso (seg.)<input type="number" min="0" max="3600" value={exercise.restSeconds ?? ""} onChange={(event) => update("restSeconds", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Orden<input type="number" min="1" max="999" value={exercise.order} onChange={(event) => update("order", Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label className="xl:col-span-2">Video explicativo<input type="url" placeholder="https://…" value={exercise.videoUrl} onChange={(event) => update("videoUrl", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="md:col-span-2 xl:col-span-6">Observaciones<textarea maxLength={1000} rows={2} value={exercise.observations} onChange={(event) => update("observations", event.target.value)} className={`${inputClass} mt-1`} /></label></div></article>;
+  const repetitionValues = exercise.repetitions.match(/\d+/g)?.map(Number) ?? [];
+  const minimumRepetitions = repetitionValues[0] ?? "";
+  const maximumRepetitions = repetitionValues[1] ?? repetitionValues[0] ?? "";
+  function updateRepetitions(minimum: string, maximum: string) {
+    if (!minimum && !maximum) update("repetitions", "");
+    else if (!maximum || minimum === maximum) update("repetitions", minimum || maximum);
+    else update("repetitions", `${minimum}-${maximum}`);
+  }
+  return <article className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><span className="text-sm text-zinc-500">Orden</span><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-1 text-zinc-300" aria-label="Mover ejercicio arriba">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-1 text-zinc-300" aria-label="Mover ejercicio abajo">↓</button></div><button type="button" onClick={remove} className="text-sm text-red-300">Eliminar ejercicio</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6"><label className="xl:col-span-2">Ejercicio<input required value={exercise.name} onChange={(event) => update("name", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Grupo muscular<input required list="muscle-groups" value={exercise.muscleGroup} onChange={(event) => update("muscleGroup", event.target.value)} className={`${inputClass} mt-1`} /><datalist id="muscle-groups">{muscleGroups.map((group) => <option key={group} value={group} />)}</datalist></label><label>Series<input required type="number" min="1" max="100" value={exercise.sets} onChange={(event) => update("sets", Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Reps mínimas<input required type="number" min="1" max="1000" value={minimumRepetitions} onChange={(event) => updateRepetitions(event.target.value, String(maximumRepetitions))} className={`${inputClass} mt-1`} /></label><label>Reps máximas<input required type="number" min="1" max="1000" value={maximumRepetitions} onChange={(event) => updateRepetitions(String(minimumRepetitions), event.target.value)} className={`${inputClass} mt-1`} /></label><label>Peso inicial (kg)<input type="number" min="0" max="1000" step="0.25" value={exercise.weight ?? ""} onChange={(event) => update("weight", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Esfuerzo objetivo<select value={exercise.effortType} onChange={(event) => update("effortType", event.target.value as TrainingEffortType)} className={`${inputClass} mt-1`}><option>RIR</option><option>RPE</option></select></label><label>RIR/RPE objetivo<input type="number" min="0" max="10" step="0.5" value={exercise.effortValue ?? ""} onChange={(event) => update("effortValue", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Descanso (seg.)<input type="number" min="0" max="3600" value={exercise.restSeconds ?? ""} onChange={(event) => update("restSeconds", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Orden<input type="number" min="1" max="999" value={exercise.order} onChange={(event) => update("order", Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label className="xl:col-span-2">Video demostrativo<input type="url" placeholder="https://…" value={exercise.videoUrl} onChange={(event) => update("videoUrl", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="md:col-span-2 xl:col-span-6">Observaciones técnicas<textarea maxLength={1000} rows={2} value={exercise.observations} onChange={(event) => update("observations", event.target.value)} className={`${inputClass} mt-1`} /></label></div></article>;
 }
 
 function RoutineDetail({ routine, close }: { routine: TrainingRoutine; close: () => void }) {

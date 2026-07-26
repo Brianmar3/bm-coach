@@ -11,6 +11,8 @@ export async function POST(_request: Request, context: RouteContext<"/api/rutina
     if (!source) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     const days = source.days.map((day) => ({
       dayNumber: day.dayNumber,
+      name: day.name.trim() || `Día ${day.dayNumber}`,
+      estimatedMinutes: day.estimatedMinutes,
       exercises: day.exercises.map((exercise): ExerciseInput => ({
         name: exercise.name,
         muscleGroup: exercise.muscleGroup,
@@ -30,7 +32,10 @@ export async function POST(_request: Request, context: RouteContext<"/api/rutina
         name: `${source.name} (copia)`,
         objective: source.objective,
         level: source.level,
-        status: "ACTIVA",
+        status: "BORRADOR",
+        startDate: source.startDate,
+        durationWeeks: source.durationWeeks,
+        priorityMuscles: source.priorityMuscles,
         archivedAt: null,
         days: { create: nestedDays(days) },
       },

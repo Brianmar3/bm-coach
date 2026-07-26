@@ -52,6 +52,8 @@ export async function POST(request: Request) {
           dayId: true,
           routineNameSnapshot: true,
           routineDayNumberSnapshot: true,
+          routineDayNameSnapshot: true,
+          routineDayEstimatedMinutesSnapshot: true,
           status: true,
           exercises: {
             select: {
@@ -111,6 +113,13 @@ export async function POST(request: Request) {
     if (!Number.isInteger(routineDayNumberSnapshot) || routineDayNumberSnapshot < 1) {
       return Response.json({ error: "No se pudo identificar el día histórico de la rutina." }, { status: 400 });
     }
+    const routineDayNameSnapshot = input.dayName?.trim()
+      || existingSession?.routineDayNameSnapshot.trim()
+      || day.name.trim()
+      || `Día ${routineDayNumberSnapshot}`;
+    const routineDayEstimatedMinutesSnapshot = input.dayEstimatedMinutes
+      ?? existingSession?.routineDayEstimatedMinutesSnapshot
+      ?? day.estimatedMinutes;
 
     const programmedExercises = new Map(day.exercises.map((exercise) => [exercise.id, exercise]));
     const exerciseCreates: Prisma.WorkoutExerciseLogUncheckedCreateWithoutSessionInput[] = [];
@@ -160,6 +169,8 @@ export async function POST(request: Request) {
         dayId: input.dayId,
         routineNameSnapshot,
         routineDayNumberSnapshot,
+        routineDayNameSnapshot,
+        routineDayEstimatedMinutesSnapshot,
         date: dateKeyToDatabase(input.date),
         startTime: input.startTime,
         durationMinutes: input.durationMinutes,

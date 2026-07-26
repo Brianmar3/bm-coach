@@ -15,6 +15,8 @@ function changeSummary(previous: RoutineInput, next: RoutineInput) {
   if (previous.objective !== next.objective) changes.push("objetivo");
   if (previous.level !== next.level) changes.push("nivel");
   if (previous.status !== next.status) changes.push("estado");
+  if (previous.startDate !== next.startDate || previous.durationWeeks !== next.durationWeeks) changes.push("planificación");
+  if ([...previous.priorityMuscles].sort().join("|") !== [...next.priorityMuscles].sort().join("|")) changes.push("músculos prioritarios");
   if ([...previous.studentIds].sort().join("|") !== [...next.studentIds].sort().join("|")) changes.push("asignaciones");
   if (routineFingerprint({ ...previous, name: next.name, objective: next.objective, level: next.level, status: next.status, studentIds: next.studentIds }) !== routineFingerprint(next)) changes.push("días o ejercicios");
   return changes.length ? `Cambios en ${changes.join(", ")}` : "Rutina actualizada";
@@ -65,11 +67,16 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         name: existing.name,
         objective: existing.objective,
         level: ({ PRINCIPIANTE: "principiante", INTERMEDIO: "intermedio", AVANZADO: "avanzado" } as const)[existing.level],
-        status: existing.status === "ACTIVA" ? "activa" : "archivada",
+        status: ({ BORRADOR: "borrador", ACTIVA: "activa", FINALIZADA: "finalizada", ARCHIVADA: "archivada" } as const)[existing.status],
+        startDate: existing.startDate?.toISOString().slice(0, 10) ?? "",
+        durationWeeks: existing.durationWeeks,
+        priorityMuscles: existing.priorityMuscles,
         studentIds: existing.assignments.filter((assignment) => assignment.active).map((assignment) => assignment.studentId),
         days: existing.days.filter((day) => day.active).sort((left, right) => left.dayNumber - right.dayNumber).map((day) => ({
           id: day.id,
           dayNumber: day.dayNumber,
+          name: day.name.trim() || `Día ${day.dayNumber}`,
+          estimatedMinutes: day.estimatedMinutes,
           exercises: day.exercises.filter((exercise) => exercise.active).sort((left, right) => left.order - right.order).map((exercise) => ({
             id: exercise.id,
             name: exercise.name,
@@ -97,12 +104,20 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
       const transitionAt = input.status === "archivada" ? existing.archivedAt ?? new Date() : null;
       await transaction.trainingRoutine.update({ where: { id }, data: { ...routineData(input), archivedAt: transitionAt } });
       const retainedDayIds = new Set<string>();
+      const hasStableDayIds = input.days.some((day) => Boolean(day.id));
+      await transaction.trainingRoutineDay.updateMany({ where: { routineId: id, active: true }, data: { active: false } });
 
       for (const dayInput of input.days) {
-        const existingDay = existing.days.find((day) => day.id === dayInput.id) ?? existing.days.find((day) => day.dayNumber === dayInput.dayNumber);
+        const existingDay = existing.days.find((day) => day.id === dayInput.id)
+          ?? (!hasStableDayIds ? existing.days.find((day) => day.dayNumber === dayInput.dayNumber) : undefined);
         const day = existingDay
-          ? await transaction.trainingRoutineDay.update({ where: { id: existingDay.id }, data: { dayNumber: dayInput.dayNumber, active: true, archivedAt: null } })
-          : await transaction.trainingRoutineDay.create({ data: { routineId: id, dayNumber: dayInput.dayNumber } });
+          ? await transaction.trainingRoutineDay.update({
+            where: { id: existingDay.id },
+            data: { dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), estimatedMinutes: dayInput.estimatedMinutes, active: true, archivedAt: null },
+          })
+          : await transaction.trainingRoutineDay.create({
+            data: { routineId: id, dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), estimatedMinutes: dayInput.estimatedMinutes },
+          });
         retainedDayIds.add(day.id);
 
         const retainedExerciseIds = new Set<string>();
@@ -189,8 +204,25 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
       const version = await prisma.trainingRoutineVersion.findFirst({ where: { id: input.versionId, routineId: id }, select: { snapshot: true } });
       const routine = await prisma.trainingRoutine.findUnique({ where: { id }, select: { status: true } });
       if (!version || !routine) return Response.json({ error: "Rutina o versión no encontrada." }, { status: 404 });
-      const snapshot = version.snapshot as unknown as RoutineInput;
-      const restoredInput = { ...snapshot, status: routine.status === "ACTIVA" ? "activa" as const : "archivada" as const };
+      const snapshot = version.snapshot as unknown as Partial<RoutineInput>;
+      if (!snapshot.name || !snapshot.objective || !snapshot.level || !Array.isArray(snapshot.days) || !Array.isArray(snapshot.studentIds)) {
+        return Response.json({ error: "La versión seleccionada no contiene una rutina válida." }, { status: 400 });
+      }
+      const restoredInput: RoutineInput = {
+        name: snapshot.name,
+        objective: snapshot.objective,
+        level: snapshot.level,
+        status: ({ BORRADOR: "borrador", ACTIVA: "activa", FINALIZADA: "finalizada", ARCHIVADA: "archivada" } as const)[routine.status],
+        startDate: snapshot.startDate ?? "",
+        durationWeeks: snapshot.durationWeeks ?? null,
+        priorityMuscles: snapshot.priorityMuscles ?? [],
+        studentIds: snapshot.studentIds,
+        days: snapshot.days.map((day) => ({
+          ...day,
+          name: day.name?.trim() || `Día ${day.dayNumber}`,
+          estimatedMinutes: day.estimatedMinutes ?? null,
+        })),
+      };
       return PUT(new Request(request.url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(restoredInput) }), context);
     }
     if (input.action === "archive") {

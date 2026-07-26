@@ -149,7 +149,9 @@ enum TrainingRoutineLevel {
 }
 
 enum TrainingRoutineStatus {
+  BORRADOR
   ACTIVA
+  FINALIZADA
   ARCHIVADA
 }
 
@@ -164,6 +166,9 @@ model TrainingRoutine {
   objective       String
   level           TrainingRoutineLevel
   status          TrainingRoutineStatus       @default(ACTIVA)
+  startDate       DateTime?                   @db.Date
+  durationWeeks   Int?
+  priorityMuscles String[]                    @default([])
   createdAt       DateTime                    @default(now())
   updatedAt       DateTime                    @updatedAt
   archivedAt      DateTime?
@@ -193,17 +198,19 @@ model TrainingRoutineVersion {
 }
 
 model TrainingRoutineDay {
-  id              String                    @id @default(cuid())
-  routineId       String
-  dayNumber       Int
-  routine         TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
-  exercises       TrainingRoutineExercise[]
-  workoutSessions WorkoutSession[]
-  active          Boolean                   @default(true)
-  archivedAt      DateTime?
+  id               String                    @id @default(cuid())
+  routineId        String
+  dayNumber        Int
+  name             String                    @default("")
+  estimatedMinutes Int?
+  routine          TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercises        TrainingRoutineExercise[]
+  workoutSessions  WorkoutSession[]
+  active           Boolean                   @default(true)
+  archivedAt       DateTime?
 
-  @@unique([routineId, dayNumber])
   @@index([routineId, active])
+  @@index([routineId, dayNumber])
   @@map("training_routine_days")
 }
 
@@ -296,29 +303,31 @@ enum WorkoutSessionStatus {
 }
 
 model WorkoutSession {
-  id                       String               @id @default(cuid())
-  studentId                String
-  routineId                String?
-  dayId                    String?
-  routineNameSnapshot      String
-  routineDayNumberSnapshot Int
-  date                     DateTime             @db.Date
-  startTime                String
-  durationMinutes          Int?
-  energyBefore             Int?
-  difficulty               Int?
-  energyAfter              Int?
-  finalComment             String               @default("")
-  hasPain                  Boolean              @default(false)
-  painDetails              String               @default("")
-  status                   WorkoutSessionStatus @default(PENDING)
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
-  student                  StudentRecord        @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  routine                  TrainingRoutine?     @relation(fields: [routineId], references: [id], onDelete: SetNull)
-  day                      TrainingRoutineDay?  @relation(fields: [dayId], references: [id], onDelete: SetNull)
-  exercises                WorkoutExerciseLog[]
-  comments                 FollowUpComment[]
+  id                                 String               @id @default(cuid())
+  studentId                          String
+  routineId                          String?
+  dayId                              String?
+  routineNameSnapshot                String
+  routineDayNumberSnapshot           Int
+  routineDayNameSnapshot             String               @default("")
+  routineDayEstimatedMinutesSnapshot Int?
+  date                               DateTime             @db.Date
+  startTime                          String
+  durationMinutes                    Int?
+  energyBefore                       Int?
+  difficulty                         Int?
+  energyAfter                        Int?
+  finalComment                       String               @default("")
+  hasPain                            Boolean              @default(false)
+  painDetails                        String               @default("")
+  status                             WorkoutSessionStatus @default(PENDING)
+  createdAt                          DateTime             @default(now())
+  updatedAt                          DateTime             @updatedAt
+  student                            StudentRecord        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  routine                            TrainingRoutine?     @relation(fields: [routineId], references: [id], onDelete: SetNull)
+  day                                TrainingRoutineDay?  @relation(fields: [dayId], references: [id], onDelete: SetNull)
+  exercises                          WorkoutExerciseLog[]
+  comments                           FollowUpComment[]
 
   @@index([studentId, date])
   @@index([status, updatedAt])

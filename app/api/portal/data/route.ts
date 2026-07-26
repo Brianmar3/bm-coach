@@ -71,6 +71,8 @@ export async function GET() {
         routineName: workout.routineNameSnapshot ?? workout.exercises.find((log) => log.snapshotVersion !== null)?.routineName ?? workout.routine?.name ?? "Rutina eliminada",
         dayId: workout.dayId ?? "",
         dayNumber: workout.routineDayNumberSnapshot ?? workout.exercises.find((log) => log.snapshotVersion !== null)?.routineDayNumber ?? workout.day?.dayNumber ?? 0,
+        dayName: workout.routineDayNameSnapshot?.trim() || workout.day?.name?.trim() || undefined,
+        dayEstimatedMinutes: workout.routineDayEstimatedMinutesSnapshot ?? workout.day?.estimatedMinutes ?? null,
         date: workout.date.toISOString().slice(0, 10),
         startTime: workout.startTime,
         durationMinutes: workout.durationMinutes,

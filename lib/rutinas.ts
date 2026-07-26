@@ -3,12 +3,21 @@ import { createHash } from "node:crypto";
 import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
 export type ExerciseInput = Omit<TrainingExercise, "id"> & { id?: string };
-export type RoutineDayInput = { id?: string; dayNumber: number; exercises: ExerciseInput[] };
+export type RoutineDayInput = {
+  id?: string;
+  dayNumber: number;
+  name: string;
+  estimatedMinutes: number | null;
+  exercises: ExerciseInput[];
+};
 export type RoutineInput = {
   name: string;
   objective: string;
   level: TrainingRoutineLevel;
   status: TrainingRoutineStatus;
+  startDate: string;
+  durationWeeks: number | null;
+  priorityMuscles: string[];
   studentIds: string[];
   days: RoutineDayInput[];
 };
@@ -21,13 +30,13 @@ export const routineInclude = {
 export type RoutineWithRelations = Prisma.TrainingRoutineGetPayload<{ include: typeof routineInclude }>;
 
 const levels: TrainingRoutineLevel[] = ["principiante", "intermedio", "avanzado"];
-const statuses: TrainingRoutineStatus[] = ["activa", "archivada"];
+const statuses: TrainingRoutineStatus[] = ["borrador", "activa", "finalizada", "archivada"];
 const effortTypes: TrainingEffortType[] = ["RPE", "RIR"];
 
 const levelToDatabase = { principiante: "PRINCIPIANTE", intermedio: "INTERMEDIO", avanzado: "AVANZADO" } as const;
-const statusToDatabase = { activa: "ACTIVA", archivada: "ARCHIVADA" } as const;
+const statusToDatabase = { borrador: "BORRADOR", activa: "ACTIVA", finalizada: "FINALIZADA", archivada: "ARCHIVADA" } as const;
 const levelFromDatabase = { PRINCIPIANTE: "principiante", INTERMEDIO: "intermedio", AVANZADO: "avanzado" } as const;
-const statusFromDatabase = { ACTIVA: "activa", ARCHIVADA: "archivada" } as const;
+const statusFromDatabase = { BORRADOR: "borrador", ACTIVA: "activa", FINALIZADA: "finalizada", ARCHIVADA: "archivada" } as const;
 
 function validUrl(value: string | undefined) {
   if (!value?.trim()) return true;
@@ -58,12 +67,25 @@ export function validateRoutine(input: RoutineInput) {
   if (!input.objective?.trim() || input.objective.trim().length > 100) return "Seleccioná un objetivo válido.";
   if (!levels.includes(input.level)) return "Seleccioná un nivel válido.";
   if (!statuses.includes(input.status)) return "Seleccioná un estado válido.";
+  if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) return "La fecha de inicio no es válida.";
+  if (input.durationWeeks !== null && (!Number.isInteger(input.durationWeeks) || input.durationWeeks < 1 || input.durationWeeks > 104)) {
+    return "La duración debe estar entre 1 y 104 semanas.";
+  }
+  if (!Array.isArray(input.priorityMuscles) || input.priorityMuscles.length > 30 || input.priorityMuscles.some((muscle) => !muscle.trim() || muscle.length > 80)) {
+    return "Los músculos prioritarios no son válidos.";
+  }
   if (!Array.isArray(input.studentIds)) return "La asignación de alumnos no es válida.";
   if (new Set(input.studentIds).size !== input.studentIds.length || input.studentIds.some((id) => !id?.trim())) return "La asignación de alumnos no es válida.";
-  if (!Array.isArray(input.days) || input.days.length !== 7) return "La rutina debe incluir los días 1 al 7.";
+  if (!Array.isArray(input.days) || input.days.length < 1 || input.days.length > 14) return "La rutina debe incluir entre 1 y 14 días.";
   const dayNumbers = input.days.map((day) => day.dayNumber);
-  if (new Set(dayNumbers).size !== 7 || dayNumbers.some((day) => !Number.isInteger(day) || day < 1 || day > 7)) return "Los días de la rutina no son válidos.";
+  if (new Set(dayNumbers).size !== input.days.length || [...dayNumbers].sort((a, b) => a - b).some((day, index) => day !== index + 1)) {
+    return "Los días deben tener un orden consecutivo.";
+  }
   for (const day of input.days) {
+    if (!day.name?.trim() || day.name.trim().length > 100) return `Ingresá un nombre válido para el día ${day.dayNumber}.`;
+    if (day.estimatedMinutes !== null && (!Number.isInteger(day.estimatedMinutes) || day.estimatedMinutes < 1 || day.estimatedMinutes > 1440)) {
+      return `La duración estimada del día ${day.dayNumber} no es válida.`;
+    }
     if (!Array.isArray(day.exercises)) return `Los ejercicios del día ${day.dayNumber} no son válidos.`;
     for (const exercise of day.exercises) {
       const error = validateExercise(exercise);
@@ -95,6 +117,9 @@ export function routineData(input: RoutineInput) {
     objective: input.objective.trim(),
     level: levelToDatabase[input.level],
     status: statusToDatabase[input.status],
+    startDate: input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : null,
+    durationWeeks: input.durationWeeks,
+    priorityMuscles: input.priorityMuscles.map((muscle) => muscle.trim()),
     archivedAt: input.status === "archivada" ? new Date() : null,
   };
 }
@@ -102,6 +127,8 @@ export function routineData(input: RoutineInput) {
 export function nestedDays(days: RoutineDayInput[]) {
   return days.sort((a, b) => a.dayNumber - b.dayNumber).map((day) => ({
     dayNumber: day.dayNumber,
+    name: day.name.trim(),
+    estimatedMinutes: day.estimatedMinutes,
     exercises: { create: [...day.exercises].sort((a, b) => a.order - b.order).map(exerciseData) },
   }));
 }
@@ -112,10 +139,15 @@ export function routineVersionSnapshot(input: RoutineInput) {
     objective: input.objective.trim(),
     level: input.level,
     status: input.status,
+    startDate: input.startDate,
+    durationWeeks: input.durationWeeks,
+    priorityMuscles: [...input.priorityMuscles].map((muscle) => muscle.trim()).sort((left, right) => left.localeCompare(right, "es")),
     studentIds: [...input.studentIds].sort(),
     days: [...input.days].sort((left, right) => left.dayNumber - right.dayNumber).map((day) => ({
       id: day.id,
       dayNumber: day.dayNumber,
+      name: day.name.trim(),
+      estimatedMinutes: day.estimatedMinutes,
       exercises: [...day.exercises].sort((left, right) => left.order - right.order).map((exercise) => ({
         ...exercise,
         observations: exercise.observations?.trim() ?? "",
@@ -158,13 +190,22 @@ export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine 
     objective: record.objective,
     level: levelFromDatabase[record.level],
     status: statusFromDatabase[record.status],
+    startDate: record.startDate?.toISOString().slice(0, 10) ?? "",
+    durationWeeks: record.durationWeeks,
+    priorityMuscles: record.priorityMuscles,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     archivedAt: record.archivedAt?.toISOString() ?? "",
     studentIds: students.map((student) => student.id),
     students,
     historicalStudents: assignmentStudents.map(({ id, name }) => ({ id, name })),
-    days: record.days.map((day) => ({ id: day.id, dayNumber: day.dayNumber, exercises: day.exercises.map(serializeExercise) })),
+    days: record.days.map((day) => ({
+      id: day.id,
+      dayNumber: day.dayNumber,
+      name: day.name.trim() || `Día ${day.dayNumber}`,
+      estimatedMinutes: day.estimatedMinutes,
+      exercises: day.exercises.map(serializeExercise),
+    })),
   };
 }
 

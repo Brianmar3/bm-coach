@@ -42,6 +42,8 @@ export type PortalWorkoutSession = {
   routineDayNumberSnapshot?: number;
   dayId: string;
   dayNumber: number;
+  dayName?: string;
+  dayEstimatedMinutes?: number | null;
   date: string;
   startTime: string;
   durationMinutes: number | null;
