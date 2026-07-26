@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import type { PhysicalEvaluation, Student } from "@/types/gestion";
 
@@ -373,7 +374,80 @@ function SymmetrySection({ latest }: { latest: PhysicalEvaluation | null }) {
 }
 
 function HistoryList({ items, deletingId, onView, onEdit, onRemove }: { items: PhysicalEvaluation[]; deletingId: string; onView: (item: PhysicalEvaluation) => void; onEdit: (item: PhysicalEvaluation) => void; onRemove: (item: PhysicalEvaluation) => void }) {
-  return <section className="mt-4 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900"><div className="border-b border-zinc-800 px-4 py-3"><h2 className="font-semibold">Historial de evaluaciones</h2></div>{items.length === 0 ? <p className="p-8 text-center text-sm text-zinc-500">No hay evaluaciones registradas.</p> : <div>{items.map((item) => <article key={item.id} className="flex items-center gap-3 border-b border-zinc-800 p-3 last:border-0"><button onClick={() => onView(item)} className="min-w-0 flex-1 text-left"><p className="font-semibold">{showDate(item.date)}</p><p className="mt-1 truncate text-xs text-zinc-400">{showNumber(item.weight, " kg")} · Grasa {showNumber(item.bodyFatPercentage, "%")} · Músculo {showNumber(item.muscleMass, " kg")} · Cintura {showNumber(item.waist, " cm")}</p></button><button onClick={() => onView(item)} className="shrink-0 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-bold text-yellow-300">Ver detalle</button><details className="relative"><summary className="grid h-9 w-9 cursor-pointer list-none place-items-center rounded-lg bg-zinc-800 text-lg">⋮</summary><div className="absolute right-0 z-10 mt-1 w-44 rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl"><button onClick={() => onView(item)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-zinc-800">Ver detalle</button><button onClick={() => onEdit(item)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-zinc-800">Editar evaluación</button><button onClick={() => onRemove(item)} disabled={deletingId === item.id} className="block w-full rounded px-3 py-2 text-left text-xs text-red-300 hover:bg-zinc-800 disabled:opacity-50">{deletingId === item.id ? "Eliminando…" : "Eliminar evaluación"}</button></div></details></article>)}</div>}</section>;
+  return <section className="mt-4 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900"><div className="border-b border-zinc-800 px-4 py-3"><h2 className="font-semibold">Historial de evaluaciones</h2></div>{items.length === 0 ? <p className="p-8 text-center text-sm text-zinc-500">No hay evaluaciones registradas.</p> : <div>{items.map((item) => <article key={item.id} className="flex items-center gap-3 border-b border-zinc-800 p-3 last:border-0"><button onClick={() => onView(item)} className="min-w-0 flex-1 text-left"><p className="font-semibold">{showDate(item.date)}</p><p className="mt-1 truncate text-xs text-zinc-400">{showNumber(item.weight, " kg")} · Grasa {showNumber(item.bodyFatPercentage, "%")} · Músculo {showNumber(item.muscleMass, " kg")} · Cintura {showNumber(item.waist, " cm")}</p></button><button onClick={() => onView(item)} className="shrink-0 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-bold text-yellow-300">Ver detalle</button><EvaluationActionsMenu item={item} deleting={deletingId === item.id} onView={onView} onEdit={onEdit} onRemove={onRemove} /></article>)}</div>}</section>;
+}
+
+function EvaluationActionsMenu({ item, deleting, onView, onEdit, onRemove }: {
+  item: PhysicalEvaluation;
+  deleting: boolean;
+  onView: (item: PhysicalEvaluation) => void;
+  onEdit: (item: PhysicalEvaluation) => void;
+  onRemove: (item: PhysicalEvaluation) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mobile, setMobile] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  function close(restoreFocus = true) {
+    setOpen(false);
+    if (restoreFocus) requestAnimationFrame(() => buttonRef.current?.focus());
+  }
+
+  function openMenu() {
+    setMobile(window.matchMedia("(max-width: 767px)").matches);
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) {
+      const menuWidth = 192;
+      const menuHeight = 132;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = spaceBelow >= menuHeight + 12 ? rect.bottom + 6 : Math.max(8, rect.top - menuHeight - 6);
+      const left = Math.min(Math.max(8, rect.right - menuWidth), window.innerWidth - menuWidth - 8);
+      setPosition({ top, left });
+    }
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const firstAction = menuRef.current?.querySelector<HTMLButtonElement>("button");
+    firstAction?.focus();
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      const actions = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
+      const current = actions.indexOf(document.activeElement as HTMLButtonElement);
+      if (!actions.length) return;
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      actions[(current + direction + actions.length) % actions.length]?.focus();
+    }
+    function closeOnViewportChange() { close(false); }
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [open]);
+
+  const actions = <div ref={menuRef} role="menu">
+    <button role="menuitem" onClick={() => { close(false); onView(item); }} className="block min-h-11 w-full rounded-lg px-3 py-2.5 text-left text-sm hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-yellow-400">Ver detalle</button>
+    <button role="menuitem" onClick={() => { close(false); onEdit(item); }} className="block min-h-11 w-full rounded-lg px-3 py-2.5 text-left text-sm hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-yellow-400">Editar evaluación</button>
+    <div className="my-1 border-t border-zinc-800" />
+    <button role="menuitem" onClick={() => { close(false); onRemove(item); }} disabled={deleting} className="block min-h-11 w-full rounded-lg px-3 py-2.5 text-left text-sm text-red-300 hover:bg-red-400/10 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50">{deleting ? "Eliminando…" : "Eliminar evaluación"}</button>
+  </div>;
+
+  return <><button ref={buttonRef} type="button" aria-label={`Acciones de la evaluación del ${showDate(item.date)}`} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : openMenu()} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>{open && createPortal(mobile
+    ? <div className="fixed inset-0 z-[100] bg-black/70" onPointerDown={() => close()}><div className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-zinc-700 bg-zinc-950 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 text-white shadow-2xl" onPointerDown={(event) => event.stopPropagation()}><div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-700" /><p className="mb-2 px-3 text-xs text-zinc-500">Evaluación del {showDate(item.date)}</p>{actions}<button type="button" onClick={() => close()} className="mt-2 min-h-11 w-full rounded-lg border border-zinc-800 px-3 py-2.5 text-sm text-zinc-400 focus:outline-none focus:ring-2 focus:ring-yellow-400">Cerrar</button></div></div>
+    : <><div className="fixed inset-0 z-[90] bg-transparent" onPointerDown={() => close()} aria-hidden="true" /><div className="fixed z-[100] w-48 rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-white shadow-2xl shadow-black" style={{ top: position.top, left: position.left }}>{actions}</div></>,
+  document.body)}</>;
 }
 
 function EvaluationForm({ form, setForm, students, error, close, submit, editing, saving }: { form: EvaluationDraft; setForm: (form: EvaluationDraft) => void; students: Student[]; error: string; close: () => void; submit: (event: FormEvent) => void; editing: boolean; saving: boolean }) {
