@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { argentinaDateKey } from "@/lib/payment-dates";
 import type { PhysicalEvaluation, Student } from "@/types/gestion";
 
 export type EvaluationInput = Omit<PhysicalEvaluation, "id" | "studentName" | "bmi" | "createdAt">;
@@ -42,7 +43,7 @@ export function validateEvaluation(input: EvaluationInput) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date ?? "")) return "Ingresá una fecha válida.";
   const parsedDate = new Date(`${input.date}T12:00:00.000Z`);
   if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== input.date) return "Ingresá una fecha válida.";
-  if (input.date < "1900-01-01" || input.date > new Date().toISOString().slice(0, 10)) return "La fecha debe estar entre 1900 y hoy.";
+  if (input.date < "1900-01-01" || input.date > argentinaDateKey()) return "La fecha debe estar entre 1900 y hoy.";
 
   for (const rule of numericRules) {
     const value = input[rule.key];

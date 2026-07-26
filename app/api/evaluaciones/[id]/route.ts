@@ -12,7 +12,8 @@ function notFound(error: unknown) {
 export async function GET(_request: Request, context: RouteContext<"/api/evaluaciones/[id]">) {
   try {
     const { id } = await context.params;
-    const record = await prisma.physicalEvaluation.findUnique({ where: { id }, include: { student: true } });
+    const studentId = new URL(_request.url).searchParams.get("studentId")?.trim();
+    const record = await prisma.physicalEvaluation.findFirst({ where: { id, ...(studentId ? { studentId } : {}) }, include: { student: true } });
     if (!record) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });
     return Response.json(serializeEvaluation(record));
   } catch (error) {
@@ -29,9 +30,11 @@ export async function PUT(request: Request, context: RouteContext<"/api/evaluaci
     const validationError = validateEvaluation(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
-    const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId }, select: { id: true } });
-    if (!student) return Response.json({ error: "El alumno seleccionado no existe." }, { status: 404 });
-
+    const existing = await prisma.physicalEvaluation.findUnique({ where: { id }, select: { studentId: true } });
+    if (!existing) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });
+    if (existing.studentId !== input.studentId) return Response.json({ error: "No se puede cambiar el alumno de una evaluación existente." }, { status: 409 });
+    const duplicate = await prisma.physicalEvaluation.findFirst({ where: { id: { not: id }, studentId: input.studentId, date: evaluationData(input).date }, select: { id: true } });
+    if (duplicate) return Response.json({ error: "Ya existe otra evaluación para ese alumno en esa fecha." }, { status: 409 });
     const record = await prisma.physicalEvaluation.update({
       where: { id },
       data: evaluationData(input),
@@ -50,10 +53,14 @@ export async function PATCH(request: Request, context: RouteContext<"/api/evalua
   return PUT(request, context);
 }
 
-export async function DELETE(_request: Request, context: RouteContext<"/api/evaluaciones/[id]">) {
+export async function DELETE(request: Request, context: RouteContext<"/api/evaluaciones/[id]">) {
   try {
     const { id } = await context.params;
-    await prisma.physicalEvaluation.delete({ where: { id } });
+    const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
+    if (!studentId) return Response.json({ error: "Falta identificar al alumno de la evaluación." }, { status: 400 });
+    const evaluation = await prisma.physicalEvaluation.findFirst({ where: { id, studentId }, select: { id: true } });
+    if (!evaluation) return Response.json({ error: "La evaluación no existe o no pertenece al alumno indicado." }, { status: 404 });
+    await prisma.physicalEvaluation.delete({ where: { id: evaluation.id } });
     return new Response(null, { status: 204 });
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });

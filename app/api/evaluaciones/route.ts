@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvaluation, type EvaluationInput } from "@/lib/evaluaciones";
 import { prisma } from "@/lib/prisma";
 
@@ -29,12 +30,18 @@ export async function POST(request: Request) {
     const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId }, select: { id: true } });
     if (!student) return Response.json({ error: "El alumno seleccionado no existe." }, { status: 404 });
 
-    const record = await prisma.physicalEvaluation.create({
-      data: evaluationData(input),
-      include: { student: true },
-    });
+    const record = await prisma.$transaction(async (transaction) => {
+      const duplicate = await transaction.physicalEvaluation.findFirst({
+        where: { studentId: input.studentId, date: evaluationData(input).date },
+        select: { id: true },
+      });
+      if (duplicate) throw new Error("DUPLICATE_EVALUATION");
+      return transaction.physicalEvaluation.create({ data: evaluationData(input), include: { student: true } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return Response.json(serializeEvaluation(record), { status: 201 });
   } catch (error) {
+    if (error instanceof Error && error.message === "DUPLICATE_EVALUATION") return Response.json({ error: "Ya existe una evaluación para ese alumno en esa fecha." }, { status: 409 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La evaluación cambió mientras la guardabas. Intentá nuevamente." }, { status: 409 });
     console.error("Error al crear evaluación física", error);
     const unavailable = databaseUnavailable(error);
     return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudo guardar la evaluación en Neon." }, { status: unavailable ? 503 : 500 });

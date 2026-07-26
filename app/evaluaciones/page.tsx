@@ -11,7 +11,7 @@ type NumericEvaluationKey = keyof Pick<EvaluationDraft,
   "leftThigh" | "rightCalf" | "leftCalf"
 >;
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
 const blankEvaluation = (studentId = ""): EvaluationDraft => ({
   studentId,
   date: today(),
@@ -60,12 +60,6 @@ function difference(current: number | null, previous: number | null) {
   return Math.round((current - previous) * 100) / 100;
 }
 
-function showDifference(value: number | null, suffix: string) {
-  if (value === null) return "Sin comparación";
-  if (value === 0) return `Sin cambios (${showNumber(0, suffix)})`;
-  return `${value > 0 ? "+" : ""}${showNumber(value, suffix)}`;
-}
-
 async function responseError(response: Response, fallback: string) {
   try {
     return ((await response.json()) as { error?: string }).error ?? fallback;
@@ -78,13 +72,16 @@ export default function EvaluacionesPage() {
   const [items, setItems] = useState<PhysicalEvaluation[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [studentQuery, setStudentQuery] = useState("");
   const [form, setForm] = useState<EvaluationDraft>(blankEvaluation());
   const [editing, setEditing] = useState<PhysicalEvaluation | null>(null);
   const [viewing, setViewing] = useState<PhysicalEvaluation | null>(null);
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -113,6 +110,12 @@ export default function EvaluacionesPage() {
   const latest = history[0] ?? null;
   const previous = history[1] ?? null;
   const selectedStudent = students.find((student) => student.id === selectedStudentId);
+  const visibleStudents = useMemo(() => {
+    const normalized = studentQuery.trim().toLocaleLowerCase("es");
+    const matches = students.filter((student) => !normalized || `${student.firstName} ${student.lastName} ${student.phone}`.toLocaleLowerCase("es").includes(normalized)).slice(0, 30);
+    const selected = students.find((student) => student.id === selectedStudentId);
+    return selected && !matches.some((student) => student.id === selected.id) ? [selected, ...matches].slice(0, 30) : matches;
+  }, [selectedStudentId, studentQuery, students]);
 
   function begin(item?: PhysicalEvaluation) {
     if (!item && students.length === 0) {
@@ -143,11 +146,13 @@ export default function EvaluacionesPage() {
       backPhotoUrl: item.backPhotoUrl,
     } : blankEvaluation(selectedStudentId || students[0].id));
     setError("");
+    setNotice("");
     setOpen(true);
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
     if (!form.studentId || !form.date) {
       setError("Seleccioná un alumno e ingresá la fecha.");
       return;
@@ -166,6 +171,7 @@ export default function EvaluacionesPage() {
       setSelectedStudentId(saved.studentId);
       setOpen(false);
       setEditing(null);
+      setNotice(editing ? "Evaluación actualizada correctamente." : "Evaluación registrada correctamente.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudo guardar la evaluación en Neon.");
     } finally {
@@ -174,41 +180,38 @@ export default function EvaluacionesPage() {
   }
 
   async function remove(item: PhysicalEvaluation) {
-    if (!window.confirm(`¿Eliminar la evaluación de ${item.studentName} del ${showDate(item.date)}?`)) return;
+    if (deletingId || !window.confirm(`Vas a eliminar la evaluación del ${showDate(item.date)} de ${item.studentName}. Esta acción no se puede deshacer.`)) return;
+    setDeletingId(item.id);
     setError("");
     try {
-      const response = await fetch(`/api/evaluaciones/${item.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/evaluaciones/${item.id}?studentId=${encodeURIComponent(item.studentId)}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo eliminar la evaluación."));
       setItems((current) => current.filter((evaluation) => evaluation.id !== item.id));
       if (viewing?.id === item.id) setViewing(null);
+      setNotice("Evaluación eliminada correctamente.");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar la evaluación de Neon.");
+    } finally {
+      setDeletingId("");
     }
   }
 
-  return <ModuleShell title="Evaluaciones físicas" subtitle="Seguimiento corporal e historial real de cada alumno." action={<button onClick={() => begin()} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300">+ Nueva evaluación</button>}>
-    {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+  return <ModuleShell title="Evaluaciones físicas" subtitle="Seguimiento corporal e historial por alumno." action={<button onClick={() => begin()} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950 transition hover:bg-yellow-300">+ Nueva evaluación</button>}>
+    {(error || notice) && !open && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
 
-    <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <label className="w-full max-w-md text-sm text-zinc-300">Historial del alumno
-          <select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)} className={`${inputClass} mt-1`}>
-            {students.length === 0 && <option value="">Sin alumnos disponibles</option>}
-            {students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}
-          </select>
-        </label>
-        <p className="text-sm text-zinc-500">{selectedStudent ? `${history.length} evaluación${history.length === 1 ? "" : "es"} registrada${history.length === 1 ? "" : "s"}` : "Seleccioná un alumno"}</p>
+    <section className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
+      <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(220px,1fr)_auto] sm:items-end">
+        <label className="text-xs text-zinc-400">Buscar alumno<input type="search" value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Nombre, apellido o teléfono" className={`${inputClass} mt-1 py-2`} /></label>
+        <label className="text-xs text-zinc-400">Historial del alumno<select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)} className={`${inputClass} mt-1 py-2`}>{visibleStudents.length === 0 && <option value="">Sin coincidencias</option>}{visibleStudents.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></label>
+        <p className="rounded-lg bg-zinc-950 px-3 py-2 text-xs text-zinc-400">{selectedStudent ? <><strong className="block text-sm text-white">{selectedStudent.firstName} {selectedStudent.lastName}</strong>{history.length} evaluación{history.length === 1 ? "" : "es"} · Última: {latest ? showDate(latest.date) : "sin datos"}</> : "Seleccioná un alumno"}</p>
       </div>
     </section>
 
-    {!ready ? <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando evaluaciones…</section> : <>
-      <Comparison latest={latest} previous={previous} />
-      <section className="mt-6 grid gap-4 lg:grid-cols-3">
-        <LineChart title="Evolución de peso" items={history} field="weight" unit="kg" color="#facc15" />
-        <LineChart title="Grasa corporal" items={history} field="bodyFatPercentage" unit="%" color="#fb7185" />
-        <LineChart title="Masa muscular" items={history} field="muscleMass" unit="kg" color="#34d399" />
-      </section>
-      <HistoryTable items={history} onView={setViewing} onEdit={begin} onRemove={remove} />
+    {!ready ? <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">{Array.from({ length: 12 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-xl bg-zinc-900" />)}</section> : <>
+      <EvaluationSummary latest={latest} previous={previous} />
+      <ComparisonSection latest={latest} previous={previous} />
+      <SymmetrySection latest={latest} />
+      <HistoryList items={history} deletingId={deletingId} onView={setViewing} onEdit={begin} onRemove={remove} />
     </>}
 
     {open && <EvaluationForm form={form} setForm={setForm} students={students} error={error} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving} />}
@@ -216,56 +219,64 @@ export default function EvaluacionesPage() {
   </ModuleShell>;
 }
 
-function Comparison({ latest, previous }: { latest: PhysicalEvaluation | null; previous: PhysicalEvaluation | null }) {
+function EvaluationSummary({ latest, previous }: { latest: PhysicalEvaluation | null; previous: PhysicalEvaluation | null }) {
   if (!latest) return <section className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900 p-8 text-center"><h2 className="font-semibold text-white">Sin evaluaciones para este alumno</h2><p className="mt-2 text-sm text-zinc-500">Registrá la primera medición para comenzar el historial.</p></section>;
-  return <section className="grid gap-5 xl:grid-cols-3">
-    <article className="rounded-2xl border border-yellow-400/25 bg-yellow-400/5 p-5">
-      <p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Evaluación más reciente</p>
-      <h2 className="mt-2 text-xl font-bold">{showDate(latest.date)}</h2>
-      <div className="mt-5 grid grid-cols-2 gap-4 text-sm"><Metric label="Peso" value={showNumber(latest.weight, " kg")} /><Metric label="Altura" value={showNumber(latest.height, " m")} /><Metric label="IMC" value={showNumber(latest.bmi)} /><Metric label="Grasa" value={showNumber(latest.bodyFatPercentage, "%")} /><Metric label="Músculo" value={showNumber(latest.muscleMass, " kg")} /><Metric label="Grasa visceral" value={showNumber(latest.visceralFat)} /></div>
-    </article>
-    <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Comparación anterior</p>
-      <p className="mt-2 text-sm text-zinc-400">{previous ? `Contra el ${showDate(previous.date)}` : "Todavía no existe una evaluación anterior."}</p>
-      <div className="mt-5 space-y-3"><DeltaRow label="Peso" value={difference(latest.weight, previous?.weight ?? null)} suffix=" kg" /><DeltaRow label="Grasa corporal" value={difference(latest.bodyFatPercentage, previous?.bodyFatPercentage ?? null)} suffix="%" /><DeltaRow label="Masa muscular" value={difference(latest.muscleMass, previous?.muscleMass ?? null)} suffix=" kg" /></div>
-    </article>
-    <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Diferencia de perímetros</p>
-      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2">{perimeterFields.map((field) => <DeltaRow key={field.key} label={field.label} value={difference(latest[field.key], previous?.[field.key] ?? null)} suffix=" cm" compact />)}</div>
-    </article>
-  </section>;
+  const metrics: Array<[string, number | null, string]> = [
+    ["Peso", latest.weight, " kg"], ["Altura", latest.height, " m"], ["IMC", latest.bmi, ""],
+    ["Grasa corporal", latest.bodyFatPercentage, " %"], ["Masa muscular", latest.muscleMass, " kg"],
+    ["Grasa visceral", latest.visceralFat, ""], ["Cintura", latest.waist, " cm"], ["Cadera", latest.hip, " cm"],
+    ["Pecho", latest.chest, " cm"], ["Brazo derecho", latest.rightArm, " cm"], ["Brazo izquierdo", latest.leftArm, " cm"],
+    ["Muslo derecho", latest.rightThigh, " cm"], ["Muslo izquierdo", latest.leftThigh, " cm"],
+    ["Pantorrilla derecha", latest.rightCalf, " cm"], ["Pantorrilla izquierda", latest.leftCalf, " cm"],
+  ];
+  const waistHipRatio = latest.waist !== null && latest.hip !== null && latest.hip > 0 ? latest.waist / latest.hip : null;
+  return <section><div className="mb-2 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Última evaluación</p><h2 className="text-sm font-semibold">{showDate(latest.date)}</h2></div>{previous && <span className="text-xs text-zinc-500">Anterior: {showDate(previous.date)}</span>}</div><div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">{metrics.map(([title, value, suffix]) => <Metric key={title} label={title} value={showNumber(value, suffix)} />)}{waistHipRatio !== null && <Metric label="Relación cintura/cadera" value={showNumber(waistHipRatio)} />}</div></section>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-xs text-zinc-500">{label}</p><p className="mt-1 font-semibold text-white">{value}</p></div>;
+  return <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><p className="text-[11px] text-zinc-500">{label}</p><p className="mt-1 text-base font-bold text-white">{value}</p></div>;
 }
 
-function DeltaRow({ label, value, suffix, compact = false }: { label: string; value: number | null; suffix: string; compact?: boolean }) {
-  const tone = value === null || value === 0 ? "text-zinc-500" : value > 0 ? "text-amber-300" : "text-sky-300";
-  return <div className={`${compact ? "block" : "flex items-center justify-between"} text-sm`}><span className="text-zinc-400">{label}</span><span className={`${tone} ${compact ? "block text-xs" : "font-semibold"}`}>{showDifference(value, suffix)}</span></div>;
+function ComparisonSection({ latest, previous }: { latest: PhysicalEvaluation | null; previous: PhysicalEvaluation | null }) {
+  if (!latest) return null;
+  const fields: Array<[string, keyof PhysicalEvaluation, string]> = [
+    ["Peso", "weight", " kg"], ["Grasa corporal", "bodyFatPercentage", " puntos"],
+    ["Masa muscular", "muscleMass", " kg"], ["Cintura", "waist", " cm"], ["Cadera", "hip", " cm"],
+  ];
+  return <section className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><h2 className="font-bold text-yellow-300">Comparación anterior</h2>{!previous ? <p className="mt-2 text-sm text-zinc-500">Todavía no hay datos suficientes para comparar.</p> : <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([title, key, suffix]) => {
+    const current = latest[key] as number | null;
+    const before = previous[key] as number | null;
+    const delta = difference(current, before);
+    if (current === null || before === null) return null;
+    return <article key={title} className="rounded-lg bg-zinc-950 p-3"><p className="text-xs text-zinc-500">{title}</p><p className="mt-1 text-sm font-semibold">{showNumber(before, suffix)} <span className="text-zinc-600">→</span> {showNumber(current, suffix)}</p><p className="mt-1 text-xs text-yellow-200">{delta === 0 ? "Sin cambios" : `${delta !== null && delta > 0 ? "↑ +" : "↓ "}${showNumber(delta, suffix)}`}</p></article>;
+  })}</div>}</section>;
 }
 
-function LineChart({ title, items, field, unit, color }: { title: string; items: PhysicalEvaluation[]; field: "weight" | "bodyFatPercentage" | "muscleMass"; unit: string; color: string }) {
-  const data = [...items].reverse().flatMap((item) => item[field] === null ? [] : [{ date: item.date, value: item[field] as number }]);
-  if (data.length === 0) return <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><h3 className="font-semibold">{title}</h3><p className="mt-12 text-center text-sm text-zinc-500">Sin mediciones disponibles.</p></article>;
-  const values = data.map((item) => item.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const points = data.map((item, index) => `${20 + (index * 280) / Math.max(data.length - 1, 1)},${100 - ((item.value - min) / range) * 70}`).join(" ");
-  return <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><div className="flex items-start justify-between"><h3 className="font-semibold">{title}</h3><span className="text-sm font-bold" style={{ color }}>{showNumber(data.at(-1)?.value ?? null, ` ${unit}`)}</span></div><svg viewBox="0 0 320 120" role="img" aria-label={`Gráfico de ${title.toLowerCase()}`} className="mt-4 h-32 w-full"><line x1="20" y1="100" x2="300" y2="100" stroke="#3f3f46" strokeWidth="1" /><polyline fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={points} />{data.map((item, index) => { const [x, y] = points.split(" ")[index].split(","); return <circle key={`${item.date}-${index}`} cx={x} cy={y} r="4" fill={color} />; })}</svg><div className="flex justify-between text-xs text-zinc-500"><span>{showDate(data[0].date)}</span><span>{showDate(data.at(-1)?.date ?? data[0].date)}</span></div></article>;
+function SymmetrySection({ latest }: { latest: PhysicalEvaluation | null }) {
+  if (!latest) return null;
+  const pairs: Array<[string, number | null, number | null]> = [
+    ["Brazos", latest.rightArm, latest.leftArm], ["Muslos", latest.rightThigh, latest.leftThigh], ["Pantorrillas", latest.rightCalf, latest.leftCalf],
+  ];
+  const available = pairs.filter(([, right, left]) => right !== null && left !== null);
+  if (!available.length) return null;
+  return <section className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><h2 className="font-bold text-yellow-300">Simetría corporal</h2><p className="mt-1 text-xs text-zinc-500">Comparación descriptiva, sin interpretación médica.</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{available.map(([title, right, left]) => {
+    const delta = Math.abs((right ?? 0) - (left ?? 0));
+    const larger = right === left ? "Iguales" : (right ?? 0) > (left ?? 0) ? "Mayor: derecho" : "Mayor: izquierdo";
+    const percent = Math.max(right ?? 0, left ?? 0) > 0 ? delta / Math.max(right ?? 0, left ?? 0) * 100 : null;
+    return <article key={title} className="rounded-lg bg-zinc-950 p-3"><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-zinc-400">Derecho: {showNumber(right, " cm")} · Izquierdo: {showNumber(left, " cm")}</p><p className="mt-2 text-xs text-yellow-200">Diferencia: {showNumber(delta, " cm")}{percent !== null ? ` · ${showNumber(percent, "%")}` : ""}</p><p className="mt-1 text-[11px] text-zinc-500">{larger}</p></article>;
+  })}</div></section>;
 }
 
-function HistoryTable({ items, onView, onEdit, onRemove }: { items: PhysicalEvaluation[]; onView: (item: PhysicalEvaluation) => void; onEdit: (item: PhysicalEvaluation) => void; onRemove: (item: PhysicalEvaluation) => void }) {
-  return <section className="mt-6 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900"><div className="border-b border-zinc-800 p-5"><h2 className="font-semibold">Historial completo</h2></div><div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-4">Fecha</th><th>Peso</th><th>Altura</th><th>IMC</th><th>Grasa</th><th>Músculo</th><th>Observaciones</th><th aria-label="Acciones" /></tr></thead><tbody>{items.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">No hay evaluaciones registradas.</td></tr> : items.map((item) => <tr key={item.id} className="border-t border-zinc-800"><td className="p-4 font-medium">{showDate(item.date)}</td><td>{showNumber(item.weight, " kg")}</td><td>{showNumber(item.height, " m")}</td><td>{showNumber(item.bmi)}</td><td>{showNumber(item.bodyFatPercentage, "%")}</td><td>{showNumber(item.muscleMass, " kg")}</td><td className="max-w-48 truncate text-zinc-400">{item.notes || "—"}</td><td className="space-x-3 whitespace-nowrap pr-4 text-yellow-400"><button onClick={() => onView(item)}>Ver</button><button onClick={() => onEdit(item)}>Editar</button><button onClick={() => onRemove(item)} className="text-red-300">Eliminar</button></td></tr>)}</tbody></table></div></section>;
+function HistoryList({ items, deletingId, onView, onEdit, onRemove }: { items: PhysicalEvaluation[]; deletingId: string; onView: (item: PhysicalEvaluation) => void; onEdit: (item: PhysicalEvaluation) => void; onRemove: (item: PhysicalEvaluation) => void }) {
+  return <section className="mt-4 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900"><div className="border-b border-zinc-800 px-4 py-3"><h2 className="font-semibold">Historial de evaluaciones</h2></div>{items.length === 0 ? <p className="p-8 text-center text-sm text-zinc-500">No hay evaluaciones registradas.</p> : <div>{items.map((item) => <article key={item.id} className="flex items-center gap-3 border-b border-zinc-800 p-3 last:border-0"><button onClick={() => onView(item)} className="min-w-0 flex-1 text-left"><p className="font-semibold">{showDate(item.date)}</p><p className="mt-1 truncate text-xs text-zinc-400">{showNumber(item.weight, " kg")} · Grasa {showNumber(item.bodyFatPercentage, "%")} · Músculo {showNumber(item.muscleMass, " kg")} · Cintura {showNumber(item.waist, " cm")}</p></button><button onClick={() => onView(item)} className="shrink-0 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-bold text-yellow-300">Ver detalle</button><details className="relative"><summary className="grid h-9 w-9 cursor-pointer list-none place-items-center rounded-lg bg-zinc-800 text-lg">⋮</summary><div className="absolute right-0 z-10 mt-1 w-44 rounded-lg border border-zinc-700 bg-zinc-950 p-1 shadow-xl"><button onClick={() => onView(item)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-zinc-800">Ver detalle</button><button onClick={() => onEdit(item)} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-zinc-800">Editar evaluación</button><button onClick={() => onRemove(item)} disabled={deletingId === item.id} className="block w-full rounded px-3 py-2 text-left text-xs text-red-300 hover:bg-zinc-800 disabled:opacity-50">{deletingId === item.id ? "Eliminando…" : "Eliminar evaluación"}</button></div></details></article>)}</div>}</section>;
 }
 
 function EvaluationForm({ form, setForm, students, error, close, submit, editing, saving }: { form: EvaluationDraft; setForm: (form: EvaluationDraft) => void; students: Student[]; error: string; close: () => void; submit: (event: FormEvent) => void; editing: boolean; saving: boolean }) {
   function set<K extends keyof EvaluationDraft>(key: K, value: EvaluationDraft[K]) { setForm({ ...form, [key]: value }); }
-  function setNumber(key: NumericEvaluationKey, value: string) { set(key, value === "" ? null : Number(value)); }
+  function setNumber(key: NumericEvaluationKey, value: string) { set(key, value === "" ? null : Number(value.replace(",", "."))); }
   const bmi = form.weight !== null && form.height !== null && form.height > 0 ? Math.round((form.weight / (form.height * form.height)) * 10) / 10 : null;
   return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><form onSubmit={submit} className="mx-auto my-8 w-full max-w-5xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">{editing ? "Editar evaluación" : "Nueva evaluación"}</h2><p className="mt-1 text-sm text-zinc-400">Dejá vacíos los valores que no fueron medidos.</p></div><button type="button" onClick={close} className="self-start text-zinc-400">Cerrar</button></div>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
-    <div className="mt-5 grid gap-4 sm:grid-cols-3"><label className="sm:col-span-2">Alumno<select required value={form.studentId} onChange={(event) => set("studentId", event.target.value)} className={`${inputClass} mt-1`}>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></label><label>Fecha<input required type="date" max={today()} value={form.date} onChange={(event) => set("date", event.target.value)} className={`${inputClass} mt-1`} /></label></div>
+    <div className="mt-5 grid gap-4 sm:grid-cols-3"><label className="sm:col-span-2">Alumno<select required disabled={editing} value={form.studentId} onChange={(event) => set("studentId", event.target.value)} className={`${inputClass} mt-1 disabled:opacity-60`}>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></label><label>Fecha<input required type="date" max={today()} value={form.date} onChange={(event) => set("date", event.target.value)} className={`${inputClass} mt-1`} /></label></div>
     <h3 className="mt-7 font-semibold text-yellow-400">Composición corporal</h3><div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-6"><NumberField label="Peso (kg)" value={form.weight} setValue={(value) => setNumber("weight", value)} min={20} max={500} /><NumberField label="Altura (m)" value={form.height} setValue={(value) => setNumber("height", value)} min={0.8} max={2.5} step="0.01" /><label>IMC calculado<div className={`${inputClass} mt-1 border-yellow-400/40 text-yellow-300`}>{showNumber(bmi)}</div></label><NumberField label="Grasa corporal (%)" value={form.bodyFatPercentage} setValue={(value) => setNumber("bodyFatPercentage", value)} min={1} max={75} /><NumberField label="Masa muscular (kg)" value={form.muscleMass} setValue={(value) => setNumber("muscleMass", value)} min={1} max={250} /><NumberField label="Grasa visceral" value={form.visceralFat} setValue={(value) => setNumber("visceralFat", value)} min={0} max={60} /></div>
     <h3 className="mt-7 font-semibold text-yellow-400">Perímetros (cm)</h3><div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{perimeterFields.map((field) => <NumberField key={field.key} label={field.label} value={form[field.key]} setValue={(value) => setNumber(field.key, value)} min={10} max={300} />)}</div>
     <label className="mt-6 block">Observaciones<textarea maxLength={3000} value={form.notes} onChange={(event) => set("notes", event.target.value)} rows={4} className={`${inputClass} mt-1`} /></label>
