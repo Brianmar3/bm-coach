@@ -221,6 +221,7 @@ export type PhysicalEvaluation = {
 
 export type TrainingRoutineLevel = "principiante" | "intermedio" | "avanzado";
 export type TrainingRoutineStatus = "borrador" | "activa" | "finalizada" | "archivada";
+export type TrainingRoutineKind = "assigned" | "template";
 export type TrainingEffortType = "RPE" | "RIR";
 
 export type TrainingExercise = {
@@ -235,6 +236,10 @@ export type TrainingExercise = {
   restSeconds: number | null;
   observations: string;
   videoUrl: string;
+  tempo: string;
+  alternativeExercise: string;
+  equipment: string;
+  optional: boolean;
   order: number;
 };
 
@@ -242,6 +247,8 @@ export type TrainingRoutineDay = {
   id: string;
   dayNumber: number;
   name: string;
+  objective: string;
+  observations: string;
   estimatedMinutes: number | null;
   exercises: TrainingExercise[];
 };
@@ -252,6 +259,11 @@ export type TrainingRoutine = {
   objective: string;
   level: TrainingRoutineLevel;
   status: TrainingRoutineStatus;
+  kind: TrainingRoutineKind;
+  description: string;
+  location: string;
+  equipment: string[];
+  tags: string[];
   startDate: string;
   durationWeeks: number | null;
   priorityMuscles: string[];

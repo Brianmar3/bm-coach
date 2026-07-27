@@ -163,6 +163,11 @@ enum TrainingRoutineStatus {
   ARCHIVADA
 }
 
+enum TrainingRoutineKind {
+  ASSIGNED
+  TEMPLATE
+}
+
 enum TrainingEffortType {
   RPE
   RIR
@@ -174,6 +179,11 @@ model TrainingRoutine {
   objective       String
   level           TrainingRoutineLevel
   status          TrainingRoutineStatus       @default(ACTIVA)
+  kind            TrainingRoutineKind         @default(ASSIGNED)
+  description     String                      @default("")
+  location        String                      @default("")
+  equipment       String[]                    @default([])
+  tags            String[]                    @default([])
   startDate       DateTime?                   @db.Date
   durationWeeks   Int?
   priorityMuscles String[]                    @default([])
@@ -187,6 +197,7 @@ model TrainingRoutine {
 
   @@index([objective])
   @@index([status])
+  @@index([kind, status])
   @@map("training_routines")
 }
 
@@ -210,6 +221,8 @@ model TrainingRoutineDay {
   routineId        String
   dayNumber        Int
   name             String                    @default("")
+  objective        String                    @default("")
+  observations     String                    @default("")
   estimatedMinutes Int?
   routine          TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
   exercises        TrainingRoutineExercise[]
@@ -223,26 +236,30 @@ model TrainingRoutineDay {
 }
 
 model TrainingRoutineExercise {
-  id               String               @id @default(cuid())
-  dayId            String
-  name             String
-  muscleGroup      String
-  sets             Int
-  repetitions      String
-  weight           Decimal?             @db.Decimal(7, 2)
-  effortType       TrainingEffortType
-  effortValue      Decimal?             @db.Decimal(4, 1)
-  restSeconds      Int?
-  observations     String               @default("")
-  videoUrl         String?
-  order            Int
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  day              TrainingRoutineDay   @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  workoutLogs      WorkoutExerciseLog[]
-  followUpComments FollowUpComment[]
-  active           Boolean              @default(true)
-  archivedAt       DateTime?
+  id                  String               @id @default(cuid())
+  dayId               String
+  name                String
+  muscleGroup         String
+  sets                Int
+  repetitions         String
+  weight              Decimal?             @db.Decimal(7, 2)
+  effortType          TrainingEffortType
+  effortValue         Decimal?             @db.Decimal(4, 1)
+  restSeconds         Int?
+  observations        String               @default("")
+  videoUrl            String?
+  tempo               String?
+  alternativeExercise String?
+  equipment           String?
+  optional            Boolean              @default(false)
+  order               Int
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  day                 TrainingRoutineDay   @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  workoutLogs         WorkoutExerciseLog[]
+  followUpComments    FollowUpComment[]
+  active              Boolean              @default(true)
+  archivedAt          DateTime?
 
   @@index([dayId, order])
   @@index([dayId, active])

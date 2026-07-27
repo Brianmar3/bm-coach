@@ -12,12 +12,14 @@ export async function GET(request: Request) {
     const objective = params.get("objective")?.trim();
     const query = params.get("q")?.trim();
     const status = params.get("status")?.trim();
+    const kind = params.get("kind")?.trim();
     const records = await prisma.trainingRoutine.findMany({
       where: {
         ...(studentId ? { assignments: { some: { studentId } } } : {}),
         ...(objective ? { objective } : {}),
         ...(query ? { OR: [{ name: { contains: query, mode: "insensitive" } }, { objective: { contains: query, mode: "insensitive" } }] } : {}),
         ...(status === "ACTIVA" || status === "ARCHIVADA" ? { status } : {}),
+        ...(kind === "ASSIGNED" || kind === "TEMPLATE" ? { kind } : {}),
       },
       include: routineInclude,
       orderBy: { createdAt: "desc" },
@@ -35,12 +37,12 @@ export async function POST(request: Request) {
     const input = (await request.json()) as RoutineInput;
     const validationError = validateRoutine(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const students = await prisma.studentRecord.count({ where: { id: { in: input.studentIds } } });
-    if (students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
+    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { id: { in: input.studentIds } } });
+    if (input.kind === "assigned" && students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {
       const archivedAt = input.status === "archivada" ? new Date() : null;
-      if (input.status === "activa") {
+      if (input.kind === "assigned" && input.status === "activa") {
         const conflicts = await transaction.trainingRoutineAssignment.count({ where: { studentId: { in: input.studentIds }, active: true, routine: { status: "ACTIVA" } } });
         if (conflicts) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
       }
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
           ...routineData(input),
           archivedAt,
           days: { create: nestedDays(input.days) },
-          assignments: { create: input.studentIds.map((studentId) => ({ studentId, active: input.status === "activa", archivedAt })) },
+          assignments: input.kind === "assigned" ? { create: input.studentIds.map((studentId) => ({ studentId, active: input.status !== "archivada" && input.status !== "finalizada", archivedAt })) } : undefined,
         },
         include: routineInclude,
       });

@@ -1,50 +1,121 @@
-import { databaseUnavailable, nestedDays, routineInclude, serializeRoutine, type ExerciseInput } from "@/lib/rutinas";
+import { Prisma } from "@prisma/client";
+import { databaseUnavailable, nestedDays, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type ExerciseInput, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(_request: Request, context: RouteContext<"/api/rutinas/[id]/duplicar">) {
+type CopyMode = "duplicate" | "saveAsTemplate" | "useTemplate" | "copyToStudent";
+type CopyRequest = {
+  mode?: CopyMode;
+  name?: string;
+  studentId?: string;
+  startDate?: string;
+  status?: "borrador" | "activa";
+  resetWeights?: boolean;
+  replaceActive?: boolean;
+};
+
+export async function POST(request: Request, context: RouteContext<"/api/rutinas/[id]/duplicar">) {
   try {
     const { id } = await context.params;
+    const body = await request.json().catch(() => ({})) as CopyRequest;
+    const mode = body.mode ?? "duplicate";
     const source = await prisma.trainingRoutine.findUnique({ where: { id }, include: routineInclude });
     if (!source) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
+    if (mode === "useTemplate" && source.kind !== "TEMPLATE") return Response.json({ error: "La rutina seleccionada no es una plantilla." }, { status: 400 });
+
+    const targetKind = mode === "saveAsTemplate" || (mode === "duplicate" && source.kind === "TEMPLATE") ? "template" : "assigned";
+    const studentId = targetKind === "assigned" ? body.studentId?.trim() : undefined;
+    if (["useTemplate", "copyToStudent"].includes(mode) && !studentId) return Response.json({ error: "Seleccioná un alumno destino." }, { status: 400 });
+    if (studentId && !(await prisma.studentRecord.count({ where: { id: studentId } }))) return Response.json({ error: "El alumno destino no existe." }, { status: 404 });
+
     const days = source.days.map((day) => ({
       dayNumber: day.dayNumber,
       name: day.name.trim() || `Día ${day.dayNumber}`,
+      objective: day.objective,
+      observations: day.observations,
       estimatedMinutes: day.estimatedMinutes,
       exercises: day.exercises.map((exercise): ExerciseInput => ({
         name: exercise.name,
         muscleGroup: exercise.muscleGroup,
         sets: exercise.sets,
         repetitions: exercise.repetitions,
-        weight: exercise.weight === null ? null : Number(exercise.weight),
+        weight: body.resetWeights ? null : exercise.weight === null ? null : Number(exercise.weight),
         effortType: exercise.effortType,
         effortValue: exercise.effortValue === null ? null : Number(exercise.effortValue),
         restSeconds: exercise.restSeconds,
         observations: exercise.observations,
         videoUrl: exercise.videoUrl ?? "",
+        tempo: exercise.tempo ?? "",
+        alternativeExercise: exercise.alternativeExercise ?? "",
+        equipment: exercise.equipment ?? "",
+        optional: exercise.optional,
         order: exercise.order,
       })),
     }));
-    const copy = await prisma.trainingRoutine.create({
-      data: {
-        name: `${source.name} (copia)`,
-        objective: source.objective,
-        level: source.level,
-        status: "BORRADOR",
-        startDate: source.startDate,
-        durationWeeks: source.durationWeeks,
-        priorityMuscles: source.priorityMuscles,
-        archivedAt: null,
-        days: { create: nestedDays(days) },
-      },
-      include: routineInclude,
-    });
+    const input: RoutineInput = {
+      name: body.name?.trim() || `${source.name} (copia)`,
+      kind: targetKind,
+      description: source.description,
+      objective: source.objective,
+      level: ({ PRINCIPIANTE: "principiante", INTERMEDIO: "intermedio", AVANZADO: "avanzado" } as const)[source.level],
+      status: targetKind === "template" ? "borrador" : body.status ?? "borrador",
+      startDate: body.startDate ?? source.startDate?.toISOString().slice(0, 10) ?? "",
+      durationWeeks: source.durationWeeks,
+      priorityMuscles: source.priorityMuscles,
+      location: source.location,
+      equipment: source.equipment,
+      tags: source.tags,
+      studentIds: studentId ? [studentId] : [],
+      days,
+    };
+    const validationError = validateRoutine(input);
+    if (validationError) return Response.json({ error: validationError }, { status: 400 });
+
+    const copy = await prisma.$transaction(async (transaction) => {
+      if (studentId && input.status === "activa") {
+        const conflicts = await transaction.trainingRoutineAssignment.findMany({
+          where: { studentId, active: true, routine: { status: "ACTIVA", kind: "ASSIGNED" } },
+          select: { routineId: true },
+        });
+        if (conflicts.length && !body.replaceActive) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
+        if (conflicts.length) {
+          await transaction.trainingRoutineAssignment.updateMany({ where: { studentId, routineId: { in: conflicts.map((item) => item.routineId) } }, data: { active: false, archivedAt: new Date() } });
+          for (const conflict of conflicts) {
+            const others = await transaction.trainingRoutineAssignment.count({ where: { routineId: conflict.routineId, active: true } });
+            if (!others) await transaction.trainingRoutine.update({ where: { id: conflict.routineId }, data: { status: "FINALIZADA" } });
+          }
+        }
+      }
+      const created = await transaction.trainingRoutine.create({
+        data: {
+          name: input.name,
+          kind: input.kind === "template" ? "TEMPLATE" : "ASSIGNED",
+          description: input.description,
+          objective: input.objective,
+          level: source.level,
+          status: input.status === "activa" ? "ACTIVA" : "BORRADOR",
+          startDate: input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : null,
+          durationWeeks: input.durationWeeks,
+          priorityMuscles: input.priorityMuscles,
+          location: input.location,
+          equipment: input.equipment,
+          tags: input.tags,
+          days: { create: nestedDays(days) },
+          assignments: studentId ? { create: { studentId, active: true, archivedAt: null } } : undefined,
+        },
+      });
+      await transaction.trainingRoutineVersion.create({
+        data: { routineId: created.id, version: 1, summary: mode === "saveAsTemplate" ? "Plantilla creada desde una rutina" : "Copia independiente creada", fingerprint: routineFingerprint(input), snapshot: routineVersionSnapshot(input) as unknown as Prisma.InputJsonValue },
+      });
+      return transaction.trainingRoutine.findUniqueOrThrow({ where: { id: created.id }, include: routineInclude });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return Response.json(serializeRoutine(copy), { status: 201 });
   } catch (error) {
-    console.error("Error al duplicar rutina", error);
+    if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Este alumno ya tiene una rutina activa.", code: "ACTIVE_ASSIGNMENT_CONFLICT" }, { status: 409 });
+    console.error("Error al copiar rutina", error);
     const unavailable = databaseUnavailable(error);
-    return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudo duplicar la rutina en Neon." }, { status: unavailable ? 503 : 500 });
+    return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudo crear la copia independiente." }, { status: unavailable ? 503 : 500 });
   }
 }

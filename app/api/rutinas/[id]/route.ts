@@ -38,11 +38,11 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
 export async function PUT(request: Request, context: RouteContext<"/api/rutinas/[id]">) {
   try {
     const { id } = await context.params;
-    const input = await request.json() as RoutineInput;
+    const input = await request.json() as RoutineInput & { replaceActive?: boolean };
     const validationError = validateRoutine(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const students = await prisma.studentRecord.count({ where: { id: { in: input.studentIds } } });
-    if (students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
+    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { id: { in: input.studentIds } } });
+    if (input.kind === "assigned" && students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {
       const existing = await transaction.trainingRoutine.findUnique({
@@ -63,19 +63,27 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         },
       });
       if (!existing) throw new Prisma.PrismaClientKnownRequestError("Rutina no encontrada", { code: "P2025", clientVersion: Prisma.prismaVersion.client });
+      if ((existing.kind === "TEMPLATE" ? "template" : "assigned") !== input.kind) throw new Error("ROUTINE_KIND_IMMUTABLE");
       const currentInput: RoutineInput = {
         name: existing.name,
+        kind: existing.kind === "TEMPLATE" ? "template" : "assigned",
+        description: existing.description,
         objective: existing.objective,
         level: ({ PRINCIPIANTE: "principiante", INTERMEDIO: "intermedio", AVANZADO: "avanzado" } as const)[existing.level],
         status: ({ BORRADOR: "borrador", ACTIVA: "activa", FINALIZADA: "finalizada", ARCHIVADA: "archivada" } as const)[existing.status],
         startDate: existing.startDate?.toISOString().slice(0, 10) ?? "",
         durationWeeks: existing.durationWeeks,
         priorityMuscles: existing.priorityMuscles,
+        location: existing.location,
+        equipment: existing.equipment,
+        tags: existing.tags,
         studentIds: existing.assignments.filter((assignment) => assignment.active).map((assignment) => assignment.studentId),
         days: existing.days.filter((day) => day.active).sort((left, right) => left.dayNumber - right.dayNumber).map((day) => ({
           id: day.id,
           dayNumber: day.dayNumber,
           name: day.name.trim() || `Día ${day.dayNumber}`,
+          objective: day.objective,
+          observations: day.observations,
           estimatedMinutes: day.estimatedMinutes,
           exercises: day.exercises.filter((exercise) => exercise.active).sort((left, right) => left.order - right.order).map((exercise) => ({
             id: exercise.id,
@@ -89,6 +97,10 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
             restSeconds: exercise.restSeconds,
             observations: exercise.observations,
             videoUrl: exercise.videoUrl ?? "",
+            tempo: exercise.tempo ?? "",
+            alternativeExercise: exercise.alternativeExercise ?? "",
+            equipment: exercise.equipment ?? "",
+            optional: exercise.optional,
             order: exercise.order,
           })),
         })),
@@ -96,9 +108,16 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
       const currentFingerprint = routineFingerprint(currentInput);
       const nextFingerprint = routineFingerprint(input);
       if (currentFingerprint === nextFingerprint) return transaction.trainingRoutine.findUniqueOrThrow({ where: { id }, include: routineInclude });
-      if (input.status === "activa") {
-        const conflicts = await transaction.trainingRoutineAssignment.count({ where: { routineId: { not: id }, studentId: { in: input.studentIds }, active: true, routine: { status: "ACTIVA" } } });
-        if (conflicts) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
+      if (input.kind === "assigned" && input.status === "activa") {
+        const conflicts = await transaction.trainingRoutineAssignment.findMany({ where: { routineId: { not: id }, studentId: { in: input.studentIds }, active: true, routine: { status: "ACTIVA", kind: "ASSIGNED" } }, select: { routineId: true, studentId: true } });
+        if (conflicts.length && !input.replaceActive) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
+        if (conflicts.length) {
+          await transaction.trainingRoutineAssignment.updateMany({ where: { OR: conflicts.map((conflict) => ({ routineId: conflict.routineId, studentId: conflict.studentId })) }, data: { active: false, archivedAt: new Date() } });
+          for (const conflictRoutineId of new Set(conflicts.map((conflict) => conflict.routineId))) {
+            const remaining = await transaction.trainingRoutineAssignment.count({ where: { routineId: conflictRoutineId, active: true } });
+            if (!remaining) await transaction.trainingRoutine.update({ where: { id: conflictRoutineId }, data: { status: "FINALIZADA" } });
+          }
+        }
       }
 
       const transitionAt = input.status === "archivada" ? existing.archivedAt ?? new Date() : null;
@@ -113,10 +132,10 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         const day = existingDay
           ? await transaction.trainingRoutineDay.update({
             where: { id: existingDay.id },
-            data: { dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), estimatedMinutes: dayInput.estimatedMinutes, active: true, archivedAt: null },
+            data: { dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), objective: dayInput.objective.trim(), observations: dayInput.observations.trim(), estimatedMinutes: dayInput.estimatedMinutes, active: true, archivedAt: null },
           })
           : await transaction.trainingRoutineDay.create({
-            data: { routineId: id, dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), estimatedMinutes: dayInput.estimatedMinutes },
+            data: { routineId: id, dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), objective: dayInput.objective.trim(), observations: dayInput.observations.trim(), estimatedMinutes: dayInput.estimatedMinutes },
           });
         retainedDayIds.add(day.id);
 
@@ -146,9 +165,9 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         }
       }
 
-      const selectedStudentIds = new Set(input.studentIds);
+      const selectedStudentIds = new Set(input.kind === "assigned" ? input.studentIds : []);
       for (const assignment of existing.assignments) {
-        const shouldBeActive = input.status === "activa" && selectedStudentIds.has(assignment.studentId);
+        const shouldBeActive = input.status !== "archivada" && input.status !== "finalizada" && selectedStudentIds.has(assignment.studentId);
         await transaction.trainingRoutineAssignment.update({
           where: { routineId_studentId: { routineId: id, studentId: assignment.studentId } },
           data: {
@@ -157,7 +176,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
           },
         });
       }
-      if (input.status === "activa") {
+      if (input.kind === "assigned" && (input.status === "activa" || input.status === "borrador")) {
         const existingStudentIds = new Set(existing.assignments.map((assignment) => assignment.studentId));
         const newStudentIds = input.studentIds.filter((studentId) => !existingStudentIds.has(studentId));
         if (newStudentIds.length) await transaction.trainingRoutineAssignment.createMany({ data: newStudentIds.map((studentId) => ({ routineId: id, studentId })) });
@@ -185,6 +204,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Uno o más alumnos ya tienen otra rutina activa asignada." }, { status: 409 });
+    if (error instanceof Error && error.message === "ROUTINE_KIND_IMMUTABLE") return Response.json({ error: "No se puede convertir una rutina en plantilla desde la edición. Usá “Guardar como plantilla”." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La rutina cambió al mismo tiempo. Recargá e intentá nuevamente." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError) console.error("Error Prisma al actualizar rutina", { code: error.code, message: error.message, meta: error.meta });
     else console.error("Error al actualizar rutina", error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error);
@@ -210,16 +230,23 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
       }
       const restoredInput: RoutineInput = {
         name: snapshot.name,
+        kind: snapshot.kind ?? "assigned",
+        description: snapshot.description ?? "",
         objective: snapshot.objective,
         level: snapshot.level,
         status: ({ BORRADOR: "borrador", ACTIVA: "activa", FINALIZADA: "finalizada", ARCHIVADA: "archivada" } as const)[routine.status],
         startDate: snapshot.startDate ?? "",
         durationWeeks: snapshot.durationWeeks ?? null,
         priorityMuscles: snapshot.priorityMuscles ?? [],
+        location: snapshot.location ?? "",
+        equipment: snapshot.equipment ?? [],
+        tags: snapshot.tags ?? [],
         studentIds: snapshot.studentIds,
         days: snapshot.days.map((day) => ({
           ...day,
           name: day.name?.trim() || `Día ${day.dayNumber}`,
+          objective: day.objective ?? "",
+          observations: day.observations ?? "",
           estimatedMinutes: day.estimatedMinutes ?? null,
         })),
       };

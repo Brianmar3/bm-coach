@@ -30,6 +30,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     const record = await prisma.$transaction(async (transaction) => {
       const routine = await transaction.trainingRoutine.findUnique({ where: { id }, include: { assignments: true } });
       if (!routine) return null;
+      if (routine.kind === "TEMPLATE") throw new Error("ROUTINE_TEMPLATE");
       if (routine.status === "ARCHIVADA") throw new Error("ROUTINE_ARCHIVED");
       const conflicts = await transaction.trainingRoutineAssignment.count({ where: { routineId: { not: id }, studentId: { in: studentIds }, active: true, routine: { status: "ACTIVA" } } });
       if (conflicts) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
@@ -47,6 +48,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     return Response.json(serializeRoutine(record));
   } catch (error) {
     if (error instanceof Error && error.message === "ROUTINE_ARCHIVED") return Response.json({ error: "No se pueden modificar asignaciones de una rutina archivada." }, { status: 409 });
+    if (error instanceof Error && error.message === "ROUTINE_TEMPLATE") return Response.json({ error: "Las plantillas no admiten asignaciones. Usá “Usar plantilla” para crear una rutina independiente." }, { status: 409 });
     if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Uno o más alumnos ya tienen otra rutina activa asignada." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "Las asignaciones cambiaron al mismo tiempo. Recargá e intentá nuevamente." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError) console.error("Error Prisma al actualizar asignaciones", { code: error.code, message: error.message, meta: error.meta });
