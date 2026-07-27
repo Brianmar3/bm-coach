@@ -16,7 +16,7 @@ function validate(input: PortalWorkoutSession) {
   if (input.durationMinutes !== null && (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 1 || input.durationMinutes > 1440)) return "La duración debe estar entre 1 y 1440 minutos.";
   if (![input.energyBefore, input.difficulty, input.energyAfter].every(rating)) return "Las escalas de energía y dificultad deben estar entre 1 y 5.";
   if (input.hasPain && !input.painDetails.trim()) return "Contanos dónde sentís dolor o molestia.";
-  if (input.status === "finalizado" && (input.durationMinutes === null || input.energyBefore === null || input.difficulty === null || input.energyAfter === null)) return "Para finalizar, completá duración, energía antes, dificultad y energía después.";
+  if (input.status === "finalizado" && (input.durationMinutes === null || input.difficulty === null || input.energyAfter === null)) return "Para finalizar, completá duración, dificultad y energía después.";
   if (input.status === "finalizado" && !input.exercises.some((exercise) => exercise.sets.some((set) => set.completed))) return "Marcá al menos una serie como completada antes de finalizar.";
   if (input.finalComment.length > 2000 || input.painDetails.length > 1000) return "El comentario es demasiado extenso.";
   if (!["pendiente", "en_progreso", "finalizado"].includes(input.status)) return "El estado no es válido.";

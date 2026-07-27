@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { PaymentAccountStatus, PhysicalEvaluation } from "@/types/gestion";
 import type { PortalData, PortalWorkoutSession } from "@/types/portal";
@@ -29,7 +29,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); setLoading(true); setReload((value) => value + 1); }} />;
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
   if (!data) return null;
-  if (section === "rutina") return <><RoutineView data={data} /><div className="mt-8 border-t border-zinc-800 pt-8"><WorkoutView data={data} /></div><div id="historial-entrenamientos" className="mt-8 scroll-mt-24 border-t border-zinc-800 pt-8"><WorkoutHistoryView data={data} /></div></>;
+  if (section === "rutina") return <><WorkoutView data={data} /><div id="historial-entrenamientos" className="mt-8 scroll-mt-24 border-t border-zinc-800 pt-8"><WorkoutHistoryView data={data} /></div></>;
   if (section === "entrenamiento") return <WorkoutView data={data} />;
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
@@ -101,12 +101,6 @@ function QuotaSummaryCard({ data }: { data: PortalData }) {
       </div>
     </div>
   </section>;
-}
-
-function RoutineView({ data }: { data: PortalData }) {
-  const routine = data.routine;
-  if (!routine) return <PageHeader title="Mi rutina" subtitle="Tu planificación activa"><Notice>No tenés una rutina activa asignada. Consultá a tu entrenador.</Notice></PageHeader>;
-  return <PageHeader title={routine.name} subtitle={`${routine.objective} · ${routine.level}${routine.durationWeeks ? ` · ${routine.durationWeeks} semanas` : ""}`}><div className="space-y-4">{routine.days.map((day) => <section key={day.id} className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900"><h2 className="border-b border-zinc-800 p-4 font-bold text-yellow-300">Día {day.dayNumber} — {day.name} <span className="ml-2 text-xs font-normal text-zinc-500">{day.exercises.length} ejercicios{day.estimatedMinutes ? ` · ${day.estimatedMinutes} min` : ""}</span></h2>{day.exercises.length ? <div className="divide-y divide-zinc-800">{day.exercises.map((exercise) => <article key={exercise.id} className="p-4"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{exercise.videoUrl ? <a href={exercise.videoUrl} target="_blank" rel="noreferrer" className="text-yellow-300 underline">{exercise.name}</a> : exercise.name}</h3><span className="text-xs text-zinc-500">{exercise.muscleGroup}</span></div><div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5"><SmallMetric title="Series" value={String(exercise.sets)} /><SmallMetric title="Repeticiones" value={exercise.repetitions} /><SmallMetric title="Peso inicial" value={exercise.weight === null ? "—" : `${exercise.weight} kg`} /><SmallMetric title={exercise.effortType} value={exercise.effortValue === null ? "—" : String(exercise.effortValue)} /><SmallMetric title="Descanso" value={exercise.restSeconds === null ? "—" : `${exercise.restSeconds} s`} /></div>{exercise.observations && <details className="mt-3 text-sm text-zinc-400"><summary className="cursor-pointer text-yellow-400">Indicaciones técnicas</summary><p className="mt-2">{exercise.observations}</p></details>}</div></div></article>)}</div> : <p className="p-5 text-sm text-zinc-600">Día de descanso o sin ejercicios.</p>}</section>)}</div></PageHeader>;
 }
 
 function evaluationMeasurements(evaluation: PhysicalEvaluation) {
@@ -195,11 +189,18 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [draft, setDraft] = useState<PortalWorkoutSession | null>(inProgress);
   const [saving, setSaving] = useState(false);
   const [savingAction, setSavingAction] = useState<"draft" | "final" | null>(null);
+  const [started, setStarted] = useState(Boolean(inProgress));
+  const [finalOpen, setFinalOpen] = useState(false);
+  const [allowIncomplete, setAllowIncomplete] = useState(false);
+  const [sensation, setSensation] = useState("");
+  const [painLocation, setPainLocation] = useState("");
+  const [painIntensity, setPainIntensity] = useState<number | null>(null);
+  const autosaveSignature = useRef("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
 
-  function freshDraft(dayId: string) {
+  function freshDraft(dayId: string): PortalWorkoutSession | null {
     const day = trainingDays.find((item) => item.id === dayId);
     if (!routine || !day) return null;
     const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
@@ -219,35 +220,125 @@ function WorkoutView({ data }: { data: PortalData }) {
     }) };
   }
 
-  function chooseDay(dayId: string) { setSelectedDayId(dayId); setDraft(freshDraft(dayId)); setMessage(""); setError(""); }
-  useEffect(() => { if (draft) window.localStorage.setItem(`bm-workout-${data.profile.id}-${draft.dayId}`, JSON.stringify(draft)); }, [data.profile.id, draft]);
+  useEffect(() => {
+    if (draft || !selectedDayId) return;
+    const timer = window.setTimeout(() => {
+      const next = freshDraft(selectedDayId);
+      setDraft(next);
+      const saved = window.localStorage.getItem(`bm-workout-${data.profile.id}-${selectedDayId}`);
+      setStarted(Boolean(next?.id || saved));
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // freshDraft reads the current server payload; this initialization only runs while draft is empty.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.profile.id, draft, selectedDayId]);
+
+  function chooseDay(dayId: string) {
+    if (started && draft?.status === "en_progreso" && dayId !== draft.dayId && !window.confirm("Hay un entrenamiento en progreso. Se conservará por separado. ¿Querés cambiar de día?")) return;
+    const next = freshDraft(dayId);
+    setSelectedDayId(dayId);
+    setDraft(next);
+    setStarted(Boolean(next?.id || window.localStorage.getItem(`bm-workout-${data.profile.id}-${dayId}`)));
+    setMessage("");
+    setError("");
+    setFinalOpen(false);
+  }
+
+  function beginWith(next: PortalWorkoutSession) {
+    if (started) return next;
+    const now = new Date();
+    const dateValue = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(now);
+    const timeValue = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
+    setStarted(true);
+    return { ...next, date: dateValue, startTime: timeValue, status: "en_progreso" as const };
+  }
+
+  function updateSet(exerciseIndex: number, setIndex: number, changes: Partial<PortalWorkoutSession["exercises"][number]["sets"][number]>) {
+    if (!draft) return;
+    const exercises = [...draft.exercises];
+    const exercise = exercises[exerciseIndex];
+    const sets = [...exercise.sets];
+    sets[setIndex] = { ...sets[setIndex], ...changes };
+    const next = beginWith({ ...draft, exercises: exercises.map((item, index) => index === exerciseIndex ? { ...exercise, sets } : item) });
+    setDraft(next);
+    window.localStorage.setItem(`bm-workout-${data.profile.id}-${next.dayId}`, JSON.stringify(next));
+  }
+
+  useEffect(() => {
+    if (!started || !draft || draft.status === "finalizado") return;
+    window.localStorage.setItem(`bm-workout-${data.profile.id}-${draft.dayId}`, JSON.stringify(draft));
+    const signature = JSON.stringify(draft);
+    if (signature === autosaveSignature.current) return;
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }) });
+        const body = await response.json() as { id?: string; error?: string };
+        if (!response.ok) throw new Error(body.error ?? "No se pudo guardar automáticamente.");
+        autosaveSignature.current = signature;
+        if (!draft.id && body.id) setDraft((current) => current?.dayId === draft.dayId ? { ...current, id: body.id } : current);
+      } catch (value) {
+        setError(value instanceof Error ? value.message : "No se pudo guardar automáticamente.");
+      }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [data.profile.id, draft, started]);
   async function save(finalize = false) {
     if (!draft) return;
     setSaving(true); setSavingAction(finalize ? "final" : "draft"); setError(""); setMessage("");
     try {
-      const payload = { ...draft, status: finalize ? "finalizado" as const : "en_progreso" as const };
+      const duration = finalize ? calculatedDuration(draft) : draft.durationMinutes;
+      const finalComment = finalize && sensation ? `Sensación general: ${sensation}${draft.finalComment.trim() ? `\n${draft.finalComment.trim()}` : ""}` : draft.finalComment;
+      const painDetails = finalize && draft.hasPain
+        ? [`Zona: ${painLocation.trim() || "sin especificar"}`, painIntensity ? `Intensidad: ${painIntensity}/10` : "", draft.painDetails.trim()].filter(Boolean).join(" · ")
+        : draft.painDetails;
+      const payload = { ...draft, durationMinutes: duration, finalComment, painDetails, status: finalize ? "finalizado" as const : "en_progreso" as const };
       const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const body = await response.json() as { id?: string; error?: string };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
       const updated = { ...payload, id: body.id }; setDraft(updated);
-      if (finalize) window.localStorage.removeItem(`bm-workout-${data.profile.id}-${draft.dayId}`);
+      if (finalize) { window.localStorage.removeItem(`bm-workout-${data.profile.id}-${draft.dayId}`); setFinalOpen(false); }
       setMessage(finalize ? "Entrenamiento finalizado." : "Progreso guardado.");
     } catch (value) { setError(value instanceof Error ? value.message : "No se pudo guardar."); }
     finally { setSaving(false); setSavingAction(null); }
   }
-  function setExercise(index: number, value: PortalWorkoutSession["exercises"][number]) { if (!draft) return; const exercises = [...draft.exercises]; exercises[index] = value; setDraft({ ...draft, exercises }); }
-  if (!routine || !selectedDay) return <PageHeader title="Registrar entrenamiento" subtitle="Tu sesión de hoy"><Notice>No tenés ejercicios asignados en una rutina activa.</Notice></PageHeader>;
-  return <PageHeader title="Entrenamiento de hoy" subtitle={`${routine.name} · Día ${selectedDay.dayNumber} — ${selectedDay.name}`}>
+  function calculatedDuration(session: PortalWorkoutSession) {
+    const [hours, minutes] = session.startTime.split(":").map(Number);
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return session.durationMinutes;
+    const nowParts = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()).split(":").map(Number);
+    const elapsed = nowParts[0] * 60 + nowParts[1] - (hours * 60 + minutes);
+    return Math.min(1440, Math.max(1, elapsed >= 0 ? elapsed : elapsed + 1440));
+  }
+  function openFinalSummary() {
+    if (!draft || !started) return;
+    setDraft({ ...draft, durationMinutes: calculatedDuration(draft) });
+    setAllowIncomplete(false);
+    setFinalOpen(true);
+  }
+  if (!routine || !selectedDay) return <PageHeader title="Mi rutina" subtitle="Tu planificación activa"><Notice>Todavía no tenés una rutina activa.</Notice></PageHeader>;
+  const totalSets = draft?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
+  const completedTotal = draft?.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).length, 0) ?? 0;
+  const incomplete = completedTotal < totalSets;
+  return <PageHeader title={routine.name} subtitle={`Día ${selectedDay.dayNumber} — ${selectedDay.name}`}>
     <div className="mb-2 flex gap-2 overflow-x-auto">{trainingDays.map((day) => <button key={day.id} onClick={() => chooseDay(day.id)} className={`shrink-0 rounded-xl px-4 py-3 text-left font-bold ${day.id === selectedDayId ? "bg-yellow-400 text-zinc-950" : "bg-zinc-900 text-zinc-300"}`}>Día {day.dayNumber}<span className="block text-xs font-normal opacity-70">{day.name}</span></button>)}</div>
-    <p className="mb-5 text-xs text-zinc-500">{selectedDay.id === suggestedDayId ? "Siguiente día sugerido según tu última sesión." : "Elegiste este día manualmente."}{selectedDay.estimatedMinutes ? ` · Duración estimada: ${selectedDay.estimatedMinutes} minutos.` : ""}</p>
-    {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && <button onClick={() => chooseDay(selectedDayId)} className="mb-5 w-full rounded-2xl bg-yellow-400 p-4 font-bold text-zinc-950">Comenzar entrenamiento</button>}
-    {draft && <><section className="grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:grid-cols-3"><Field label="Fecha"><input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} className={portalInput} /></Field><Field label="Hora de inicio"><input type="time" value={draft.startTime} onChange={(event) => setDraft({ ...draft, startTime: event.target.value })} className={portalInput} /></Field><Field label="Duración (min)"><input type="number" min="1" value={draft.durationMinutes ?? ""} onChange={(event) => setDraft({ ...draft, durationMinutes: event.target.value ? Number(event.target.value) : null })} className={portalInput} /></Field><Rating label="Energía antes" value={draft.energyBefore} set={(value) => setDraft({ ...draft, energyBefore: value })} /><Rating label="Dificultad" value={draft.difficulty} set={(value) => setDraft({ ...draft, difficulty: value })} /><Rating label="Energía después" value={draft.energyAfter} set={(value) => setDraft({ ...draft, energyAfter: value })} /></section>
+    <section className="mb-5 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold text-yellow-300">{selectedDay.objective || routine.objective}</p><p className="mt-1 text-xs text-zinc-500">{selectedDay.exercises.length} ejercicios{selectedDay.estimatedMinutes ? ` · ${selectedDay.estimatedMinutes} min estimados` : ""} · {selectedDay.id === suggestedDayId ? "Día sugerido" : "Día elegido manualmente"}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${completedTotal === totalSets && totalSets ? "bg-emerald-400/10 text-emerald-300" : started ? "bg-yellow-400/10 text-yellow-300" : "bg-zinc-800 text-zinc-400"}`}>{completedTotal === totalSets && totalSets ? "Completado" : started ? "En progreso" : "Sin comenzar"}</span></div>{draft && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-yellow-400" style={{ width: `${totalSets ? completedTotal / totalSets * 100 : 0}%` }} /></div>}</section>
+    {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-zinc-500">Preparando ejercicios…</p>}
+    {draft && <>
       <div className="mt-5 space-y-4">{draft.exercises.map((exercise, exerciseIndex) => {
         const programmed = selectedDay.exercises.find((item) => item.id === exercise.exerciseId);
         const completedSets = exercise.sets.filter((set) => set.completed).length;
-        return <article key={exercise.exerciseId} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-yellow-400">Ejercicio {exerciseIndex + 1} de {draft.exercises.length}</p><h2 className="mt-1 text-lg font-bold">{exercise.exerciseName}</h2></div>{exercise.previous && <span className="rounded-lg bg-zinc-950 p-2 text-right text-[10px] text-zinc-400">Última: {exercise.previous.weight ?? "—"} kg · {exercise.previous.repetitions ?? "—"} reps<br />{date(exercise.previous.date)}</span>}</div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-yellow-400 transition-[width]" style={{ width: `${exercise.sets.length ? completedSets / exercise.sets.length * 100 : 0}%` }} /></div>{programmed && <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-400"><span>{programmed.sets} series</span><span>· {programmed.repetitions} reps</span>{programmed.effortValue !== null && <span>· {programmed.effortType} {programmed.effortValue}</span>}{programmed.restSeconds !== null && <span>· descanso {programmed.restSeconds}s</span>}</div>}{programmed?.videoUrl && <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-yellow-400">Ver video demostrativo</summary><a href={programmed.videoUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block underline">Abrir video</a></details>}{programmed?.observations && <details className="mt-3 text-sm text-zinc-400"><summary className="cursor-pointer font-semibold text-yellow-400">Indicaciones técnicas</summary><p className="mt-2">{programmed.observations}</p></details>}<div className="mt-4 space-y-3">{exercise.sets.map((set, setIndex) => <div key={set.setNumber} className="grid grid-cols-[auto_1fr_1fr_1fr] items-end gap-2 rounded-xl bg-zinc-950 p-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-yellow-400/10 font-bold text-yellow-300">{set.setNumber}</span><Field label="Kg"><input inputMode="decimal" type="number" min="0" step=".5" value={set.weight ?? ""} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, weight: event.target.value ? Number(event.target.value) : null }; setExercise(exerciseIndex, { ...exercise, sets }); }} className={portalInput} /></Field><Field label="Reps"><input inputMode="numeric" type="number" min="0" value={set.repetitions ?? ""} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, repetitions: event.target.value ? Number(event.target.value) : null }; setExercise(exerciseIndex, { ...exercise, sets }); }} className={portalInput} /></Field><Field label="RIR/RPE"><input inputMode="decimal" type="number" min="0" max="10" step=".5" value={set.effort ?? ""} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, effort: event.target.value ? Number(event.target.value) : null }; setExercise(exerciseIndex, { ...exercise, sets }); }} className={portalInput} /></Field><label className="col-span-4 flex items-center gap-3 text-sm"><input type="checkbox" checked={set.completed} onChange={(event) => { const sets = [...exercise.sets]; sets[setIndex] = { ...set, completed: event.target.checked }; setExercise(exerciseIndex, { ...exercise, sets }); }} className="h-5 w-5 accent-yellow-400" /> Serie completada</label></div>)}</div>{exercise.history.length > 0 && <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-yellow-400">Ver historial ({exercise.history.length})</summary><div className="mt-2 grid gap-2 sm:grid-cols-2">{exercise.history.map((item, index) => <p key={`${item.date}-${index}`} className="rounded-lg bg-zinc-950 p-2 text-xs text-zinc-400">{date(item.date)} · {item.weight ?? "—"} kg · {item.repetitions ?? "—"} reps · esfuerzo {item.effort ?? "—"}</p>)}</div></details>}</article>;
+        return <article key={exercise.exerciseId} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+          <div className="flex items-start justify-between gap-3"><div><p className="text-xs text-yellow-400">Ejercicio {exerciseIndex + 1} de {draft.exercises.length}</p><h2 className="mt-1 text-lg font-bold">{exercise.exerciseName}</h2>{programmed?.muscleGroup && <p className="text-xs text-zinc-500">{programmed.muscleGroup}</p>}</div>{exercise.previous ? <span className="rounded-lg bg-zinc-950 p-2 text-right text-[10px] text-zinc-400">Última: {exercise.previous.weight ?? "—"} kg × {exercise.previous.repetitions ?? "—"} reps<br />{date(exercise.previous.date)}</span> : <span className="text-[10px] text-zinc-600">Sin registros anteriores</span>}</div>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-yellow-400 transition-[width]" style={{ width: `${exercise.sets.length ? completedSets / exercise.sets.length * 100 : 0}%` }} /></div>
+          {programmed && <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-400"><span>{programmed.sets} series</span><span>· {programmed.repetitions} reps</span>{programmed.effortValue !== null && <span>· {programmed.effortType} {programmed.effortValue}</span>}{programmed.restSeconds !== null && <span>· descanso {programmed.restSeconds}s</span>}{programmed.weight !== null && <span>· peso inicial {programmed.weight} kg</span>}</div>}
+          <div className="mt-3 flex flex-wrap gap-2">{programmed?.videoUrl && <a href={programmed.videoUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm font-semibold text-yellow-300">Ver video</a>}{programmed?.observations && <details className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400"><summary className="cursor-pointer font-semibold text-yellow-400">Indicaciones técnicas</summary><p className="mt-2 max-w-xl">{programmed.observations}</p></details>}</div>
+          <div className="mt-4 space-y-3">{exercise.sets.map((set, setIndex) => <div key={set.setNumber} className="grid grid-cols-[auto_1fr_1fr_1fr] items-end gap-2 rounded-xl bg-zinc-950 p-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-yellow-400/10 font-bold text-yellow-300">{set.setNumber}</span><Field label="Kg"><input inputMode="decimal" type="number" min="0" step=".25" value={set.weight ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { weight: event.target.value ? Number(event.target.value) : null })} className={portalInput} /></Field><Field label="Reps"><input inputMode="numeric" type="number" min="0" value={set.repetitions ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { repetitions: event.target.value ? Number(event.target.value) : null })} className={portalInput} /></Field><Field label="RIR"><input inputMode="decimal" type="number" min="0" max="10" step=".5" value={set.effort ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { effort: event.target.value ? Number(event.target.value) : null })} className={portalInput} /></Field><label className="col-span-4 flex items-center gap-3 text-sm"><input type="checkbox" checked={set.completed} onChange={(event) => updateSet(exerciseIndex, setIndex, { completed: event.target.checked })} className="h-5 w-5 accent-yellow-400" /> Serie completada</label></div>)}</div>
+          {exercise.history.length > 0 && <details className="mt-4"><summary className="cursor-pointer text-sm font-semibold text-yellow-400">Ver historial ({exercise.history.length})</summary><div className="mt-2 grid gap-2 sm:grid-cols-2">{exercise.history.map((item, index) => <p key={`${item.date}-${index}`} className="rounded-lg bg-zinc-950 p-2 text-xs text-zinc-400">{date(item.date)} · {item.weight ?? "—"} kg · {item.repetitions ?? "—"} reps · esfuerzo {item.effort ?? "—"}</p>)}</div></details>}
+        </article>;
       })}</div>
-      <section className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><label className="flex items-center gap-3 font-semibold text-red-200"><input type="checkbox" checked={draft.hasPain} onChange={(event) => setDraft({ ...draft, hasPain: event.target.checked })} className="h-5 w-5 accent-red-400" /> Tuve dolor o molestias</label>{draft.hasPain && <textarea required value={draft.painDetails} onChange={(event) => setDraft({ ...draft, painDetails: event.target.value })} placeholder="¿Dónde y cuándo apareció?" rows={2} className={`${portalInput} mt-3`} />}<textarea value={draft.finalComment} onChange={(event) => setDraft({ ...draft, finalComment: event.target.value })} placeholder="Comentario final (opcional)" rows={3} className={`${portalInput} mt-3`} /></section><div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-zinc-800 pt-4"><button disabled={saving} onClick={() => save(false)} className="min-h-11 rounded-xl border border-yellow-400/50 px-4 py-2.5 text-sm font-bold text-yellow-300 disabled:opacity-50">{savingAction === "draft" ? "Guardando…" : "Guardar progreso"}</button><button disabled={saving} onClick={() => save(true)} className="min-h-11 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950 disabled:opacity-50">{savingAction === "final" ? "Finalizando…" : "Finalizar entrenamiento"}</button></div></>}
+      <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-zinc-800 pt-4"><button disabled={saving || !started} onClick={() => save(false)} className="min-h-11 rounded-xl border border-yellow-400/50 px-4 py-2.5 text-sm font-bold text-yellow-300 disabled:opacity-50">{savingAction === "draft" ? "Guardando…" : "Guardar progreso"}</button><button disabled={saving || !started} onClick={openFinalSummary} className="min-h-11 rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950 disabled:opacity-50">Finalizar entrenamiento</button></div>
+      {finalOpen && <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget && !saving) setFinalOpen(false); }} className="fixed inset-0 z-[80] flex items-end bg-black/80 sm:items-center sm:justify-center sm:p-4"><section role="dialog" aria-modal="true" aria-labelledby="workout-summary-title" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-zinc-700 bg-zinc-900 p-5 sm:max-w-xl sm:rounded-2xl"><div className="flex items-start justify-between gap-3"><div><h2 id="workout-summary-title" className="text-xl font-bold">Finalizar entrenamiento</h2><p className="mt-1 text-sm text-zinc-400">{completedTotal} de {totalSets} series · {draft.durationMinutes ?? calculatedDuration(draft)} min</p></div><button onClick={() => setFinalOpen(false)} className="rounded-lg px-3 py-2 text-sm text-zinc-400">Cerrar</button></div>
+        {incomplete && !allowIncomplete ? <div className="mt-5 rounded-xl border border-orange-400/40 bg-orange-400/10 p-4"><p className="font-semibold text-orange-200">Todavía quedan ejercicios o series sin completar.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => setFinalOpen(false)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm">Continuar entrenando</button><button onClick={() => { save(false); setFinalOpen(false); }} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300">Guardar para continuar después</button><button onClick={() => setAllowIncomplete(true)} className="rounded-lg bg-orange-300 px-3 py-2 text-sm font-bold text-zinc-950">Finalizar igualmente</button></div></div> : <div className="mt-5 space-y-4"><div className="grid gap-3 sm:grid-cols-2"><Rating label="Energía antes (opcional)" value={draft.energyBefore} set={(value) => setDraft({ ...draft, energyBefore: value })} /><Rating label="Energía después" value={draft.energyAfter} set={(value) => setDraft({ ...draft, energyAfter: value })} /><Rating label="Dificultad percibida" value={draft.difficulty} set={(value) => setDraft({ ...draft, difficulty: value })} /></div><Field label="Sensación general"><select value={sensation} onChange={(event) => setSensation(event.target.value)} className={`${portalInput} mt-1`}><option value="">Seleccionar</option><option>Muy buena</option><option>Buena</option><option>Normal</option><option>Difícil</option><option>Muy difícil</option></select></Field><Field label="Duración calculada (min)"><input type="number" min="1" max="1440" value={draft.durationMinutes ?? calculatedDuration(draft) ?? ""} onChange={(event) => setDraft({ ...draft, durationMinutes: event.target.value ? Number(event.target.value) : null })} className={`${portalInput} mt-1`} /></Field><label className="flex items-center gap-3 font-semibold text-red-200"><input type="checkbox" checked={draft.hasPain} onChange={(event) => setDraft({ ...draft, hasPain: event.target.checked })} className="h-5 w-5 accent-red-400" /> Dolor o molestias</label>{draft.hasPain && <div className="grid gap-3 sm:grid-cols-2"><Field label="Zona"><input value={painLocation} onChange={(event) => setPainLocation(event.target.value)} className={`${portalInput} mt-1`} /></Field><Field label="Intensidad (1 a 10)"><input type="number" min="1" max="10" value={painIntensity ?? ""} onChange={(event) => setPainIntensity(event.target.value ? Number(event.target.value) : null)} className={`${portalInput} mt-1`} /></Field><Field label="Comentario"><textarea value={draft.painDetails} onChange={(event) => setDraft({ ...draft, painDetails: event.target.value })} rows={2} className={`${portalInput} mt-1 sm:col-span-2`} /></Field></div>}<Field label="Comentario final (opcional)"><textarea value={draft.finalComment} onChange={(event) => setDraft({ ...draft, finalComment: event.target.value })} rows={3} className={`${portalInput} mt-1`} /></Field><button disabled={saving || draft.energyAfter === null || draft.difficulty === null || !sensation || (draft.hasPain && (!painLocation.trim() || painIntensity === null))} onClick={() => save(true)} className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:opacity-50">{savingAction === "final" ? "Finalizando…" : "Confirmar y finalizar"}</button></div>}
+      </section></div>}</>}
   </PageHeader>;
 }
 
