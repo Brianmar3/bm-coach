@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { StudentAccessControls } from "@/componentes/student-access-controls";
 import { StudentAttendanceSummaryCard } from "@/componentes/student-attendance-summary";
@@ -163,15 +164,29 @@ export default function AlumnosPage() {
     {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
     <div className="mb-3"><label className="text-xs text-zinc-500">Filtrar por horario<select value={scheduleFilter} onChange={(event) => setScheduleFilter(event.target.value)} className={`${inputClass} mt-1 w-full sm:max-w-sm`}><option value="todos">Todos los horarios</option><option value="sin-horario">Sin horario</option><option value="flexible">Horario flexible</option>{options.schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{schedule.label}</option>)}</select></label></div>
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900"><div className="grid gap-3 border-b border-zinc-800 p-4 md:grid-cols-3"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, apellido o teléfono" className={inputClass}/><select value={status} onChange={(event) => setStatus(event.target.value)} className={inputClass}><option value="todos">Todos los estados</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select><select value={plan} onChange={(event) => setPlan(event.target.value)} className={inputClass}><option value="todos">Todos los planes</option>{plans.map((item) => <option key={item}>{item}</option>)}</select></div><div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-4">Alumno</th><th>Plan</th><th>Horario principal</th><th>Contacto</th><th>Vencimiento</th><th>Estado</th><th aria-label="Acciones"/></tr></thead><tbody>{!ready ? <tr><td colSpan={7} className="p-12 text-center text-zinc-500">Cargando alumnos…</td></tr> : visible.length === 0 ? <tr><td colSpan={7} className="p-12 text-center text-zinc-500">Todavía no hay alumnos. Creá la primera ficha para empezar.</td></tr> : visible.map((item) => <tr key={item.id} className="border-t border-zinc-800"><td className="p-4 font-medium">{item.firstName} {item.lastName}<span className="block text-xs font-normal text-zinc-500">IMC {bmi(item.weight, item.height)} · {age(item.birthDate)} años</span></td><td>{item.plan}<span className="block text-xs text-zinc-500">{money(item.monthlyFee)}</span></td><td className="max-w-56 text-xs text-zinc-400">{item.scheduleLabel ?? "Sin horario principal"}</td><td>{item.phone}<span className="block text-xs text-zinc-500">{item.email || "Sin correo"}</span></td><td>{showDate(item.dueDate)}</td><td><span className={`rounded-full px-2 py-1 text-xs font-bold capitalize ${item.status === "activo" ? "bg-emerald-400/15 text-emerald-300" : "bg-zinc-700 text-zinc-300"}`}>{item.status}</span></td><td className="space-x-3 whitespace-nowrap pr-4 text-yellow-400"><button onClick={() => setViewing(item)}>Ver ficha</button><button onClick={() => begin(item)}>Editar</button><button onClick={() => remove(item)} className="text-red-300">Eliminar</button></td></tr>)}</tbody></table></div></section>
-    {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><EnrollmentDatesEditor form={form} setForm={setForm}/><ScheduleMultiPicker form={form} setForm={setForm} schedules={options.schedules}/></>}
+    {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
     {viewing && <StudentDetail item={viewing} close={() => setViewing(null)} edit={() => begin(viewing)}/>}
   </ModuleShell>;
+}
+
+function StudentFormSections({ form, setForm, schedules }: { form: StudentFormValue; setForm: (form: StudentFormValue) => void; schedules: EnrollmentSchedule[] }) {
+    const [target, setTarget] = useState<Element | null>(null);
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => {
+            const formElement = document.querySelector<HTMLFormElement>(".fixed.inset-0 form.max-w-3xl");
+            setTarget(formElement?.children.item(1) ?? null);
+        });
+        return () => cancelAnimationFrame(frame);
+    }, []);
+    if (!target)
+        return null;
+    return createPortal(<section className="mt-5 border-t border-zinc-800 pt-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Secciones de la ficha</p><div className="grid grid-cols-2 gap-2 sm:flex"><EnrollmentDatesEditor form={form} setForm={setForm}/><ScheduleMultiPicker form={form} setForm={setForm} schedules={schedules}/></div></section>, target);
 }
 
 function EnrollmentDatesEditor({ form, setForm }: { form: StudentFormValue; setForm: (form: StudentFormValue) => void }) {
     const [open, setOpen] = useState(false);
     return <>
-      <button type="button" onClick={() => setOpen(true)} className="fixed bottom-20 left-3 z-[60] rounded-full border border-yellow-400/40 bg-zinc-900 px-4 py-3 text-sm font-bold text-yellow-300 shadow-2xl">Fechas</button>
+      <button type="button" onClick={() => setOpen(true)} aria-expanded={open} className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold sm:w-auto ${open ? "border-yellow-400 bg-yellow-400 text-zinc-950" : "border-zinc-700 bg-zinc-950 text-zinc-300"}`}>Fechas</button>
       {open && <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }} className="fixed inset-0 z-[70] flex items-end bg-black/75 sm:items-center sm:justify-center sm:p-4">
         <section role="dialog" aria-modal="true" aria-labelledby="student-dates-title" className="w-full rounded-t-3xl border border-zinc-700 bg-zinc-900 p-4 text-white sm:max-w-md sm:rounded-2xl">
           <div className="flex items-start justify-between gap-3"><div><h3 id="student-dates-title" className="font-bold">Ingreso y vencimiento</h3><p className="mt-1 text-xs text-zinc-500">Son datos independientes.</p></div><button type="button" onClick={() => setOpen(false)} className="text-sm text-zinc-400">Cerrar</button></div>
@@ -200,8 +215,8 @@ function ScheduleMultiPicker({ form, setForm, schedules }: { form: StudentFormVa
         const scheduleIds = form.scheduleIds.includes(id) ? form.scheduleIds.filter((item) => item !== id) : [...form.scheduleIds, id];
         setForm({ ...form, scheduleIds, scheduleId: scheduleIds[0] ?? "" });
     }
-    return <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] right-4 z-[65]">
-      <button type="button" onClick={() => setOpen(true)} className="rounded-full bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 shadow-2xl">Horarios ({form.scheduleIds.length})</button>
+    return <div className="min-w-0">
+      <button type="button" onClick={() => setOpen(true)} aria-expanded={open} className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold sm:w-auto ${open ? "border-yellow-400 bg-yellow-400 text-zinc-950" : "border-zinc-700 bg-zinc-950 text-zinc-300"}`}>Horarios ({form.scheduleIds.length})</button>
       {open && <div className="fixed inset-0 z-[70] flex items-end bg-black/75 sm:items-center sm:justify-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget)
                 setOpen(false); }}>
         <section className="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-zinc-800 bg-zinc-900 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-w-lg sm:rounded-2xl">
