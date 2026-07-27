@@ -40,6 +40,8 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
       id: log.id,
       status: log.status,
       notes: log.notes,
+      createdAt: log.createdAt.toISOString(),
+      updatedAt: log.updatedAt.toISOString(),
       exercises: log.exercises.map((exercise) => ({
         exerciseName: exercise.exerciseNameSnapshot,
         order: exercise.order,
@@ -48,6 +50,7 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
           setNumber: set.setNumber,
           weight: set.weight === null ? null : Number(set.weight),
           repetitions: set.repetitions,
+          effort: set.effort === null ? null : Number(set.effort),
           unit: set.unit,
           notes: set.notes,
         })),
@@ -105,11 +108,14 @@ export async function GET(request: Request) {
         actualAttendance: log.occurrence.responses[0]?.actualAttendance ?? "UNKNOWN",
         strengthBlockName: log.occurrence.strengthBlock?.name ?? "",
         notes: log.notes,
+        status: log.status,
+        createdAt: log.createdAt.toISOString(),
+        updatedAt: log.updatedAt.toISOString(),
         exercises: log.exercises.map((exercise) => ({
           exerciseName: exercise.exerciseNameSnapshot,
           order: exercise.order,
           notes: exercise.notes,
-          sets: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight === null ? null : Number(set.weight), repetitions: set.repetitions, unit: set.unit, notes: set.notes })),
+          sets: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight === null ? null : Number(set.weight), repetitions: set.repetitions, effort: set.effort === null ? null : Number(set.effort), unit: set.unit, notes: set.notes })),
         })),
       })),
     });

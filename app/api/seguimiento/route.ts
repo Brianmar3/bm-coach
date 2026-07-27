@@ -98,16 +98,20 @@ export async function GET(request: Request) {
       routines,
       classSessions: classSessions.map((session) => ({
         id: session.id,
+        occurrenceId: session.occurrenceId,
         studentId: session.studentId,
         studentName: name(session.student.data),
         className: session.classNameSnapshot,
         date: session.classDateSnapshot.toISOString().slice(0, 10),
         status: session.status,
         notes: session.notes,
+        createdAt: session.createdAt.toISOString(),
+        updatedAt: session.updatedAt.toISOString(),
         exercises: session.exercises.map((exercise) => ({
           name: exercise.exerciseNameSnapshot,
+          order: exercise.order,
           notes: exercise.notes,
-          sets: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: decimal(set.weight), repetitions: set.repetitions, unit: set.unit })),
+          sets: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: decimal(set.weight), repetitions: set.repetitions, effort: decimal(set.effort), unit: set.unit, notes: set.notes })),
         })),
       })),
       studentsWithoutTraining: students.filter((item) => (item.data as unknown as Student).status !== "inactivo" && !trained.has(item.id)).map((item) => ({ id: item.id, name: name(item.data) })).slice(0, 20),
@@ -137,10 +141,64 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+    const input = await request.json() as {
+      classWorkoutLogId?: unknown;
+      status?: unknown;
+      notes?: unknown;
+      exercises?: Array<{ exerciseName?: unknown; order?: unknown; notes?: unknown; sets?: Array<{ setNumber?: unknown; weight?: unknown; repetitions?: unknown; effort?: unknown; notes?: unknown }> }>;
+    };
+    if (typeof input.classWorkoutLogId !== "string" || !["DRAFT", "COMPLETED"].includes(String(input.status)) || !Array.isArray(input.exercises) || input.exercises.length > 30) {
+      return Response.json({ error: "El bloque seleccionado no es válido." }, { status: 400 });
+    }
+    const exercises = input.exercises.map((exercise, index) => {
+      const exerciseName = typeof exercise.exerciseName === "string" ? exercise.exerciseName.trim() : "";
+      const order = Number(exercise.order ?? index + 1);
+      if (!exerciseName || exerciseName.length > 120 || !Number.isInteger(order) || order < 1 || !Array.isArray(exercise.sets) || exercise.sets.length > 20) throw new Error("INVALID_CLASS_LOG");
+      return {
+        exerciseNameSnapshot: exerciseName,
+        order,
+        notes: typeof exercise.notes === "string" ? exercise.notes.trim().slice(0, 1000) : "",
+        sets: exercise.sets.map((set, setIndex) => {
+          const setNumber = Number(set.setNumber ?? setIndex + 1);
+          const weight = set.weight === null || set.weight === "" ? null : Number(set.weight);
+          const repetitions = set.repetitions === null || set.repetitions === "" ? null : Number(set.repetitions);
+          const effort = set.effort === null || set.effort === "" ? null : Number(set.effort);
+          if (!Number.isInteger(setNumber) || setNumber < 1 || (weight !== null && (!Number.isFinite(weight) || weight < 0)) || (repetitions !== null && (!Number.isInteger(repetitions) || repetitions < 0)) || (effort !== null && (!Number.isFinite(effort) || effort < 0 || effort > 10))) throw new Error("INVALID_CLASS_LOG");
+          return { setNumber, weight, repetitions, effort, unit: "kg", notes: typeof set.notes === "string" ? set.notes.trim().slice(0, 500) : "" };
+        }),
+      };
+    });
+    const existing = await prisma.classWorkoutLog.findUnique({ where: { id: input.classWorkoutLogId }, select: { id: true } });
+    if (!existing) return Response.json({ error: "No se encontró el bloque." }, { status: 404 });
+    await prisma.$transaction(async (transaction) => {
+      await transaction.classWorkoutLog.update({
+        where: { id: existing.id },
+        data: { status: input.status === "COMPLETED" ? "COMPLETED" : "DRAFT", notes: typeof input.notes === "string" ? input.notes.trim().slice(0, 2000) : "", completedAt: input.status === "COMPLETED" ? new Date() : null },
+      });
+      await transaction.classExerciseLog.deleteMany({ where: { classWorkoutLogId: existing.id } });
+      for (const exercise of exercises) await transaction.classExerciseLog.create({ data: { ...exercise, classWorkoutLogId: existing.id, sets: { create: exercise.sets } } });
+    });
+    return Response.json({ message: "Bloque de fuerza actualizado correctamente." });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INVALID_CLASS_LOG") return Response.json({ error: "Revisá ejercicios, series, pesos, repeticiones y RIR." }, { status: 400 });
+    console.error("Error al editar bloque de fuerza presencial", error);
+    return Response.json({ error: "No se pudo guardar. Tus cambios permanecen en pantalla." }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
-    const input = await request.json().catch(() => null) as { sessionId?: string; studentId?: string; routineId?: string; deleteAll?: boolean } | null;
+    const input = await request.json().catch(() => null) as { sessionId?: string; classWorkoutLogId?: string; studentId?: string; routineId?: string; deleteAll?: boolean } | null;
+    if (input?.classWorkoutLogId?.trim()) {
+      const existing = await prisma.classWorkoutLog.findUnique({ where: { id: input.classWorkoutLogId }, select: { id: true } });
+      if (!existing) return Response.json({ error: "No se encontró el bloque." }, { status: 404 });
+      await prisma.$transaction((transaction) => transaction.classWorkoutLog.delete({ where: { id: existing.id } }));
+      return Response.json({ message: "Bloque eliminado correctamente.", deleted: 1 });
+    }
     if (input?.deleteAll) {
       if (!input.studentId?.trim() || !input.routineId?.trim()) return Response.json({ error: "Alumno y rutina son obligatorios." }, { status: 400 });
       const result = await prisma.$transaction(async (transaction) => {

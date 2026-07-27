@@ -56,10 +56,13 @@ export type AdminFollowUpData = {
     studentId: string;
     studentName: string;
     className: string;
+    occurrenceId: string;
     date: string;
     status: "DRAFT" | "COMPLETED";
     notes: string;
-    exercises: Array<{ name: string; notes: string; sets: Array<{ setNumber: number; weight: number | null; repetitions: number | null; unit: string }> }>;
+    createdAt: string;
+    updatedAt: string;
+    exercises: Array<{ name: string; order: number; notes: string; sets: Array<{ setNumber: number; weight: number | null; repetitions: number | null; effort: number | null; unit: string; notes: string }> }>;
   }>;
   routines: Array<{ id: string; name: string }>;
   studentsWithoutTraining: Array<{ id: string; name: string }>;

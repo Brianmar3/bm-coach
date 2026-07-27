@@ -626,6 +626,7 @@ model ClassSetLog {
   setNumber          Int
   weight             Decimal?         @db.Decimal(7, 2)
   repetitions        Int?
+  effort             Decimal?         @db.Decimal(4, 1)
   unit               String           @default("kg")
   notes              String           @default("")
   exerciseLog        ClassExerciseLog @relation(fields: [classExerciseLogId], references: [id], onDelete: Cascade)

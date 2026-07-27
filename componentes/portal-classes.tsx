@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ClassStrengthLogEditor, type ClassStrengthEditorValue } from "@/componentes/class-strength-log-editor";
 import type { ClassStrengthExerciseLog, PortalClassOccurrence } from "@/types/classes";
 
 type ClassHistory = {
   id: string;
+  occurrenceId: string;
   date: string;
   name: string;
   startTime: string;
@@ -13,8 +15,12 @@ type ClassHistory = {
   actualAttendance: "UNKNOWN" | "PRESENT" | "ABSENT" | "CANCELLED";
   strengthBlockName: string;
   notes: string;
+  status: "DRAFT" | "COMPLETED";
+  createdAt: string;
+  updatedAt: string;
   exercises: ClassStrengthExerciseLog[];
 };
+type EditingStrength = { occurrenceId: string; title: string; value: ClassStrengthEditorValue };
 type ClassData = {
   occurrences: PortalClassOccurrence[];
   history: ClassHistory[];
@@ -62,7 +68,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState("");
-  const [editing, setEditing] = useState<PortalClassOccurrence | null>(null);
+  const [editing, setEditing] = useState<EditingStrength | null>(null);
   const [showWeek, setShowWeek] = useState(false);
   const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
@@ -97,6 +103,43 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     } catch (value) { setError(value instanceof Error ? value.message : "No se pudo guardar."); } finally { setSavingId(""); }
   }
 
+  function editOccurrence(item: PortalClassOccurrence) {
+    const exercises = item.workoutLog?.exercises ?? item.strengthBlock?.exercises.map((exercise) => ({
+      exerciseName: exercise.exerciseName,
+      order: exercise.order,
+      notes: "",
+      sets: Array.from({ length: exercise.suggestedSets }, (_, index) => ({ setNumber: index + 1, weight: null, repetitions: null, effort: null, unit: "kg", notes: "" })),
+    })) ?? [];
+    setEditing({ occurrenceId: item.id, title: item.name, value: { id: item.workoutLog?.id, notes: item.workoutLog?.notes ?? "", exercises } });
+  }
+
+  function editHistory(log: ClassHistory) {
+    setEditing({ occurrenceId: log.occurrenceId, title: log.name, value: { id: log.id, notes: log.notes, exercises: log.exercises } });
+  }
+
+  async function deleteHistory(log: ClassHistory) {
+    if (!window.confirm("¿Eliminar este bloque de fuerza? Esta acción no se puede deshacer.")) return;
+    setSavingId(log.id); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/portal/clases/fuerza", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logId: log.id }) });
+      const body = await response.json() as { error?: string; message?: string };
+      if (!response.ok) throw new Error(body.error ?? "No se pudo eliminar. Intentá nuevamente.");
+      setNotice(body.message ?? "Bloque eliminado correctamente.");
+      await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo eliminar. Intentá nuevamente."); }
+    finally { setSavingId(""); }
+  }
+
+  async function saveStrength(status: "DRAFT" | "COMPLETED", value: ClassStrengthEditorValue) {
+    if (!editing) return;
+    const response = await fetch("/api/portal/clases/fuerza", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logId: value.id, occurrenceId: editing.occurrenceId, status, notes: value.notes, exercises: value.exercises }) });
+    const body = await response.json() as { error?: string; message?: string };
+    if (!response.ok) throw new Error(body.error ?? "No se pudo guardar. Tus cambios permanecen en pantalla.");
+    setNotice(body.message ?? "Registro guardado.");
+    setEditing(null);
+    await load();
+  }
+
   const today = argentinaToday();
   const todayItems = useMemo(() => (data?.occurrences ?? [])
     .filter((item) => item.date === today)
@@ -125,9 +168,9 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm text-yellow-400">Agenda presencial</p><h1 className="mt-1 text-2xl font-bold">{showWeek ? "Semana completa" : "Clases de hoy"}</h1><p className="mt-2 text-sm text-zinc-500">Confirmá tu lugar y registrá el bloque de fuerza después de la clase.</p></div><button onClick={() => setShowWeek((value) => !value)} className="self-start rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:border-yellow-400/50 hover:text-yellow-300 sm:self-auto">{showWeek ? "Ver solo hoy" : "Ver semana completa"}</button></header>
     <Feedback error={error} notice={notice} />
     {!showWeek && todayItems.length === 0 && <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Hoy no hay clases programadas.</p>}
-    <div className="mt-6 space-y-5">{grouped.map(([date, items]) => <section key={date}><h2 className="mb-3 capitalize font-bold text-yellow-300">{dateLabel(date)}</h2><div className="grid gap-3 sm:grid-cols-2">{items.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{item.name}</h3><p className="mt-1 text-sm text-zinc-400">{item.startTime}–{item.endTime} · {item.category}</p></div><span className="rounded-full bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{item.statusLabel}</span></div><p className="mt-3 text-xs text-zinc-500">{item.confirmedCount} confirmados{item.capacity === null ? "" : ` · cupo ${item.capacity}`}</p>{item.canRespond && <ResponseButtons item={item} saving={savingId === item.id} respond={respond} />}{item.strengthAvailable && <button onClick={() => setEditing(item)} className="mt-3 w-full rounded-xl border border-yellow-400/40 p-3 font-bold text-yellow-300">Registrar bloque de fuerza</button>}</article>)}</div></section>)}</div>
-    <section id="historial-clases" className="mt-8 scroll-mt-24"><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Historial de clases</h2>{data?.history.length ? <div className="mt-4 space-y-3">{data.history.map((log, logIndex) => <details key={log.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer list-none"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{log.name}</p><p className="mt-1 text-xs text-zinc-400">{dateLabel(log.date)} · {log.startTime} · {attendanceLabel(log)}</p><p className="mt-2 text-xs text-zinc-500">{log.strengthBlockName || "Bloque de fuerza registrado"} · {log.exercises.length} ejercicios</p></div><span className="text-sm font-bold text-yellow-400">Ver detalle</span></div></summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{log.exercises.map((exercise) => { const current = bestWeight(exercise); const previous = previousClassResult(data.history, logIndex, exercise.exerciseName); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${log.id}-${exercise.order}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-semibold">{exercise.exerciseName}</p>{previous && <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs font-bold text-zinc-300">Anterior {previous.weight} kg · {difference === null ? "sin comparación" : `${difference > 0 ? "↑ +" : difference < 0 ? "↓ " : ""}${difference} kg`}</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${set.weight ?? "—"} kg × ${set.repetitions ?? "—"}`).join(" · ")}</p>{exercise.notes && <p className="mt-2 text-xs text-zinc-500">{exercise.notes}</p>}{!previous && <p className="mt-2 text-xs text-zinc-600">Primer registro de este ejercicio en clases.</p>}</div>; })}{log.notes && <p className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{log.notes}</p>}</div></details>)}</div> : <p className="mt-3 rounded-2xl border border-dashed border-zinc-800 p-6 text-center text-zinc-500">Todavía no hay clases registradas.</p>}</section>
-    {editing && <StrengthEditor occurrence={editing} close={() => setEditing(null)} saved={async (message) => { setNotice(message); setEditing(null); await load(); }} />}
+    <div className="mt-6 space-y-5">{grouped.map(([date, items]) => <section key={date}><h2 className="mb-3 capitalize font-bold text-yellow-300">{dateLabel(date)}</h2><div className="grid gap-3 sm:grid-cols-2">{items.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{item.name}</h3><p className="mt-1 text-sm text-zinc-400">{item.startTime}–{item.endTime} · {item.category}</p></div><span className="rounded-full bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{item.statusLabel}</span></div><p className="mt-3 text-xs text-zinc-500">{item.confirmedCount} confirmados{item.capacity === null ? "" : ` · cupo ${item.capacity}`}</p>{item.canRespond && <ResponseButtons item={item} saving={savingId === item.id} respond={respond} />}{item.strengthAvailable && <button onClick={() => editOccurrence(item)} className="mt-3 w-full rounded-xl border border-yellow-400/40 p-3 font-bold text-yellow-300">{item.workoutLog ? "Editar bloque de fuerza" : "Registrar bloque de fuerza"}</button>}</article>)}</div></section>)}</div>
+    <section id="historial-clases" className="mt-8 scroll-mt-24"><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Historial de clases</h2>{data?.history.length ? <div className="mt-4 space-y-3">{data.history.map((log, logIndex) => <details key={log.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer list-none"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{log.name}</p><p className="mt-1 text-xs text-zinc-400">{dateLabel(log.date)} · {log.startTime} · {attendanceLabel(log)}</p><p className="mt-2 text-xs text-zinc-500">{log.strengthBlockName || "Bloque de fuerza registrado"} · {log.exercises.length} ejercicios</p></div><span className="text-sm font-bold text-yellow-400">Ver detalle</span></div></summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{log.exercises.map((exercise) => { const current = bestWeight(exercise); const previous = previousClassResult(data.history, logIndex, exercise.exerciseName); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${log.id}-${exercise.order}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-semibold">{exercise.exerciseName}</p>{previous && <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs font-bold text-zinc-300">Anterior {previous.weight} kg · {difference === null ? "sin comparación" : `${difference > 0 ? "↑ +" : difference < 0 ? "↓ " : ""}${difference} kg`}</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${set.weight ?? "—"} kg × ${set.repetitions ?? "—"}${set.effort === null ? "" : ` · RIR ${set.effort}`}`).join(" · ")}</p>{exercise.notes && <p className="mt-2 text-xs text-zinc-500">{exercise.notes}</p>}{!previous && <p className="mt-2 text-xs text-zinc-600">Primer registro de este ejercicio en clases.</p>}</div>; })}{log.notes && <p className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{log.notes}</p>}<div className="flex flex-wrap justify-end gap-2 pt-2"><button type="button" onClick={() => editHistory(log)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300">Editar</button><button type="button" disabled={savingId === log.id} onClick={() => deleteHistory(log)} className="rounded-lg border border-red-400/40 px-3 py-2 text-sm text-red-300 disabled:opacity-50">{savingId === log.id ? "Eliminando…" : "Eliminar"}</button></div></div></details>)}</div> : <p className="mt-3 rounded-2xl border border-dashed border-zinc-800 p-6 text-center text-zinc-500">Todavía no hay clases registradas.</p>}</section>
+    {editing && <ClassStrengthLogEditor title={editing.title} initialValue={editing.value} close={() => setEditing(null)} save={saveStrength} />}
   </div>;
 }
 
@@ -138,22 +181,4 @@ function Feedback({ error, notice }: { error: string; notice: string }) {
 
 function ResponseButtons({ item, saving, respond }: { item: PortalClassOccurrence; saving: boolean; respond: (item: PortalClassOccurrence, value: "GOING" | "NOT_GOING") => void }) {
   return <div className="mt-4 grid grid-cols-2 gap-2"><button disabled={saving} onClick={() => respond(item, "GOING")} className={`rounded-xl p-3 font-bold text-zinc-950 ${item.response === "GOING" ? "bg-emerald-400" : "bg-yellow-400"}`}>Asistiré</button><button disabled={saving} onClick={() => respond(item, "NOT_GOING")} className={`rounded-xl border p-3 font-semibold ${item.response === "NOT_GOING" ? "border-red-300 text-red-200" : "border-zinc-700"}`}>No asistiré</button></div>;
-}
-
-function StrengthEditor({ occurrence, close, saved }: { occurrence: PortalClassOccurrence; close: () => void; saved: (message: string) => Promise<void> }) {
-  const initial = occurrence.workoutLog?.exercises ?? occurrence.strengthBlock?.exercises.map((item) => ({ exerciseName: item.exerciseName, order: item.order, notes: "", sets: Array.from({ length: item.suggestedSets }, (_, index) => ({ setNumber: index + 1, weight: null, repetitions: null, unit: "kg", notes: "" })) })) ?? [];
-  const [exercises, setExercises] = useState<ClassStrengthExerciseLog[]>(initial);
-  const [notes, setNotes] = useState(occurrence.workoutLog?.notes ?? "");
-  const [saving, setSaving] = useState(false); const [error, setError] = useState("");
-  function setResult(exerciseIndex: number, setIndex: number, key: "weight" | "repetitions", value: string) { const next = structuredClone(exercises); next[exerciseIndex].sets[setIndex][key] = value === "" ? null : Number(value); setExercises(next); }
-  async function save(status: "DRAFT" | "COMPLETED") {
-    setSaving(true); setError("");
-    try {
-      const response = await fetch("/api/portal/clases/fuerza", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ occurrenceId: occurrence.id, status, notes, exercises }) });
-      const body = await response.json() as { error?: string; message?: string };
-      if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
-      await saved(body.message ?? "Registro guardado.");
-    } catch (value) { setError(value instanceof Error ? value.message : "No se pudo guardar."); } finally { setSaving(false); }
-  }
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 p-3"><section className="mx-auto my-4 max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><div className="flex justify-between gap-3"><div><p className="text-xs text-yellow-400">Registro de clase presencial</p><h2 className="text-xl font-bold">{occurrence.name}</h2></div><button onClick={close}>Cerrar</button></div>{error && <p className="mt-3 text-red-300">{error}</p>}<div className="mt-5 space-y-4">{exercises.map((exercise, exerciseIndex) => <article key={`${exercise.order}-${exerciseIndex}`} className="rounded-xl bg-zinc-950 p-4"><input value={exercise.exerciseName} onChange={(event) => { const next = [...exercises]; next[exerciseIndex] = { ...exercise, exerciseName: event.target.value }; setExercises(next); }} className="w-full bg-transparent font-bold outline-none" placeholder="Ejercicio" /><div className="mt-3 space-y-2">{exercise.sets.map((set, setIndex) => <div key={set.setNumber} className="grid grid-cols-[3rem_1fr_1fr] gap-2"><span className="grid place-items-center rounded-lg bg-zinc-900">{set.setNumber}</span><input type="number" min="0" step=".5" placeholder="kg" value={set.weight ?? ""} onChange={(event) => setResult(exerciseIndex, setIndex, "weight", event.target.value)} className="rounded-lg border border-zinc-700 bg-zinc-900 p-3" /><input type="number" min="0" placeholder="reps" value={set.repetitions ?? ""} onChange={(event) => setResult(exerciseIndex, setIndex, "repetitions", event.target.value)} className="rounded-lg border border-zinc-700 bg-zinc-900 p-3" /></div>)}<button onClick={() => { const next = [...exercises]; next[exerciseIndex] = { ...exercise, sets: [...exercise.sets, { setNumber: exercise.sets.length + 1, weight: null, repetitions: null, unit: "kg", notes: "" }] }; setExercises(next); }} className="text-sm text-yellow-400">+ Agregar serie</button></div></article>)}</div><button onClick={() => setExercises([...exercises, { exerciseName: "", order: exercises.length + 1, notes: "", sets: [{ setNumber: 1, weight: null, repetitions: null, unit: "kg", notes: "" }] }])} className="mt-4 w-full rounded-xl border border-dashed border-zinc-700 p-3 text-yellow-400">+ Agregar ejercicio</button><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Observación general" className="mt-4 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3" /><div className="mt-4 grid grid-cols-2 gap-2"><button disabled={saving} onClick={() => save("DRAFT")} className="rounded-xl border border-yellow-400/40 p-3 font-bold text-yellow-300">Guardar borrador</button><button disabled={saving} onClick={() => save("COMPLETED")} className="rounded-xl bg-yellow-400 p-3 font-bold text-zinc-950">Finalizar</button></div></section></div>;
 }

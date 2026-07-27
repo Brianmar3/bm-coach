@@ -6,6 +6,7 @@ export type ClassStrengthSet = {
   setNumber: number;
   weight: number | null;
   repetitions: number | null;
+  effort: number | null;
   unit: string;
   notes: string;
 };
@@ -48,6 +49,8 @@ export type PortalClassOccurrence = {
     id: string;
     status: "DRAFT" | "COMPLETED";
     notes: string;
+    createdAt: string;
+    updatedAt: string;
     exercises: ClassStrengthExerciseLog[];
   };
 };
