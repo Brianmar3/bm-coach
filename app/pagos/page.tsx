@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
 import type { Payment, PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
@@ -110,8 +111,8 @@ export default function PagosPage() {
   function blankForm(account?: PaymentStudentAccount, mode: PaymentForm["mode"] = "create"): PaymentForm {
     const paidDate = data.asOf;
     return {
-      studentId: account?.studentId ?? data.students[0]?.studentId ?? "",
-      amount: account?.monthlyFee ?? data.students[0]?.monthlyFee ?? 0,
+      studentId: account?.studentId ?? "",
+      amount: account?.monthlyFee ?? 0,
       paidDate,
       billingPeriod: currentPeriod(paidDate),
       method: "Transferencia",
@@ -264,23 +265,113 @@ function AccountRow({ account, expanded, saving, toggle, begin, paidToday, histo
         <p className="mt-1 truncate text-xs text-zinc-400">{account.plan || "Sin plan"} · {money(account.monthlyFee)}</p>
         <p className="mt-1 text-xs text-zinc-500">Vence: {showDate(account.nextDueDate)}{account.lastPaymentDate ? ` · Último: ${showDate(account.lastPaymentDate)}` : " · Sin pagos"}</p>
       </button>
-      <details className="relative">
-        <summary className="grid h-10 w-10 cursor-pointer list-none place-items-center rounded-lg bg-zinc-800 text-xl text-zinc-300" aria-label={`Acciones de ${account.student}`}>⋮</summary>
-        <div className="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-sm shadow-2xl">
-          <button onClick={begin} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-800">Agregar pago</button>
-          <button onClick={paidToday} disabled={saving || account.monthlyFee <= 0} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-800 disabled:opacity-40">Pagó hoy</button>
-          <button onClick={history} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-zinc-800">Ver historial</button>
-          <Link href={`/alumnos?buscar=${encodeURIComponent(account.student)}`} className="block rounded-lg px-3 py-2 hover:bg-zinc-800">Editar configuración de pago</Link>
-          {canMessage && <a href={whatsappUrl(account)} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-2 text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</a>}
-        </div>
-      </details>
+      <AccountActions account={account} saving={saving} canMessage={canMessage} begin={begin} paidToday={paidToday} history={history} />
     </div>
     {expanded && <div className="grid gap-2 border-t border-zinc-800 bg-zinc-950/50 p-3 text-sm sm:grid-cols-4"><Info label="Cuota mensual" value={money(account.monthlyFee)} /><Info label="Próximo vencimiento" value={showDate(account.nextDueDate)} /><Info label="Último pago" value={showDate(account.lastPaymentDate)} /><Info label="Importe último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /><div className="flex flex-wrap gap-2 sm:col-span-4"><button onClick={begin} className="rounded-lg border border-yellow-400/50 px-3 py-2 text-xs font-bold text-yellow-300">Agregar pago</button><button onClick={history} className="rounded-lg bg-zinc-800 px-3 py-2 text-xs font-bold">Ver historial</button></div></div>}
   </article>;
 }
 
+function AccountActions({ account, saving, canMessage, begin, paidToday, history }: { account: PaymentStudentAccount; saving: boolean; canMessage: boolean; begin: () => void; paidToday: () => void; history: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  function close(restoreFocus = true) {
+    setOpen(false);
+    if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+  function show() {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const width = 224;
+      const estimatedHeight = canMessage ? 238 : 194;
+      const left = Math.min(Math.max(12, rect.right - width), window.innerWidth - width - 12);
+      const top = window.innerHeight - rect.bottom >= estimatedHeight + 12
+        ? rect.bottom + 8
+        : Math.max(12, rect.top - estimatedHeight - 8);
+      setPosition({ top, left });
+    }
+    setOpen(true);
+  }
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("keydown", handleKey);
+    requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>("button, a")?.focus());
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [open]);
+  const run = (action: () => void) => {
+    close(false);
+    action();
+  };
+  return <>
+    <button ref={triggerRef} type="button" aria-label={`Acciones de ${account.student}`} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : show()} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-xl text-zinc-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>
+    {open && createPortal(<div className="fixed inset-0 z-[100]" onPointerDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+      <div ref={menuRef} role="menu" aria-label={`Acciones de ${account.student}`} style={{ top: position.top, left: position.left }} className="fixed w-56 rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-sm text-white shadow-2xl max-sm:inset-x-3 max-sm:bottom-[calc(env(safe-area-inset-bottom)+12px)] max-sm:top-auto max-sm:w-auto">
+        <button role="menuitem" onClick={() => run(begin)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Agregar pago</button>
+        <button role="menuitem" onClick={() => run(paidToday)} disabled={saving || account.monthlyFee <= 0} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800 disabled:opacity-40">Pagó hoy</button>
+        <button role="menuitem" onClick={() => run(history)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Ver historial</button>
+        <Link role="menuitem" onClick={() => close(false)} href={`/alumnos?buscar=${encodeURIComponent(account.student)}`} className="block rounded-lg px-3 py-3 hover:bg-zinc-800">Editar configuración de pago</Link>
+        {canMessage && <a role="menuitem" onClick={() => close(false)} href={whatsappUrl(account)} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-3 text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</a>}
+      </div>
+    </div>, document.body)}
+  </>;
+}
+
 function Info({ label, value }: { label: string; value: string }) {
   return <div><p className="text-[11px] text-zinc-500">{label}</p><p className="mt-0.5 font-semibold text-zinc-100">{value}</p></div>;
+}
+
+function StudentCombobox({ form, accounts, setForm, disabled }: { form: PaymentForm; accounts: PaymentStudentAccount[]; setForm: (form: PaymentForm) => void; disabled: boolean }) {
+  const selected = accounts.find((account) => account.studentId === form.studentId);
+  const [query, setQuery] = useState(selected?.student ?? "");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const normalized = query.trim().toLocaleLowerCase("es");
+  const results = accounts.filter((account) => !normalized || `${account.student} ${account.phone}`.toLocaleLowerCase("es").includes(normalized)).slice(0, 10);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, []);
+  function choose(account: PaymentStudentAccount) {
+    setQuery(account.student);
+    setOpen(false);
+    setActiveIndex(0);
+    setForm({
+      ...form,
+      studentId: account.studentId,
+      amount: account.monthlyFee,
+      dueDate: addMonthsToDateKey(account.nextDueDate || form.paidDate),
+    });
+  }
+  function clear() {
+    setQuery("");
+    setOpen(true);
+    setActiveIndex(0);
+    setForm({ ...form, studentId: "", amount: 0, dueDate: "" });
+  }
+  return <div ref={rootRef} className="relative sm:col-span-2">
+    <label htmlFor="payment-student-search" className="text-sm">Alumno</label>
+    <div className="relative mt-1">
+      <input id="payment-student-search" role="combobox" aria-expanded={open} aria-controls="payment-student-options" aria-autocomplete="list" aria-activedescendant={open && results[activeIndex] ? `payment-student-${results[activeIndex].studentId}` : undefined} disabled={disabled} value={query} onFocus={() => !disabled && setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); if (form.studentId) setForm({ ...form, studentId: "" }); }} onKeyDown={(event) => {
+        if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, results.length - 1)); }
+        if (event.key === "ArrowUp") { event.preventDefault(); setActiveIndex((index) => Math.max(index - 1, 0)); }
+        if (event.key === "Enter" && open && results[activeIndex]) { event.preventDefault(); choose(results[activeIndex]); }
+        if (event.key === "Escape") setOpen(false);
+      }} placeholder="Buscar por nombre, apellido o teléfono" className={`${inputClass} pr-20`} />
+      {!disabled && query && <button type="button" onClick={clear} aria-label="Limpiar alumno seleccionado" className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800">Limpiar</button>}
+    </div>
+    {selected && <p className="mt-2 text-xs text-yellow-200">Alumno elegido: <strong>{selected.student}</strong></p>}
+    {open && !disabled && <div id="payment-student-options" role="listbox" className="absolute z-[110] mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 shadow-2xl">
+      {results.length ? results.map((account, index) => <button id={`payment-student-${account.studentId}`} role="option" aria-selected={account.studentId === form.studentId} key={account.studentId} type="button" onPointerMove={() => setActiveIndex(index)} onClick={() => choose(account)} className={`block w-full rounded-lg px-3 py-3 text-left ${index === activeIndex || account.studentId === form.studentId ? "bg-yellow-400/10 text-yellow-100" : "text-zinc-200 hover:bg-zinc-800"}`}><span className="block font-semibold">{account.student}</span><span className="mt-0.5 block text-xs text-zinc-500">{account.phone || "Sin teléfono"} · {account.plan || "Sin plan"}</span></button>) : <p className="p-4 text-center text-sm text-zinc-500">No se encontraron alumnos.</p>}
+    </div>}
+  </div>;
 }
 
 function PaymentModal({ form, accounts, setForm, error, saving, close, submit }: { form: PaymentForm; accounts: PaymentStudentAccount[]; setForm: (form: PaymentForm) => void; error: string; saving: boolean; close: () => void; submit: (event: FormEvent<HTMLFormElement>) => void }) {
@@ -290,7 +381,7 @@ function PaymentModal({ form, accounts, setForm, error, saving, close, submit }:
     <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-yellow-400">{title}</p><h2 className="mt-1 text-lg font-bold">{account?.student ?? "Seleccioná un alumno"}</h2>{form.mode === "quick" && <p className="mt-1 text-xs text-zinc-400">Revisá importe y fecha antes de confirmar.</p>}</div><button type="button" onClick={close} disabled={saving} className="p-2 text-zinc-400">Cerrar</button></div>
     {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     <div className="mt-5 grid gap-4 sm:grid-cols-2">
-      <label className="text-sm sm:col-span-2">Alumno<select disabled={form.mode === "edit"} value={form.studentId} onChange={(event) => { const selected = accounts.find((item) => item.studentId === event.target.value); setForm({ ...form, studentId: event.target.value, amount: selected?.monthlyFee ?? form.amount, dueDate: addMonthsToDateKey(selected?.nextDueDate || form.paidDate) }); }} className={`${inputClass} mt-1`}>{accounts.map((item) => <option key={item.studentId} value={item.studentId}>{item.student}</option>)}</select></label>
+      <StudentCombobox form={form} accounts={accounts} setForm={setForm} disabled={form.mode === "edit"} />
       <label className="text-sm">Importe<input required type="number" min="1" step="0.01" inputMode="decimal" value={form.amount || ""} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} className={`${inputClass} mt-1`} /></label>
       <label className="text-sm">Fecha de pago<input required type="date" value={form.paidDate} onChange={(event) => setForm({ ...form, paidDate: event.target.value })} className={`${inputClass} mt-1`} /></label>
       <label className="text-sm">Período abonado<input required type="month" value={form.billingPeriod.slice(0, 7)} onChange={(event) => setForm({ ...form, billingPeriod: `${event.target.value}-01` })} className={`${inputClass} mt-1`} /></label>
