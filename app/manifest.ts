@@ -12,16 +12,22 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#000000",
     icons: [
       {
-        src: "/bm-training-icon-192.png",
+        src: "/icons/bm-training-pwa-192-v4.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/bm-training-icon-512.png",
+        src: "/icons/bm-training-pwa-512-v4.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
+      },
+      {
+        src: "/icons/bm-training-maskable-512-v4.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
     ],
   };
