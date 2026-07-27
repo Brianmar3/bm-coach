@@ -10,8 +10,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="h-full">
-      <body className="min-h-full bg-zinc-950 text-white"><AppFrame>{children}</AppFrame></body>
+    <html lang="es" className="h-full bg-black" style={{ backgroundColor: "#000000" }}>
+      <body className="min-h-full bg-black text-white" style={{ backgroundColor: "#000000" }}><AppFrame>{children}</AppFrame></body>
     </html>
   );
 }
