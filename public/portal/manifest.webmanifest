@@ -1,0 +1,31 @@
+{
+  "name": "BM Coach Alumnos",
+  "short_name": "BM Alumnos",
+  "description": "Portal del alumno de BM Coach",
+  "id": "/portal",
+  "start_url": "/portal/login",
+  "scope": "/portal/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/icons/bm-training-pwa-192-v4.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/bm-training-pwa-512-v4.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/bm-training-maskable-512-v4.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
