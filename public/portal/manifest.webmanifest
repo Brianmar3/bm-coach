@@ -1,6 +1,6 @@
 {
-  "name": "BM Coach Alumnos",
-  "short_name": "BM Alumnos",
+  "name": "BM Training",
+  "short_name": "BM Training",
   "description": "Portal del alumno de BM Coach",
   "id": "/portal",
   "start_url": "/portal/login",

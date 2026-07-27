@@ -2,15 +2,15 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: {
-    default: "BM Coach Alumnos",
-    template: "%s · BM Coach Alumnos",
+    default: "BM Training",
+    template: "%s · BM Training",
   },
   description: "Portal del alumno de BM Coach",
   manifest: "/portal/manifest.webmanifest",
-  applicationName: "BM Coach Alumnos",
+  applicationName: "BM Training",
   appleWebApp: {
     capable: true,
-    title: "BM Coach Alumnos",
+    title: "BM Training",
     statusBarStyle: "black-translucent",
   },
   icons: {
