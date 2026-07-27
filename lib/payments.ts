@@ -12,7 +12,7 @@ import type { Payment, PaymentDashboard, PaymentStatus, PaymentStudentAccount, P
 export const PAYMENT_METHODS = ["Efectivo", "Transferencia", "Mercado Pago", "Otro"] as const;
 export type PaymentMethod = typeof PAYMENT_METHODS[number];
 
-const accountOrder = { VENCIDA: 0, VENCE_PRONTO: 1, AL_DIA: 2, SIN_CONFIGURAR: 3 } as const;
+const accountOrder = { SIN_CONFIGURAR: 0, SIN_PAGOS: 1, VENCIDA: 2, VENCE_PRONTO: 3, AL_DIA: 4 } as const;
 
 export function storedStudent(data: Prisma.JsonValue) {
   return data as unknown as Student;
@@ -62,9 +62,15 @@ export function portalPaymentAccount(student: Student, payments: PaymentAccountR
     .sort((left, right) => (right.paidDate?.getTime() ?? 0) - (left.paidDate?.getTime() ?? 0))[0];
   const monthlyFee = Math.max(Number(student.monthlyFee ?? 0), 0);
   const nextDueDate = student.dueDate ?? "";
+  const validPaymentCount = payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length;
   return {
-    configured: monthlyFee > 0 || Boolean(nextDueDate),
-    status: paymentAccountStatus(nextDueDate, asOf),
+    configured: monthlyFee > 0 && Boolean(nextDueDate),
+    status: paymentAccountStatus({
+      dueDate: nextDueDate,
+      monthlyFee,
+      validPaymentCount,
+      hasOutstandingDebt: payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
+    }, asOf),
     monthlyFee,
     nextDueDate,
     plan: student.plan ?? "",
@@ -95,12 +101,18 @@ export async function paymentDashboard(): Promise<PaymentDashboard> {
     .map(({ record, student }) => {
       const validPayments = record.payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate);
       const lastPayment = validPayments[0];
-      const status = paymentAccountStatus(student.dueDate ?? "", asOf);
+      const monthlyFee = Number(student.monthlyFee ?? 0);
+      const status = paymentAccountStatus({
+        dueDate: student.dueDate ?? "",
+        monthlyFee,
+        validPaymentCount: validPayments.length,
+        hasOutstandingDebt: record.payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
+      }, asOf);
       return {
         studentId: record.id,
         student: `${student.firstName ?? ""} ${student.lastName ?? ""}`.trim(),
         plan: student.plan ?? "",
-        monthlyFee: Number(student.monthlyFee ?? 0),
+        monthlyFee,
         phone: studentPhone(student),
         paymentCount: validPayments.length,
         paidThisMonth: validPayments.some((payment) => payment.paidDate && payment.paidDate >= start && payment.paidDate < end),
@@ -125,9 +137,10 @@ export async function paymentDashboard(): Promise<PaymentDashboard> {
       overdueCount: count("VENCIDA"),
       dueSoonCount: count("VENCE_PRONTO"),
       currentCount: count("AL_DIA"),
+      noPaymentCount: count("SIN_PAGOS"),
       unconfiguredCount: count("SIN_CONFIGURAR"),
       estimatedOutstanding: students
-        .filter((student) => student.status === "VENCIDA" || student.status === "VENCE_PRONTO")
+        .filter((student) => student.status === "VENCIDA" || student.status === "VENCE_PRONTO" || student.status === "SIN_PAGOS")
         .reduce((sum, student) => sum + Math.max(student.monthlyFee, 0), 0),
     },
   };

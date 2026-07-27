@@ -6,7 +6,7 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
 import type { Payment, PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
 
-type AccountFilter = "TODOS" | PaymentStudentAccount["status"] | "SIN_PAGOS" | "PAGADOS_MES";
+type AccountFilter = "TODOS" | PaymentStudentAccount["status"] | "PAGADOS_MES";
 type PaymentForm = {
   paymentId?: string;
   studentId: string;
@@ -23,7 +23,7 @@ type PaymentForm = {
 const emptyDashboard: PaymentDashboard = {
   asOf: "",
   students: [],
-  summary: { collectedThisMonth: 0, overdueCount: 0, dueSoonCount: 0, currentCount: 0, unconfiguredCount: 0, estimatedOutstanding: 0 },
+  summary: { collectedThisMonth: 0, overdueCount: 0, dueSoonCount: 0, currentCount: 0, noPaymentCount: 0, unconfiguredCount: 0, estimatedOutstanding: 0 },
 };
 const filters: Array<{ value: AccountFilter; label: string }> = [
   { value: "TODOS", label: "Todos" },
@@ -39,6 +39,7 @@ const statusDetails = {
   VENCIDA: { label: "Vencido", className: "bg-red-400/10 text-red-200 ring-red-400/30" },
   VENCE_PRONTO: { label: "Vence pronto", className: "bg-orange-400/10 text-orange-200 ring-orange-400/30" },
   AL_DIA: { label: "Al día", className: "bg-emerald-400/10 text-emerald-200 ring-emerald-400/30" },
+  SIN_PAGOS: { label: "Sin pagos", className: "bg-yellow-400/10 text-yellow-200 ring-yellow-400/30" },
   SIN_CONFIGURAR: { label: "Sin configurar", className: "bg-zinc-800 text-zinc-300 ring-zinc-700" },
 } as const;
 
@@ -101,7 +102,6 @@ export default function PagosPage() {
       const matchesQuery = !normalized || `${account.student} ${account.plan} ${account.phone} ${status}`.toLocaleLowerCase("es").includes(normalized);
       const matchesFilter = filter === "TODOS"
         || account.status === filter
-        || (filter === "SIN_PAGOS" && account.paymentCount === 0)
         || (filter === "PAGADOS_MES" && account.paidThisMonth);
       return matchesQuery && matchesFilter;
     });
@@ -227,6 +227,7 @@ export default function PagosPage() {
         <MiniSummary label="Vencidos" value={summary.overdueCount} tone="text-red-300" ready={ready} />
         <MiniSummary label="Vencen pronto" value={summary.dueSoonCount} tone="text-orange-300" ready={ready} />
         <MiniSummary label="Al día" value={summary.currentCount} tone="text-emerald-300" ready={ready} />
+        <MiniSummary label="Sin pagos" value={summary.noPaymentCount} tone="text-yellow-200" ready={ready} />
         <MiniSummary label="Pendiente estimado" value={money(summary.estimatedOutstanding)} tone="text-yellow-300" ready={ready} />
       </div>
     </section>

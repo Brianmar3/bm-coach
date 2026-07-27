@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 const WEEKDAY: Partial<Record<number, ClassWeekday>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const STATUS_ORDER: Record<PaymentAccountStatus, number> = { VENCIDA: 0, VENCE_PRONTO: 1, AL_DIA: 2, SIN_CONFIGURAR: 3 };
+const STATUS_ORDER: Record<PaymentAccountStatus, number> = { SIN_CONFIGURAR: 0, SIN_PAGOS: 1, VENCIDA: 2, VENCE_PRONTO: 3, AL_DIA: 4 };
 
 function studentData(data: Prisma.JsonValue) {
   return data as unknown as Student;
@@ -64,7 +64,15 @@ export async function GET() {
     await ensureClassOccurrences(35);
 
     const [studentRecords, paymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events] = await Promise.all([
-      prisma.studentRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.studentRecord.findMany({
+        select: {
+          id: true,
+          data: true,
+          createdAt: true,
+          payments: { select: { status: true, paidDate: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
       prisma.studentPayment.findMany({
         where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
         select: { amount: true, paidDate: true },
@@ -105,23 +113,28 @@ export async function GET() {
 
     const students = studentRecords.map((record) => ({ ...record, student: studentData(record.data) }));
     const active = students.filter(({ student }) => student.status !== "inactivo");
-    const accounts = active.map(({ id, student }) => ({
+    const accounts = active.map(({ id, student, payments }) => ({
       studentId: id,
       studentName: studentName(student),
       plan: student.plan ?? "",
       dueDate: student.dueDate ?? "",
       amount: Number(student.monthlyFee ?? 0),
-      status: paymentAccountStatus(student.dueDate ?? "", today),
+      status: paymentAccountStatus({
+        dueDate: student.dueDate ?? "",
+        monthlyFee: Number(student.monthlyFee ?? 0),
+        validPaymentCount: payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length,
+        hasOutstandingDebt: payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
+      }, today),
     }));
     const actionableAccounts = accounts
-      .filter((account) => account.status === "VENCIDA" || account.status === "VENCE_PRONTO")
+      .filter((account) => account.status === "VENCIDA" || account.status === "VENCE_PRONTO" || account.status === "SIN_PAGOS")
       .sort((left, right) => STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.dueDate.localeCompare(right.dueDate));
     const threeDayAccounts = accounts.filter((account) =>
       account.dueDate &&
       (account.dueDate < today || (account.dueDate >= today && account.dueDate <= threeDaysFromToday)),
     );
     const dueSoonThreeDaysCount = accounts.filter((account) =>
-      account.dueDate >= today && account.dueDate <= threeDaysFromToday,
+      account.status === "VENCE_PRONTO" && account.dueDate >= today && account.dueDate <= threeDaysFromToday,
     ).length;
     const estimatedPendingBalance = threeDayAccounts.every((account) => account.amount > 0)
       ? threeDayAccounts.reduce((sum, account) => sum + account.amount, 0)
@@ -197,13 +210,18 @@ export async function GET() {
       income,
       todayClasses,
       upcomingPayments: actionableAccounts.slice(0, 3),
-      recentStudents: active.slice(0, 6).map(({ id, student }) => ({
+      recentStudents: active.slice(0, 6).map(({ id, student, payments }) => ({
         id,
         studentName: studentName(student),
         plan: student.plan ?? "",
         days: planDays(student.plan ?? ""),
         dueDate: student.dueDate ?? "",
-        status: paymentAccountStatus(student.dueDate ?? "", today),
+      status: paymentAccountStatus({
+        dueDate: student.dueDate ?? "",
+        monthlyFee: Number(student.monthlyFee ?? 0),
+        validPaymentCount: payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length,
+        hasOutstandingDebt: payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
+      }, today),
       })),
       weeklyAttendance,
       attendanceSummary: {

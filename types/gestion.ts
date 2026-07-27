@@ -1,5 +1,5 @@
 export type PaymentStatus = "pagado" | "pendiente" | "vencido" | "proximo_a_vencer" | "anulado";
-export type PaymentAccountStatus = "VENCIDA" | "VENCE_PRONTO" | "AL_DIA" | "SIN_CONFIGURAR";
+export type PaymentAccountStatus = "VENCIDA" | "VENCE_PRONTO" | "AL_DIA" | "SIN_PAGOS" | "SIN_CONFIGURAR";
 
 export type StudentStatus = "activo" | "inactivo";
 
@@ -170,6 +170,7 @@ export type PaymentDashboardSummary = {
   overdueCount: number;
   dueSoonCount: number;
   currentCount: number;
+  noPaymentCount: number;
   unconfiguredCount: number;
   estimatedOutstanding: number;
 };

@@ -17,6 +17,7 @@ const accountStatus: Record<PaymentAccountStatus, { label: string; className: st
   AL_DIA: { label: "Al día", className: "bg-emerald-400/10 text-emerald-300" },
   VENCE_PRONTO: { label: "Vence pronto", className: "bg-amber-400/10 text-amber-300" },
   VENCIDA: { label: "Vencida", className: "bg-red-400/10 text-red-300" },
+  SIN_PAGOS: { label: "Sin pagos", className: "bg-yellow-400/10 text-yellow-200" },
   SIN_CONFIGURAR: { label: "Sin configurar", className: "bg-zinc-800 text-zinc-400" },
 };
 const billingPeriod = (value: string) => value
@@ -163,7 +164,7 @@ function PaymentsView({ data }: { data: PortalData }) {
   return <PageHeader title="Mi cuota" subtitle="Estado e historial personal de pagos">
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-zinc-500">Estado actual</p><span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-bold ${status.className}`}>{status.label}</span></div>{account.monthlyFee > 0 && <p className="text-2xl font-bold">{money(account.monthlyFee)}<span className="ml-1 text-xs font-normal text-zinc-500">por mes</span></p>}</div>
-      {account.configured ? <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><SmallMetric title="Próximo vencimiento" value={date(account.nextDueDate)} /><SmallMetric title="Plan" value={account.plan || "Sin detalle"} /><SmallMetric title="Último pago" value={account.lastPaymentDate ? date(account.lastPaymentDate) : "Sin pagos"} /><SmallMetric title="Importe del último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /></dl> : <p className="mt-4 text-sm text-zinc-400">Todavía no tenés una cuota configurada.</p>}
+      {account.configured ? <><dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><SmallMetric title="Próximo vencimiento" value={date(account.nextDueDate)} /><SmallMetric title="Plan" value={account.plan || "Sin detalle"} /><SmallMetric title="Último pago" value={account.lastPaymentDate ? date(account.lastPaymentDate) : "Sin registrar"} /><SmallMetric title="Importe del último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /></dl>{account.status === "SIN_PAGOS" && <p className="mt-3 rounded-lg bg-yellow-400/5 px-3 py-2 text-sm text-yellow-100">Tu cuota todavía no registra pagos.</p>}</> : <p className="mt-4 text-sm text-zinc-400">Todavía no tenés una cuota configurada.</p>}
     </section>
     <section className="mt-5">
       <h2 className="font-semibold">Historial de pagos</h2>

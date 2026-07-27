@@ -46,9 +46,18 @@ function utcDayNumber(value: string) {
   return Date.UTC(year, month - 1, day) / 86_400_000;
 }
 
-export function paymentAccountStatus(dueDate: string, today = argentinaDateKey()): PaymentAccountStatus {
-  if (!isDateKey(dueDate)) return "SIN_CONFIGURAR";
-  const days = utcDayNumber(dueDate) - utcDayNumber(today);
+type PaymentAccountStatusInput = {
+  dueDate: string;
+  monthlyFee: number;
+  validPaymentCount: number;
+  hasOutstandingDebt?: boolean;
+};
+
+export function paymentAccountStatus(input: PaymentAccountStatusInput, today = argentinaDateKey()): PaymentAccountStatus {
+  if (!isDateKey(input.dueDate) || !Number.isFinite(input.monthlyFee) || input.monthlyFee <= 0) return "SIN_CONFIGURAR";
+  if (!Number.isInteger(input.validPaymentCount) || input.validPaymentCount <= 0) return "SIN_PAGOS";
+  if (input.hasOutstandingDebt) return "VENCIDA";
+  const days = utcDayNumber(input.dueDate) - utcDayNumber(today);
   if (days < 0) return "VENCIDA";
   if (days <= 5) return "VENCE_PRONTO";
   return "AL_DIA";

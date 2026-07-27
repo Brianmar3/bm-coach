@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isDateKey } from "@/lib/payment-dates";
 import type { CoachSettings, Student, StudentPlanOption, StudentStatus } from "@/types/gestion";
 
 const PLAN_DAYS = [2, 3, 4, 5] as const;
@@ -97,6 +98,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const responsiblePhone = typeof input.responsiblePhone === "string" ? input.responsiblePhone.trim() : "";
   const responsibleRelation = typeof input.responsibleRelation === "string" ? input.responsibleRelation.trim() : "";
   const joinedAt = typeof input.joinedAt === "string" ? input.joinedAt : "";
+  const dueDate = typeof input.dueDate === "string" ? input.dueDate : "";
   const scheduleId = typeof input.scheduleId === "string" ? input.scheduleId : "";
   const scheduleIds = Array.isArray(input.scheduleIds) && input.scheduleIds.every((id) => typeof id === "string")
     ? [...new Set(input.scheduleIds.map((id) => id.trim()).filter(Boolean))]
@@ -110,7 +112,8 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   if (studentType === "Adulto" && (!phone || normalizePhone(phone).length < 6)) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (studentType === "Kids" && phone && normalizePhone(phone).length < 6) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (!selectedPlan) return { data: null, error: "Seleccioná un plan mensual de 2, 3, 4 o 5 días por semana." };
-  if (!monthlyDueDate(joinedAt)) return { data: null, error: "Ingresá una fecha de inicio válida." };
+  if (!isDateKey(joinedAt)) return { data: null, error: "Ingresá una fecha de ingreso válida." };
+  if (dueDate && !isDateKey(dueDate)) return { data: null, error: "Ingresá un próximo vencimiento válido." };
   if (!(status === "activo" || status === "inactivo")) return { data: null, error: "Seleccioná un estado válido." };
 
   const weight = input.weight === "" || input.weight === undefined ? 0 : Number(input.weight);
@@ -118,7 +121,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   if (!Number.isFinite(weight) || weight < 0 || weight > 500) return { data: null, error: "El peso debe estar entre 0 y 500 kg." };
   if (!Number.isFinite(height) || height < 0 || height > 3) return { data: null, error: "La altura debe estar entre 0 y 3 metros." };
   const birthDate = typeof input.birthDate === "string" ? input.birthDate : "";
-  if (birthDate && (!monthlyDueDate(birthDate) || birthDate > new Date().toISOString().slice(0, 10))) return { data: null, error: "La fecha de nacimiento no es válida." };
+  if (birthDate && (!isDateKey(birthDate) || birthDate > new Date().toISOString().slice(0, 10))) return { data: null, error: "La fecha de nacimiento no es válida." };
 
   return {
     data: {
@@ -133,7 +136,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       plan: selectedPlan.name,
       monthlyFee: selectedPlan.price,
       joinedAt,
-      dueDate: monthlyDueDate(joinedAt),
+      dueDate,
       status,
       notes: typeof input.notes === "string" ? input.notes.trim() : "",
       studentType,
