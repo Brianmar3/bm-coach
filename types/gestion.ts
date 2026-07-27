@@ -25,6 +25,9 @@ export type Student = {
   responsibleRelation?: string;
   scheduleId?: string;
   scheduleLabel?: string;
+  scheduleIds?: string[];
+  scheduleLabels?: string[];
+  flexibleSchedule?: string;
 };
 
 export type StudentPlanOption = {

@@ -12,7 +12,7 @@ export async function GET(request: Request, context: RouteContext<"/api/asistenc
     const month = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
     const range = monthRange(month);
     if (!range) return Response.json({ error: "El período no es válido." }, { status: 400 });
-    const student = await prisma.studentRecord.findUnique({ where: { id }, select: { id: true, weeklyClasses: { select: { scheduleId: true } } } });
+    const student = await prisma.studentRecord.findUnique({ where: { id }, select: { id: true, weeklyClasses: { where: { active: true }, select: { scheduleId: true } } } });
     if (!student) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
     const history = await prisma.classAttendance.findMany({ where: { studentId: id }, include: { student: true }, orderBy: [{ date: "desc" }, { scheduleStartTime: "asc" }] });
     const assignedScheduleIds = new Set(student.weeklyClasses.map((assignment) => assignment.scheduleId));

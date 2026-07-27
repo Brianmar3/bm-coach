@@ -6,7 +6,7 @@ import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule, We
 export const WEEKDAYS: WeeklyClassDay[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
 export const weeklyClassInclude = {
-  assignments: { include: { student: true } },
+  assignments: { where: { active: true }, include: { student: true } },
 } satisfies Prisma.WeeklyClassScheduleInclude;
 
 export type WeeklyClassWithStudents = Prisma.WeeklyClassScheduleGetPayload<{ include: typeof weeklyClassInclude }>;

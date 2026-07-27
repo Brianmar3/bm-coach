@@ -35,7 +35,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
-  if (section === "perfil") return <ProfileView data={data} />;
+  if (section === "perfil") return <><ProfileView data={data} /><PortalSchedules data={data} /></>;
   return <PortalOverview data={data} />;
 }
 
@@ -177,6 +177,16 @@ function PaymentsView({ data }: { data: PortalData }) {
 function ProfileView({ data }: { data: PortalData }) {
   const profile = data.profile;
   return <PageHeader title="Mi perfil" subtitle="Datos personales básicos"><Link href="/portal/pagos" className="mb-4 flex min-h-12 items-center justify-between rounded-xl border border-yellow-400/25 bg-yellow-400/5 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-400"><span><span className="block font-bold text-yellow-300">Mi cuota</span><span className="mt-0.5 block text-xs text-zinc-500">Estado e historial de pagos</span></span><span aria-hidden="true" className="text-yellow-400">›</span></Link><section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><dl className="grid gap-4 sm:grid-cols-2"><ProfileItem title="Nombre" value={`${profile.firstName} ${profile.lastName}`} /><ProfileItem title="Teléfono" value={profile.phone} /><ProfileItem title="Correo" value={profile.email || "Sin correo"} /><ProfileItem title="Fecha de nacimiento" value={date(profile.birthDate)} /><ProfileItem title="Objetivo" value={profile.goal || "No definido"} /><ProfileItem title="Plan" value={profile.plan} /><ProfileItem title="Fecha de ingreso" value={date(profile.joinedAt)} /><ProfileItem title="Estado" value={profile.status} /></dl><p className="mt-5 text-xs text-zinc-500">Para modificar estos datos, contactá a tu entrenador.</p></section><ChangePasswordCard /></PageHeader>;
+}
+
+function PortalSchedules({ data }: { data: PortalData }) {
+  const { scheduleLabels, flexibleSchedule } = data.profile;
+  if (!scheduleLabels.length && !flexibleSchedule) return null;
+  return <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+    <h2 className="font-semibold">Tus horarios</h2>
+    {scheduleLabels.length > 0 && <ul className="mt-3 space-y-2">{scheduleLabels.map((label) => <li key={label} className="rounded-lg bg-zinc-950 px-3 py-2 text-sm text-zinc-300">{label}</li>)}</ul>}
+    {flexibleSchedule && <p className="mt-3 text-sm text-zinc-400">Horario habitual: <span className="font-semibold text-zinc-200">{flexibleSchedule}</span></p>}
+  </section>;
 }
 
 function WorkoutView({ data }: { data: PortalData }) {

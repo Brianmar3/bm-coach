@@ -4,17 +4,9 @@ import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInpu
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
 class EnrollmentError extends Error {}
-
-function databaseUnavailable(error: unknown) {
-  return error instanceof Prisma.PrismaClientInitializationError ||
-    (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
-}
-
-function missingRecord(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
-}
+const databaseUnavailable = (error: unknown) => error instanceof Prisma.PrismaClientInitializationError || (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
+const missingRecord = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
 
 export async function GET(_request: Request, context: RouteContext<"/api/alumnos/[id]">) {
   try {
@@ -37,27 +29,29 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
     const input = parsed.data;
     const normalizedPhone = normalizePhone(input.phone);
     const record = await prisma.$transaction(async (transaction) => {
-      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, primaryScheduleId: true } });
+      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true } });
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
       if (normalizedPhone && await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
-      const schedule = input.scheduleId
-        ? await transaction.weeklyClassSchedule.findUnique({
-            where: { id: input.scheduleId },
-            select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { studentId: true } }, _count: { select: { assignments: true } } },
-          })
-        : null;
-      if (input.scheduleId && !schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
-      if (input.scheduleId && schedule && !schedule.active && current.primaryScheduleId !== schedule.id) throw new EnrollmentError("No podés asignar un horario inactivo como grupo principal.");
-      if (input.scheduleId && schedule && schedule.assignments.length === 0 && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
-      const updated = await transaction.studentRecord.update({
+      const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
+        where: { id: { in: input.scheduleIds } },
+        select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { active: true } }, _count: { select: { assignments: { where: { active: true } } } } },
+      }) : [];
+      if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("Uno de los horarios seleccionados ya no existe.");
+      if (schedules.some((schedule) => !schedule.active && !schedule.assignments.some((assignment) => assignment.active))) throw new EnrollmentError("No podés agregar un horario inactivo.");
+      if (schedules.some((schedule) => !schedule.assignments.some((assignment) => assignment.active) && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
+      await transaction.studentRecord.update({
         where: { id },
-        data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleId || null, data: studentJsonData(input) },
-        include: studentInclude,
+        data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, data: studentJsonData(input) },
       });
-      if (input.scheduleId && schedule) {
-        await transaction.weeklyClassAssignment.upsert({ where: { scheduleId_studentId: { scheduleId: schedule.id, studentId: id } }, create: { scheduleId: schedule.id, studentId: id }, update: {} });
+      await transaction.weeklyClassAssignment.updateMany({ where: { studentId: id, active: true, scheduleId: { notIn: input.scheduleIds } }, data: { active: false, endedAt: new Date() } });
+      for (const schedule of schedules) {
+        await transaction.weeklyClassAssignment.upsert({
+          where: { scheduleId_studentId: { scheduleId: schedule.id, studentId: id } },
+          create: { scheduleId: schedule.id, studentId: id },
+          update: { active: true, endedAt: null },
+        });
       }
-      return updated;
+      return transaction.studentRecord.findUniqueOrThrow({ where: { id }, include: studentInclude });
     });
     return Response.json(serializeStudent(record));
   } catch (error) {
@@ -70,10 +64,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
   }
 }
 
-export async function PATCH(request: Request, context: RouteContext<"/api/alumnos/[id]">) {
-  return PUT(request, context);
-}
-
+export async function PATCH(request: Request, context: RouteContext<"/api/alumnos/[id]">) { return PUT(request, context); }
 export async function DELETE(_request: Request, context: RouteContext<"/api/alumnos/[id]">) {
   try {
     const { id } = await context.params;

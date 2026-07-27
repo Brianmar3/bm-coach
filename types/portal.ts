@@ -13,6 +13,8 @@ export type PortalProfile = {
   joinedAt: string;
   status: string;
   dueDate: string;
+  scheduleLabels: string[];
+  flexibleSchedule: string;
 };
 
 export type PortalWorkoutSet = {

@@ -7,7 +7,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 class EnrollmentError extends Error {}
-
 function databaseUnavailable(error: unknown) {
   return error instanceof Prisma.PrismaClientInitializationError ||
     (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
@@ -32,23 +31,18 @@ export async function POST(request: Request) {
     const normalizedPhone = normalizePhone(input.phone);
     const record = await prisma.$transaction(async (transaction) => {
       if (normalizedPhone && await duplicatePhone(transaction, normalizedPhone)) throw new EnrollmentError("Ya existe un alumno registrado con ese teléfono.");
-      const schedule = input.scheduleId
-        ? await transaction.weeklyClassSchedule.findUnique({
-            where: { id: input.scheduleId },
-            select: { id: true, active: true, capacity: true, _count: { select: { assignments: true } } },
-          })
-        : null;
-      if (input.scheduleId && !schedule) throw new EnrollmentError("El horario seleccionado ya no existe.");
-      if (input.scheduleId && schedule && !schedule.active) throw new EnrollmentError("Seleccioná un horario activo para el alta.");
-      if (input.scheduleId && schedule && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity) throw new EnrollmentError("El horario seleccionado ya alcanzó su cupo.");
+      const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
+        where: { id: { in: input.scheduleIds } },
+        select: { id: true, active: true, capacity: true, _count: { select: { assignments: { where: { active: true } } } } },
+      }) : [];
+      if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("Uno de los horarios seleccionados ya no existe.");
+      if (schedules.some((schedule) => !schedule.active)) throw new EnrollmentError("Seleccioná únicamente horarios activos para el alta.");
+      if (schedules.some((schedule) => schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
       const created = await transaction.studentRecord.create({
-        data: { id: randomUUID(), phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleId || null, data: studentJsonData(input) },
-        include: studentInclude,
+        data: { id: randomUUID(), phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, data: studentJsonData(input) },
       });
-      if (input.scheduleId && schedule) {
-        await transaction.weeklyClassAssignment.create({ data: { scheduleId: schedule.id, studentId: created.id } });
-      }
-      return created;
+      if (schedules.length) await transaction.weeklyClassAssignment.createMany({ data: schedules.map((schedule) => ({ scheduleId: schedule.id, studentId: created.id })) });
+      return transaction.studentRecord.findUniqueOrThrow({ where: { id: created.id }, include: studentInclude });
     });
     return Response.json(serializeStudent(record), { status: 201 });
   } catch (error) {

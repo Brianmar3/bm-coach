@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const schedule = await prisma.weeklyClassSchedule.findUnique({
       where: { id: scheduleId },
       include: {
-        assignments: { include: { student: true } },
+        assignments: { where: { active: true }, include: { student: true } },
         attendances: { where: { date }, include: { student: true } },
       },
     });

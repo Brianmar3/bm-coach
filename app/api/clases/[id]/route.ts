@@ -36,15 +36,33 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
     const { studentIds, ...scheduleData } = parsed.data;
     const schedule = await prisma.$transaction(async (transaction) => {
       if (!await studentsExist(transaction, studentIds)) throw new UnknownStudentError();
+      const previousAssignments = await transaction.weeklyClassAssignment.findMany({
+        where: { scheduleId: id, active: true },
+        select: { studentId: true },
+      });
+      await transaction.weeklyClassAssignment.updateMany({ where: { scheduleId: id, active: true, studentId: { notIn: studentIds } }, data: { active: false, endedAt: new Date() } });
+      for (const studentId of studentIds) {
+        await transaction.weeklyClassAssignment.upsert({
+          where: { scheduleId_studentId: { scheduleId: id, studentId } },
+          create: { scheduleId: id, studentId },
+          update: { active: true, endedAt: null },
+        });
+      }
+      const affectedStudentIds = [...new Set([...studentIds, ...previousAssignments.map(({ studentId }) => studentId)])];
+      for (const studentId of affectedStudentIds) {
+        const firstActiveAssignment = await transaction.weeklyClassAssignment.findFirst({
+          where: { studentId, active: true },
+          orderBy: { assignedAt: "asc" },
+          select: { scheduleId: true },
+        });
+        await transaction.studentRecord.update({
+          where: { id: studentId },
+          data: { primaryScheduleId: firstActiveAssignment?.scheduleId ?? null },
+        });
+      }
       return transaction.weeklyClassSchedule.update({
         where: { id },
-        data: {
-          ...scheduleData,
-          assignments: {
-            deleteMany: {},
-            create: studentIds.map((studentId) => ({ studentId })),
-          },
-        },
+        data: scheduleData,
         include: weeklyClassInclude,
       });
     });

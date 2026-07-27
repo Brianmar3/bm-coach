@@ -639,11 +639,13 @@ model WeeklyClassAssignment {
   scheduleId String
   studentId  String
   assignedAt DateTime            @default(now())
+  active     Boolean             @default(true)
+  endedAt    DateTime?
   schedule   WeeklyClassSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   student    StudentRecord       @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@id([scheduleId, studentId])
-  @@index([studentId])
+  @@index([studentId, active])
   @@map("weekly_class_assignments")
 }
 

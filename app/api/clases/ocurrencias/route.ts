@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       where,
       include: {
         responses: { include: { student: { select: { id: true, data: true } } } },
-        schedule: { include: { assignments: { include: { student: { select: { id: true, data: true } } } } } },
+        schedule: { include: { assignments: { where: { active: true }, include: { student: { select: { id: true, data: true } } } } } },
         strengthBlock: { include: { exercises: { orderBy: { order: "asc" } } } },
         workoutLogs: { select: { id: true, studentId: true, status: true } },
       },

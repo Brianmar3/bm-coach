@@ -73,7 +73,7 @@ export async function GET() {
       weekday ? prisma.classOccurrence.findMany({
         where: { date: todayDate },
         include: {
-          schedule: { include: { assignments: { include: { student: { select: { data: true } } } } } },
+          schedule: { include: { assignments: { where: { active: true }, include: { student: { select: { data: true } } } } } },
           responses: { include: { student: { select: { data: true } } } },
         },
         orderBy: { startTime: "asc" },

@@ -10,6 +10,7 @@ import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { calculatePortalAchievements } from "@/lib/portal-achievements";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { portalPaymentAccount, serializePayment } from "@/lib/payments";
+import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -96,7 +97,7 @@ export async function GET(request: Request) {
     const homeInsightsPromise = section === "inicio"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, todayKey, weekStart)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, hasClassParticipation: false, achievements: [] });
-    const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord] = await Promise.all([
+    const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
       prisma.studentPayment.findMany({ where: { studentId, status: "PAGADO" }, include: { student: true }, orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? 50 : section === "inicio" ? 1 : 0 }),
@@ -117,11 +118,12 @@ export async function GET(request: Request) {
         : Promise.resolve(null),
       homeInsightsPromise,
       section === "pagos" ? prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
+      prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }),
     ]);
     const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
-      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, dueDate: student.dueDate },
+      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: student.flexibleSchedule ?? "" },
       routine: privateRoutine,
       evaluations: evaluations.map(serializeEvaluation),
       payments: payments.map(serializePayment),

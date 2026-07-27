@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const [plans, schedules] = await Promise.all([
       getStudentPlanOptions(),
-      prisma.weeklyClassSchedule.findMany({ orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }], select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true, active: true, capacity: true, _count: { select: { assignments: true } } } }),
+      prisma.weeklyClassSchedule.findMany({ orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }], select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true, active: true, capacity: true, _count: { select: { assignments: { where: { active: true } } } } } }),
     ]);
     return Response.json({
       plans,

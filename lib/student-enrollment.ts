@@ -7,7 +7,10 @@ import type { CoachSettings, Student, StudentPlanOption, StudentStatus } from "@
 const PLAN_DAYS = [2, 3, 4, 5] as const;
 const DAY_LABELS = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" } as const;
 
-export const studentInclude = { primarySchedule: true } satisfies Prisma.StudentRecordInclude;
+export const studentInclude = {
+  primarySchedule: true,
+  weeklyClasses: { where: { active: true }, include: { schedule: true }, orderBy: { assignedAt: "asc" } },
+} satisfies Prisma.StudentRecordInclude;
 export type StudentWithSchedule = Prisma.StudentRecordGetPayload<{ include: typeof studentInclude }>;
 
 export function normalizePhone(value: string) {
@@ -72,13 +75,16 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     responsibleName: typeof stored.responsibleName === "string" ? stored.responsibleName : "",
     responsiblePhone: typeof stored.responsiblePhone === "string" ? stored.responsiblePhone : "",
     responsibleRelation: typeof stored.responsibleRelation === "string" ? stored.responsibleRelation : "",
+    flexibleSchedule: typeof stored.flexibleSchedule === "string" ? stored.flexibleSchedule : "",
     id: record.id,
     scheduleId: record.primaryScheduleId ?? "",
     scheduleLabel: record.primarySchedule ? weeklyScheduleLabel(record.primarySchedule) : "Sin horario principal",
+    scheduleIds: record.weeklyClasses.map((assignment) => assignment.scheduleId),
+    scheduleLabels: record.weeklyClasses.map((assignment) => weeklyScheduleLabel(assignment.schedule)),
   };
 }
 
-export type ParsedStudentInput = Omit<Student, "id" | "scheduleLabel"> & { scheduleId: string };
+export type ParsedStudentInput = Omit<Student, "id" | "scheduleLabel" | "scheduleLabels"> & { scheduleId: string; scheduleIds: string[]; flexibleSchedule: string };
 
 export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): { data: ParsedStudentInput; error: null } | { data: null; error: string } {
   if (!value || typeof value !== "object") return { data: null, error: "Los datos del alumno no son válidos." };
@@ -92,6 +98,10 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const responsibleRelation = typeof input.responsibleRelation === "string" ? input.responsibleRelation.trim() : "";
   const joinedAt = typeof input.joinedAt === "string" ? input.joinedAt : "";
   const scheduleId = typeof input.scheduleId === "string" ? input.scheduleId : "";
+  const scheduleIds = Array.isArray(input.scheduleIds) && input.scheduleIds.every((id) => typeof id === "string")
+    ? [...new Set(input.scheduleIds.map((id) => id.trim()).filter(Boolean))]
+    : scheduleId ? [scheduleId] : [];
+  const flexibleSchedule = typeof input.flexibleSchedule === "string" ? input.flexibleSchedule.trim().slice(0, 80) : "";
   const status = input.status as StudentStatus;
   const requestedDays = typeof input.planDays === "number" ? input.planDays : planDays(typeof input.plan === "string" ? input.plan : "");
   const selectedPlan = plans.find((plan) => plan.days === requestedDays);
@@ -130,7 +140,9 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       responsibleName,
       responsiblePhone,
       responsibleRelation,
-      scheduleId,
+      scheduleId: scheduleIds[0] ?? "",
+      scheduleIds,
+      flexibleSchedule,
     },
     error: null,
   };
@@ -156,6 +168,7 @@ export function studentJsonData(input: ParsedStudentInput): Prisma.InputJsonObje
     responsibleName: input.responsibleName,
     responsiblePhone: input.responsiblePhone,
     responsibleRelation: input.responsibleRelation,
+    flexibleSchedule: input.flexibleSchedule,
   };
 }
 
