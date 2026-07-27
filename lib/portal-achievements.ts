@@ -7,6 +7,12 @@ export type PortalAchievement = {
   unlockedAt: string;
   progress: number;
   target: number;
+  category?: "FUERZA" | "REPETICIONES" | "VOLUMEN" | "TIEMPO" | "CONSTANCIA" | "EVALUACIONES";
+  exercise?: string;
+  previousValue?: string;
+  newValue?: string;
+  sessionId?: string;
+  source?: "ROUTINE" | "CLASS";
 };
 
 type AchievementFacts = {

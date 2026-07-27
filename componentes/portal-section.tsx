@@ -7,6 +7,7 @@ import type { PortalData, PortalWorkoutSession } from "@/types/portal";
 import { PortalClasses } from "@/componentes/portal-classes";
 import { dailyFocusForDate } from "@/lib/daily-focus";
 import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/body-evolution-card";
+import type { PortalAchievement } from "@/lib/portal-achievements";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -76,7 +77,11 @@ function AchievementsOverview({ data }: { data: PortalData }) {
   const unlocked = data.home.achievements.filter((achievement) => achievement.unlocked).sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt));
   const upcoming = data.home.achievements.filter((achievement) => !achievement.unlocked && achievement.progress > 0).sort((left, right) => right.progress / right.target - left.progress / left.target);
   if (!unlocked.length && !upcoming.length) return null;
-  return <section><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Tus logros</p>{unlocked.length > 0 && <div className="mt-2 grid gap-2 sm:grid-cols-3">{unlocked.slice(0, 3).map((achievement) => <article key={achievement.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex gap-3"><span aria-hidden="true" className="text-lg text-yellow-400">{achievement.icon}</span><div><h3 className="text-sm font-bold">{achievement.name}</h3><p className="mt-1 text-xs text-zinc-500">{achievement.description}</p><p className="mt-2 text-[10px] text-zinc-600">{date(achievement.unlockedAt)}</p></div></div></article>)}</div>}<details className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="cursor-pointer list-none text-sm font-bold text-yellow-400">Ver todos los logros</summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{unlocked.map((achievement) => <div key={achievement.id} className="flex items-start gap-3 rounded-lg bg-zinc-950 p-3"><span aria-hidden="true" className="text-yellow-400">{achievement.icon}</span><div><p className="text-sm font-semibold">{achievement.name}</p><p className="mt-1 text-xs text-zinc-500">{achievement.description} · {date(achievement.unlockedAt)}</p></div></div>)}{upcoming.slice(0, 4).map((achievement) => <div key={achievement.id} className="rounded-lg bg-zinc-950 p-3 text-zinc-500"><div className="flex justify-between gap-3 text-xs"><span className="font-semibold">{achievement.name}</span><span>{achievement.progress} de {achievement.target}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-zinc-600" style={{ width: `${achievement.progress / achievement.target * 100}%` }} /></div></div>)}</div></details></section>;
+  return <section><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Tus logros</p>{unlocked.length > 0 && <div className="mt-2 grid gap-2 sm:grid-cols-3">{unlocked.slice(0, 3).map((achievement) => <AchievementCard key={achievement.id} achievement={achievement} />)}</div>}<details className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="cursor-pointer list-none text-sm font-bold text-yellow-400">Ver todos los logros</summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{unlocked.map((achievement) => <AchievementCard key={achievement.id} achievement={achievement} compact />)}{upcoming.slice(0, 4).map((achievement) => <div key={achievement.id} className="rounded-lg bg-zinc-950 p-3 text-zinc-500"><div className="flex justify-between gap-3 text-xs"><span className="font-semibold">{achievement.name}</span><span>{achievement.progress} de {achievement.target}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-zinc-600" style={{ width: `${achievement.progress / achievement.target * 100}%` }} /></div></div>)}</div></details></section>;
+}
+
+function AchievementCard({ achievement, compact = false }: { achievement: PortalAchievement; compact?: boolean }) {
+  return <article className={`flex items-start gap-3 ${compact ? "rounded-lg bg-zinc-950 p-3" : "rounded-xl border border-zinc-800 bg-zinc-900 p-3"}`}><span aria-hidden="true" className="text-lg text-yellow-400">{achievement.icon}</span><div><p className="text-sm font-semibold">{achievement.name}</p>{achievement.category && <p className="mt-1 text-[9px] font-bold tracking-wider text-yellow-500">{achievement.category}</p>}{achievement.exercise && <p className="mt-1 text-xs font-semibold text-yellow-200">{achievement.exercise} · {achievement.source === "CLASS" ? "Clase presencial" : "Rutina personalizada"}</p>}<p className="mt-1 text-xs text-zinc-500">{achievement.description}</p>{achievement.previousValue && achievement.newValue && <p className="mt-1 text-xs text-zinc-400">{achievement.previousValue} → {achievement.newValue}</p>}<p className="mt-2 text-[10px] text-zinc-600">{date(achievement.unlockedAt)}</p></div></article>;
 }
 
 function ComparativeEvaluationsView({ data }: { data: PortalData }) {
@@ -196,6 +201,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [painLocation, setPainLocation] = useState("");
   const [painIntensity, setPainIntensity] = useState<number | null>(null);
   const [completionSuccess, setCompletionSuccess] = useState(false);
+  const [newAchievements, setNewAchievements] = useState<PortalAchievement[]>([]);
   const autosaveSignature = useRef("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -294,7 +300,7 @@ function WorkoutView({ data }: { data: PortalData }) {
         : draft.painDetails;
       const payload = { ...draft, durationMinutes: duration, finalComment, painDetails, status: finalize ? "finalizado" as const : "en_progreso" as const };
       const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const body = await response.json() as { id?: string; error?: string };
+      const body = await response.json() as { id?: string; error?: string; achievements?: PortalAchievement[] };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
       const updated = { ...payload, id: body.id };
       if (finalize) {
@@ -304,8 +310,9 @@ function WorkoutView({ data }: { data: PortalData }) {
         setFinalOpen(false);
         setDraft(null);
         setCompletionSuccess(true);
+        setNewAchievements(body.achievements ?? []);
         setMessage("Tu entrenamiento se guardó con éxito.");
-        window.setTimeout(() => window.location.assign("/portal/rutina#historial-entrenamientos"), 1100);
+        window.setTimeout(() => window.location.assign("/portal/rutina#historial-entrenamientos"), body.achievements?.length ? 4200 : 1400);
       } else {
         setDraft(updated);
         setMessage("Progreso guardado.");
@@ -326,6 +333,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     <div className="mb-2 flex gap-2 overflow-x-auto">{trainingDays.map((day) => <button key={day.id} onClick={() => chooseDay(day.id)} className={`shrink-0 rounded-xl px-4 py-3 text-left font-bold ${day.id === selectedDayId ? "bg-yellow-400 text-zinc-950" : "bg-zinc-900 text-zinc-300"}`}>Día {day.dayNumber}<span className="block text-xs font-normal opacity-70">{day.name}</span></button>)}</div>
     <section className="mb-5 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold text-yellow-300">{selectedDay.objective || routine.objective}</p><p className="mt-1 text-xs text-zinc-500">{selectedDay.exercises.length} ejercicios{selectedDay.estimatedMinutes ? ` · ${selectedDay.estimatedMinutes} min estimados` : ""} · {selectedDay.id === suggestedDayId ? "Día sugerido" : "Día elegido manualmente"}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${completedTotal === totalSets && totalSets ? "bg-emerald-400/10 text-emerald-300" : started ? "bg-yellow-400/10 text-yellow-300" : "bg-zinc-800 text-zinc-400"}`}>{completedTotal === totalSets && totalSets ? "Completado" : started ? "En progreso" : "Sin comenzar"}</span></div>{draft && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-yellow-400" style={{ width: `${totalSets ? completedTotal / totalSets * 100 : 0}%` }} /></div>}</section>
     {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento cargado correctamente</div>}
+    {newAchievements.length > 0 && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+5rem)] z-[101] mx-auto max-w-md rounded-2xl border border-yellow-400/40 bg-zinc-950 p-4 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Nuevo logro</p><p className="mt-1 font-bold">{newAchievements[0].name}{newAchievements[0].exercise ? ` en ${newAchievements[0].exercise}` : ""}</p><p className="mt-1 text-sm text-zinc-400">{newAchievements[0].previousValue} → {newAchievements[0].newValue}</p>{newAchievements.length > 1 && <p className="mt-2 text-xs text-yellow-300">También desbloqueaste {newAchievements.length - 1} logro{newAchievements.length > 2 ? "s" : ""} más.</p>}</div><button type="button" onClick={() => setNewAchievements([])} className="rounded-lg px-2 py-1 text-sm text-zinc-400">Cerrar</button></div></div>}
     {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-zinc-500">Preparando ejercicios…</p>}
     {draft && <>
       <div className="mt-5 space-y-4">{draft.exercises.map((exercise, exerciseIndex) => {

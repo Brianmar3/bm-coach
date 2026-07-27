@@ -8,6 +8,7 @@ import type { PortalData } from "@/types/portal";
 import type { Prisma } from "@prisma/client";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { calculatePortalAchievements } from "@/lib/portal-achievements";
+import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { portalPaymentAccount, serializePayment } from "@/lib/payments";
 
 export const runtime = "nodejs";
@@ -37,6 +38,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     latestEvaluation,
     evaluationCount,
     firstStrengthLog,
+    strengthAchievements,
   ] = await Promise.all([
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED" } }),
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED" }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 10 }),
@@ -51,6 +53,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     prisma.physicalEvaluation.findFirst({ where: meaningfulEvaluation, select: { date: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
     prisma.physicalEvaluation.count({ where: meaningfulEvaluation }),
     prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED" }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }),
+    loadStrengthAchievements(studentId),
   ]);
   const usesOccurrenceAttendance = newAttendanceCount > 0;
   const attendedClassCount = usesOccurrenceAttendance ? newAttendanceCount : legacyAttendanceCount;
@@ -61,7 +64,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     weeklyWorkoutCount,
     classesAttendedThisMonth: usesOccurrenceAttendance ? newAttendanceThisMonth : legacyAttendanceThisMonth,
     hasClassParticipation: Boolean(primaryScheduleId) || newAttendanceCount > 0 || legacyAttendanceCount > 0 || Boolean(firstStrengthLog),
-    achievements: calculatePortalAchievements({
+    achievements: [...calculatePortalAchievements({
       completedWorkoutCount,
       completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
       attendedClassCount,
@@ -72,7 +75,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
       firstStrengthLogDate: firstStrengthLog?.classDateSnapshot.toISOString().slice(0, 10) ?? "",
       joinedAt,
       today: todayKey,
-    }),
+    }), ...strengthAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
   };
 }
 

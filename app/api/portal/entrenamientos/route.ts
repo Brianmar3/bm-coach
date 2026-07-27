@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
 import type { PortalWorkoutSession } from "@/types/portal";
+import { loadStrengthAchievements } from "@/lib/strength-achievements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -189,7 +190,10 @@ export async function POST(request: Request) {
         ? transaction.workoutSession.update({ where: { id: input.id }, data })
         : transaction.workoutSession.create({ data });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    return Response.json({ id: saved.id, status: input.status });
+    const achievements = input.status === "finalizado"
+      ? (await loadStrengthAchievements(session.studentId)).filter((achievement) => achievement.sessionId === saved.id)
+      : [];
+    return Response.json({ id: saved.id, status: input.status, achievements });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") return Response.json({ error: "El entrenamiento ya no existe o no te pertenece." }, { status: 404 });
     if (error instanceof Error && error.message === "DUPLICATE_SESSION") return Response.json({ error: "Ya existe una sesión para este día y fecha. Volvé a cargar Mi rutina para continuarla." }, { status: 409 });

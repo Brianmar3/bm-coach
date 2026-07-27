@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ClassStrengthLogEditor, type ClassStrengthEditorValue } from "@/componentes/class-strength-log-editor";
 import type { ClassStrengthExerciseLog, PortalClassOccurrence } from "@/types/classes";
+import type { PortalAchievement } from "@/lib/portal-achievements";
 
 type ClassHistory = {
   id: string;
@@ -133,9 +134,12 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   async function saveStrength(status: "DRAFT" | "COMPLETED", value: ClassStrengthEditorValue) {
     if (!editing) return;
     const response = await fetch("/api/portal/clases/fuerza", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logId: value.id, occurrenceId: editing.occurrenceId, status, notes: value.notes, exercises: value.exercises }) });
-    const body = await response.json() as { error?: string; message?: string };
+    const body = await response.json() as { error?: string; message?: string; achievements?: PortalAchievement[] };
     if (!response.ok) throw new Error(body.error ?? "No se pudo guardar. Tus cambios permanecen en pantalla.");
-    setNotice(body.message ?? "Registro guardado.");
+    const achievementMessage = body.achievements?.[0]
+      ? ` ${body.achievements[0].name}${body.achievements[0].exercise ? ` en ${body.achievements[0].exercise}` : ""}.`
+      : "";
+    setNotice(`${body.message ?? "Registro guardado."}${achievementMessage}`);
     setEditing(null);
     await load();
   }
