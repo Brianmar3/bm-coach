@@ -1,4 +1,4 @@
-self.__BM_TRAINING_SW_VERSION__ = "push-v2";
+self.__BM_TRAINING_SW_VERSION__ = "push-v3";
 
 self.addEventListener("install", () => {
   self.skipWaiting();

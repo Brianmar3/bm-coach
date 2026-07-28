@@ -19,6 +19,7 @@ function sameOrigin(request: NextRequest) {
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  if (path === "/sw.js" || path === "/manifest.webmanifest" || path === "/portal/manifest.webmanifest" || path.startsWith("/icons/")) return NextResponse.next();
   if (/\.[^/]+$/.test(path)) return NextResponse.next();
   const portalRoute = path === "/portal" || path.startsWith("/portal/") || path === "/api/portal" || path.startsWith("/api/portal/");
   const authRoute = path === "/admin/login" || path === "/api/admin/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";

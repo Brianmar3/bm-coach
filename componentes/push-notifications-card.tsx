@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 type PushState = "loading" | "unsupported" | "iphone-browser" | "blocked" | "inactive" | "active" | "unconfigured";
 type PushConfig = { configured: boolean; publicKey: string; diagnostics?: { publicKeyPresent: boolean; publicKeyLength: number; publicKeyValid: boolean } };
+const WORKER_URL = "/sw.js";
+const WORKER_SCOPE = "/";
 
 function applicationServerKey(value: string) {
   const normalized = value.trim().replace(/^(['"])(.*)\1$/, "$2").trim();
@@ -21,8 +23,8 @@ function friendlyError(error: unknown) {
   console.error("[BM Training Push] activación fallida", { name, message: technicalMessage });
   if (technicalMessage.includes("VAPID_")) return "Las notificaciones todavía no están configuradas.";
   if (Notification.permission === "denied" || name === "NotAllowedError") return "Las notificaciones están bloqueadas en la configuración del teléfono.";
-  if (name === "ServiceWorkerError" || /service worker|registration/i.test(technicalMessage)) return "No se pudo preparar el servicio de notificaciones.";
   if (/push service|registration failed|network|abort/i.test(technicalMessage) || name === "AbortError" || name === "NetworkError") return "No se pudo conectar con el servicio de notificaciones. Reintentá en unos minutos.";
+  if (name === "ServiceWorkerError" || /service worker|worker fetch|worker ready/i.test(technicalMessage)) return "No se pudo preparar el servicio de notificaciones.";
   return "No pudimos activar las notificaciones.";
 }
 
@@ -34,11 +36,32 @@ function logDiagnostics(stage: string, config?: PushConfig, registration?: Servi
     serviceWorkerAvailable: "serviceWorker" in navigator,
     pushManagerAvailable: "PushManager" in window && Boolean(registration?.pushManager),
     worker: registration ? { installing: Boolean(registration.installing), waiting: Boolean(registration.waiting), active: Boolean(registration.active), scope: registration.scope } : null,
+    controller: Boolean(navigator.serviceWorker.controller),
     publicKeyPresent: config?.diagnostics?.publicKeyPresent ?? Boolean(config?.publicKey),
     publicKeyLength: config?.diagnostics?.publicKeyLength ?? config?.publicKey.length ?? 0,
     publicKeyValid: config?.diagnostics?.publicKeyValid ?? false,
     previousSubscription: previousSubscription ?? null,
   });
+}
+
+async function validateWorkerResponse() {
+  const response = await fetch(WORKER_URL, { cache: "no-store", redirect: "manual" });
+  const contentType = response.headers.get("content-type") ?? "";
+  const validJavaScript = /javascript|ecmascript/i.test(contentType) && !/text\/html/i.test(contentType);
+  console.info("[BM Training Push] worker HTTP", { url: new URL(WORKER_URL, window.location.origin).href, status: response.status, contentType, redirected: response.redirected, validJavaScript });
+  if (!response.ok || response.redirected || !validJavaScript) throw new DOMException(`Worker fetch inválido: HTTP ${response.status}, Content-Type ${contentType || "ausente"}`, "ServiceWorkerError");
+}
+
+async function readyRegistration(timeoutMs = 12000) {
+  let timeout = 0;
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) => { timeout = window.setTimeout(() => reject(new DOMException("Worker ready timeout", "ServiceWorkerError")), timeoutMs); }),
+    ]);
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export function PushNotificationsCard() {
@@ -61,6 +84,7 @@ export function PushNotificationsCard() {
       const registrations = await navigator.serviceWorker.getRegistrations();
       const matching = registrations.find((item) => new URL(item.scope).pathname === "/");
       const subscription = await matching?.pushManager?.getSubscription();
+      console.info("[BM Training Push] registros encontrados", { count: registrations.length, matchingRegistration: Boolean(await navigator.serviceWorker.getRegistration(WORKER_SCOPE)) });
       logDiagnostics("estado inicial", loaded, matching, Boolean(subscription));
       setState(subscription ? "active" : "inactive");
     })().catch((error) => { console.error("[BM Training Push] diagnóstico inicial fallido", { name: error instanceof Error ? error.name : "UnknownError", message: error instanceof Error ? error.message : String(error) }); setState("unsupported"); });
@@ -70,10 +94,13 @@ export function PushNotificationsCard() {
     try {
       if (!config?.configured || !config.publicKey || !config.diagnostics?.publicKeyValid) throw new Error("VAPID_MISSING");
       if (!window.isSecureContext) throw new DOMException("HTTPS requerido", "SecurityError");
-      await navigator.serviceWorker.register("/sw.js?v=2", { scope: "/", updateViaCache: "none" });
-      const registration = await navigator.serviceWorker.ready;
+      await validateWorkerResponse();
+      console.info("[BM Training Push] registrando worker", { url: new URL(WORKER_URL, window.location.origin).href, scope: WORKER_SCOPE });
+      const registered = await navigator.serviceWorker.register(WORKER_URL, { scope: WORKER_SCOPE, updateViaCache: "none" });
+      logDiagnostics("registro devuelto", config, registered);
+      const registration = await readyRegistration();
       if (!registration.active || !registration.pushManager) throw new DOMException("Service worker o PushManager no disponible", "ServiceWorkerError");
-      await registration.update().catch(() => undefined);
+      console.info("[BM Training Push] registro activo", { getRegistration: Boolean(await navigator.serviceWorker.getRegistration(WORKER_SCOPE)) });
       const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
       if (permission !== "granted") { setState("blocked"); setMessage("Las notificaciones están bloqueadas en la configuración del teléfono."); return; }
       const existing = await registration.pushManager.getSubscription();
@@ -89,7 +116,7 @@ export function PushNotificationsCard() {
   async function deactivate() {
     setBusy(true); setMessage("");
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await readyRegistration();
       const subscription = await registration.pushManager?.getSubscription();
       if (subscription) {
         await fetch("/api/portal/push", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
