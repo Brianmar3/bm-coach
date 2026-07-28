@@ -9,13 +9,21 @@ function validEndpoint(value: string) {
   try { return new URL(value).protocol === "https:" && value.length <= 2048; } catch { return false; }
 }
 const validKey = (value: string) => /^[A-Za-z0-9_-]{16,512}$/.test(value);
+function publicVapidKey() {
+  const raw = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+  const normalized = raw.trim().replace(/^(['"])(.*)\1$/, "$2").trim();
+  const valid = normalized.length === 87 && /^[A-Za-z0-9_-]+$/.test(normalized);
+  return { value: valid ? normalized : "", present: raw.length > 0, length: normalized.length, valid };
+}
 
 export async function GET() {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
+  const publicKey = publicVapidKey();
   return Response.json({
-    configured: Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT),
-    publicKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "",
+    configured: Boolean(publicKey.valid && process.env.VAPID_PRIVATE_KEY?.trim() && process.env.VAPID_SUBJECT?.trim()),
+    publicKey: publicKey.value,
+    diagnostics: { publicKeyPresent: publicKey.present, publicKeyLength: publicKey.length, publicKeyValid: publicKey.valid },
     activeDevices: await prisma.studentPushSubscription.count({ where: { studentId: session.studentId, active: true } }),
   });
 }
@@ -24,7 +32,7 @@ export async function POST(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
-  if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_SUBJECT) return Response.json({ error: "Las notificaciones todavía no están configuradas." }, { status: 503 });
+  if (!publicVapidKey().valid || !process.env.VAPID_PRIVATE_KEY?.trim() || !process.env.VAPID_SUBJECT?.trim()) return Response.json({ error: "Las notificaciones todavía no están configuradas." }, { status: 503 });
   const input = await request.json().catch(() => null) as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown }; deviceLabel?: unknown } | null;
   const endpoint = typeof input?.endpoint === "string" ? input.endpoint : "";
   const p256dh = typeof input?.keys?.p256dh === "string" ? input.keys.p256dh : "";

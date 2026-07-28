@@ -1,3 +1,13 @@
+self.__BM_TRAINING_SW_VERSION__ = "push-v2";
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("push", (event) => {
   let data = { title: "Nuevo logro en BM Training", body: "Entrá a la app para ver tu progreso.", url: "/portal#logros", tag: "bm-training-achievements" };
   try { data = { ...data, ...event.data.json() }; } catch {}
