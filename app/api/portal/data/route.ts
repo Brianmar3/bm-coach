@@ -11,13 +11,17 @@ import { calculatePortalAchievements } from "@/lib/portal-achievements";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { portalPaymentAccount, serializePayment } from "@/lib/payments";
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
+import { planDays } from "@/lib/student-enrollment";
+import { BM_TRAINING_START_DATE } from "@/lib/bm-training";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, todayKey: string, weekStart: Date) {
+async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date) {
   const today = dateKeyToDatabase(todayKey);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const activityStartKey = joinedAt && joinedAt > BM_TRAINING_START_DATE ? joinedAt : BM_TRAINING_START_DATE;
+  const activityStart = dateKeyToDatabase(activityStartKey);
   const meaningfulEvaluation = {
     studentId,
     OR: [
@@ -26,56 +30,48 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     ],
   } satisfies Prisma.PhysicalEvaluationWhereInput;
   const [
-    completedWorkoutCount,
     completedWorkoutDates,
     weeklyWorkoutCount,
-    newAttendanceCount,
     newAttendanceDates,
-    newAttendanceThisMonth,
-    legacyAttendanceCount,
     legacyAttendanceDates,
-    legacyAttendanceThisMonth,
-    firstEvaluation,
-    latestEvaluation,
-    evaluationCount,
+    evaluationDates,
     firstStrengthLog,
     strengthAchievements,
+    activeRoutineCount,
   ] = await Promise.all([
-    prisma.workoutSession.count({ where: { studentId, status: "COMPLETED" } }),
-    prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED" }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 10 }),
+    prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: weekStart } } }),
-    prisma.classOccurrenceAttendance.count({ where: { studentId, actualAttendance: "PRESENT" } }),
-    prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT" }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } }, take: 10 }),
-    prisma.classOccurrenceAttendance.count({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: monthStart, lte: today } } } }),
-    prisma.classAttendance.count({ where: { studentId, status: "PRESENT" } }),
-    prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT" }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 10 }),
-    prisma.classAttendance.count({ where: { studentId, status: "PRESENT", date: { gte: monthStart, lte: today } } }),
-    prisma.physicalEvaluation.findFirst({ where: meaningfulEvaluation, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
-    prisma.physicalEvaluation.findFirst({ where: meaningfulEvaluation, select: { date: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
-    prisma.physicalEvaluation.count({ where: meaningfulEvaluation }),
-    prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED" }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }),
-    loadStrengthAchievements(studentId),
+    prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }),
+    prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+    prisma.physicalEvaluation.findMany({ where: { ...meaningfulEvaluation, date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+    prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }),
+    loadStrengthAchievements(studentId, activityStart),
+    prisma.trainingRoutineAssignment.count({ where: { studentId, active: true } }),
   ]);
-  const usesOccurrenceAttendance = newAttendanceCount > 0;
-  const attendedClassCount = usesOccurrenceAttendance ? newAttendanceCount : legacyAttendanceCount;
-  const attendedClassDates = usesOccurrenceAttendance
-    ? newAttendanceDates.map((item) => item.occurrence.date.toISOString().slice(0, 10))
-    : legacyAttendanceDates.map((item) => item.date.toISOString().slice(0, 10));
+  const newDates = newAttendanceDates.map((item) => item.occurrence.date.toISOString().slice(0, 10));
+  const firstNewDate = newDates[0] ?? "";
+  const attendedClassDates = [
+    ...legacyAttendanceDates.map((item) => item.date.toISOString().slice(0, 10)).filter((date) => !firstNewDate || date < firstNewDate),
+    ...newDates,
+  ].sort();
+  const evaluationDateKeys = evaluationDates.map((item) => item.date.toISOString().slice(0, 10));
+  const monthStartKey = monthStart.toISOString().slice(0, 10);
+  const hasClassParticipation = Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog);
   return {
     weeklyWorkoutCount,
-    classesAttendedThisMonth: usesOccurrenceAttendance ? newAttendanceThisMonth : legacyAttendanceThisMonth,
-    hasClassParticipation: Boolean(primaryScheduleId) || newAttendanceCount > 0 || legacyAttendanceCount > 0 || Boolean(firstStrengthLog),
+    classesAttendedThisMonth: attendedClassDates.filter((date) => date >= monthStartKey && date <= todayKey).length,
+    hasClassParticipation,
     achievements: [...calculatePortalAchievements({
-      completedWorkoutCount,
       completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
-      attendedClassCount,
       attendedClassDates,
-      firstEvaluationDate: firstEvaluation?.date.toISOString().slice(0, 10) ?? "",
-      latestEvaluationDate: latestEvaluation?.date.toISOString().slice(0, 10) ?? "",
-      evaluationCount,
+      evaluationDates: evaluationDateKeys,
       firstStrengthLogDate: firstStrengthLog?.classDateSnapshot.toISOString().slice(0, 10) ?? "",
       joinedAt,
       today: todayKey,
+      weeklyGoal: planDays(plan) ?? 0,
+      active: studentStatus !== "inactivo",
+      hasRoutine: activeRoutineCount > 0 || completedWorkoutDates.length > 0,
+      hasClassParticipation,
     }), ...strengthAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
   };
 }
@@ -95,7 +91,7 @@ export async function GET(request: Request) {
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio"
-      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, todayKey, weekStart)
+      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, hasClassParticipation: false, achievements: [] });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),

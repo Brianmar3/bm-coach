@@ -2,6 +2,8 @@ import { occurrenceHasStarted } from "@/lib/class-occurrences";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
+import { bmTrainingActivityStart } from "@/lib/bm-training";
+import type { Student } from "@/types/gestion";
 
 export const runtime = "nodejs";
 
@@ -73,8 +75,9 @@ export async function POST(request: Request) {
       }
       return { log, updated: Boolean(existing) };
     });
+    const student = session.credential.student.data as unknown as Student;
     const achievements = saved.log.status === "COMPLETED"
-      ? (await loadStrengthAchievements(session.studentId)).filter((achievement) => achievement.sessionId === saved.log.id)
+      ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.log.id)
       : [];
     return Response.json({ id: saved.log.id, status: saved.log.status, achievements, message: saved.updated ? "Bloque de fuerza actualizado correctamente." : saved.log.status === "COMPLETED" ? "Registro de fuerza finalizado." : "Borrador guardado." });
   } catch (error) {

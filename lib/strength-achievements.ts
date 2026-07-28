@@ -39,6 +39,7 @@ function achievement(record: PerformanceRecord, type: "weight" | "reps" | "sets"
     progress: 1,
     target: 1,
     category,
+    level: type === "weight" || type === "volume" ? "DESTACADO" : "COMUN",
     exercise: record.exerciseName,
     previousValue,
     newValue,
@@ -104,10 +105,10 @@ export function calculateStrengthAchievements(records: PerformanceRecord[]) {
   return results;
 }
 
-export async function loadStrengthAchievements(studentId: string) {
+export async function loadStrengthAchievements(studentId: string, activityStart?: Date) {
   const [routineSessions, classSessions] = await Promise.all([
     prisma.workoutSession.findMany({
-      where: { studentId, status: "COMPLETED", hasPain: false },
+      where: { studentId, status: "COMPLETED", hasPain: false, ...(activityStart ? { date: { gte: activityStart } } : {}) },
       select: {
         id: true, date: true,
         exercises: { select: { exerciseReferenceId: true, exerciseName: true, targetRepetitions: true, sets: { where: { completed: true }, select: { weight: true, repetitions: true, effort: true }, orderBy: { setNumber: "asc" } } } },
@@ -115,7 +116,7 @@ export async function loadStrengthAchievements(studentId: string) {
       orderBy: [{ date: "asc" }, { createdAt: "asc" }],
     }),
     prisma.classWorkoutLog.findMany({
-      where: { studentId, status: "COMPLETED" },
+      where: { studentId, status: "COMPLETED", ...(activityStart ? { classDateSnapshot: { gte: activityStart } } : {}) },
       select: { id: true, classDateSnapshot: true, exercises: { select: { exerciseNameSnapshot: true, sets: { select: { weight: true, repetitions: true, effort: true }, orderBy: { setNumber: "asc" } } } } },
       orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }],
     }),

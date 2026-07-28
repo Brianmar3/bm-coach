@@ -4,6 +4,8 @@ import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
 import type { PortalWorkoutSession } from "@/types/portal";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
+import { bmTrainingActivityStart } from "@/lib/bm-training";
+import type { Student } from "@/types/gestion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -190,8 +192,9 @@ export async function POST(request: Request) {
         ? transaction.workoutSession.update({ where: { id: input.id }, data })
         : transaction.workoutSession.create({ data });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    const student = session.credential.student.data as unknown as Student;
     const achievements = input.status === "finalizado"
-      ? (await loadStrengthAchievements(session.studentId)).filter((achievement) => achievement.sessionId === saved.id)
+      ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.id)
       : [];
     return Response.json({ id: saved.id, status: input.status, achievements });
   } catch (error) {
