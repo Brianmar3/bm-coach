@@ -25,6 +25,8 @@ type EditingStrength = { occurrenceId: string; title: string; value: ClassStreng
 type ClassData = {
   occurrences: PortalClassOccurrence[];
   history: ClassHistory[];
+  scheduleLabels: string[];
+  flexibleSchedule: string;
 };
 
 const dateLabel = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -170,6 +172,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
 
   return <div>
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm text-yellow-400">Agenda presencial</p><h1 className="mt-1 text-2xl font-bold">{showWeek ? "Semana completa" : "Clases de hoy"}</h1><p className="mt-2 text-sm text-zinc-500">Confirmá tu lugar y registrá el bloque de fuerza después de la clase.</p></div><button onClick={() => setShowWeek((value) => !value)} className="self-start rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:border-yellow-400/50 hover:text-yellow-300 sm:self-auto">{showWeek ? "Ver solo hoy" : "Ver semana completa"}</button></header>
+    <details className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="cursor-pointer list-none text-sm font-bold text-yellow-300">Mis horarios semanales ({data?.scheduleLabels.length ?? 0})</summary>{data?.scheduleLabels.length ? <ul className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{data.scheduleLabels.map((label) => <li key={label} className="rounded-lg bg-zinc-950 px-3 py-2 text-sm text-zinc-300">{label}</li>)}</ul> : <p className="mt-3 text-sm text-zinc-500">No tenés horarios semanales asignados.</p>}{data?.flexibleSchedule && <p className="mt-3 text-sm text-zinc-400">Horario habitual: {data.flexibleSchedule}</p>}</details>
     <Feedback error={error} notice={notice} />
     {!showWeek && todayItems.length === 0 && <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Hoy no hay clases programadas.</p>}
     <div className="mt-6 space-y-5">{grouped.map(([date, items]) => <section key={date}><h2 className="mb-3 capitalize font-bold text-yellow-300">{dateLabel(date)}</h2><div className="grid gap-3 sm:grid-cols-2">{items.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{item.name}</h3><p className="mt-1 text-sm text-zinc-400">{item.startTime}–{item.endTime} · {item.category}</p></div><span className="rounded-full bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{item.statusLabel}</span></div><p className="mt-3 text-xs text-zinc-500">{item.confirmedCount} confirmados{item.capacity === null ? "" : ` · cupo ${item.capacity}`}</p>{item.canRespond && <ResponseButtons item={item} saving={savingId === item.id} respond={respond} />}{item.strengthAvailable && <button onClick={() => editOccurrence(item)} className="mt-3 w-full rounded-xl border border-yellow-400/40 p-3 font-bold text-yellow-300">{item.workoutLog ? "Editar bloque de fuerza" : "Registrar bloque de fuerza"}</button>}</article>)}</div></section>)}</div>

@@ -28,6 +28,7 @@ export type Student = {
   scheduleIds?: string[];
   scheduleLabels?: string[];
   flexibleSchedule?: string;
+  profileImageUrl?: string;
 };
 
 export type StudentPlanOption = {

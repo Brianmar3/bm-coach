@@ -3,6 +3,8 @@ import { argentinaClock, ensureClassOccurrences, occurrenceHasStarted, occurrenc
 import { databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
+import { weeklyScheduleLabel } from "@/lib/student-enrollment";
+import type { Student } from "@/types/gestion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,6 +68,7 @@ export async function GET(request: Request) {
   try {
     const summaryOnly = new URL(request.url).searchParams.get("summary") === "1";
     const range = await ensureClassOccurrences(35);
+    const schedules = await prisma.weeklyClassAssignment.findMany({ where: { studentId: session.studentId, active: true }, include: { schedule: true } });
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
         date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) },
@@ -97,6 +100,8 @@ export async function GET(request: Request) {
       take: 20,
     });
     return Response.json({
+      scheduleLabels: schedules.map((item) => weeklyScheduleLabel(item.schedule)),
+      flexibleSchedule: (session.credential.student.data as unknown as Student).flexibleSchedule ?? "",
       occurrences: occurrences.map(serializeOccurrence),
       history: history.map((log) => ({
         id: log.id,

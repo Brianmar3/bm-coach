@@ -15,6 +15,7 @@ export type PortalProfile = {
   dueDate: string;
   scheduleLabels: string[];
   flexibleSchedule: string;
+  profileImageUrl: string;
 };
 
 export type PortalWorkoutSet = {

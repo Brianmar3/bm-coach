@@ -8,8 +8,10 @@ import { PortalClasses } from "@/componentes/portal-classes";
 import { dailyFocusForDate } from "@/lib/daily-focus";
 import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/body-evolution-card";
 import type { PortalAchievement } from "@/lib/portal-achievements";
+import { StudentProfileView } from "@/componentes/student-profile-view";
+import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 
-type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil";
+type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
 const number = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
@@ -36,7 +38,8 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
-  if (section === "perfil") return <><ProfileView data={data} /><PortalSchedules data={data} /></>;
+  if (section === "perfil") return <StudentProfileView profile={data.profile} />;
+  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><ChangePasswordCard /><PushNotificationsCard /></PageHeader>;
   return <PortalOverview data={data} />;
 }
 
@@ -187,11 +190,13 @@ function PaymentsView({ data }: { data: PortalData }) {
   </PageHeader>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ProfileView({ data }: { data: PortalData }) {
   const profile = data.profile;
   return <PageHeader title="Mi perfil" subtitle="Datos personales básicos"><Link href="/portal/pagos" className="mb-4 flex min-h-12 items-center justify-between rounded-xl border border-yellow-400/25 bg-yellow-400/5 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-400"><span><span className="block font-bold text-yellow-300">Mi cuota</span><span className="mt-0.5 block text-xs text-zinc-500">Estado e historial de pagos</span></span><span aria-hidden="true" className="text-yellow-400">›</span></Link><section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><dl className="grid gap-4 sm:grid-cols-2"><ProfileItem title="Nombre" value={`${profile.firstName} ${profile.lastName}`} /><ProfileItem title="Teléfono" value={profile.phone} /><ProfileItem title="Correo" value={profile.email || "Sin correo"} /><ProfileItem title="Fecha de nacimiento" value={date(profile.birthDate)} /><ProfileItem title="Objetivo" value={profile.goal || "No definido"} /><ProfileItem title="Plan" value={profile.plan} /><ProfileItem title="Fecha de ingreso" value={date(profile.joinedAt)} /><ProfileItem title="Estado" value={profile.status} /></dl><p className="mt-5 text-xs text-zinc-500">Para modificar estos datos, contactá a tu entrenador.</p></section><ChangePasswordCard /></PageHeader>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function PortalSchedules({ data }: { data: PortalData }) {
   const { scheduleLabels, flexibleSchedule } = data.profile;
   if (!scheduleLabels.length && !flexibleSchedule) return null;
