@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
 import type { Student } from "@/types/gestion";
+import { notifyNewAchievements } from "@/lib/push-notifications";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
     const achievements = saved.log.status === "COMPLETED"
       ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.log.id)
       : [];
+    if (saved.log.status === "COMPLETED") await notifyNewAchievements(session.studentId);
     return Response.json({ id: saved.log.id, status: saved.log.status, achievements, message: saved.updated ? "Bloque de fuerza actualizado correctamente." : saved.log.status === "COMPLETED" ? "Registro de fuerza finalizado." : "Borrador guardado." });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID") return Response.json({ error: "Revisá los ejercicios, series, pesos, repeticiones y RIR." }, { status: 400 });

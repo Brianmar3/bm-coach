@@ -1,5 +1,6 @@
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
+import { notifyNewAchievements } from "@/lib/push-notifications";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         create: { occurrenceId: id, studentId: input.studentId, response: input.response === "GOING" ? "GOING" : null, respondedAt: input.response === "GOING" ? new Date() : null, actualAttendance: input.actualAttendance as typeof actualValues[number], checkedInAt: new Date() },
         update: { actualAttendance: input.actualAttendance as typeof actualValues[number], checkedInAt: new Date() },
       });
+      if (input.actualAttendance === "PRESENT") await notifyNewAchievements(input.studentId);
       return Response.json({ message: "Asistencia real actualizada." });
     }
     if (input.action === "remove-response") {

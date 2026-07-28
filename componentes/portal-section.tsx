@@ -69,6 +69,7 @@ function PortalOverview({ data }: { data: PortalData }) {
     {data.home.hasClassParticipation && <PortalClasses compact />}
     {data.paymentAccount.configured && <QuotaSummaryCard data={data} />}
     <section><h2 className="text-sm font-bold">Mi progreso</h2><div className="mt-2 grid gap-3 lg:grid-cols-2">{progress.length > 0 && <div className="grid grid-cols-2 content-start gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">{progress.map((item) => <SmallMetric key={item.title} title={item.title} value={item.value} />)}</div>}<BodyEvolutionCard evaluations={data.evaluations} compact /></div></section>
+    <span id="logros" className="scroll-mt-24" />
     <AchievementsSpotlight data={data} />
     <AchievementsOverview data={data} />
     {coachReplies.length > 0 && <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4"><h2 className="font-bold text-emerald-200">Novedades del entrenador</h2><div className="mt-3 space-y-2">{coachReplies.map((item) => <p key={item.id} className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{item.body}</p>)}</div></section>}

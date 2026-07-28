@@ -8,26 +8,71 @@ datasource db {
 }
 
 model StudentRecord {
-  id                  String                      @id
-  phoneNormalized     String?                     @unique
-  primaryScheduleId   String?
-  data                Json
-  createdAt           DateTime                    @default(now())
-  updatedAt           DateTime                    @updatedAt
-  payments            StudentPayment[]
-  physicalEvaluations PhysicalEvaluation[]
-  routineAssignments  TrainingRoutineAssignment[]
-  weeklyClasses       WeeklyClassAssignment[]
-  attendances         ClassAttendance[]
-  primarySchedule     WeeklyClassSchedule?        @relation("StudentPrimarySchedule", fields: [primaryScheduleId], references: [id], onDelete: SetNull)
-  portalCredential    StudentPortalCredential?
-  workoutSessions     WorkoutSession[]
-  followUpComments    FollowUpComment[]
-  classResponses      ClassOccurrenceAttendance[]
-  classWorkoutLogs    ClassWorkoutLog[]
+  id                       String                      @id
+  phoneNormalized          String?                     @unique
+  primaryScheduleId        String?
+  data                     Json
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+  payments                 StudentPayment[]
+  physicalEvaluations      PhysicalEvaluation[]
+  routineAssignments       TrainingRoutineAssignment[]
+  weeklyClasses            WeeklyClassAssignment[]
+  attendances              ClassAttendance[]
+  primarySchedule          WeeklyClassSchedule?        @relation("StudentPrimarySchedule", fields: [primaryScheduleId], references: [id], onDelete: SetNull)
+  portalCredential         StudentPortalCredential?
+  workoutSessions          WorkoutSession[]
+  followUpComments         FollowUpComment[]
+  classResponses           ClassOccurrenceAttendance[]
+  classWorkoutLogs         ClassWorkoutLog[]
+  pushSubscriptions        StudentPushSubscription[]
+  achievementNotifications AchievementNotification[]
 
   @@index([primaryScheduleId])
   @@map("students")
+}
+
+enum AchievementNotificationStatus {
+  BASELINE
+  PENDING
+  SENT
+  FAILED
+}
+
+model StudentPushSubscription {
+  id          String        @id @default(cuid())
+  studentId   String
+  endpoint    String        @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  deviceLabel String?
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  lastUsedAt  DateTime?
+  student     StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, active])
+  @@map("student_push_subscriptions")
+}
+
+model AchievementNotification {
+  id             String                        @id @default(cuid())
+  studentId      String
+  achievementKey String
+  unlockedAt     DateTime
+  notifiedAt     DateTime?
+  status         AchievementNotificationStatus @default(PENDING)
+  error          String?
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+  student        StudentRecord                 @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, achievementKey])
+  @@index([studentId, status])
+  @@index([status, createdAt])
+  @@map("achievement_notifications")
 }
 
 model StudentPortalCredential {

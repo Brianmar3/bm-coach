@@ -1,6 +1,7 @@
 import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvaluation, type EvaluationInput } from "@/lib/evaluaciones";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { notifyNewAchievements } from "@/lib/push-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/evaluaci
       data: evaluationData(input),
       include: { student: true },
     });
+    await notifyNewAchievements(record.studentId);
     return Response.json(serializeEvaluation(record));
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });

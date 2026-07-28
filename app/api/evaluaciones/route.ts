@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvaluation, type EvaluationInput } from "@/lib/evaluaciones";
 import { prisma } from "@/lib/prisma";
+import { notifyNewAchievements } from "@/lib/push-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       if (duplicate) throw new Error("DUPLICATE_EVALUATION");
       return transaction.physicalEvaluation.create({ data: evaluationData(input), include: { student: true } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    await notifyNewAchievements(record.studentId);
     return Response.json(serializeEvaluation(record), { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "DUPLICATE_EVALUATION") return Response.json({ error: "Ya existe una evaluación para ese alumno en esa fecha." }, { status: 409 });
