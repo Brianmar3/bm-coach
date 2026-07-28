@@ -49,8 +49,33 @@ export type AdminWorkoutSession = {
   exercises: AdminWorkoutExercise[];
 };
 
+export type AdminStudentFollowUp = {
+  studentId: string;
+  studentName: string;
+  profileImageUrl: string;
+  activeRoutine: {
+    id: string;
+    name: string;
+    status: string;
+    startDate: string;
+  } | null;
+  latestSession: AdminWorkoutSession | null;
+  sessionCount: number;
+  averageDuration: number | null;
+  exerciseCount: number;
+  completedSets: number;
+  recentSessionCount: number;
+  latestPainReport: {
+    date: string;
+    details: string;
+  } | null;
+  recentProgress: string;
+  hasClassStrength: boolean;
+};
+
 export type AdminFollowUpData = {
   sessions: AdminWorkoutSession[];
+  students: AdminStudentFollowUp[];
   classSessions: Array<{
     id: string;
     studentId: string;

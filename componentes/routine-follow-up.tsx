@@ -1,11 +1,12 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- profile photos are validated object-storage URLs */
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ClassStrengthLogEditor, type ClassStrengthEditorValue } from "@/componentes/class-strength-log-editor";
 import { inputClass } from "@/componentes/module-shell";
-import type { AdminFollowUpData, AdminWorkoutExercise, AdminWorkoutSession } from "@/types/follow-up";
+import type { AdminFollowUpData, AdminStudentFollowUp, AdminWorkoutExercise, AdminWorkoutSession } from "@/types/follow-up";
 
-const emptyData: AdminFollowUpData = { sessions: [], classSessions: [], routines: [], studentsWithoutTraining: [] };
+const emptyData: AdminFollowUpData = { sessions: [], students: [], classSessions: [], routines: [], studentsWithoutTraining: [] };
 const moneyNumber = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
 const showDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR");
 const statusLabel = { pending: "Pendiente", in_progress: "En progreso", completed: "Finalizado" } as const;
@@ -36,6 +37,8 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
   const [dateFilter, setDateFilter] = useState("");
   const [routineId, setRoutineId] = useState(initialRoutineId);
   const [painOnly, setPainOnly] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<AdminStudentFollowUp | null>(null);
+  const [detailTab, setDetailTab] = useState<"resumen" | "sesiones" | "progreso" | "molestias">("resumen");
   const [selected, setSelected] = useState<AdminWorkoutSession | null>(null);
   const [reply, setReply] = useState("");
   const [privateNote, setPrivateNote] = useState("");
@@ -66,14 +69,18 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es");
-    return data.sessions.filter((session) =>
-      (!normalized || session.studentName.toLocaleLowerCase("es").includes(normalized)) &&
-      (status === "todos" || session.status === status) &&
-      (!dateFilter || session.date === dateFilter) &&
-      (!routineId || session.routineId === routineId) &&
-      (!painOnly || session.hasPain),
-    );
-  }, [data.sessions, dateFilter, painOnly, query, routineId, status]);
+    return data.students.filter((student) => {
+      const sessions = data.sessions.filter((session) => session.studentId === student.studentId);
+      const matchingSessions = sessions.filter((session) =>
+        (status === "todos" || session.status === status) &&
+        (!dateFilter || session.date === dateFilter) &&
+        (!routineId || session.routineId === routineId) &&
+        (!painOnly || session.hasPain));
+      const hasSessionFilter = status !== "todos" || Boolean(dateFilter) || Boolean(routineId) || painOnly;
+      return (!normalized || student.studentName.toLocaleLowerCase("es").includes(normalized))
+        && (!hasSessionFilter || matchingSessions.length > 0);
+    });
+  }, [data.sessions, data.students, dateFilter, painOnly, query, routineId, status]);
 
   async function sendFeedback(event: FormEvent) {
     event.preventDefault();
@@ -104,6 +111,7 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
       if (!response.ok) throw new Error(body.error ?? "No se pudo eliminar el registro.");
       setData((current) => ({ ...current, sessions: current.sessions.filter((session) => session.id !== selected.id) }));
       setSelected(null); setNotice(body.message ?? "Registro eliminado correctamente.");
+      await load();
     } catch (value) { setError(value instanceof Error ? value.message : "No se pudo eliminar el registro."); }
     finally { setDeleting(false); }
   }
@@ -120,6 +128,7 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
       if (!response.ok) throw new Error(body.error ?? "No se pudieron eliminar los registros.");
       setData((current) => ({ ...current, sessions: current.sessions.filter((session) => session.studentId !== selected.studentId || session.routineId !== selected.routineId) }));
       setSelected(null); setNotice(body.message ?? `${body.deleted ?? count} registros eliminados.`);
+      await load();
     } catch (value) { setError(value instanceof Error ? value.message : "No se pudieron eliminar los registros."); }
     finally { setDeleting(false); }
   }
@@ -161,19 +170,40 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
       <select value={routineId} onChange={(event) => setRoutineId(event.target.value)} className={inputClass}><option value="">Todas las rutinas</option>{data.routines.map((routine) => <option key={routine.id} value={routine.id}>{routine.name}</option>)}</select>
       <label className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm"><input type="checkbox" checked={painOnly} onChange={(event) => setPainOnly(event.target.checked)} className="accent-yellow-400" /> Con dolor o molestias</label>
     </div>
-    <div className="mt-5 grid gap-4 lg:grid-cols-2">{loading ? <p className="col-span-full rounded-2xl bg-zinc-900 p-10 text-center text-zinc-500">Cargando seguimiento…</p> : visible.length ? visible.map((session) => <SessionCard key={session.id} session={session} open={() => setSelected(session)} />) : <p className="col-span-full rounded-2xl border border-dashed border-zinc-700 p-10 text-center text-zinc-500">No hay sesiones que coincidan con los filtros.</p>}</div>
+    <div className="mt-5 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">{loading ? <p className="col-span-full rounded-2xl bg-zinc-900 p-10 text-center text-zinc-500">Cargando seguimiento…</p> : visible.length ? visible.map((student) => <StudentFollowUpCard key={student.studentId} student={student} open={() => { setSelectedStudent(student); setDetailTab("resumen"); }} />) : <p className="col-span-full rounded-2xl border border-dashed border-zinc-700 p-10 text-center text-zinc-500">No hay alumnos que coincidan con los filtros.</p>}</div>
     <section className="mt-8"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Bloques de fuerza en clases</h2></div>
       {data.classSessions.length ? <div className="mt-4 grid gap-4 lg:grid-cols-2">{data.classSessions.map((session, sessionIndex) => ({ session, sessionIndex })).filter(({ session }) => !query.trim() || session.studentName.toLocaleLowerCase("es").includes(query.trim().toLocaleLowerCase("es"))).map(({ session, sessionIndex }) => <details key={session.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><summary className="cursor-pointer"><span className="font-bold">{session.studentName}</span><span className="ml-2 text-sm text-yellow-400">{session.className} · {showDate(session.date)}</span></summary><div className="mt-4 space-y-3">{session.exercises.map((exercise, index) => { const current = classExerciseBest(exercise); const previous = previousClassExercise(data.classSessions, sessionIndex, session.studentId, exercise.name); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${session.id}-${index}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap justify-between gap-2"><p className="font-semibold">{exercise.name}</p>{previous && <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${difference !== null && difference > 0 ? "bg-emerald-400/10 text-emerald-300" : difference !== null && difference < 0 ? "bg-red-400/10 text-red-300" : "bg-zinc-800 text-zinc-300"}`}>Último {previous.weight} kg · {difference !== null && difference > 0 ? "+" : ""}{difference ?? 0} kg</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${moneyNumber(set.weight, ` ${set.unit}`)} × ${set.repetitions ?? "—"}${set.effort === null ? "" : ` · RIR ${set.effort}`}`).join(" · ")}</p>{exercise.notes && <p className="mt-2 text-xs text-zinc-500">{exercise.notes}</p>}</div>; })}{session.notes && <p className="text-sm text-zinc-400">{session.notes}</p>}<p className="text-[10px] text-zinc-600">Última modificación: {new Date(session.updatedAt).toLocaleString("es-AR")}</p><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setEditingClass(session)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300">Editar</button><button type="button" disabled={deleting} onClick={() => deleteClassSession(session)} className="rounded-lg border border-red-400/40 px-3 py-2 text-sm text-red-300 disabled:opacity-50">Eliminar</button></div></div></details>)}</div> : <p className="mt-4 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">No hay bloques de fuerza registrados.</p>}
     </section>
+    {selectedStudent && <StudentFollowUpDetail student={selectedStudent} sessions={data.sessions.filter((session) => session.studentId === selectedStudent.studentId)} tab={detailTab} setTab={setDetailTab} close={() => setSelectedStudent(null)} openSession={(session) => setSelected(session)} />}
     {selected && <SessionDetail session={selected} close={() => setSelected(null)} reply={reply} setReply={setReply} privateNote={privateNote} setPrivateNote={setPrivateNote} reviewed={reviewed} setReviewed={setReviewed} saving={saving} deleting={deleting} submit={sendFeedback} deleteSession={deleteSession} deleteAll={deleteAllForRoutine} />}
     {editingClass && <ClassStrengthLogEditor title={`${editingClass.studentName} · ${editingClass.className}`} initialValue={{ id: editingClass.id, notes: editingClass.notes, exercises: editingClass.exercises.map((exercise) => ({ exerciseName: exercise.name, order: exercise.order, notes: exercise.notes, sets: exercise.sets })) }} close={() => setEditingClass(null)} save={saveClassSession} />}
   </section>;
 }
 
-function SessionCard({ session, open }: { session: AdminWorkoutSession; open: () => void }) {
-  const alerts = [session.hasPain ? "Dolor/molestia" : "", (session.difficulty ?? 0) >= 4 ? "Dificultad alta" : "", session.status !== "completed" ? "Sesión incompleta" : "", session.pendingComments ? `${session.pendingComments} comentario pendiente` : ""].filter(Boolean);
-  return <button onClick={open} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-left transition hover:border-yellow-400/40"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{session.studentName}</h3><p className="mt-1 text-sm text-yellow-400">{session.routine} · Día {session.dayNumber}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${session.status === "completed" ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{statusLabel[session.status]}</span></div><div className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4"><Value label="Fecha" value={showDate(session.date)} /><Value label="Duración" value={session.durationMinutes ? `${session.durationMinutes} min` : "—"} /><Value label="Ejercicios" value={String(session.exerciseCount)} /><Value label="Series hechas" value={String(session.completedSets)} /></div>{session.finalComment && <p className="mt-3 line-clamp-2 text-sm text-zinc-400">{session.finalComment}</p>}{alerts.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{alerts.map((alert) => <span key={alert} className="rounded-full bg-red-400/10 px-2 py-1 text-[10px] font-bold text-red-300">{alert}</span>)}</div>}<p className="mt-3 text-[10px] text-zinc-600">Actualizado {new Date(session.updatedAt).toLocaleString("es-AR")}</p></button>;
+function StudentFollowUpCard({ student, open }: { student: AdminStudentFollowUp; open: () => void }) {
+  const initials = student.studentName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  return <article className="flex h-full flex-col rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+    <div className="flex items-start gap-3">{student.profileImageUrl ? <img src={student.profileImageUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" /> : <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-sm font-black text-yellow-300">{initials}</div>}<div className="min-w-0 flex-1"><h3 className="truncate font-bold">{student.studentName}</h3><p className="truncate text-sm text-yellow-400">{student.activeRoutine?.name ?? "Sin rutina activa"}</p><p className="mt-1 text-[10px] text-zinc-500">{student.activeRoutine?.startDate ? `Inicio ${showDate(student.activeRoutine.startDate)} · ` : ""}Último estado: {student.latestSession ? statusLabel[student.latestSession.status] : "Sin registros"}</p></div>{student.activeRoutine && <span className="rounded-full bg-emerald-400/10 px-2 py-1 text-[10px] font-bold capitalize text-emerald-300">{student.activeRoutine.status}</span>}</div>
+    <div className="mt-4 grid grid-cols-2 gap-2"><Value label="Sesiones completadas" value={student.sessionCount ? String(student.sessionCount) : "Sin registros"} /><Value label="Última sesión" value={student.latestSession ? showDate(student.latestSession.date) : "Sin registros"} /><Value label="Duración promedio" value={student.averageDuration ? `${student.averageDuration} min` : "Sin registros"} /><Value label="Series acumuladas" value={student.completedSets ? String(student.completedSets) : "Sin registros"} /></div>
+    <div className="mt-3 rounded-xl bg-black/30 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Progreso reciente</p><p className="mt-1 line-clamp-2 text-xs text-zinc-300">{student.recentProgress || (student.recentSessionCount ? `${student.recentSessionCount} sesiones en las últimas 4 semanas.` : "Todavía no hay suficiente historial para comparar.")}</p></div>
+    {student.latestPainReport && <div className="mt-3 rounded-xl bg-red-400/10 p-3 text-red-200"><p className="text-xs font-bold">Molestia reportada · {showDate(student.latestPainReport.date)}</p><p className="mt-1 line-clamp-2 text-xs">{student.latestPainReport.details}</p></div>}
+    {student.hasClassStrength && <p className="mt-3 text-xs text-zinc-500">También registra fuerza en clases.</p>}
+    <button type="button" onClick={open} className="mt-auto pt-4 text-left text-sm font-bold text-yellow-400">Ver seguimiento</button>
+  </article>;
 }
+
+function StudentFollowUpDetail({ student, sessions, tab, setTab, close, openSession }: { student: AdminStudentFollowUp; sessions: AdminWorkoutSession[]; tab: "resumen" | "sesiones" | "progreso" | "molestias"; setTab: (tab: "resumen" | "sesiones" | "progreso" | "molestias") => void; close: () => void; openSession: (session: AdminWorkoutSession) => void }) {
+  const painSessions = sessions.filter((session) => session.hasPain);
+  return <div className="fixed inset-0 z-40 overflow-y-auto bg-black/85 p-2 sm:p-5"><section className="mx-auto my-2 min-h-[calc(100dvh-1rem)] max-w-6xl rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:my-8 sm:min-h-0 sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Seguimiento del alumno</p><h2 className="mt-1 text-2xl font-bold">{student.studentName}</h2><p className="mt-1 text-sm text-zinc-400">{student.activeRoutine?.name ?? "Sin rutina activa"}</p></div><button onClick={close} className="rounded-lg px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-800">Cerrar</button></div>
+    <nav className="mt-5 flex gap-2 overflow-x-auto pb-1">{(["resumen", "sesiones", "progreso", "molestias"] as const).map((value) => <button key={value} onClick={() => setTab(value)} className={`shrink-0 rounded-lg px-3 py-2 text-sm font-bold capitalize ${tab === value ? "bg-yellow-400 text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}>{value}</button>)}</nav>
+    {tab === "resumen" && <div className="mt-5"><div className="grid grid-cols-2 gap-3 sm:grid-cols-5"><Value label="Sesiones" value={student.sessionCount ? String(student.sessionCount) : "Sin registros"} /><Value label="Última sesión" value={student.latestSession ? showDate(student.latestSession.date) : "Sin registros"} /><Value label="Promedio" value={student.averageDuration ? `${student.averageDuration} min` : "Sin registros"} /><Value label="Ejercicios" value={student.exerciseCount ? String(student.exerciseCount) : "Sin registros"} /><Value label="Series" value={student.completedSets ? String(student.completedSets) : "Sin registros"} /></div>{student.activeRoutine && <div className="mt-4 rounded-xl bg-zinc-950 p-4"><p className="font-bold">{student.activeRoutine.name}</p><p className="mt-1 text-sm text-zinc-400">Estado: <span className="capitalize">{student.activeRoutine.status}</span>{student.activeRoutine.startDate ? ` · Inicio ${showDate(student.activeRoutine.startDate)}` : ""}</p></div>}</div>}
+    {tab === "sesiones" && <div className="mt-5 space-y-3">{sessions.length ? sessions.map((session) => <button key={session.id} onClick={() => openSession(session)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-left"><div className="min-w-0"><p className="truncate font-semibold">{session.routine} · Día {session.dayNumber}</p><p className="mt-1 text-xs text-zinc-500">{showDate(session.date)} · {session.durationMinutes ? `${session.durationMinutes} min` : "Sin duración"} · {session.exerciseCount} ejercicios</p></div><span className="shrink-0 text-sm font-bold text-yellow-400">Ver detalle</span></button>) : <Empty text="No hay sesiones registradas." />}</div>}
+    {tab === "progreso" && <div className="mt-5 rounded-xl bg-zinc-950 p-4"><p className="font-bold text-yellow-300">Progreso reciente</p><p className="mt-2 text-sm text-zinc-300">{student.recentProgress || (student.recentSessionCount ? `${student.recentSessionCount} sesiones completadas en las últimas 4 semanas.` : "Todavía no hay suficiente historial para comparar.")}</p></div>}
+    {tab === "molestias" && <div className="mt-5 space-y-3">{painSessions.length ? painSessions.map((session) => <button key={session.id} onClick={() => openSession(session)} className="w-full rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-left"><p className="text-xs font-bold text-red-200">{showDate(session.date)} · {session.routine}</p><p className="mt-2 text-sm text-red-100">{session.painDetails || "Sin detalle informado."}</p></button>) : <Empty text="No hay molestias registradas." />}</div>}
+  </section></div>;
+}
+
+function Empty({ text }: { text: string }) { return <p className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-500">{text}</p>; }
 
 function SessionDetail({ session, close, reply, setReply, privateNote, setPrivateNote, reviewed, setReviewed, saving, deleting, submit, deleteSession, deleteAll }: { session: AdminWorkoutSession; close: () => void; reply: string; setReply: (value: string) => void; privateNote: string; setPrivateNote: (value: string) => void; reviewed: boolean; setReviewed: (value: boolean) => void; saving: boolean; deleting: boolean; submit: (event: FormEvent) => void; deleteSession: () => void; deleteAll: () => void }) {
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 sm:p-5"><section className="mx-auto my-3 max-w-5xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 sm:my-8 sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Detalle del entrenamiento</p><h2 className="mt-1 text-2xl font-bold">{session.studentName}</h2><p className="mt-1 text-zinc-400">{session.routine} · Día {session.dayNumber}</p></div><button onClick={close} className="text-zinc-400">Cerrar</button></div>

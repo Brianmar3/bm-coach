@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const routineId = params.get("routineId") || undefined;
     const studentId = params.get("studentId") || undefined;
-    const [sessions, students, routines, classSessions] = await Promise.all([
+    const [sessions, students, routines, classSessions, activeAssignments] = await Promise.all([
       prisma.workoutSession.findMany({
         where: { ...(routineId ? { routineId } : {}), ...(studentId ? { studentId } : {}) },
         include: {
@@ -38,6 +38,11 @@ export async function GET(request: Request) {
         orderBy: { classDateSnapshot: "desc" },
         take: 100,
       }),
+      prisma.trainingRoutineAssignment.findMany({
+        where: { active: true, ...(studentId ? { studentId } : {}) },
+        include: { student: true, routine: true },
+        orderBy: { assignedAt: "desc" },
+      }),
     ]);
     const exerciseIds = [...new Set(sessions.flatMap((session) => session.exercises.map((log) => log.exerciseReferenceId ?? log.exerciseId).filter((id): id is string => Boolean(id))))];
     const previousLogs = exerciseIds.length ? await prisma.workoutExerciseLog.findMany({
@@ -46,8 +51,7 @@ export async function GET(request: Request) {
       orderBy: { session: { date: "desc" } },
     }) : [];
     const trained = new Set(sessions.filter((item) => item.status === "COMPLETED").map((item) => item.studentId));
-    return Response.json({
-      sessions: sessions.map((session) => {
+    const serializedSessions = sessions.map((session) => {
         const sessionSnapshot = session.exercises.find((log) => log.snapshotVersion !== null);
         return {
         id: session.id,
@@ -94,7 +98,60 @@ export async function GET(request: Request) {
           };
         }),
         };
-      }),
+      });
+    const classStudentIds = new Set(classSessions.map((session) => session.studentId));
+    const assignedByStudent = new Map<string, (typeof activeAssignments)[number]>();
+    for (const assignment of activeAssignments) {
+      if (!assignedByStudent.has(assignment.studentId)) assignedByStudent.set(assignment.studentId, assignment);
+    }
+    const studentIds = new Set([...assignedByStudent.keys(), ...serializedSessions.map((session) => session.studentId)]);
+    const followUpStudents = [...studentIds].map((id) => {
+      const student = students.find((item) => item.id === id);
+      const studentData = student?.data as unknown as Student | undefined;
+      const studentSessions = serializedSessions.filter((session) => session.studentId === id);
+      const completed = studentSessions.filter((session) => session.status === "completed");
+      const latestSession = studentSessions[0] ?? null;
+      const durations = completed.flatMap((session) => session.durationMinutes === null ? [] : [session.durationMinutes]);
+      const latestPain = studentSessions.find((session) => session.hasPain);
+      const assignment = assignedByStudent.get(id);
+      const recentLimit = new Date();
+      recentLimit.setDate(recentLimit.getDate() - 28);
+      const latestProgress = latestSession?.exercises.flatMap((exercise) => {
+        const current = exercise.sets.filter((set) => set.completed).sort((left, right) => (right.weight ?? 0) - (left.weight ?? 0))[0];
+        if (!current || !exercise.previous) return [];
+        const weightChange = (current.weight ?? 0) - (exercise.previous.weight ?? 0);
+        const repetitionsChange = (current.repetitions ?? 0) - (exercise.previous.repetitions ?? 0);
+        if (weightChange > 0) return [`Aumentó ${weightChange.toLocaleString("es-AR")} kg en ${exercise.name}`];
+        if (weightChange === 0 && repetitionsChange > 0) return [`Completó ${repetitionsChange} repeticiones más en ${exercise.name}`];
+        return [];
+      })[0] ?? "";
+      return {
+        studentId: id,
+        studentName: student ? name(student.data) : latestSession?.studentName ?? "Alumno",
+        profileImageUrl: studentData?.profileImageUrl ?? "",
+        activeRoutine: assignment ? {
+          id: assignment.routine.id,
+          name: assignment.routine.name,
+          status: assignment.routine.status.toLowerCase(),
+          startDate: assignment.routine.startDate?.toISOString().slice(0, 10) ?? "",
+        } : null,
+        latestSession,
+        sessionCount: completed.length,
+        averageDuration: durations.length ? Math.round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length) : null,
+        exerciseCount: completed.reduce((sum, session) => sum + session.exerciseCount, 0),
+        completedSets: completed.reduce((sum, session) => sum + session.completedSets, 0),
+        recentSessionCount: completed.filter((session) => new Date(`${session.date}T12:00:00`) >= recentLimit).length,
+        latestPainReport: latestPain ? { date: latestPain.date, details: latestPain.painDetails || "Sin detalle informado." } : null,
+        recentProgress: latestProgress,
+        hasClassStrength: classStudentIds.has(id),
+      };
+    }).sort((left, right) => {
+      const dateDifference = (right.latestSession?.date ?? "").localeCompare(left.latestSession?.date ?? "");
+      return dateDifference || left.studentName.localeCompare(right.studentName, "es");
+    });
+    return Response.json({
+      sessions: serializedSessions,
+      students: followUpStudents,
       routines,
       classSessions: classSessions.map((session) => ({
         id: session.id,
