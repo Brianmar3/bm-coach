@@ -27,9 +27,56 @@ model StudentRecord {
   classWorkoutLogs         ClassWorkoutLog[]
   pushSubscriptions        StudentPushSubscription[]
   achievementNotifications AchievementNotification[]
+  quickLogs                QuickLog[]
 
   @@index([primaryScheduleId])
   @@map("students")
+}
+
+enum QuickLogType {
+  WORKOUT
+  NOTE
+  PROGRESS
+  PHOTO
+}
+
+model QuickLog {
+  id              String          @id @default(cuid())
+  studentId       String
+  type            QuickLogType
+  title           String          @default("")
+  content         String          @default("")
+  category        String          @default("")
+  date            DateTime        @db.Date
+  durationMinutes Int?
+  exerciseName    String          @default("")
+  metricType      String          @default("")
+  previousValue   Decimal?        @db.Decimal(10, 2)
+  currentValue    Decimal?        @db.Decimal(10, 2)
+  unit            String          @default("")
+  mood            String          @default("")
+  hasPain         Boolean         @default(false)
+  painDetails     String          @default("")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  student         StudentRecord   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  photos          QuickLogPhoto[]
+
+  @@index([studentId, date(sort: Desc)])
+  @@index([studentId, type, date(sort: Desc)])
+  @@map("quick_logs")
+}
+
+model QuickLogPhoto {
+  id           String   @id @default(cuid())
+  quickLogId   String
+  blobUrl      String
+  blobPathname String
+  createdAt    DateTime @default(now())
+  quickLog     QuickLog @relation(fields: [quickLogId], references: [id], onDelete: Cascade)
+
+  @@index([quickLogId])
+  @@map("quick_log_photos")
 }
 
 enum AchievementNotificationStatus {
