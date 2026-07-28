@@ -5,7 +5,7 @@ export const metadata: Metadata = {
     default: "BM Training",
     template: "%s · BM Training",
   },
-  description: "Portal del alumno de BM Coach",
+  description: "Gestión, entrenamiento y seguimiento",
   manifest: "/portal/manifest.webmanifest",
   applicationName: "BM Training",
   appleWebApp: {

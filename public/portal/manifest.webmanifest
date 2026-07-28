@@ -1,7 +1,7 @@
 {
   "name": "BM Training",
   "short_name": "BM Training",
-  "description": "Portal del alumno de BM Coach",
+  "description": "Gestión, entrenamiento y seguimiento",
   "id": "/portal",
   "start_url": "/portal/login",
   "scope": "/portal/",

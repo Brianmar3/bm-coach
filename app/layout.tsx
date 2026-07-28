@@ -3,13 +3,13 @@ import { AppFrame } from "@/componentes/app-frame";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BM Coach",
+  title: "BM Training",
   description: "Gestión, entrenamiento y seguimiento",
-  applicationName: "BM Coach",
+  applicationName: "BM Training",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "BM Coach",
+    title: "BM Training",
     statusBarStyle: "black-translucent",
   },
   icons: {
