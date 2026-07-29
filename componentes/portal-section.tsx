@@ -10,7 +10,7 @@ import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { StudentProfileView } from "@/componentes/student-profile-view";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
-import { QuickLogLauncher } from "@/componentes/quick-log";
+import { QuickNoteButton } from "@/componentes/quick-log";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -45,39 +45,20 @@ export function PortalSection({ section }: { section: Section }) {
 }
 
 function PortalOverview({ data }: { data: PortalData }) {
-  const routine = data.routine;
-  const trainingDays = routine?.days.filter((day) => day.exercises.length) ?? [];
-  const inProgress = data.workoutSessions.find((session) => session.status === "en_progreso" && session.routineId === routine?.id);
-  const lastCompleted = data.workoutSessions.find((session) => session.status === "finalizado" && session.routineId === routine?.id);
-  const lastDayIndex = trainingDays.findIndex((day) => day.id === lastCompleted?.dayId);
-  const suggestedDay = inProgress
-    ? trainingDays.find((day) => day.id === inProgress.dayId)
-    : trainingDays[(lastDayIndex + 1) % Math.max(trainingDays.length, 1)] ?? trainingDays[0];
-  const latestEvaluation = data.evaluations[0];
-  const latestWorkout = data.workoutSessions.find((session) => session.status === "finalizado");
   const latestAchievement = data.home.achievements.filter((achievement) => achievement.unlocked).sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt))[0];
-  const coachReplies = data.comments.filter((item) => item.author === "entrenador").slice(0, 3);
   const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
-  const progress = [
-    data.weeklyWorkouts > 0 ? { title: "Esta semana", value: `${data.weeklyWorkouts} entrenamientos` } : null,
-    data.home.classesAttendedThisMonth > 0 ? { title: "Clases este mes", value: `${data.home.classesAttendedThisMonth} asistidas` } : null,
-    latestEvaluation ? { title: "Última evaluación", value: date(latestEvaluation.date) } : null,
-    latestWorkout ? { title: "Último entrenamiento", value: date(latestWorkout.date) } : null,
-    latestAchievement ? { title: "Último logro", value: latestAchievement.name } : null,
-  ].filter((item): item is { title: string; value: string } => item !== null);
+  const whatsapp = data.home.coachPhone.replace(/\D/g, "");
   return <div className="space-y-4">
-    <header><p className="text-xs capitalize text-zinc-500">{todayLabel}</p><h1 className="mt-1 text-2xl font-bold">Hola, {data.profile.firstName}</h1><p className="mt-1 text-sm text-zinc-500">Esto es lo importante para hoy.</p></header>
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-1.5 text-sm leading-relaxed text-zinc-300">{dailyFocusForDate(todayKey)}</p></section>
-    {routine && suggestedDay ? <section className="rounded-2xl border border-yellow-400/25 bg-zinc-900 p-4 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{inProgress ? "Entrenamiento en progreso" : "Entrenamiento de hoy"}</p><h2 className="mt-1 text-xl font-bold">{routine.name}</h2><p className="mt-1 text-sm text-zinc-300">Día {suggestedDay.dayNumber} — {suggestedDay.name}</p></div><span className="rounded-lg bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{suggestedDay.exercises.length} ejercicios</span></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">{suggestedDay.estimatedMinutes && <span>Duración estimada: {suggestedDay.estimatedMinutes} min</span>}{lastCompleted && <span>Última sesión: {date(lastCompleted.date)}</span>}</div><Link href="/portal/entrenamiento" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-yellow-400 px-5 py-2.5 font-bold text-zinc-950">{inProgress ? "Continuar entrenamiento" : "Comenzar entrenamiento"}</Link></section> : !data.home.hasClassParticipation && <section className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900 px-4 py-3"><p className="text-sm font-semibold">Todavía no tenés una rutina activa.</p><p className="mt-1 text-xs text-zinc-500">Cuando tu entrenador la asigne, aparecerá acá.</p></section>}
-    {data.home.hasClassParticipation && <PortalClasses compact />}
-    {data.paymentAccount.configured && <QuotaSummaryCard data={data} />}
-    <QuickLogLauncher />
-    <section><h2 className="text-sm font-bold">Mi progreso</h2><div className="mt-2 grid gap-3 lg:grid-cols-2">{progress.length > 0 && <div className="grid grid-cols-2 content-start gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">{progress.map((item) => <SmallMetric key={item.title} title={item.title} value={item.value} />)}</div>}<BodyEvolutionCard evaluations={data.evaluations} compact /></div></section>
+    <header className="rounded-xl bg-zinc-900 px-4 py-3"><p className="text-xs capitalize text-zinc-500">{todayLabel}</p><h1 className="mt-1 text-2xl font-bold">Hola, {data.profile.firstName}</h1><p className="mt-1 text-sm text-zinc-300">{dailyFocusForDate(todayKey)}</p></header>
+    <PortalClasses compact />
+    <section><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-bold">Progreso resumido</h2><Link href="/portal/evaluaciones" className="text-xs font-bold text-yellow-400">Ver progreso</Link></div><div className="mt-2 grid grid-cols-2 gap-2 rounded-2xl bg-zinc-900 p-3 sm:grid-cols-3"><SmallMetric title="Clases este mes" value={`${data.home.classesAttendedThisMonth} realizadas`} />{data.home.monthlyAttendancePercentage !== null && <SmallMetric title="Asistencia mensual" value={`${data.home.monthlyAttendancePercentage}%`} />}{latestAchievement && <SmallMetric title="Último logro" value={latestAchievement.name} />}</div></section>
     <span id="logros" className="scroll-mt-24" />
     <AchievementsSpotlight data={data} />
     <AchievementsOverview data={data} />
-    {coachReplies.length > 0 && <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4"><h2 className="font-bold text-emerald-200">Novedades del entrenador</h2><div className="mt-3 space-y-2">{coachReplies.map((item) => <p key={item.id} className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{item.body}</p>)}</div></section>}
+    {data.paymentAccount.configured && <QuotaSummaryCard data={data} />}
+    <section className="rounded-xl bg-zinc-900 p-4"><h2 className="font-bold">¿Necesitás ayuda?</h2><p className="mt-1 text-sm text-zinc-500">Consultá con tu entrenador si tenés dudas sobre clases, rutina o seguimiento.</p>{whatsapp ? <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-yellow-300">Hablar por WhatsApp</a> : <p className="mt-3 text-xs text-zinc-600">El contacto de WhatsApp todavía no está configurado.</p>}</section>
+    <QuickNoteButton />
   </div>;
 }
 

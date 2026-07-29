@@ -90,6 +90,8 @@ export type PortalData = {
     mode: "PRESENCIAL" | "RUTINA_PERSONALIZADA" | "ENTRENAMIENTO_EN_CASA" | "MIXTO" | "SIN_DEFINIR";
     hasClassParticipation: boolean;
     classesAttendedThisMonth: number;
+    monthlyAttendancePercentage: number | null;
+    coachPhone: string;
     achievements: PortalAchievement[];
   };
 };

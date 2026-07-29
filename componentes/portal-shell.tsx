@@ -17,7 +17,7 @@ function BrandMark() {
   return <Image src="/bm-training-mark.png" alt="" width={44} height={44} priority className="h-11 w-11 shrink-0 rounded-xl object-contain" />;
 }
 
-export function PortalShell({ studentName, children }: { studentName: string; children: ReactNode }) {
+export function PortalShell({ studentName, profileImageUrl, children }: { studentName: string; profileImageUrl: string; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -32,10 +32,10 @@ export function PortalShell({ studentName, children }: { studentName: string; ch
   };
   return <div className="min-h-screen bg-zinc-950 text-white">
     <header className="sticky top-0 z-30 border-b border-zinc-800 bg-black/95">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5">
-        <Link href="/portal" className="flex items-center gap-3" aria-label="Ir al inicio de BM Training"><BrandMark /><div><p className="font-bold leading-tight">BM Training</p><p className="text-[10px] text-zinc-500">Gestión, entrenamiento y seguimiento</p></div></Link>
-        <div className="flex items-center gap-3">
-          <Link href="/portal/perfil" className="max-w-32 truncate text-xs font-medium text-zinc-300 sm:max-w-none">{studentName}</Link>
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
+        <Link href="/portal" className="flex min-w-0 items-center gap-2 sm:gap-3" aria-label="Ir al inicio de BM Training"><BrandMark /><div className="hidden min-w-0 sm:block"><p className="truncate font-bold leading-tight">BM Training</p><p className="hidden text-[10px] text-zinc-500 sm:block">Gestión, entrenamiento y seguimiento</p></div></Link>
+        <div className="flex min-w-0 items-center gap-2">
+          <Link href="/portal/perfil" className="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 hover:bg-zinc-900">{profileImageUrl ? <Image src={profileImageUrl} alt="" width={32} height={32} unoptimized className="h-8 w-8 shrink-0 rounded-full object-cover" /> : <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-[10px] font-black text-yellow-300">{studentName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>}<span className="max-w-24 truncate text-xs font-medium text-zinc-300 sm:max-w-48">{studentName}</span></Link>
           <button onClick={logout} disabled={loggingOut} className="rounded-lg px-2 py-2 text-xs text-zinc-500 hover:bg-zinc-900 hover:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-400" aria-label="Cerrar sesión">{loggingOut ? "Cerrando…" : "Salir"}</button>
         </div>
       </div>

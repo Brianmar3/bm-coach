@@ -57,9 +57,14 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   const evaluationDateKeys = evaluationDates.map((item) => item.date.toISOString().slice(0, 10));
   const monthStartKey = monthStart.toISOString().slice(0, 10);
   const hasClassParticipation = Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog);
+  const attendedThisMonth = attendedClassDates.filter((date) => date >= monthStartKey && date <= todayKey).length;
+  const weeklyGoal = planDays(plan) ?? 0;
+  const elapsedWeeks = Math.max(1, Math.ceil(today.getUTCDate() / 7));
+  const expectedClasses = weeklyGoal * elapsedWeeks;
   return {
     weeklyWorkoutCount,
-    classesAttendedThisMonth: attendedClassDates.filter((date) => date >= monthStartKey && date <= todayKey).length,
+    classesAttendedThisMonth: attendedThisMonth,
+    monthlyAttendancePercentage: hasClassParticipation && expectedClasses > 0 ? Math.min(100, Math.round(attendedThisMonth / expectedClasses * 100)) : null,
     hasClassParticipation,
     achievements: [...calculatePortalAchievements({
       completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
@@ -68,7 +73,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
       firstStrengthLogDate: firstStrengthLog?.classDateSnapshot.toISOString().slice(0, 10) ?? "",
       joinedAt,
       today: todayKey,
-      weeklyGoal: planDays(plan) ?? 0,
+      weeklyGoal,
       active: studentStatus !== "inactivo",
       hasRoutine: activeRoutineCount > 0 || completedWorkoutDates.length > 0,
       hasClassParticipation,
@@ -92,7 +97,7 @@ export async function GET(request: Request) {
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart)
-      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, hasClassParticipation: false, achievements: [] });
+      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, hasClassParticipation: false, achievements: [] });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
@@ -113,7 +118,7 @@ export async function GET(request: Request) {
         ? prisma.weeklyClassSchedule.findUnique({ where: { id: session.credential.student.primaryScheduleId } })
         : Promise.resolve(null),
       homeInsightsPromise,
-      section === "pagos" ? prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
+      section === "pagos" || section === "inicio" ? prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
       prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }),
     ]);
     const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
@@ -182,6 +187,8 @@ export async function GET(request: Request) {
         mode: routine && homeInsights.hasClassParticipation ? "MIXTO" : routine ? "RUTINA_PERSONALIZADA" : homeInsights.hasClassParticipation ? "PRESENCIAL" : "SIN_DEFINIR",
         hasClassParticipation: homeInsights.hasClassParticipation,
         classesAttendedThisMonth: homeInsights.classesAttendedThisMonth,
+        monthlyAttendancePercentage: homeInsights.monthlyAttendancePercentage,
+        coachPhone: settings?.phone ?? "",
         achievements: homeInsights.achievements,
       },
     };
