@@ -3,6 +3,7 @@ import { del, put } from "@vercel/blob";
 import type { Student } from "@/types/gestion";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
+import { profileAvatarById } from "@/lib/profile-avatars";
 
 export const runtime = "nodejs";
 const MAX_BYTES = 3 * 1024 * 1024;
@@ -36,6 +37,22 @@ export async function POST(request: Request) {
   await prisma.studentRecord.update({ where: { id: session.studentId }, data: { data: next } });
   await removeOwnedBlob(student.profileImageUrl ?? "");
   return Response.json({ url: blob.url, message: "Foto actualizada correctamente." });
+}
+
+export async function PUT(request: Request) {
+  if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  const session = await getPortalSession();
+  if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
+  const input = await request.json().catch(() => null) as { avatarId?: unknown } | null;
+  const avatar = typeof input?.avatarId === "string" ? profileAvatarById(input.avatarId) : undefined;
+  if (!avatar) return Response.json({ error: "El avatar seleccionado no es válido." }, { status: 400 });
+  const student = session.credential.student.data as unknown as Student;
+  await prisma.studentRecord.update({
+    where: { id: session.studentId },
+    data: { data: { ...student, profileImageUrl: avatar.src } },
+  });
+  await removeOwnedBlob(student.profileImageUrl ?? "");
+  return Response.json({ url: avatar.src, message: "Avatar actualizado correctamente." });
 }
 
 export async function DELETE(request: Request) {

@@ -20,6 +20,8 @@ export const dynamic = "force-dynamic";
 async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date) {
   const today = dateKeyToDatabase(todayKey);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const previousMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  const previousMonthEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
   const activityStartKey = joinedAt && joinedAt > BM_TRAINING_START_DATE ? joinedAt : BM_TRAINING_START_DATE;
   const activityStart = dateKeyToDatabase(activityStartKey);
   const meaningfulEvaluation = {
@@ -56,15 +58,24 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   ].sort();
   const evaluationDateKeys = evaluationDates.map((item) => item.date.toISOString().slice(0, 10));
   const monthStartKey = monthStart.toISOString().slice(0, 10);
+  const previousMonthStartKey = previousMonthStart.toISOString().slice(0, 10);
+  const previousMonthEndKey = previousMonthEnd.toISOString().slice(0, 10);
   const hasClassParticipation = Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog);
   const attendedThisMonth = attendedClassDates.filter((date) => date >= monthStartKey && date <= todayKey).length;
+  const attendedPreviousMonth = attendedClassDates.filter((date) => date >= previousMonthStartKey && date <= previousMonthEndKey).length;
   const weeklyGoal = planDays(plan) ?? 0;
   const elapsedWeeks = Math.max(1, Math.ceil(today.getUTCDate() / 7));
   const expectedClasses = weeklyGoal * elapsedWeeks;
+  const previousMonthExpectedClasses = weeklyGoal * Math.max(1, Math.ceil(previousMonthEnd.getUTCDate() / 7));
+  const hasPreviousMonthData = attendedPreviousMonth > 0 || Boolean(joinedAt && joinedAt <= previousMonthEndKey);
   return {
     weeklyWorkoutCount,
     classesAttendedThisMonth: attendedThisMonth,
     monthlyAttendancePercentage: hasClassParticipation && expectedClasses > 0 ? Math.min(100, Math.round(attendedThisMonth / expectedClasses * 100)) : null,
+    classesAttendedPreviousMonth: hasPreviousMonthData ? attendedPreviousMonth : null,
+    previousMonthAttendancePercentage: hasClassParticipation && hasPreviousMonthData && previousMonthExpectedClasses > 0
+      ? Math.min(100, Math.round(attendedPreviousMonth / previousMonthExpectedClasses * 100))
+      : null,
     hasClassParticipation,
     achievements: [...calculatePortalAchievements({
       completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
@@ -97,7 +108,7 @@ export async function GET(request: Request) {
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart)
-      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, hasClassParticipation: false, achievements: [] });
+      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [] });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
@@ -188,6 +199,8 @@ export async function GET(request: Request) {
         hasClassParticipation: homeInsights.hasClassParticipation,
         classesAttendedThisMonth: homeInsights.classesAttendedThisMonth,
         monthlyAttendancePercentage: homeInsights.monthlyAttendancePercentage,
+        classesAttendedPreviousMonth: homeInsights.classesAttendedPreviousMonth,
+        previousMonthAttendancePercentage: homeInsights.previousMonthAttendancePercentage,
         coachPhone: settings?.phone ?? "",
         achievements: homeInsights.achievements,
       },

@@ -24,7 +24,6 @@ export async function GET(request: Request) {
     },
     include: { photos: { orderBy: { createdAt: "asc" } } },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-    take: 100,
   });
   return Response.json({ logs: logs.map(quickLogJson) });
 }

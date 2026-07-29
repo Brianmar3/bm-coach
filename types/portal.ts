@@ -91,6 +91,8 @@ export type PortalData = {
     hasClassParticipation: boolean;
     classesAttendedThisMonth: number;
     monthlyAttendancePercentage: number | null;
+    classesAttendedPreviousMonth: number | null;
+    previousMonthAttendancePercentage: number | null;
     coachPhone: string;
     achievements: PortalAchievement[];
   };

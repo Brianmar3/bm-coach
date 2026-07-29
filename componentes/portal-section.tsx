@@ -45,10 +45,8 @@ export function PortalSection({ section }: { section: Section }) {
 }
 
 function PortalOverview({ data }: { data: PortalData }) {
-  const latestAchievement = data.home.achievements.filter((achievement) => achievement.unlocked).sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt))[0];
   const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
-  const whatsapp = data.home.coachPhone.replace(/\D/g, "");
   return <div className="space-y-4">
     <header className="relative overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_85%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(135deg,#181818,#090909_65%)] p-5 shadow-[0_18px_45px_rgba(0,0,0,.35)] sm:p-6">
       <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-3 h-px w-48 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/35 to-transparent" /><span aria-hidden="true" className="pointer-events-none absolute -right-5 top-12 h-px w-40 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
@@ -57,17 +55,99 @@ function PortalOverview({ data }: { data: PortalData }) {
       </div>
     </header>
     <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div>
-    <section><div className="flex items-center justify-between gap-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Progreso resumido</h2><Link href="/portal/evaluaciones" className="text-xs font-bold text-zinc-400 transition hover:text-yellow-300">Ver progreso ›</Link></div><div className="mt-3 grid gap-2 sm:grid-cols-3"><PremiumMetric icon="✓" title="Clases este mes" value={`${data.home.classesAttendedThisMonth}`} detail="realizadas" />{data.home.monthlyAttendancePercentage !== null && <PremiumMetric icon="◔" title="Asistencia mensual" value={`${data.home.monthlyAttendancePercentage}%`} circular={data.home.monthlyAttendancePercentage} />}{latestAchievement ? <PremiumMetric icon="◇" title="Último logro" value={latestAchievement.name} detail={date(latestAchievement.unlockedAt)} /> : <PremiumMetric icon="◇" title="Último logro" value="Sin logros todavía" />}</div></section>
+    <ProgressSummary data={data} />
     <span id="logros" className="scroll-mt-24" />
     <AchievementsSpotlight data={data} />
     <AchievementsOverview data={data} />
-    <section className="rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-[0_12px_30px_rgba(0,0,0,.22)]"><h2 className="font-bold">¿Necesitás ayuda?</h2><p className="mt-1 text-sm text-zinc-500">Consultá con tu entrenador si tenés dudas sobre clases, rutina o seguimiento.</p>{whatsapp ? <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-black text-zinc-950 transition hover:bg-yellow-300">Hablar por WhatsApp</a> : <p className="mt-3 text-xs text-zinc-600">El contacto de WhatsApp todavía no está configurado.</p>}</section>
+    <div className="flex justify-end"><Link href="/portal/registro" className="inline-flex min-h-11 items-center rounded-xl border border-zinc-800 bg-zinc-900 px-4 text-sm font-bold text-yellow-300 transition hover:border-yellow-400/30 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-yellow-300">Ver mis registros ›</Link></div>
     <QuickNoteButton />
   </div>;
 }
 
-function PremiumMetric({ icon, title, value, detail, circular }: { icon: string; title: string; value: string; detail?: string; circular?: number }) {
-  return <article className="flex min-h-28 items-center justify-between gap-3 rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.2)]"><div className="min-w-0"><p className="text-[10px] uppercase tracking-wider text-zinc-500">{title}</p><p className="mt-2 line-clamp-2 text-xl font-black text-zinc-100">{value}</p>{detail && <p className="mt-1 text-xs text-zinc-500">{detail}</p>}</div>{circular === undefined ? <span aria-hidden="true" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-yellow-400/10 text-lg text-yellow-400">{icon}</span> : <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#facc15 ${circular * 3.6}deg,#27272a 0deg)` }}><span className="absolute inset-[4px] rounded-full bg-zinc-900" /><span className="relative text-[10px] font-black text-yellow-300">{circular}%</span></span>}</article>;
+function ProgressSummary({ data }: { data: PortalData }) {
+  const physical = latestPhysicalProgress(data.evaluations);
+  const performance = latestTrainingPerformance(data.workoutSessions);
+  const attendanceDifference = data.home.monthlyAttendancePercentage !== null && data.home.previousMonthAttendancePercentage !== null
+    ? data.home.monthlyAttendancePercentage - data.home.previousMonthAttendancePercentage
+    : null;
+  return <section>
+    <div className="flex items-center justify-between gap-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Progreso resumido</h2><Link href="/portal/evaluaciones" className="text-xs font-bold text-zinc-400 transition hover:text-yellow-300">Ver progreso ›</Link></div>
+    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <ProgressCard title="Asistencia" icon="✓">
+        {data.home.hasClassParticipation ? <>
+          <div className="flex items-center gap-3">
+            {data.home.monthlyAttendancePercentage !== null && <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#facc15 ${data.home.monthlyAttendancePercentage * 3.6}deg,#27272a 0deg)` }}><span className="absolute inset-[4px] rounded-full bg-zinc-900" /><span className="relative text-xs font-black text-yellow-300">{data.home.monthlyAttendancePercentage}%</span></span>}
+            <div><p className="text-2xl font-black">{data.home.classesAttendedThisMonth}</p><p className="text-xs text-zinc-500">clases realizadas este mes</p></div>
+          </div>
+          {attendanceDifference !== null && <p className="mt-3 text-xs text-zinc-400">{attendanceDifference === 0 ? "Sin cambios" : attendanceDifference > 0 ? `↑ ${attendanceDifference} puntos` : `↓ ${Math.abs(attendanceDifference)} puntos`} respecto al mes anterior</p>}
+        </> : <EmptyProgress>Sin actividad presencial registrada.</EmptyProgress>}
+      </ProgressCard>
+      <ProgressCard title="Progreso físico" icon="◇">
+        {physical ? <><p className="text-xs text-zinc-500">{physical.label}</p><p className="mt-1 text-2xl font-black">{physical.current}</p><p className="mt-2 text-xs text-zinc-400">{physical.change}</p></> : <EmptyProgress>Todavía no tenés evaluaciones registradas.</EmptyProgress>}
+        <Link href="/portal/evaluaciones" className="mt-3 inline-flex text-xs font-bold text-yellow-300">Ver evaluaciones ›</Link>
+      </ProgressCard>
+      <ProgressCard title="Rendimiento" icon="↗">
+        {performance ? <><p className="truncate text-sm font-bold text-zinc-200">{performance.exercise}</p><p className="mt-1 text-xl font-black">{performance.current}</p><p className="mt-2 text-xs text-zinc-400">{performance.change}</p><p className="mt-1 text-[10px] text-zinc-600">{date(performance.date)}</p></> : <EmptyProgress>Todavía no hay registros de rendimiento.</EmptyProgress>}
+      </ProgressCard>
+    </div>
+  </section>;
+}
+
+function ProgressCard({ title, icon, children }: { title: string; icon: string; children: ReactNode }) {
+  return <article className="min-h-40 rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.2)]"><div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-[10px] font-bold uppercase tracking-[.14em] text-zinc-500">{title}</h3><span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400/10 text-yellow-400">{icon}</span></div>{children}</article>;
+}
+
+function EmptyProgress({ children }: { children: ReactNode }) {
+  return <p className="text-sm leading-relaxed text-zinc-500">{children}</p>;
+}
+
+function latestPhysicalProgress(evaluations: PhysicalEvaluation[]) {
+  const metrics = [
+    { key: "weight", label: "Peso", unit: "kg" },
+    { key: "waist", label: "Cintura", unit: "cm" },
+    { key: "muscleMass", label: "Masa muscular", unit: "kg" },
+    { key: "bodyFatPercentage", label: "Grasa corporal", unit: "%" },
+  ] as const;
+  for (const metric of metrics) {
+    const values = evaluations.flatMap((evaluation) => evaluation[metric.key] === null ? [] : [{ value: evaluation[metric.key] as number, date: evaluation.date }]);
+    if (!values.length) continue;
+    const current = values[0];
+    const previous = values[1];
+    const difference = previous ? current.value - previous.value : null;
+    return {
+      label: metric.label,
+      current: formatBodyValue(current.value, metric.unit),
+      change: difference === null
+        ? "Primera medición disponible"
+        : difference === 0
+          ? "→ Sin cambios respecto a la anterior"
+          : `${difference > 0 ? "↑ Subió" : "↓ Bajó"} ${formatBodyValue(Math.abs(difference), metric.unit)}`,
+    };
+  }
+  return null;
+}
+
+function latestTrainingPerformance(sessions: PortalWorkoutSession[]) {
+  for (const session of sessions) {
+    if (session.status !== "finalizado") continue;
+    for (const exercise of session.exercises) {
+      const set = exercise.sets.find((item) => item.completed && (item.weight !== null || item.repetitions !== null));
+      if (!set) continue;
+      const current = set.weight !== null
+        ? `${number(set.weight, " kg")}${set.repetitions !== null ? ` × ${set.repetitions} rep.` : ""}`
+        : `${set.repetitions} repeticiones`;
+      let change = "Primera marca comparable";
+      if (exercise.previous?.weight !== null && exercise.previous?.weight !== undefined && set.weight !== null) {
+        const difference = set.weight - exercise.previous.weight;
+        change = difference === 0 ? "Misma carga que el registro anterior" : `${difference > 0 ? "↑" : "↓"} ${number(Math.abs(difference), " kg")} frente al registro anterior`;
+      } else if (exercise.previous?.repetitions !== null && exercise.previous?.repetitions !== undefined && set.repetitions !== null) {
+        const difference = set.repetitions - exercise.previous.repetitions;
+        change = difference === 0 ? "Mismas repeticiones que el registro anterior" : `${difference > 0 ? "↑" : "↓"} ${Math.abs(difference)} repeticiones frente al registro anterior`;
+      }
+      return { exercise: exercise.exerciseName, current, change, date: session.date };
+    }
+  }
+  return null;
 }
 
 function AchievementsSpotlight({ data }: { data: PortalData }) {

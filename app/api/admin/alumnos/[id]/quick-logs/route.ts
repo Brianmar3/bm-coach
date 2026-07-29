@@ -13,7 +13,7 @@ async function authorize() {
 export async function GET(_request: Request, context: RouteContext<"/api/admin/alumnos/[id]/quick-logs">) {
   const failure = await authorize(); if (failure) return Response.json({ error: failure.error }, { status: failure.status });
   const { id } = await context.params;
-  const logs = await prisma.quickLog.findMany({ where: { studentId: id }, include: { photos: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 100 });
+  const logs = await prisma.quickLog.findMany({ where: { studentId: id }, include: { photos: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] });
   return Response.json({ logs: logs.map(quickLogJson) });
 }
 
