@@ -34,6 +34,7 @@ body {
   background:
     radial-gradient(circle at 82% 2%, rgba(250, 204, 21, 0.055), transparent 27rem),
     #050505;
+  overflow-x: clip;
 }
 
 .admin-page {
@@ -44,13 +45,20 @@ body {
 
 .admin-page-header {
   position: relative;
+  padding: 1.05rem 1.2rem 1.2rem;
+  border: 1px solid rgba(250, 204, 21, 0.1);
+  border-radius: 1.25rem;
+  background: linear-gradient(135deg, rgba(24, 24, 27, 0.78), rgba(9, 9, 11, 0.58));
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.14);
 }
 
 .admin-page-header::after {
+  position: absolute;
+  bottom: 0;
+  left: 1.2rem;
   display: block;
   width: min(7rem, 28vw);
   height: 1px;
-  margin-top: 1rem;
   content: "";
   background: linear-gradient(90deg, var(--admin-gold), transparent);
   opacity: 0.55;
@@ -93,6 +101,22 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+.admin-panel :where(.grid, .flex) > * {
+  min-width: 0;
+}
+
+.admin-panel :where(main, section, article, header, nav, form, fieldset, div) {
+  max-width: 100%;
+}
+
+.admin-panel :where(img, svg, video, canvas) {
+  max-width: 100%;
+}
+
+.admin-panel :where(p, dd, td, th) {
+  overflow-wrap: anywhere;
+}
+
 .admin-panel table {
   border-collapse: separate;
   border-spacing: 0;
@@ -113,7 +137,7 @@ body {
 .admin-welcome {
   position: relative;
   isolation: isolate;
-  overflow: visible;
+  overflow: hidden;
   border: 1px solid rgba(250, 204, 21, 0.16);
   background:
     radial-gradient(circle at 90% 20%, rgba(250, 204, 21, 0.12), transparent 20rem),
@@ -144,6 +168,15 @@ body {
 }
 
 @media (max-width: 639px) {
+  .admin-module-action {
+    align-self: flex-start;
+  }
+
+  .admin-module-action > :is(button, a) {
+    width: auto;
+    max-width: 100%;
+  }
+
   .admin-panel :is(section, article, form)[class*="p-6"] {
     padding: 1rem;
   }

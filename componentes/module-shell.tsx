@@ -17,7 +17,7 @@ export function ModuleShell({
 }) {
   return (
     <main className={`admin-page min-h-screen px-4 pb-8 text-white sm:px-6 md:px-8 md:pb-12 xl:px-10 ${flushTop ? "pt-5 md:pt-7" : "pt-6 md:pt-9"}`}>
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto min-w-0 max-w-7xl">
         {!hideHeader && (
           <header className="admin-page-header mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -25,7 +25,7 @@ export function ModuleShell({
               <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
               <p className="mt-1 max-w-2xl text-sm text-zinc-400">{subtitle}</p>
             </div>
-            {action}
+            {action && <div className="admin-module-action flex shrink-0 items-center">{action}</div>}
           </header>
         )}
         {children}

@@ -61,24 +61,43 @@ export default function Home() {
     return () => controller.abort();
   }, [reload]);
 
-  return <main className="admin-page min-h-screen p-4 text-white sm:p-6 xl:p-8">
-    <div className="mx-auto max-w-[1600px]">
-      <header className="admin-welcome relative mb-7 flex flex-col gap-5 rounded-3xl p-5 sm:p-7 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[.25em] text-yellow-400">Panel general</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
-          <p className="mt-2 text-sm text-zinc-300">{data ? `${data.metrics.activeStudents} alumnos activos · Este es el estado actual de BM Training.` : "Preparando el resumen de tu actividad"}</p>
-        </div>
-        <div className="flex items-center justify-between gap-3 md:justify-end">
-          <div className="text-left md:text-right"><p className="text-xs uppercase tracking-wider text-zinc-500">Hoy</p><p className="mt-1 text-sm font-semibold capitalize text-zinc-200">{data ? showDate(data.today, true) : "—"}</p></div>
-          <button onClick={() => setQuickOpen((value) => !value)} aria-expanded={quickOpen} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 shadow-lg shadow-yellow-400/10 transition hover:bg-yellow-300">＋ Agregar rápido</button>
-        </div>
-        {quickOpen && <div className="absolute right-0 top-full z-20 mt-2 grid w-full gap-2 rounded-2xl border border-yellow-400/20 bg-zinc-900 p-3 shadow-2xl sm:w-80 sm:grid-cols-2">{quickActions.map((action) => <Link key={action.label} href={action.href} onClick={() => setQuickOpen(false)} className="rounded-xl bg-zinc-950 p-3 text-sm font-semibold transition hover:bg-yellow-400 hover:text-zinc-950"><span className="mr-2 text-yellow-400">{action.symbol}</span>{action.label}</Link>)}</div>}
-      </header>
+  useEffect(() => {
+    if (!quickOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setQuickOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [quickOpen]);
+
+  return <main className="admin-page min-h-screen p-4 pb-24 text-white sm:p-6 md:pb-6 xl:p-8">
+    <div className="mx-auto min-w-0 max-w-[1600px]">
+      <div className="relative mb-7">
+        <header className="admin-welcome flex flex-col gap-5 rounded-3xl p-5 sm:p-7 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[.25em] text-yellow-400">Panel general</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
+            <p className="mt-2 text-sm text-zinc-300">{data ? `${data.metrics.activeStudents} alumnos activos · Este es el estado actual de BM Training.` : "Preparando el resumen de tu actividad"}</p>
+          </div>
+          <div className="flex items-center justify-between gap-3 md:justify-end">
+            <div className="text-left md:text-right"><p className="text-xs uppercase tracking-wider text-zinc-500">Hoy</p><p className="mt-1 text-sm font-semibold capitalize text-zinc-200">{data ? showDate(data.today, true) : "—"}</p></div>
+            <button onClick={() => setQuickOpen((value) => !value)} aria-expanded={quickOpen} className="hidden rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 shadow-lg shadow-yellow-400/10 transition hover:bg-yellow-300 md:inline-flex">＋ Agregar rápido</button>
+          </div>
+        </header>
+        {quickOpen && <div className="absolute right-0 top-full z-30 mt-2 hidden w-80 grid-cols-2 gap-2 rounded-2xl border border-yellow-400/20 bg-zinc-900 p-3 shadow-2xl md:grid">{quickActions.map((action) => <Link key={action.label} href={action.href} onClick={() => setQuickOpen(false)} className="rounded-xl bg-zinc-950 p-3 text-sm font-semibold transition hover:bg-yellow-400 hover:text-zinc-950"><span className="mr-2 text-yellow-400">{action.symbol}</span>{action.label}</Link>)}</div>}
+      </div>
 
       {error && <section role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-red-400/30 bg-red-400/10 p-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-red-200">{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="rounded-lg bg-red-300 px-3 py-2 text-sm font-bold text-zinc-950">Reintentar</button></section>}
       {loading && !data ? <DashboardSkeleton /> : data && <DashboardContent data={data} />}
     </div>
+    <button type="button" onClick={() => setQuickOpen(true)} aria-label="Abrir acciones rápidas" aria-expanded={quickOpen} className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-50 grid h-14 w-14 place-items-center rounded-full border border-yellow-200/30 bg-yellow-400 text-2xl font-light text-zinc-950 shadow-[0_10px_35px_rgba(250,204,21,.28)] transition active:scale-95 md:hidden">＋</button>
+    {quickOpen && <div className="fixed inset-0 z-[70] flex items-end bg-black/70 backdrop-blur-sm md:hidden" onPointerDown={() => setQuickOpen(false)}>
+      <section role="dialog" aria-modal="true" aria-labelledby="quick-actions-title" className="w-full rounded-t-3xl border border-yellow-400/15 bg-zinc-950 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-zinc-700" />
+        <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-yellow-400">BM Training</p><h2 id="quick-actions-title" className="mt-1 text-lg font-bold">Agregar rápido</h2></div><button type="button" onClick={() => setQuickOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-800" aria-label="Cerrar acciones rápidas">×</button></div>
+        <div className="mt-4 grid grid-cols-2 gap-2">{quickActions.map((action) => <Link key={action.label} href={action.href} onClick={() => setQuickOpen(false)} className="flex min-h-14 items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-3 text-sm font-semibold"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-yellow-400/10 font-black text-yellow-300">{action.symbol}</span><span>{action.label}</span></Link>)}</div>
+      </section>
+    </div>}
     <DashboardFloatingActions enabled={false} />
   </main>;
 }

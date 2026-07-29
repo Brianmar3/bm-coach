@@ -14,10 +14,10 @@ export function AppFrame({ children }: { children: ReactNode }) {
   return (
     <BmTrainingSplash>
       {standalone ? children : (
-        <div className="admin-panel min-h-full bg-black text-white">
+        <div className="admin-panel min-h-full max-w-full overflow-x-clip bg-black text-white">
           <AdminTopbar />
           <Sidebar />
-          <div className="min-h-full pt-[calc(env(safe-area-inset-top)+4.5rem)] lg:pl-64">
+          <div className="min-h-full min-w-0 max-w-full pt-[calc(env(safe-area-inset-top)+4.5rem)] lg:pl-64">
             {classesModule && <ClassesModuleHeader />}
             {children}
           </div>
