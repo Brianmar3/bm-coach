@@ -93,7 +93,15 @@ export async function POST(request: Request) {
     });
     const day = assignment?.routine.days.find((item) => item.id === input.dayId);
     if (!assignment || !day) return Response.json({ error: "La rutina o el día ya no están asignados a tu perfil." }, { status: 403 });
-    const canStartSession = assignment.active && assignment.routine.status === "ACTIVA" && day.active;
+    const canStartSession =
+      assignment.active &&
+      assignment.archivedAt === null &&
+      assignment.routine.kind === "ASSIGNED" &&
+      assignment.routine.status === "ACTIVA" &&
+      assignment.routine.archivedAt === null &&
+      day.active &&
+      day.archivedAt === null &&
+      day.exercises.some((exercise) => exercise.active && exercise.archivedAt === null);
     if (!existingSession && !canStartSession) {
       return Response.json({ error: "Esta rutina está archivada o ya no se encuentra activa en tu perfil." }, { status: 403 });
     }

@@ -14,6 +14,7 @@ import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 import { planDays } from "@/lib/student-enrollment";
 import { BM_TRAINING_START_DATE } from "@/lib/bm-training";
 import { hasGroupClasses } from "@/lib/student-service";
+import { activePortalRoutineWhere } from "@/lib/portal-service-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     prisma.physicalEvaluation.findMany({ where: { ...meaningfulEvaluation, date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
     loadStrengthAchievements(studentId, activityStart),
-    prisma.trainingRoutineAssignment.count({ where: { studentId, active: true } }),
+    prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId) }),
   ]);
   const newDates = newAttendanceDates.map((item) => item.occurrence.date.toISOString().slice(0, 10));
   const firstNewDate = newDates[0] ?? "";
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [] });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
-      prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
+      prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
       prisma.studentPayment.findMany({ where: { studentId, status: "PAGADO" }, include: { student: true }, orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? 50 : section === "inicio" ? 1 : 0 }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
