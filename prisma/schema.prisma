@@ -29,6 +29,7 @@ model StudentRecord {
   achievementNotifications AchievementNotification[]
   quickLogs                QuickLog[]
   trainerNotifications     TrainerNotification[]
+  notifications            StudentNotification[]
 
   @@index([primaryScheduleId])
   @@map("students")
@@ -121,6 +122,31 @@ model AchievementNotification {
   @@index([studentId, status])
   @@index([status, createdAt])
   @@map("achievement_notifications")
+}
+
+enum StudentNotificationType {
+  MESSAGE
+  FEEDBACK
+  ANNOUNCEMENT
+  EVENT
+  NEWS
+  REMINDER
+  ACHIEVEMENT
+}
+
+model StudentNotification {
+  id        String                  @id @default(cuid())
+  studentId String
+  type      StudentNotificationType
+  title     String
+  message   String
+  url       String                  @default("/portal")
+  readAt    DateTime?
+  createdAt DateTime                @default(now())
+  student   StudentRecord           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, readAt, createdAt(sort: Desc)])
+  @@map("student_notifications")
 }
 
 enum TrainerNotificationType {

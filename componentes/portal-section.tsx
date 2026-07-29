@@ -40,7 +40,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
-  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><ChangePasswordCard /><PushNotificationsCard /></PageHeader>;
+  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><ChangePasswordCard /><PushNotificationsCard /><PortalLogoutCard /></PageHeader>;
   return <PortalOverview data={data} />;
 }
 
@@ -473,6 +473,36 @@ function ChangePasswordCard({ forced = false, onSuccess }: { forced?: boolean; o
   const [currentPassword, setCurrentPassword] = useState(""); const [newPassword, setNewPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [saving, setSaving] = useState(false);
   async function submit(event: FormEvent) { event.preventDefault(); if (newPassword !== confirmPassword) { setError("Las contraseñas nuevas no coinciden."); return; } setSaving(true); setError(""); setSuccess(""); try { const response = await fetch("/api/portal/change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword, newPassword }) }); const body = await response.json() as { error?: string }; if (!response.ok) throw new Error(body.error ?? "No se pudo cambiar la contraseña."); setSuccess("Contraseña actualizada correctamente."); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); onSuccess?.(); } catch (changeError) { setError(changeError instanceof Error ? changeError.message : "No se pudo cambiar la contraseña."); } finally { setSaving(false); } }
   return <section className={`mt-6 rounded-2xl border p-5 ${forced ? "border-yellow-400/40 bg-yellow-400/5" : "border-zinc-800 bg-zinc-900"}`}><h2 className="font-semibold text-yellow-300">{forced ? "Creá tu contraseña personal" : "Cambiar contraseña"}</h2><p className="mt-1 text-sm text-zinc-500">{forced ? "La contraseña temporal debe reemplazarse antes de acceder a tus datos." : "Debe incluir mayúscula, minúscula, número y al menos 10 caracteres."}</p>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}{success && <p className="mt-4 rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-300">{success}</p>}<form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-3"><label className="text-sm">Contraseña actual<input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 outline-none focus:border-yellow-400" /></label><label className="text-sm">Nueva contraseña<input required type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 outline-none focus:border-yellow-400" /></label><label className="text-sm">Repetir contraseña<input required type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 outline-none focus:border-yellow-400" /></label><button disabled={saving} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:opacity-60 sm:col-span-3">{saving ? "Guardando…" : "Guardar contraseña"}</button></form></section>;
+}
+
+function PortalLogoutCard() {
+  const [busy, setBusy] = useState(false);
+  async function logout() {
+    setBusy(true);
+    try {
+      await fetch("/api/portal/logout", { method: "POST" });
+    } finally {
+      window.location.assign("/portal/login");
+    }
+  }
+  return (
+    <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="font-semibold">Sesión</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Cerrá tu sesión cuando uses un dispositivo compartido.
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={logout}
+        className="min-h-11 rounded-xl border border-red-400/25 px-4 text-sm font-semibold text-red-300 transition hover:bg-red-400/10 disabled:opacity-50"
+      >
+        {busy ? "Cerrando…" : "Cerrar sesión"}
+      </button>
+    </section>
+  );
 }
 
 function PageHeader({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <><header className="mb-6"><h1 className="text-2xl font-bold">{title}</h1><p className="mt-1 text-sm text-zinc-500">{subtitle}</p></header>{children}</>; }

@@ -191,6 +191,19 @@ export async function POST(request: Request) {
       if (body) await transaction.followUpComment.create({ data: { studentId: session.studentId, author: "COACH", context: "SESSION", category: "FEEDBACK", status: "REVIEWED", body, private: Boolean(input.private), sessionId: session.id } });
       if (input.reviewed) await transaction.followUpComment.updateMany({ where: { sessionId: session.id, author: "STUDENT", status: "PENDING" }, data: { status: "REVIEWED" } });
     });
+    if (body && !input.private) {
+      await prisma.studentNotification.create({
+        data: {
+          studentId: session.studentId,
+          type: "FEEDBACK",
+          title: "Nueva devolución",
+          message: "Tu entrenador dejó una devolución sobre tu entrenamiento.",
+          url: "/portal/rutina#historial-entrenamientos",
+        },
+      }).catch((error) => {
+        console.error("No se pudo crear la notificación interna del alumno", error);
+      });
+    }
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Error al responder seguimiento", error);

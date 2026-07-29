@@ -1,23 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
-type TrainerNotification = {
+type HeaderNotification = {
   id: string;
-  type: "CLASS_RESPONSE";
+  type: string;
   title: string;
   message: string;
   url: string;
-  response: "GOING" | "NOT_GOING";
+  response?: "GOING" | "NOT_GOING";
   readAt: string | null;
   createdAt: string;
 };
 
 type NotificationsResponse = {
-  notifications: TrainerNotification[];
+  notifications: HeaderNotification[];
   unreadCount: number;
 };
+
+type Audience = "trainer" | "student";
 
 function formatNotificationDate(value: string) {
   return new Intl.DateTimeFormat("es-AR", {
@@ -29,20 +32,22 @@ function formatNotificationDate(value: string) {
   }).format(new Date(value));
 }
 
-export function AdminNotificationCenter() {
+function NotificationCenter({ audience }: { audience: Audience }) {
   const router = useRouter();
+  const endpoint =
+    audience === "trainer"
+      ? "/api/admin/notifications"
+      : "/api/portal/notifications";
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [notifications, setNotifications] = useState<TrainerNotification[]>([]);
+  const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const loadNotifications = useCallback(async () => {
     try {
-      const response = await fetch("/api/admin/notifications", {
-        cache: "no-store",
-      });
+      const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) return;
       const data = (await response.json()) as NotificationsResponse;
       setNotifications(data.notifications);
@@ -50,7 +55,7 @@ export function AdminNotificationCenter() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [endpoint]);
 
   useEffect(() => {
     void loadNotifications();
@@ -63,34 +68,38 @@ export function AdminNotificationCenter() {
     };
   }, [loadNotifications]);
 
+  const close = useCallback(() => {
+    setOpen(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }, []);
+
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (
         !panelRef.current?.contains(target) &&
         !triggerRef.current?.contains(target)
       ) {
-        setOpen(false);
-        triggerRef.current?.focus();
+        close();
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
+      if (event.key === "Escape") close();
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
+      document.body.style.overflow = previousOverflow;
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [close, open]);
 
   async function markRead(id: string) {
-    const response = await fetch("/api/admin/notifications", {
+    const response = await fetch(endpoint, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
@@ -108,7 +117,7 @@ export function AdminNotificationCenter() {
   }
 
   async function markAllRead() {
-    const response = await fetch("/api/admin/notifications", {
+    const response = await fetch(endpoint, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ all: true }),
@@ -124,11 +133,128 @@ export function AdminNotificationCenter() {
     setUnreadCount(0);
   }
 
-  async function openNotification(notification: TrainerNotification) {
+  async function openNotification(notification: HeaderNotification) {
     if (!notification.readAt) await markRead(notification.id);
     setOpen(false);
     router.push(notification.url);
   }
+
+  const panel =
+    open
+      ? createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[90] bg-black/65 backdrop-blur-[2px] sm:bg-black/30"
+              aria-hidden="true"
+            />
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Centro de notificaciones"
+              className="fixed inset-x-2 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-[100] flex max-h-[calc(100dvh-env(safe-area-inset-top)-5.5rem)] flex-col overflow-hidden rounded-3xl border border-yellow-400/20 bg-zinc-950 shadow-[0_24px_80px_rgba(0,0,0,.75)] sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-[calc(env(safe-area-inset-top)+5rem)] sm:max-h-[min(72dvh,38rem)] sm:w-[25rem] sm:rounded-2xl"
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-white">Notificaciones</p>
+                  <p className="truncate text-xs text-zinc-500">
+                    {audience === "trainer"
+                      ? "Respuestas de asistencia recientes"
+                      : "Mensajes, avisos y novedades"}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={markAllRead}
+                      className="rounded-lg px-2 py-2 text-xs font-semibold text-yellow-300 hover:bg-yellow-400/10"
+                    >
+                      Leer todas
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={close}
+                    aria-label="Cerrar notificaciones"
+                    className="grid h-10 w-10 place-items-center rounded-xl text-xl text-zinc-400 hover:bg-zinc-800 hover:text-white focus-visible:outline-2 focus-visible:outline-yellow-300"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="min-h-0 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+                {loading ? (
+                  <p className="p-5 text-sm text-zinc-500">
+                    Cargando notificaciones…
+                  </p>
+                ) : notifications.length === 0 ? (
+                  <div className="p-7 text-center">
+                    <div className="mx-auto grid h-11 w-11 place-items-center rounded-full border border-yellow-400/15 bg-yellow-400/[0.05] text-yellow-300">
+                      <BellIcon />
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-zinc-300">
+                      No hay notificaciones
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {audience === "trainer"
+                        ? "Las respuestas de los alumnos aparecerán acá."
+                        : "Tus próximos avisos aparecerán acá."}
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-zinc-800/80">
+                    {notifications.map((notification) => (
+                      <li key={notification.id}>
+                        <button
+                          type="button"
+                          onClick={() => openNotification(notification)}
+                          className={`block w-full px-4 py-3 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-yellow-300 ${
+                            notification.readAt ? "" : "bg-yellow-400/[0.06]"
+                          }`}
+                        >
+                          <span className="flex items-start gap-3">
+                            <span
+                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                                notification.readAt
+                                  ? "bg-zinc-700"
+                                  : notification.response === "GOING"
+                                    ? "bg-emerald-400"
+                                    : "bg-yellow-400"
+                              }`}
+                            />
+                            <span className="min-w-0">
+                              {audience === "student" && (
+                                <span className="mb-0.5 block text-xs font-bold text-yellow-300">
+                                  {notification.title}
+                                </span>
+                              )}
+                              <span
+                                className={`block text-sm leading-5 ${
+                                  notification.readAt
+                                    ? "text-zinc-400"
+                                    : "font-semibold text-zinc-100"
+                                }`}
+                              >
+                                {notification.message}
+                              </span>
+                              <span className="mt-1 block text-xs text-zinc-600">
+                                {formatNotificationDate(notification.createdAt)}
+                              </span>
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </>,
+          document.body,
+        )
+      : null;
 
   return (
     <>
@@ -139,115 +265,43 @@ export function AdminNotificationCenter() {
           setOpen((current) => !current);
           if (!open) void loadNotifications();
         }}
-        className="relative grid h-10 w-10 place-items-center rounded-xl border border-zinc-800 text-zinc-300 transition hover:border-yellow-400/30 hover:bg-yellow-400/10 hover:text-yellow-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300"
+        className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-zinc-300 transition hover:border-yellow-400/30 hover:bg-yellow-400/10 hover:text-yellow-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300"
         aria-label={`Notificaciones${unreadCount ? `, ${unreadCount} sin leer` : ""}`}
         aria-expanded={open}
       >
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          className="h-5 w-5 fill-none stroke-current"
-          strokeWidth="1.8"
-        >
-          <path
-            d="M18 9a6 6 0 1 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8ZM10 21h4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <BellIcon />
         {unreadCount > 0 && (
           <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-yellow-400 px-1 text-center text-[10px] font-black leading-5 text-black">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-[70] bg-black/55 backdrop-blur-[2px] sm:bg-transparent sm:backdrop-blur-none" />
-          <div
-            ref={panelRef}
-            role="dialog"
-            aria-label="Centro de notificaciones"
-            className="fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[80] flex max-h-[min(72dvh,38rem)] flex-col overflow-hidden rounded-2xl border border-yellow-400/20 bg-zinc-950 shadow-2xl sm:inset-x-auto sm:bottom-auto sm:right-20 sm:top-[calc(env(safe-area-inset-top)+4rem)] sm:w-[25rem]"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
-              <div>
-                <p className="font-bold text-white">Notificaciones</p>
-                <p className="text-xs text-zinc-500">
-                  Respuestas de asistencia recientes
-                </p>
-              </div>
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={markAllRead}
-                  className="rounded-lg px-2 py-1.5 text-xs font-semibold text-yellow-300 hover:bg-yellow-400/10"
-                >
-                  Marcar todas como leídas
-                </button>
-              )}
-            </div>
-
-            <div className="min-h-0 overflow-y-auto overscroll-contain">
-              {loading ? (
-                <p className="p-5 text-sm text-zinc-500">
-                  Cargando notificaciones…
-                </p>
-              ) : notifications.length === 0 ? (
-                <div className="p-6 text-center">
-                  <p className="text-sm font-semibold text-zinc-300">
-                    No hay notificaciones
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Las respuestas de los alumnos aparecerán acá.
-                  </p>
-                </div>
-              ) : (
-                <ul className="divide-y divide-zinc-800/80">
-                  {notifications.map((notification) => (
-                    <li key={notification.id}>
-                      <button
-                        type="button"
-                        onClick={() => openNotification(notification)}
-                        className={`block w-full px-4 py-3 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-yellow-300 ${
-                          notification.readAt ? "" : "bg-yellow-400/[0.06]"
-                        }`}
-                      >
-                        <span className="flex items-start gap-3">
-                          <span
-                            className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                              notification.readAt
-                                ? "bg-zinc-700"
-                                : notification.response === "GOING"
-                                  ? "bg-emerald-400"
-                                  : "bg-yellow-400"
-                            }`}
-                          />
-                          <span className="min-w-0">
-                            <span
-                              className={`block text-sm leading-5 ${
-                                notification.readAt
-                                  ? "text-zinc-400"
-                                  : "font-semibold text-zinc-100"
-                              }`}
-                            >
-                              {notification.message}
-                            </span>
-                            <span className="mt-1 block text-xs text-zinc-600">
-                              {formatNotificationDate(notification.createdAt)}
-                            </span>
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+      {panel}
     </>
   );
+}
+
+function BellIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-5 w-5 fill-none stroke-current"
+      strokeWidth="1.8"
+    >
+      <path
+        d="M18 9a6 6 0 1 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8ZM10 21h4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function AdminNotificationCenter() {
+  return <NotificationCenter audience="trainer" />;
+}
+
+export function StudentNotificationCenter() {
+  return <NotificationCenter audience="student" />;
 }
