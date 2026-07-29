@@ -50,7 +50,9 @@ function PortalOverview({ data }: { data: PortalData }) {
   return <div className="space-y-4">
     <header className="relative overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_85%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(135deg,#181818,#090909_65%)] p-5 shadow-[0_18px_45px_rgba(0,0,0,.35)] sm:p-6">
       <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-3 h-px w-48 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/35 to-transparent" /><span aria-hidden="true" className="pointer-events-none absolute -right-5 top-12 h-px w-40 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
-      <div className="relative"><p className="flex items-center gap-2 text-xs capitalize text-zinc-400"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p><h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1><p className="mt-1 text-sm text-zinc-400">Vamos por un día más de progreso.</p>
+      <div className="relative">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><p className="flex items-center gap-2 text-xs capitalize text-zinc-400"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p><MonthlyAttendanceIndicator data={data} /></div>
+        <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1><p className="mt-1 text-sm text-zinc-400">Vamos por un día más de progreso.</p>
         <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-yellow-400/15 bg-black/45 p-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-2 text-sm leading-relaxed text-zinc-200">{dailyFocusForDate(todayKey)}</p></div><span aria-hidden="true" className="shrink-0 text-2xl text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,.35)]">ϟ</span></div>
       </div>
     </header>
@@ -63,14 +65,22 @@ function PortalOverview({ data }: { data: PortalData }) {
   </div>;
 }
 
+function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
+  const percentage = data.home.monthlyAttendancePercentage ?? 0;
+  const angle = Math.min(100, Math.max(0, percentage)) * 3.6;
+  const attended = data.home.classesAttendedThisMonth;
+  const detail = attended === 0 ? "Sin clases registradas este mes" : `${attended} ${attended === 1 ? "clase" : "clases"} este mes`;
+  return <Link href="/portal/clases" aria-label={`Ver clases. Asistencia mensual ${percentage} por ciento. ${detail}`} className="flex w-full max-w-full items-center gap-3 self-start rounded-2xl border border-yellow-400/15 bg-black/55 px-3 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/30 focus:outline-none focus:ring-2 focus:ring-yellow-300 sm:w-auto sm:min-w-48">
+    <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[3px] rounded-full bg-zinc-950" /><strong className="relative text-[11px] text-yellow-300">{percentage}%</strong></span>
+    <span className="min-w-0"><span className="block text-[9px] font-bold uppercase tracking-[.12em] text-yellow-400">Asistencia mensual</span><span className="mt-0.5 block text-[10px] leading-snug text-zinc-400">{detail}</span></span>
+  </Link>;
+}
+
 function ProgressSummary({ data }: { data: PortalData }) {
   const physical = physicalProgressSummary(data.evaluations);
-  const attendanceDifference = data.home.monthlyAttendancePercentage !== null && data.home.previousMonthAttendancePercentage !== null
-    ? data.home.monthlyAttendancePercentage - data.home.previousMonthAttendancePercentage
-    : null;
   return <section>
     <div className="flex items-center justify-between gap-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Progreso resumido</h2><Link href="/portal/evaluaciones" className="text-xs font-bold text-zinc-400 transition hover:text-yellow-300">Ver progreso ›</Link></div>
-    <div className="mt-3 grid items-stretch gap-3 md:grid-cols-[minmax(0,1.45fr)_minmax(15rem,.75fr)]">
+    <div className="mt-3">
       <ProgressCard title="Progreso físico" icon="◇" className="border-yellow-400/15">
         {physical ? <div>
           {physical.featured ? <div className="flex flex-wrap items-end justify-between gap-3">
@@ -84,15 +94,6 @@ function ProgressSummary({ data }: { data: PortalData }) {
           </div>
         </div> : <EmptyProgress>Todavía no tenés evaluaciones registradas.</EmptyProgress>}
         <Link href="/portal/evaluaciones" className="mt-3 inline-flex text-xs font-bold text-yellow-300">Ver evaluaciones ›</Link>
-      </ProgressCard>
-      <ProgressCard title="Asistencia" icon="✓">
-        {data.home.hasClassParticipation ? <>
-          <div className="flex items-center gap-3">
-            {data.home.monthlyAttendancePercentage !== null && <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#facc15 ${data.home.monthlyAttendancePercentage * 3.6}deg,#27272a 0deg)` }}><span className="absolute inset-[4px] rounded-full bg-zinc-900" /><span className="relative text-xs font-black text-yellow-300">{data.home.monthlyAttendancePercentage}%</span></span>}
-            <div><p className="text-2xl font-black">{data.home.classesAttendedThisMonth}</p><p className="text-xs text-zinc-500">clases realizadas este mes</p></div>
-          </div>
-          {attendanceDifference !== null && <p className="mt-3 text-xs text-zinc-400">{attendanceDifference === 0 ? "Sin cambios" : attendanceDifference > 0 ? `↑ ${attendanceDifference} puntos` : `↓ ${Math.abs(attendanceDifference)} puntos`} respecto al mes anterior</p>}
-        </> : <EmptyProgress>Sin actividad presencial registrada.</EmptyProgress>}
       </ProgressCard>
     </div>
   </section>;
