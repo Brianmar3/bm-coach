@@ -17,18 +17,26 @@ export async function PATCH(request: Request, context: RouteContext<"/api/portal
   const text = (key: string, fallback: string, max: number) => typeof input[key] === "string" ? input[key].trim().slice(0, max) : fallback;
   const number = (key: string, fallback: number | null) => input[key] === null || input[key] === "" ? null : input[key] === undefined ? fallback : Number(input[key]);
   const durationMinutes = number("durationMinutes", existing.durationMinutes);
+  const sets = number("sets", existing.sets);
+  const repetitions = number("repetitions", existing.repetitions);
   const previousValue = number("previousValue", existing.previousValue === null ? null : Number(existing.previousValue));
   const currentValue = number("currentValue", existing.currentValue === null ? null : Number(existing.currentValue));
+  const metricType = text("metricType", existing.metricType, 60);
+  if (
+    (sets !== null && (!Number.isInteger(sets) || sets < 1 || sets > 100)) ||
+    (repetitions !== null && (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 10000))
+  ) return Response.json({ error: "Revisá las series y repeticiones." }, { status: 400 });
   if ((durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440)) || [previousValue, currentValue].some((value) => value !== null && (!Number.isFinite(value) || value < 0))) return Response.json({ error: "Revisá los valores numéricos." }, { status: 400 });
   const date = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? new Date(`${input.date}T00:00:00Z`) : existing.date;
   const exerciseName = text("exerciseName", existing.exerciseName, 120);
   if (type === "PROGRESS" && (!exerciseName || currentValue === null)) return Response.json({ error: "Ejercicio y nuevo valor son obligatorios." }, { status: 400 });
+  if (type === "PROGRESS" && metricType === "carga" && (sets === null || repetitions === null)) return Response.json({ error: "Series y repeticiones son obligatorias." }, { status: 400 });
   const updated = await prisma.quickLog.update({
     where: { id },
     data: {
       type, title: text("title", existing.title, 120), content: text("content", existing.content, 5000),
-      category: text("category", existing.category, 60), date, durationMinutes, exerciseName,
-      metricType: text("metricType", existing.metricType, 60), previousValue, currentValue,
+      category: text("category", existing.category, 60), date, durationMinutes, exerciseName, sets, repetitions,
+      metricType, previousValue, currentValue,
       unit: text("unit", existing.unit, 30), mood: text("mood", existing.mood, 60),
       hasPain: typeof input.hasPain === "boolean" ? input.hasPain : existing.hasPain,
       painDetails: text("painDetails", existing.painDetails, 1000),

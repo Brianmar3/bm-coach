@@ -19,7 +19,145 @@ export function QuickLogLauncher() {
 
 export function QuickNoteButton() {
   const [open, setOpen] = useState(false);
-  return <>{<button onClick={() => setOpen(true)} aria-label="Crear nota rápida" className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 grid h-12 w-12 place-items-center rounded-full bg-yellow-400 text-lg font-black text-zinc-950 shadow-[0_8px_24px_rgba(0,0,0,.55),0_0_16px_rgba(250,204,21,.18)] transition hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-200 md:bottom-6 md:right-6 md:h-auto md:w-auto md:grid-flow-col md:gap-2 md:px-4 md:py-2.5 md:text-sm"><span aria-hidden="true">✎</span><span className="hidden md:inline">Nota rápida</span></button>}{open && <QuickLogForm type="NOTE" close={() => setOpen(false)} saved={() => setOpen(false)} />}</>;
+  const [notice, setNotice] = useState("");
+  return <>{<button onClick={() => setOpen(true)} aria-label="Registrar ejercicio" className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 grid h-12 w-12 place-items-center rounded-full bg-yellow-400 text-lg font-black text-zinc-950 shadow-[0_8px_24px_rgba(0,0,0,.55),0_0_16px_rgba(250,204,21,.18)] transition hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-200 md:bottom-6 md:right-6 md:h-auto md:w-auto md:grid-flow-col md:gap-2 md:px-4 md:py-2.5 md:text-sm"><span aria-hidden="true">＋</span><span className="hidden md:inline">Registrar ejercicio</span></button>}{open && <QuickExerciseForm close={() => setOpen(false)} saved={() => { setOpen(false); setNotice("Registro guardado correctamente."); window.setTimeout(() => setNotice(""), 3000); }} />}{notice && <p role="status" className="fixed bottom-[calc(env(safe-area-inset-bottom)+8.5rem)] right-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border border-emerald-400/25 bg-zinc-950 px-4 py-3 text-sm text-emerald-300 shadow-2xl md:bottom-20">{notice}</p>}</>;
+}
+
+type ExerciseReference = {
+  exerciseName: string;
+  sets: number | null;
+  repetitions: number | null;
+  load: number | null;
+  unit: string;
+  createdAt: string;
+};
+
+type ExerciseOption = {
+  name: string;
+  count: number;
+  lastUsedAt: string;
+  reference: ExerciseReference;
+};
+
+function normalizeExercise(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es");
+}
+
+function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => void }) {
+  const [exercise, setExercise] = useState("");
+  const [sets, setSets] = useState("");
+  const [repetitions, setRepetitions] = useState("");
+  const [load, setLoad] = useState("");
+  const [note, setNote] = useState("");
+  const [options, setOptions] = useState<ExerciseOption[]>([]);
+  const [lastRecord, setLastRecord] = useState<ExerciseReference | null>(null);
+  const [remoteReference, setRemoteReference] = useState<{
+    key: string;
+    value: ExerciseReference | null;
+  }>({ key: "", value: null });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const exerciseKey = normalizeExercise(exercise);
+  const localReference =
+    options.find((option) => normalizeExercise(option.name) === exerciseKey)
+      ?.reference ?? null;
+  const reference =
+    localReference ??
+    (remoteReference.key === exerciseKey ? remoteReference.value : null);
+  const loadingReference =
+    Boolean(exerciseKey) &&
+    !localReference &&
+    remoteReference.key !== exerciseKey;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/portal/quick-logs/exercises", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const body = await response.json() as { options?: ExerciseOption[]; lastRecord?: ExerciseReference | null; error?: string };
+        if (!response.ok) throw new Error(body.error ?? "No se pudieron cargar tus ejercicios.");
+        setOptions(body.options ?? []);
+        setLastRecord(body.lastRecord ?? null);
+      })
+      .catch((reason: unknown) => {
+        if (!(reason instanceof Error && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : "No se pudieron cargar tus ejercicios.");
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const trimmed = exercise.trim();
+    if (!trimmed || localReference) return;
+    const controller = new AbortController();
+    const requestedKey = normalizeExercise(trimmed);
+    const timeout = window.setTimeout(() => {
+      fetch(`/api/portal/quick-logs/exercises?exercise=${encodeURIComponent(trimmed)}`, { cache: "no-store", signal: controller.signal })
+        .then(async (response) => {
+          const body = await response.json() as { reference?: ExerciseReference | null };
+          setRemoteReference({
+            key: requestedKey,
+            value: response.ok ? body.reference ?? null : null,
+          });
+        })
+        .catch((reason: unknown) => {
+          if (!(reason instanceof Error && reason.name === "AbortError")) {
+            setRemoteReference({ key: requestedKey, value: null });
+          }
+        });
+    }, 300);
+    return () => { window.clearTimeout(timeout); controller.abort(); };
+  }, [exercise, localReference]);
+
+  function chooseOption(option: ExerciseOption) {
+    setExercise(option.name);
+  }
+
+  function repeatLast() {
+    if (!lastRecord) return;
+    setExercise(lastRecord.exerciseName);
+    setSets(lastRecord.sets?.toString() ?? "");
+    setRepetitions(lastRecord.repetitions?.toString() ?? "");
+    setLoad(lastRecord.load?.toString() ?? "");
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const form = new FormData();
+      form.set("type", "PROGRESS");
+      form.set("title", exercise.trim());
+      form.set("content", note.trim());
+      form.set("category", "registro rápido");
+      form.set("date", today());
+      form.set("exerciseName", exercise.trim());
+      form.set("sets", sets);
+      form.set("repetitions", repetitions);
+      form.set("metricType", "carga");
+      form.set("previousValue", reference?.load?.toString() ?? "");
+      form.set("currentValue", load);
+      form.set("unit", "kg");
+      const response = await fetch("/api/portal/quick-logs", { method: "POST", body: form });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "No se pudo guardar el registro.");
+      saved();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "No se pudo guardar el registro.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/85 p-2 backdrop-blur-sm sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && close()}><form onSubmit={submit} className="mx-auto my-2 w-full max-w-lg rounded-3xl border border-yellow-400/15 bg-[#111] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-2xl sm:my-8 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</p><h2 className="mt-1 text-xl font-bold">Registrar ejercicio</h2><p className="mt-1 text-xs text-zinc-500">Carga solamente lo que hiciste hoy.</p></div><button type="button" onClick={close} disabled={saving} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-xl text-zinc-400" aria-label="Cerrar registro">×</button></div>
+    {error && <p role="alert" className="mt-3 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
+    {lastRecord && <button type="button" onClick={repeatLast} className="mt-4 min-h-11 w-full rounded-xl border border-yellow-400/25 bg-yellow-400/[.05] px-3 text-sm font-bold text-yellow-300">Repetir último registro</button>}
+    <div className="mt-4 space-y-4"><Field label="Ejercicio"><input required autoFocus list="quick-exercise-options" value={exercise} onChange={(event) => setExercise(event.target.value)} maxLength={120} placeholder="Ej: Sentadilla goblet" autoComplete="off" className="input min-h-12" /><datalist id="quick-exercise-options">{options.map((option) => <option key={normalizeExercise(option.name)} value={option.name} />)}</datalist></Field>
+      {options.length > 0 && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Ejercicios recientes">{options.slice(0, 6).map((option) => <button key={normalizeExercise(option.name)} type="button" onClick={() => chooseOption(option)} className="min-h-9 shrink-0 rounded-full border border-zinc-700 bg-zinc-950 px-3 text-xs text-zinc-300">{option.name}</button>)}</div>}
+      <div className="rounded-xl border border-zinc-800 bg-black/60 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Carga anterior</p>{loadingReference ? <p className="mt-1 text-sm text-zinc-500">Buscando…</p> : reference ? <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><strong className="text-lg text-yellow-300">{reference.load === null ? "Sin carga" : `${reference.load.toLocaleString("es-AR")} ${reference.unit}`}</strong>{reference.sets !== null && reference.repetitions !== null && <span className="text-xs text-zinc-500">{reference.sets} series × {reference.repetitions} repeticiones</span>}</div> : <p className="mt-1 text-sm text-zinc-500">{exercise.trim() ? "No hay un registro anterior de este ejercicio." : "Elegí un ejercicio para consultar tu última carga."}</p>}</div>
+      <div className="grid grid-cols-2 gap-3"><Field label="Series"><input required type="number" min="1" max="100" inputMode="numeric" value={sets} onChange={(event) => setSets(event.target.value)} placeholder="3" className="input min-h-12" /></Field><Field label="Repeticiones"><input required type="number" min="1" max="10000" inputMode="numeric" value={repetitions} onChange={(event) => setRepetitions(event.target.value)} placeholder="12" className="input min-h-12" /></Field></div>
+      <Field label="Carga de hoy (kg)"><input required type="number" min="0" step="0.01" inputMode="decimal" value={load} onChange={(event) => setLoad(event.target.value)} placeholder="14" className="input min-h-12" /></Field>
+      <Field label="Nota opcional"><textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} rows={2} placeholder="Observación breve" className="input resize-none" /></Field>
+    </div><button disabled={saving} className="mt-5 min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar registro"}</button></form></div>;
 }
 
 export function QuickLogHistory() {
@@ -63,10 +201,14 @@ export function QuickLogHistory() {
 }
 
 function QuickLogCard({ log, edit, remove, removePhoto }: { log: QuickLog; edit: () => void; remove: () => void; removePhoto: (photoId: string) => void }) {
-  const summary = log.content || (log.type === "PROGRESS" ? `${log.exerciseName}: ${log.previousValue ?? "Sin valor anterior"} → ${log.currentValue} ${log.unit}` : log.category);
+  const strength = log.type === "PROGRESS" && log.metricType === "carga" && log.sets !== null && log.repetitions !== null;
+  const difference = strength && log.previousValue !== null && log.currentValue !== null ? log.currentValue - log.previousValue : null;
+  const summary = strength ? log.content : log.content || (log.type === "PROGRESS" ? `${log.exerciseName}: ${log.previousValue ?? "Sin valor anterior"} → ${log.currentValue} ${log.unit}` : log.category);
   const createdAt = new Date(log.createdAt);
   const time = Number.isNaN(createdAt.getTime()) ? "" : createdAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-  return <article className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-[0_10px_28px_rgba(0,0,0,.2)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{labels[log.type].icon} {labels[log.type].title}</p><h2 className="mt-1 break-words font-bold">{log.title || labels[log.type].title}</h2><p className="mt-1 text-xs text-zinc-500">{new Date(`${log.date}T12:00:00`).toLocaleDateString("es-AR")}{time ? ` · ${time}` : ""}{log.category ? ` · ${log.category}` : ""}</p></div><div className="flex shrink-0 gap-3 text-xs"><button onClick={edit} className="text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-300">Editar</button><button onClick={remove} className="text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button></div></div>{summary && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-zinc-300">{summary}</p>}{log.mood && <p className="mt-2 text-xs text-zinc-500">Sensación: {log.mood}</p>}{log.hasPain && <p className="mt-2 rounded-lg bg-red-400/10 p-2 text-xs text-red-200">Molestia: {log.painDetails || "Sin detalle"}</p>}{log.photos.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{log.photos.map((photo) => <div key={photo.id} className="relative min-w-0 overflow-hidden rounded-xl bg-black"><a href={photo.blobUrl} target="_blank" rel="noreferrer" aria-label="Abrir fotografía en tamaño completo" className="group block focus:outline-none focus:ring-2 focus:ring-yellow-300"><img src={photo.blobUrl} alt="Foto adjunta al registro" loading="lazy" className="aspect-square w-full object-cover transition group-hover:opacity-80" /><span className="absolute inset-x-1 bottom-1 rounded bg-black/75 px-2 py-1 text-center text-[10px] text-zinc-200">Ver completa</span></a><button onClick={() => removePhoto(photo.id)} aria-label="Eliminar foto" className="absolute right-1 top-1 rounded-full bg-black/85 px-2 py-1 text-xs text-red-200 focus:outline-none focus:ring-2 focus:ring-red-300">×</button></div>)}</div>}</article>;
+  return <article className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-[0_10px_28px_rgba(0,0,0,.2)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{labels[log.type].icon} {strength ? "Ejercicio" : labels[log.type].title}</p><h2 className="mt-1 break-words font-bold">{log.title || log.exerciseName || labels[log.type].title}</h2><p className="mt-1 text-xs text-zinc-500">{new Date(`${log.date}T12:00:00`).toLocaleDateString("es-AR")}{time ? ` · ${time}` : ""}{!strength && log.category ? ` · ${log.category}` : ""}</p></div><div className="flex shrink-0 gap-3 text-xs"><button onClick={edit} className="text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-300">Editar</button><button onClick={remove} className="text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button></div></div>
+    {strength && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Trabajo</p><p className="mt-1 font-bold">{log.sets} × {log.repetitions}</p></div><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Carga</p><p className="mt-1 font-bold text-yellow-300">{log.currentValue?.toLocaleString("es-AR")} {log.unit || "kg"}</p></div><div className="col-span-2 rounded-xl bg-black/55 p-3 sm:col-span-1"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Anterior</p><p className="mt-1 text-sm">{log.previousValue === null ? "Sin registro" : `${log.previousValue.toLocaleString("es-AR")} ${log.unit || "kg"}`}{difference !== null && <span className="ml-2 text-zinc-500">{difference === 0 ? "Sin cambios" : `${difference > 0 ? "+" : ""}${difference.toLocaleString("es-AR")} ${log.unit || "kg"}`}</span>}</p></div></div>}
+    {summary && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-zinc-300">{summary}</p>}{log.mood && <p className="mt-2 text-xs text-zinc-500">Sensación: {log.mood}</p>}{log.hasPain && <p className="mt-2 rounded-lg bg-red-400/10 p-2 text-xs text-red-200">Molestia: {log.painDetails || "Sin detalle"}</p>}{log.photos.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{log.photos.map((photo) => <div key={photo.id} className="relative min-w-0 overflow-hidden rounded-xl bg-black"><a href={photo.blobUrl} target="_blank" rel="noreferrer" aria-label="Abrir fotografía en tamaño completo" className="group block focus:outline-none focus:ring-2 focus:ring-yellow-300"><img src={photo.blobUrl} alt="Foto adjunta al registro" loading="lazy" className="aspect-square w-full object-cover transition group-hover:opacity-80" /><span className="absolute inset-x-1 bottom-1 rounded bg-black/75 px-2 py-1 text-center text-[10px] text-zinc-200">Ver completa</span></a><button onClick={() => removePhoto(photo.id)} aria-label="Eliminar foto" className="absolute right-1 top-1 rounded-full bg-black/85 px-2 py-1 text-xs text-red-200 focus:outline-none focus:ring-2 focus:ring-red-300">×</button></div>)}</div>}</article>;
 }
 
 function QuickLogForm({ type, initial, close, saved }: { type: QuickLogType; initial?: QuickLog; close: () => void; saved: () => void | Promise<void> }) {

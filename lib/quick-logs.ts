@@ -14,7 +14,7 @@ export function detectedImageType(bytes: Uint8Array) {
 
 export function quickLogJson(log: {
   id: string; type: string; title: string; content: string; category: string; date: Date; durationMinutes: number | null;
-  exerciseName: string; metricType: string; previousValue: Prisma.Decimal | null; currentValue: Prisma.Decimal | null;
+  exerciseName: string; sets: number | null; repetitions: number | null; metricType: string; previousValue: Prisma.Decimal | null; currentValue: Prisma.Decimal | null;
   unit: string; mood: string; hasPain: boolean; painDetails: string; createdAt: Date; updatedAt: Date;
   photos: Array<{ id: string; blobUrl: string; blobPathname: string; createdAt: Date }>;
 }) {

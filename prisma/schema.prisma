@@ -52,6 +52,8 @@ model QuickLog {
   date            DateTime        @db.Date
   durationMinutes Int?
   exerciseName    String          @default("")
+  sets            Int?
+  repetitions     Int?
   metricType      String          @default("")
   previousValue   Decimal?        @db.Decimal(10, 2)
   currentValue    Decimal?        @db.Decimal(10, 2)

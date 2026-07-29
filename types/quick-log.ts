@@ -16,6 +16,8 @@ export type QuickLog = {
   date: string;
   durationMinutes: number | null;
   exerciseName: string;
+  sets: number | null;
+  repetitions: number | null;
   metricType: string;
   previousValue: number | null;
   currentValue: number | null;

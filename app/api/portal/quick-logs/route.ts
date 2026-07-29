@@ -44,10 +44,18 @@ export async function POST(request: Request) {
     return Number.isFinite(parsed) ? parsed : Number.NaN;
   };
   const durationMinutes = number("durationMinutes");
+  const sets = number("sets");
+  const repetitions = number("repetitions");
   const previousValue = number("previousValue");
   const currentValue = number("currentValue");
+  const metricType = text("metricType", 60);
+  if (
+    (sets !== null && (!Number.isInteger(sets) || sets < 1 || sets > 100)) ||
+    (repetitions !== null && (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 10000))
+  ) return Response.json({ error: "Revisá las series y repeticiones." }, { status: 400 });
   if ((durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440)) || [previousValue, currentValue].some((value) => value !== null && (!Number.isFinite(value) || value < 0))) return Response.json({ error: "Revisá los valores numéricos." }, { status: 400 });
   if (type === "PROGRESS" && (!text("exerciseName", 120) || currentValue === null)) return Response.json({ error: "Ejercicio y nuevo valor son obligatorios." }, { status: 400 });
+  if (type === "PROGRESS" && metricType === "carga" && (sets === null || repetitions === null)) return Response.json({ error: "Series y repeticiones son obligatorias." }, { status: 400 });
   const files = form.getAll("photos").filter((item): item is File => item instanceof File && item.size > 0);
   if (files.length > 4) return Response.json({ error: "Podés adjuntar hasta 4 fotos por registro." }, { status: 400 });
   if (files.length && !process.env.BLOB_READ_WRITE_TOKEN) return Response.json({ error: "La carga de fotos todavía no está configurada." }, { status: 503 });
@@ -69,7 +77,9 @@ export async function POST(request: Request) {
       date: new Date(`${date}T00:00:00Z`),
       durationMinutes,
       exerciseName: text("exerciseName", 120),
-      metricType: text("metricType", 60),
+      sets,
+      repetitions,
+      metricType,
       previousValue,
       currentValue,
       unit: text("unit", 30),
