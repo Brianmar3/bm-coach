@@ -1,55 +1,88 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type PushState = "loading" | "unsupported" | "iphone-browser" | "blocked" | "inactive" | "active" | "unconfigured";
-type PushConfig = { configured: boolean; publicKey: string; diagnostics?: { publicKeyPresent: boolean; publicKeyLength: number; publicKeyValid: boolean } };
+type PushState =
+  | "loading"
+  | "unsupported"
+  | "iphone-browser"
+  | "blocked"
+  | "inactive"
+  | "active"
+  | "unconfigured";
+type PushConfig = {
+  configured: boolean;
+  publicKey: string;
+  activeCurrent?: boolean;
+  diagnostics?: {
+    publicKeyPresent: boolean;
+    publicKeyLength: number;
+    publicKeyValid: boolean;
+  };
+};
+
 const WORKER_URL = "/sw.js";
 const WORKER_SCOPE = "/";
 
 function applicationServerKey(value: string) {
   const normalized = value.trim().replace(/^(['"])(.*)\1$/, "$2").trim();
-  if (!/^[A-Za-z0-9_-]{80,120}$/.test(normalized)) throw new Error("VAPID_MISSING");
-  const padding = "=".repeat((4 - normalized.length % 4) % 4);
-  const raw = atob((normalized + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  if (!/^[A-Za-z0-9_-]{80,120}$/.test(normalized)) {
+    throw new Error("VAPID_MISSING");
+  }
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+  const raw = atob(
+    (normalized + padding).replace(/-/g, "+").replace(/_/g, "/"),
+  );
   const bytes = Uint8Array.from(raw, (character) => character.charCodeAt(0));
-  if (bytes.length !== 65 || bytes[0] !== 4) throw new Error("VAPID_INVALID");
+  if (bytes.length !== 65 || bytes[0] !== 4) {
+    throw new Error("VAPID_INVALID");
+  }
   return bytes;
 }
 
 function friendlyError(error: unknown) {
   const name = error instanceof Error ? error.name : "UnknownError";
   const technicalMessage = error instanceof Error ? error.message : String(error);
-  console.error("[BM Training Push] activación fallida", { name, message: technicalMessage });
-  if (technicalMessage.includes("VAPID_")) return "Las notificaciones todavía no están configuradas.";
-  if (Notification.permission === "denied" || name === "NotAllowedError") return "Las notificaciones están bloqueadas en la configuración del teléfono.";
-  if (/push service|registration failed|network|abort/i.test(technicalMessage) || name === "AbortError" || name === "NetworkError") return "No se pudo conectar con el servicio de notificaciones. Reintentá en unos minutos.";
-  if (name === "ServiceWorkerError" || /service worker|worker fetch|worker ready/i.test(technicalMessage)) return "No se pudo preparar el servicio de notificaciones.";
+  console.error("[BM Training Push] activación fallida", {
+    name,
+    message: technicalMessage,
+  });
+  if (technicalMessage.includes("VAPID_")) {
+    return "Las notificaciones todavía no están configuradas.";
+  }
+  if (Notification.permission === "denied" || name === "NotAllowedError") {
+    return "Las notificaciones están bloqueadas en la configuración del teléfono.";
+  }
+  if (
+    /push service|registration failed|network|abort/i.test(technicalMessage) ||
+    name === "AbortError" ||
+    name === "NetworkError"
+  ) {
+    return "No se pudo conectar con el servicio de notificaciones. Reintentá en unos minutos.";
+  }
+  if (
+    name === "ServiceWorkerError" ||
+    /service worker|worker fetch|worker ready/i.test(technicalMessage)
+  ) {
+    return "No se pudo preparar el servicio de notificaciones.";
+  }
   return "No pudimos activar las notificaciones.";
 }
 
-function logDiagnostics(stage: string, config?: PushConfig, registration?: ServiceWorkerRegistration, previousSubscription?: boolean) {
-  console.info("[BM Training Push]", {
-    stage,
-    secureContext: window.isSecureContext,
-    permission: Notification.permission,
-    serviceWorkerAvailable: "serviceWorker" in navigator,
-    pushManagerAvailable: "PushManager" in window && Boolean(registration?.pushManager),
-    worker: registration ? { installing: Boolean(registration.installing), waiting: Boolean(registration.waiting), active: Boolean(registration.active), scope: registration.scope } : null,
-    controller: Boolean(navigator.serviceWorker.controller),
-    publicKeyPresent: config?.diagnostics?.publicKeyPresent ?? Boolean(config?.publicKey),
-    publicKeyLength: config?.diagnostics?.publicKeyLength ?? config?.publicKey.length ?? 0,
-    publicKeyValid: config?.diagnostics?.publicKeyValid ?? false,
-    previousSubscription: previousSubscription ?? null,
-  });
-}
-
 async function validateWorkerResponse() {
-  const response = await fetch(WORKER_URL, { cache: "no-store", redirect: "manual" });
+  const response = await fetch(WORKER_URL, {
+    cache: "no-store",
+    redirect: "manual",
+  });
   const contentType = response.headers.get("content-type") ?? "";
-  const validJavaScript = /javascript|ecmascript/i.test(contentType) && !/text\/html/i.test(contentType);
-  console.info("[BM Training Push] worker HTTP", { url: new URL(WORKER_URL, window.location.origin).href, status: response.status, contentType, redirected: response.redirected, validJavaScript });
-  if (!response.ok || response.redirected || !validJavaScript) throw new DOMException(`Worker fetch inválido: HTTP ${response.status}, Content-Type ${contentType || "ausente"}`, "ServiceWorkerError");
+  const validJavaScript =
+    /javascript|ecmascript/i.test(contentType) && !/text\/html/i.test(contentType);
+  if (!response.ok || response.redirected || !validJavaScript) {
+    throw new DOMException(
+      `Worker fetch inválido: HTTP ${response.status}, Content-Type ${contentType || "ausente"}`,
+      "ServiceWorkerError",
+    );
+  }
 }
 
 async function readyRegistration(timeoutMs = 12000) {
@@ -57,75 +90,292 @@ async function readyRegistration(timeoutMs = 12000) {
   try {
     return await Promise.race([
       navigator.serviceWorker.ready,
-      new Promise<never>((_, reject) => { timeout = window.setTimeout(() => reject(new DOMException("Worker ready timeout", "ServiceWorkerError")), timeoutMs); }),
+      new Promise<never>((_, reject) => {
+        timeout = window.setTimeout(
+          () =>
+            reject(
+              new DOMException("Worker ready timeout", "ServiceWorkerError"),
+            ),
+          timeoutMs,
+        );
+      }),
     ]);
   } finally {
     window.clearTimeout(timeout);
   }
 }
 
-export function PushNotificationsCard() {
+export function PushNotificationsCard({
+  audience = "student",
+}: {
+  audience?: "student" | "trainer";
+}) {
+  const endpoint = useMemo(
+    () => (audience === "trainer" ? "/api/admin/push" : "/api/portal/push"),
+    [audience],
+  );
   const [state, setState] = useState<PushState>("loading");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [config, setConfig] = useState<PushConfig | null>(null);
+
   useEffect(() => {
     void (async () => {
-      if (!window.isSecureContext || !("serviceWorker" in navigator && "PushManager" in window && "Notification" in window)) return setState("unsupported");
+      if (
+        !window.isSecureContext ||
+        !(
+          "serviceWorker" in navigator &&
+          "PushManager" in window &&
+          "Notification" in window
+        )
+      ) {
+        return setState("unsupported");
+      }
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const standalone = window.matchMedia("(display-mode: standalone)").matches || ("standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+      const standalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        ("standalone" in navigator &&
+          Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
       if (isIOS && !standalone) return setState("iphone-browser");
       if (Notification.permission === "denied") return setState("blocked");
-      const response = await fetch("/api/portal/push", { cache: "no-store" });
+
+      const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) return setState("unsupported");
-      const loaded = await response.json() as PushConfig;
+      const loaded = (await response.json()) as PushConfig;
       setConfig(loaded);
-      if (!loaded.configured || !loaded.publicKey || !loaded.diagnostics?.publicKeyValid) return setState("unconfigured");
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      const matching = registrations.find((item) => new URL(item.scope).pathname === "/");
-      const subscription = await matching?.pushManager?.getSubscription();
-      console.info("[BM Training Push] registros encontrados", { count: registrations.length, matchingRegistration: Boolean(await navigator.serviceWorker.getRegistration(WORKER_SCOPE)) });
-      logDiagnostics("estado inicial", loaded, matching, Boolean(subscription));
+      if (
+        !loaded.configured ||
+        !loaded.publicKey ||
+        !loaded.diagnostics?.publicKeyValid
+      ) {
+        return setState("unconfigured");
+      }
+
+      const registration = await navigator.serviceWorker.getRegistration(
+        WORKER_SCOPE,
+      );
+      const subscription = await registration?.pushManager?.getSubscription();
+      if (audience === "trainer" && subscription) {
+        const currentResponse = await fetch(
+          `${endpoint}?endpoint=${encodeURIComponent(subscription.endpoint)}`,
+          { cache: "no-store" },
+        );
+        if (currentResponse.ok) {
+          const currentConfig = (await currentResponse.json()) as PushConfig;
+          setConfig(currentConfig);
+          setState(currentConfig.activeCurrent ? "active" : "inactive");
+          return;
+        }
+      }
       setState(subscription ? "active" : "inactive");
-    })().catch((error) => { console.error("[BM Training Push] diagnóstico inicial fallido", { name: error instanceof Error ? error.name : "UnknownError", message: error instanceof Error ? error.message : String(error) }); setState("unsupported"); });
-  }, []);
+    })().catch((error) => {
+      console.error("[BM Training Push] diagnóstico inicial fallido", error);
+      setState("unsupported");
+    });
+  }, [audience, endpoint]);
+
   async function activate() {
-    setBusy(true); setMessage("");
+    setBusy(true);
+    setMessage("");
     try {
-      if (!config?.configured || !config.publicKey || !config.diagnostics?.publicKeyValid) throw new Error("VAPID_MISSING");
-      if (!window.isSecureContext) throw new DOMException("HTTPS requerido", "SecurityError");
+      if (
+        !config?.configured ||
+        !config.publicKey ||
+        !config.diagnostics?.publicKeyValid
+      ) {
+        throw new Error("VAPID_MISSING");
+      }
+      if (!window.isSecureContext) {
+        throw new DOMException("HTTPS requerido", "SecurityError");
+      }
       await validateWorkerResponse();
-      console.info("[BM Training Push] registrando worker", { url: new URL(WORKER_URL, window.location.origin).href, scope: WORKER_SCOPE });
-      const registered = await navigator.serviceWorker.register(WORKER_URL, { scope: WORKER_SCOPE, updateViaCache: "none" });
-      logDiagnostics("registro devuelto", config, registered);
+      await navigator.serviceWorker.register(WORKER_URL, {
+        scope: WORKER_SCOPE,
+        updateViaCache: "none",
+      });
       const registration = await readyRegistration();
-      if (!registration.active || !registration.pushManager) throw new DOMException("Service worker o PushManager no disponible", "ServiceWorkerError");
-      console.info("[BM Training Push] registro activo", { getRegistration: Boolean(await navigator.serviceWorker.getRegistration(WORKER_SCOPE)) });
-      const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
-      if (permission !== "granted") { setState("blocked"); setMessage("Las notificaciones están bloqueadas en la configuración del teléfono."); return; }
+      if (!registration.active || !registration.pushManager) {
+        throw new DOMException(
+          "Service worker o PushManager no disponible",
+          "ServiceWorkerError",
+        );
+      }
+      const permission =
+        Notification.permission === "granted"
+          ? "granted"
+          : await Notification.requestPermission();
+      if (permission !== "granted") {
+        setState("blocked");
+        setMessage(
+          "Las notificaciones están bloqueadas en la configuración del teléfono.",
+        );
+        return;
+      }
       const existing = await registration.pushManager.getSubscription();
-      logDiagnostics("antes de suscribir", config, registration, Boolean(existing));
-      const subscription = existing ?? await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(config.publicKey) });
-      const response = await fetch("/api/portal/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(subscription.toJSON()) });
-      const data = await response.json() as { message?: string; error?: string };
-      if (!response.ok) throw new Error(data.error || "SERVER_SUBSCRIPTION_FAILED");
-      setState("active"); setMessage(data.message ?? "Notificaciones activadas correctamente.");
-    } catch (error) { setMessage(friendlyError(error)); }
-    finally { setBusy(false); }
+      const subscription =
+        existing ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey(config.publicKey),
+        }));
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription.toJSON()),
+      });
+      const data = (await response.json()) as { message?: string; error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || "SERVER_SUBSCRIPTION_FAILED");
+      }
+      setState("active");
+      setMessage(data.message ?? "Notificaciones activadas correctamente.");
+    } catch (error) {
+      setMessage(friendlyError(error));
+    } finally {
+      setBusy(false);
+    }
   }
+
   async function deactivate() {
-    setBusy(true); setMessage("");
+    setBusy(true);
+    setMessage("");
     try {
       const registration = await readyRegistration();
       const subscription = await registration.pushManager?.getSubscription();
       if (subscription) {
-        await fetch("/api/portal/push", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: subscription.endpoint }) });
-        await subscription.unsubscribe();
+        await fetch(endpoint, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+        if (audience === "student") {
+          await subscription.unsubscribe();
+        }
       }
-      setState("inactive"); setMessage("Notificaciones desactivadas en este dispositivo.");
-    } catch (error) { console.error("[BM Training Push] desactivación fallida", { name: error instanceof Error ? error.name : "UnknownError", message: error instanceof Error ? error.message : String(error) }); setMessage("No pudimos desactivar las notificaciones."); }
-    finally { setBusy(false); }
+      setState("inactive");
+      setMessage("Notificaciones desactivadas en este dispositivo.");
+    } catch (error) {
+      console.error("[BM Training Push] desactivación fallida", error);
+      setMessage("No pudimos desactivar las notificaciones.");
+    } finally {
+      setBusy(false);
+    }
   }
-  const label = { loading: "Comprobando…", unsupported: "No compatibles en este dispositivo", "iphone-browser": "Requiere instalar la app", blocked: "Bloqueadas por el navegador", inactive: "No activadas", active: "Activadas", unconfigured: "Pendientes de configuración" }[state];
-  return <section className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Notificaciones de logros</h2><p className="mt-1 max-w-xl text-sm text-zinc-500">Recibí un aviso cuando desbloquees un logro o superes una marca personal.</p></div><span className="rounded-full bg-zinc-950 px-2.5 py-1 text-xs text-zinc-400">{label}</span></div>{state === "iphone-browser" && <p className="mt-3 text-sm text-yellow-200">Para recibir notificaciones en iPhone, agregá BM Training a la pantalla de inicio: Compartir → Agregar a pantalla de inicio → abrí la app → activá las notificaciones.</p>}{state === "blocked" && <p className="mt-3 text-sm text-yellow-200">Las notificaciones están bloqueadas. Podés habilitarlas desde la configuración del navegador o del teléfono.</p>}{state === "unconfigured" && <p className="mt-3 text-sm text-zinc-500">Las notificaciones todavía no están configuradas.</p>}{message && <p role="status" className={`mt-3 text-sm ${state === "active" ? "text-emerald-300" : "text-yellow-200"}`}>{message}</p>}{state === "inactive" && <button disabled={busy} type="button" onClick={activate} className="mt-4 rounded-lg bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950 disabled:opacity-50">{busy ? "Activando…" : "Activar notificaciones"}</button>}{state === "active" && <button disabled={busy} type="button" onClick={deactivate} className="mt-4 rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-bold text-zinc-300 disabled:opacity-50">{busy ? "Desactivando…" : "Desactivar notificaciones"}</button>}</section>;
+
+  async function sendTest() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const registration = await readyRegistration();
+      const subscription = await registration.pushManager?.getSubscription();
+      if (!subscription) throw new Error("SUBSCRIPTION_NOT_FOUND");
+      const response = await fetch(endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "TEST_PUSH_FAILED");
+      setMessage("Notificación de prueba enviada.");
+    } catch (error) {
+      console.error("[BM Training Push] prueba fallida", error);
+      setMessage("No pudimos enviar la notificación de prueba.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const label = {
+    loading: "Comprobando…",
+    unsupported: "No compatibles en este dispositivo",
+    "iphone-browser": "Requiere instalar la app",
+    blocked: "Bloqueadas por el navegador",
+    inactive: "No activadas",
+    active: "Activadas",
+    unconfigured: "Pendientes de configuración",
+  }[state];
+  const heading =
+    audience === "trainer"
+      ? "Notificaciones de asistencia"
+      : "Notificaciones de logros";
+  const description =
+    audience === "trainer"
+      ? "Recibí un aviso cuando un alumno confirme o rechace su asistencia."
+      : "Recibí un aviso cuando desbloquees un logro o superes una marca personal.";
+
+  return (
+    <section className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">{heading}</h2>
+          <p className="mt-1 max-w-xl text-sm text-zinc-500">{description}</p>
+        </div>
+        <span className="rounded-full bg-zinc-950 px-2.5 py-1 text-xs text-zinc-400">
+          {label}
+        </span>
+      </div>
+
+      {state === "iphone-browser" && (
+        <p className="mt-3 text-sm text-yellow-200">
+          Para recibir notificaciones en iPhone, agregá BM Training a la pantalla
+          de inicio: Compartir → Agregar a pantalla de inicio → abrí la app →
+          activá las notificaciones.
+        </p>
+      )}
+      {state === "blocked" && (
+        <p className="mt-3 text-sm text-yellow-200">
+          Las notificaciones están bloqueadas. Podés habilitarlas desde la
+          configuración del navegador o del teléfono.
+        </p>
+      )}
+      {state === "unconfigured" && (
+        <p className="mt-3 text-sm text-zinc-500">
+          Las notificaciones todavía no están configuradas.
+        </p>
+      )}
+      {message && (
+        <p
+          role="status"
+          className={`mt-3 text-sm ${
+            state === "active" ? "text-emerald-300" : "text-yellow-200"
+          }`}
+        >
+          {message}
+        </p>
+      )}
+
+      {state === "inactive" && (
+        <button
+          disabled={busy}
+          type="button"
+          onClick={activate}
+          className="mt-4 rounded-lg bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950 disabled:opacity-50"
+        >
+          {busy ? "Activando…" : "Activar notificaciones"}
+        </button>
+      )}
+      {state === "active" && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {audience === "trainer" && (
+            <button
+              disabled={busy}
+              type="button"
+              onClick={sendTest}
+              className="rounded-lg bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950 disabled:opacity-50"
+            >
+              {busy ? "Enviando…" : "Enviar notificación de prueba"}
+            </button>
+          )}
+          <button
+            disabled={busy}
+            type="button"
+            onClick={deactivate}
+            className="rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-bold text-zinc-300 disabled:opacity-50"
+          >
+            {busy ? "Desactivando…" : "Desactivar notificaciones"}
+          </button>
+        </div>
+      )}
+    </section>
+  );
 }

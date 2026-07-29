@@ -28,6 +28,7 @@ model StudentRecord {
   pushSubscriptions        StudentPushSubscription[]
   achievementNotifications AchievementNotification[]
   quickLogs                QuickLog[]
+  trainerNotifications     TrainerNotification[]
 
   @@index([primaryScheduleId])
   @@map("students")
@@ -120,6 +121,53 @@ model AchievementNotification {
   @@index([studentId, status])
   @@index([status, createdAt])
   @@map("achievement_notifications")
+}
+
+enum TrainerNotificationType {
+  CLASS_RESPONSE
+}
+
+model TrainerPushSubscription {
+  id          String    @id @default(cuid())
+  ownerKey    String    @default("coach")
+  endpoint    String    @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  deviceLabel String?
+  active      Boolean   @default(true)
+  lastUsedAt  DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerKey, active])
+  @@map("trainer_push_subscriptions")
+}
+
+model TrainerNotification {
+  id              String                  @id @default(cuid())
+  ownerKey        String                  @default("coach")
+  type            TrainerNotificationType
+  eventKey        String                  @unique
+  title           String
+  message         String
+  url             String
+  studentId       String?
+  occurrenceId    String?
+  response        ClassResponseStatus
+  readAt          DateTime?
+  pushAttemptedAt DateTime?
+  pushDeliveredAt DateTime?
+  pushError       String?
+  createdAt       DateTime                @default(now())
+  student         StudentRecord?          @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  occurrence      ClassOccurrence?        @relation(fields: [occurrenceId], references: [id], onDelete: SetNull)
+
+  @@index([ownerKey, readAt, createdAt(sort: Desc)])
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([occurrenceId, createdAt(sort: Desc)])
+  @@map("trainer_notifications")
 }
 
 model StudentPortalCredential {
@@ -609,23 +657,24 @@ enum ClassWorkoutLogStatus {
 }
 
 model ClassOccurrence {
-  id                String                      @id @default(cuid())
-  scheduleId        String?
-  date              DateTime                    @db.Date
-  startTime         String
-  endTime           String
-  classNameSnapshot String
-  categorySnapshot  String
-  status            ClassOccurrenceStatus       @default(SCHEDULED)
-  capacityOverride  Int?
-  internalNotes     String                      @default("")
-  strengthEnabled   Boolean                     @default(false)
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
-  schedule          WeeklyClassSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
-  responses         ClassOccurrenceAttendance[]
-  strengthBlock     ClassStrengthBlock?
-  workoutLogs       ClassWorkoutLog[]
+  id                   String                      @id @default(cuid())
+  scheduleId           String?
+  date                 DateTime                    @db.Date
+  startTime            String
+  endTime              String
+  classNameSnapshot    String
+  categorySnapshot     String
+  status               ClassOccurrenceStatus       @default(SCHEDULED)
+  capacityOverride     Int?
+  internalNotes        String                      @default("")
+  strengthEnabled      Boolean                     @default(false)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  schedule             WeeklyClassSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  responses            ClassOccurrenceAttendance[]
+  strengthBlock        ClassStrengthBlock?
+  workoutLogs          ClassWorkoutLog[]
+  trainerNotifications TrainerNotification[]
 
   @@unique([scheduleId, date])
   @@index([date, startTime])

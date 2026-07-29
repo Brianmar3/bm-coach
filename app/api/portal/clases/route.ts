@@ -1,9 +1,14 @@
 import { Prisma } from "@prisma/client";
+import { after } from "next/server";
 import { argentinaClock, ensureClassOccurrences, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
 import { databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
+import {
+  createAttendanceTrainerNotification,
+  dispatchTrainerPush,
+} from "@/lib/trainer-notifications";
 import type { Student } from "@/types/gestion";
 
 export const runtime = "nodejs";
@@ -148,19 +153,48 @@ export async function POST(request: Request) {
       });
       if (!occurrence) throw new Error("NOT_FOUND");
       if (occurrence.status !== "SCHEDULED" || occurrenceHasStarted(occurrence.date, occurrence.startTime)) throw new Error("CLOSED");
-      const alreadyGoing = occurrence.responses[0]?.response === "GOING";
+      const previousResponse = occurrence.responses[0]?.response ?? null;
+      const alreadyGoing = previousResponse === "GOING";
       if (requestedResponse === "GOING" && !alreadyGoing && occurrence.capacityOverride !== null && occurrence._count.responses >= occurrence.capacityOverride) throw new Error("FULL");
-      await transaction.classOccurrenceAttendance.upsert({
+      if (previousResponse === requestedResponse) {
+        return { occurrence, changed: false, responseUpdatedAt: null };
+      }
+      const savedResponse = await transaction.classOccurrenceAttendance.upsert({
         where: { occurrenceId_studentId: { occurrenceId: occurrence.id, studentId: session.studentId } },
         create: { occurrenceId: occurrence.id, studentId: session.studentId, response: requestedResponse, respondedAt: new Date() },
         update: { response: requestedResponse, respondedAt: new Date() },
       });
-      return occurrence;
+      return { occurrence, changed: true, responseUpdatedAt: savedResponse.updatedAt };
     }, { isolationLevel: "Serializable" });
-    const day = new Date(`${databaseDateKey(result.date)}T12:00:00Z`).toLocaleDateString("es-AR", { weekday: "long", timeZone: "UTC" });
+    const occurrence = result.occurrence;
+    if (result.changed && result.responseUpdatedAt) {
+      const student = session.credential.student.data as unknown as Student;
+      const notificationInput = {
+        eventKey: `class-response:${occurrence.id}:${session.studentId}:${requestedResponse}:${result.responseUpdatedAt.toISOString()}`,
+        studentId: session.studentId,
+        studentName: `${student.firstName} ${student.lastName}`.trim(),
+        occurrenceId: occurrence.id,
+        scheduleId: occurrence.scheduleId,
+        className: occurrence.classNameSnapshot,
+        classDate: occurrence.date,
+        startTime: occurrence.startTime,
+        response: requestedResponse,
+      } as const;
+      const queuedNotification =
+        await createAttendanceTrainerNotification(notificationInput);
+      if (queuedNotification) {
+        after(async () => {
+          await dispatchTrainerPush(
+            queuedNotification.notification.id,
+            queuedNotification.payload,
+          );
+        });
+      }
+    }
+    const day = new Date(`${databaseDateKey(occurrence.date)}T12:00:00Z`).toLocaleDateString("es-AR", { weekday: "long", timeZone: "UTC" });
     return Response.json({
       message: requestedResponse === "GOING"
-        ? `Asistencia confirmada para ${result.classNameSnapshot} · ${day} ${result.startTime}`
+        ? `Asistencia confirmada para ${occurrence.classNameSnapshot} · ${day} ${occurrence.startTime}`
         : "Tu asistencia fue cancelada.",
       savedAt: argentinaClock(),
     });

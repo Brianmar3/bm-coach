@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBrowserStore } from "@/lib/browser-store";
 import type { CoachSettings } from "@/types/gestion";
+import { AdminNotificationCenter } from "@/componentes/admin-notification-center";
 
 export function AdminTopbar() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export function AdminTopbar() {
         </Link>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <AdminNotificationCenter />
           <Link href="/configuracion" className="group flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white/5 sm:pr-3">
             <span className="grid h-9 w-9 place-items-center rounded-full border border-yellow-400/30 bg-gradient-to-br from-zinc-800 to-black text-xs font-black text-yellow-300">
               {initials}
