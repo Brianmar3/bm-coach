@@ -64,16 +64,25 @@ function PortalOverview({ data }: { data: PortalData }) {
 }
 
 function ProgressSummary({ data }: { data: PortalData }) {
-  const physical = latestPhysicalProgress(data.evaluations);
-  const performance = latestTrainingPerformance(data.workoutSessions);
+  const physical = physicalProgressSummary(data.evaluations);
   const attendanceDifference = data.home.monthlyAttendancePercentage !== null && data.home.previousMonthAttendancePercentage !== null
     ? data.home.monthlyAttendancePercentage - data.home.previousMonthAttendancePercentage
     : null;
   return <section>
     <div className="flex items-center justify-between gap-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Progreso resumido</h2><Link href="/portal/evaluaciones" className="text-xs font-bold text-zinc-400 transition hover:text-yellow-300">Ver progreso ›</Link></div>
-    <div className="mt-3 grid gap-3 sm:grid-cols-3">
-      <ProgressCard title="Progreso físico" icon="◇">
-        {physical ? <><p className="text-xs text-zinc-500">{physical.label}</p><p className="mt-1 text-2xl font-black">{physical.current}</p><p className="mt-2 text-xs text-zinc-400">{physical.change}</p></> : <EmptyProgress>Todavía no tenés evaluaciones registradas.</EmptyProgress>}
+    <div className="mt-3 grid items-stretch gap-3 md:grid-cols-[minmax(0,1.45fr)_minmax(15rem,.75fr)]">
+      <ProgressCard title="Progreso físico" icon="◇" className="border-yellow-400/15">
+        {physical ? <div>
+          {physical.featured ? <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-xs text-zinc-500">{physical.featured.label}</p><p className="mt-1 text-3xl font-black tracking-tight text-white">{physical.featured.display}</p></div>
+            <p className="max-w-56 rounded-full border border-yellow-400/10 bg-yellow-400/[.06] px-3 py-1.5 text-xs text-zinc-300">{physical.featured.change}</p>
+          </div> : <EmptyProgress>La última evaluación no tiene medidas corporales disponibles.</EmptyProgress>}
+          {physical.secondary.length > 0 && <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{physical.secondary.map((metric) => <div key={metric.key} className="min-w-0 rounded-xl border border-zinc-800/80 bg-black/35 p-3"><p className="truncate text-[10px] uppercase tracking-wide text-zinc-500">{metric.label}</p><p className="mt-1 text-sm font-bold text-zinc-100">{metric.display}</p>{metric.hasComparison && <p className="mt-1 text-[10px] leading-snug text-zinc-500">{metric.change}</p>}</div>)}</div>}
+          <div className="mt-4 border-t border-zinc-800/80 pt-3">
+            {physical.summary && <p className="text-xs leading-relaxed text-zinc-300">{physical.summary}</p>}
+            <p className={`${physical.summary ? "mt-2" : ""} text-[10px] text-zinc-600`}>Última evaluación: {date(physical.date)}</p>
+          </div>
+        </div> : <EmptyProgress>Todavía no tenés evaluaciones registradas.</EmptyProgress>}
         <Link href="/portal/evaluaciones" className="mt-3 inline-flex text-xs font-bold text-yellow-300">Ver evaluaciones ›</Link>
       </ProgressCard>
       <ProgressCard title="Asistencia" icon="✓">
@@ -85,68 +94,59 @@ function ProgressSummary({ data }: { data: PortalData }) {
           {attendanceDifference !== null && <p className="mt-3 text-xs text-zinc-400">{attendanceDifference === 0 ? "Sin cambios" : attendanceDifference > 0 ? `↑ ${attendanceDifference} puntos` : `↓ ${Math.abs(attendanceDifference)} puntos`} respecto al mes anterior</p>}
         </> : <EmptyProgress>Sin actividad presencial registrada.</EmptyProgress>}
       </ProgressCard>
-      <ProgressCard title="Rendimiento" icon="↗">
-        {performance ? <><p className="truncate text-sm font-bold text-zinc-200">{performance.exercise}</p><p className="mt-1 text-xl font-black">{performance.current}</p><p className="mt-2 text-xs text-zinc-400">{performance.change}</p><p className="mt-1 text-[10px] text-zinc-600">{date(performance.date)}</p></> : <EmptyProgress>Todavía no hay registros de rendimiento.</EmptyProgress>}
-      </ProgressCard>
     </div>
   </section>;
 }
 
-function ProgressCard({ title, icon, children }: { title: string; icon: string; children: ReactNode }) {
-  return <article className="min-h-40 rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.2)]"><div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-[10px] font-bold uppercase tracking-[.14em] text-zinc-500">{title}</h3><span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400/10 text-yellow-400">{icon}</span></div>{children}</article>;
+function ProgressCard({ title, icon, children, className = "" }: { title: string; icon: string; children: ReactNode; className?: string }) {
+  return <article className={`min-w-0 rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.2)] ${className}`}><div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-[10px] font-bold uppercase tracking-[.14em] text-zinc-500">{title}</h3><span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400/10 text-yellow-400">{icon}</span></div>{children}</article>;
 }
 
 function EmptyProgress({ children }: { children: ReactNode }) {
   return <p className="text-sm leading-relaxed text-zinc-500">{children}</p>;
 }
 
-function latestPhysicalProgress(evaluations: PhysicalEvaluation[]) {
-  const metrics = [
-    { key: "weight", label: "Peso", unit: "kg" },
-    { key: "waist", label: "Cintura", unit: "cm" },
-    { key: "muscleMass", label: "Masa muscular", unit: "kg" },
-    { key: "bodyFatPercentage", label: "Grasa corporal", unit: "%" },
-  ] as const;
-  for (const metric of metrics) {
-    const values = evaluations.flatMap((evaluation) => evaluation[metric.key] === null ? [] : [{ value: evaluation[metric.key] as number, date: evaluation.date }]);
-    if (!values.length) continue;
-    const current = values[0];
-    const previous = values[1];
-    const difference = previous ? current.value - previous.value : null;
-    return {
-      label: metric.label,
-      current: formatBodyValue(current.value, metric.unit),
-      change: difference === null
-        ? "Primera medición disponible"
-        : difference === 0
-          ? "→ Sin cambios respecto a la anterior"
-          : `${difference > 0 ? "↑ Subió" : "↓ Bajó"} ${formatBodyValue(Math.abs(difference), metric.unit)}`,
-    };
-  }
-  return null;
-}
+type PhysicalSummaryKey = "weight" | "bodyFatPercentage" | "muscleMass" | "waist" | "hip";
 
-function latestTrainingPerformance(sessions: PortalWorkoutSession[]) {
-  for (const session of sessions) {
-    if (session.status !== "finalizado") continue;
-    for (const exercise of session.exercises) {
-      const set = exercise.sets.find((item) => item.completed && (item.weight !== null || item.repetitions !== null));
-      if (!set) continue;
-      const current = set.weight !== null
-        ? `${number(set.weight, " kg")}${set.repetitions !== null ? ` × ${set.repetitions} rep.` : ""}`
-        : `${set.repetitions} repeticiones`;
-      let change = "Primera marca comparable";
-      if (exercise.previous?.weight !== null && exercise.previous?.weight !== undefined && set.weight !== null) {
-        const difference = set.weight - exercise.previous.weight;
-        change = difference === 0 ? "Misma carga que el registro anterior" : `${difference > 0 ? "↑" : "↓"} ${number(Math.abs(difference), " kg")} frente al registro anterior`;
-      } else if (exercise.previous?.repetitions !== null && exercise.previous?.repetitions !== undefined && set.repetitions !== null) {
-        const difference = set.repetitions - exercise.previous.repetitions;
-        change = difference === 0 ? "Mismas repeticiones que el registro anterior" : `${difference > 0 ? "↑" : "↓"} ${Math.abs(difference)} repeticiones frente al registro anterior`;
-      }
-      return { exercise: exercise.exerciseName, current, change, date: session.date };
-    }
-  }
-  return null;
+function physicalProgressSummary(evaluations: PhysicalEvaluation[]) {
+  const latest = evaluations[0];
+  if (!latest) return null;
+  const previous = evaluations[1];
+  const definitions: Array<{ key: PhysicalSummaryKey; label: string; unit: string }> = [
+    { key: "weight", label: "Peso", unit: "kg" },
+    { key: "bodyFatPercentage", label: "Grasa corporal", unit: "%" },
+    { key: "muscleMass", label: "Masa muscular", unit: "kg" },
+    { key: "waist", label: "Cintura", unit: "cm" },
+    { key: "hip", label: "Cadera", unit: "cm" },
+  ];
+  const metrics = definitions.flatMap((definition) => {
+    const current = latest[definition.key];
+    if (current === null) return [];
+    const before = previous?.[definition.key] ?? null;
+    const difference = before === null ? null : current - before;
+    return [{
+      ...definition,
+      current,
+      display: formatBodyValue(current, definition.unit),
+      difference,
+      hasComparison: difference !== null,
+      change: difference === null
+        ? "Sin comparación anterior"
+        : difference === 0
+          ? "→ Sin cambios"
+          : `${difference > 0 ? "↑ Subió" : "↓ Bajó"} ${formatBodyValue(Math.abs(difference), definition.unit)}`,
+      relativeChange: difference === null || before === null || before === 0 ? 0 : Math.abs(difference / before),
+    }];
+  });
+  const featured = metrics.find((metric) => metric.key === "weight") ?? metrics[0] ?? null;
+  const secondary = metrics.filter((metric) => metric.key !== featured?.key).slice(0, 4);
+  const relevant = metrics.filter((metric) => metric.difference !== null && metric.difference !== 0).sort((left, right) => right.relativeChange - left.relativeChange)[0];
+  const summary = relevant
+    ? `${relevant.label} ${relevant.difference! > 0 ? "subió" : "bajó"} ${formatBodyValue(Math.abs(relevant.difference!), relevant.unit)} respecto a la evaluación anterior.`
+    : previous && metrics.some((metric) => metric.hasComparison)
+      ? "Las mediciones comparables se mantienen sin cambios."
+      : "";
+  return { date: latest.date, featured, secondary, summary };
 }
 
 function AchievementsSpotlight({ data }: { data: PortalData }) {
