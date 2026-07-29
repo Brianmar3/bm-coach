@@ -48,14 +48,16 @@ function PortalOverview({ data }: { data: PortalData }) {
   const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
   return <div className="space-y-4">
-    <header className="relative overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_85%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(135deg,#181818,#090909_65%)] p-5 shadow-[0_18px_45px_rgba(0,0,0,.35)] sm:p-6">
+    <header className="relative overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_85%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(135deg,#181818,#090909_65%)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.35)] sm:p-5">
       <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-3 h-px w-48 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/35 to-transparent" /><span aria-hidden="true" className="pointer-events-none absolute -right-5 top-12 h-px w-40 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
-      <div className="relative">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><p className="flex items-center gap-2 text-xs capitalize text-zinc-400"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p><MonthlyAttendanceIndicator data={data} /></div>
-        <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1><p className="mt-1 text-sm text-zinc-400">Vamos por un día más de progreso.</p>
-        <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-yellow-400/15 bg-black/45 p-4"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-2 text-sm leading-relaxed text-zinc-200">{dailyFocusForDate(todayKey)}</p></div><span aria-hidden="true" className="shrink-0 text-2xl text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,.35)]">ϟ</span></div>
+      <div className="relative min-h-24 pr-20 sm:min-h-28 sm:pr-24">
+        <p className="flex items-center gap-2 text-xs capitalize text-zinc-400"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p>
+        <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
+        <p className="mt-1 text-sm text-zinc-400">Vamos por un día más de progreso.</p>
+        <MonthlyAttendanceIndicator data={data} />
       </div>
     </header>
+    <section className="flex items-center justify-between gap-4 rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.24)]"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-2 text-sm leading-relaxed text-zinc-200">{dailyFocusForDate(todayKey)}</p></div><span aria-hidden="true" className="shrink-0 text-2xl text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,.35)]">ϟ</span></section>
     <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div>
     <ProgressSummary data={data} />
     <span id="logros" className="scroll-mt-24" />
@@ -70,9 +72,9 @@ function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
   const angle = Math.min(100, Math.max(0, percentage)) * 3.6;
   const attended = data.home.classesAttendedThisMonth;
   const detail = attended === 0 ? "Sin clases registradas este mes" : `${attended} ${attended === 1 ? "clase" : "clases"} este mes`;
-  return <Link href="/portal/clases" aria-label={`Ver clases. Asistencia mensual ${percentage} por ciento. ${detail}`} className="flex w-full max-w-full items-center gap-3 self-start rounded-2xl border border-yellow-400/15 bg-black/55 px-3 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/30 focus:outline-none focus:ring-2 focus:ring-yellow-300 sm:w-auto sm:min-w-48">
-    <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[3px] rounded-full bg-zinc-950" /><strong className="relative text-[11px] text-yellow-300">{percentage}%</strong></span>
-    <span className="min-w-0"><span className="block text-[9px] font-bold uppercase tracking-[.12em] text-yellow-400">Asistencia mensual</span><span className="mt-0.5 block text-[10px] leading-snug text-zinc-400">{detail}</span></span>
+  return <Link href="/portal/clases" aria-label={`Ver clases. Asistencia mensual ${percentage} por ciento. ${detail}`} className="absolute right-0 top-0 z-10 flex w-16 flex-col items-center gap-1 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-300" title="Ver asistencia mensual">
+    <span className="relative grid h-[60px] w-[60px] place-items-center rounded-full border border-zinc-700/80 shadow-[0_8px_22px_rgba(0,0,0,.28)]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[4px] rounded-full bg-zinc-950" /><strong className="relative text-sm font-black text-yellow-300">{percentage}%</strong></span>
+    <span className="text-[8px] font-bold uppercase tracking-[.08em] text-zinc-500">Asistencia</span>
   </Link>;
 }
 
