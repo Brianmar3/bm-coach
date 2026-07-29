@@ -20,7 +20,7 @@ export function QuickLogLauncher() {
 
 export function QuickNoteButton() {
   const [open, setOpen] = useState(false);
-  return <>{<button onClick={() => setOpen(true)} aria-label="Crear nota rápida" className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-yellow-400 text-xl font-black text-zinc-950 shadow-lg shadow-black/50 transition hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-200 md:bottom-6 md:right-6 md:h-auto md:w-auto md:grid-flow-col md:gap-2 md:px-4 md:py-3 md:text-sm"><span aria-hidden="true">✎</span><span className="hidden md:inline">Nota rápida</span></button>}{open && <QuickLogForm type="NOTE" close={() => setOpen(false)} saved={() => setOpen(false)} />}</>;
+  return <>{<button onClick={() => setOpen(true)} aria-label="Crear nota rápida" className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 grid h-12 w-12 place-items-center rounded-full bg-yellow-400 text-lg font-black text-zinc-950 shadow-[0_8px_24px_rgba(0,0,0,.55),0_0_16px_rgba(250,204,21,.18)] transition hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-200 md:bottom-6 md:right-6 md:h-auto md:w-auto md:grid-flow-col md:gap-2 md:px-4 md:py-2.5 md:text-sm"><span aria-hidden="true">✎</span><span className="hidden md:inline">Nota rápida</span></button>}{open && <QuickLogForm type="NOTE" close={() => setOpen(false)} saved={() => setOpen(false)} />}</>;
 }
 
 export function QuickLogHistory() {
