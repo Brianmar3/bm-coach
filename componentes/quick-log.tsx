@@ -1,7 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Blob URLs are validated uploads */
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { QuickLog, QuickLogType } from "@/types/quick-log";
 
@@ -15,7 +14,7 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argent
 
 export function QuickLogLauncher() {
   const [type, setType] = useState<QuickLogType | null>(null);
-  return <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex items-center justify-between gap-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</h2><Link href="/portal/registro" className="text-xs font-bold text-zinc-400">Ver mis registros</Link></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{(Object.keys(labels) as QuickLogType[]).map((value) => <button key={value} onClick={() => setType(value)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-zinc-200"><span className="text-yellow-400">{labels[value].icon}</span>{labels[value].title}</button>)}</div>{type && <QuickLogForm type={type} close={() => setType(null)} saved={() => setType(null)} />}</section>;
+  return <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</h2><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{(Object.keys(labels) as QuickLogType[]).map((value) => <button key={value} onClick={() => setType(value)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-zinc-200"><span className="text-yellow-400">{labels[value].icon}</span>{labels[value].title}</button>)}</div>{type && <QuickLogForm type={type} close={() => setType(null)} saved={() => setType(null)} />}</section>;
 }
 
 export function QuickNoteButton() {

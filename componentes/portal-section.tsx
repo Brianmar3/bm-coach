@@ -59,7 +59,6 @@ function PortalOverview({ data }: { data: PortalData }) {
     <span id="logros" className="scroll-mt-24" />
     <AchievementsSpotlight data={data} />
     <AchievementsOverview data={data} />
-    <div className="flex justify-end"><Link href="/portal/registro" className="inline-flex min-h-11 items-center rounded-xl border border-zinc-800 bg-zinc-900 px-4 text-sm font-bold text-yellow-300 transition hover:border-yellow-400/30 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-yellow-300">Ver mis registros ›</Link></div>
     <QuickNoteButton />
   </div>;
 }
@@ -73,6 +72,10 @@ function ProgressSummary({ data }: { data: PortalData }) {
   return <section>
     <div className="flex items-center justify-between gap-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Progreso resumido</h2><Link href="/portal/evaluaciones" className="text-xs font-bold text-zinc-400 transition hover:text-yellow-300">Ver progreso ›</Link></div>
     <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <ProgressCard title="Progreso físico" icon="◇">
+        {physical ? <><p className="text-xs text-zinc-500">{physical.label}</p><p className="mt-1 text-2xl font-black">{physical.current}</p><p className="mt-2 text-xs text-zinc-400">{physical.change}</p></> : <EmptyProgress>Todavía no tenés evaluaciones registradas.</EmptyProgress>}
+        <Link href="/portal/evaluaciones" className="mt-3 inline-flex text-xs font-bold text-yellow-300">Ver evaluaciones ›</Link>
+      </ProgressCard>
       <ProgressCard title="Asistencia" icon="✓">
         {data.home.hasClassParticipation ? <>
           <div className="flex items-center gap-3">
@@ -81,10 +84,6 @@ function ProgressSummary({ data }: { data: PortalData }) {
           </div>
           {attendanceDifference !== null && <p className="mt-3 text-xs text-zinc-400">{attendanceDifference === 0 ? "Sin cambios" : attendanceDifference > 0 ? `↑ ${attendanceDifference} puntos` : `↓ ${Math.abs(attendanceDifference)} puntos`} respecto al mes anterior</p>}
         </> : <EmptyProgress>Sin actividad presencial registrada.</EmptyProgress>}
-      </ProgressCard>
-      <ProgressCard title="Progreso físico" icon="◇">
-        {physical ? <><p className="text-xs text-zinc-500">{physical.label}</p><p className="mt-1 text-2xl font-black">{physical.current}</p><p className="mt-2 text-xs text-zinc-400">{physical.change}</p></> : <EmptyProgress>Todavía no tenés evaluaciones registradas.</EmptyProgress>}
-        <Link href="/portal/evaluaciones" className="mt-3 inline-flex text-xs font-bold text-yellow-300">Ver evaluaciones ›</Link>
       </ProgressCard>
       <ProgressCard title="Rendimiento" icon="↗">
         {performance ? <><p className="truncate text-sm font-bold text-zinc-200">{performance.exercise}</p><p className="mt-1 text-xl font-black">{performance.current}</p><p className="mt-2 text-xs text-zinc-400">{performance.change}</p><p className="mt-1 text-[10px] text-zinc-600">{date(performance.date)}</p></> : <EmptyProgress>Todavía no hay registros de rendimiento.</EmptyProgress>}
