@@ -23,7 +23,10 @@ export async function GET(request: Request) {
 
     if (!scheduleId) {
       const students = await prisma.studentRecord.findMany({ include: { primarySchedule: true }, orderBy: { updatedAt: "desc" } });
-      const activeStudents = students.filter((student) => (student.data as unknown as Partial<Student>).status === "activo");
+      const activeStudents = students.filter((student) =>
+        (student.data as unknown as Partial<Student>).status === "activo" &&
+        student.serviceType !== "PERSONALIZED"
+      );
       const attendanceRecords = await prisma.classAttendance.findMany({ where: { date, scheduleId: null }, include: { student: true }, orderBy: { updatedAt: "desc" } });
       const attendanceByStudent = new Map(attendanceRecords.map((attendance) => [attendance.studentId, attendance]));
       const rosterStudents = activeStudents.map((student) => {

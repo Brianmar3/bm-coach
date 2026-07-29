@@ -11,6 +11,7 @@ model StudentRecord {
   id                       String                      @id
   phoneNormalized          String?                     @unique
   primaryScheduleId        String?
+  serviceType              StudentServiceType          @default(CLASSES)
   data                     Json
   createdAt                DateTime                    @default(now())
   updatedAt                DateTime                    @updatedAt
@@ -33,6 +34,12 @@ model StudentRecord {
 
   @@index([primaryScheduleId])
   @@map("students")
+}
+
+enum StudentServiceType {
+  CLASSES
+  PERSONALIZED
+  MIXED
 }
 
 enum QuickLogType {

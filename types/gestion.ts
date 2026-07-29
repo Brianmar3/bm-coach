@@ -2,6 +2,7 @@ export type PaymentStatus = "pagado" | "pendiente" | "vencido" | "proximo_a_venc
 export type PaymentAccountStatus = "VENCIDA" | "VENCE_PRONTO" | "AL_DIA" | "SIN_PAGOS" | "SIN_CONFIGURAR";
 
 export type StudentStatus = "activo" | "inactivo";
+export type StudentServiceType = "CLASSES" | "PERSONALIZED" | "MIXED";
 
 export type Student = {
   id: string;
@@ -18,6 +19,7 @@ export type Student = {
   joinedAt: string;
   dueDate: string;
   status: StudentStatus;
+  serviceType: StudentServiceType;
   notes: string;
   studentType?: "Adulto" | "Kids";
   responsibleName?: string;

@@ -1,4 +1,4 @@
-import type { CoachEvent, Payment, PhysicalEvaluation, PortalPaymentAccount, TrainingRoutine } from "@/types/gestion";
+import type { CoachEvent, Payment, PhysicalEvaluation, PortalPaymentAccount, StudentServiceType, TrainingRoutine } from "@/types/gestion";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 
 export type PortalProfile = {
@@ -12,6 +12,7 @@ export type PortalProfile = {
   plan: string;
   joinedAt: string;
   status: string;
+  serviceType: StudentServiceType;
   dueDate: string;
   scheduleLabels: string[];
   flexibleSchedule: string;

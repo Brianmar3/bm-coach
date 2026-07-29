@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       if (schedules.some((schedule) => !schedule.active)) throw new EnrollmentError("Seleccioná únicamente horarios activos para el alta.");
       if (schedules.some((schedule) => schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
       const created = await transaction.studentRecord.create({
-        data: { id: randomUUID(), phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, data: studentJsonData(input) },
+        data: { id: randomUUID(), phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: studentJsonData(input) },
       });
       if (schedules.length) await transaction.weeklyClassAssignment.createMany({ data: schedules.map((schedule) => ({ scheduleId: schedule.id, studentId: created.id })) });
       return transaction.studentRecord.findUniqueOrThrow({ where: { id: created.id }, include: studentInclude });

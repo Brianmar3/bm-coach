@@ -4,16 +4,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
 
-const links = [
+type PortalLink = readonly [title: string, href: string, icon: string];
+
+const allLinks: PortalLink[] = [
   ["Inicio", "/portal", "⌂"],
   ["Rutina", "/portal/rutina", "◫"],
   ["Clases", "/portal/clases", "▷"],
   ["Evaluaciones", "/portal/evaluaciones", "◇"],
   ["Perfil", "/portal/perfil", "○"],
-] as const;
+];
 
 function BrandMark() {
   return (
@@ -31,13 +34,25 @@ function BrandMark() {
 export function PortalShell({
   studentName,
   profileImageUrl,
+  serviceType,
+  hasRoutine,
   children,
 }: {
   studentName: string;
   profileImageUrl: string;
+  serviceType: StudentServiceType;
+  hasRoutine: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const links = allLinks.filter(([, href]) => {
+    if (href === "/portal/clases") return serviceType !== "PERSONALIZED";
+    if (href === "/portal/rutina") return serviceType !== "CLASSES" || hasRoutine;
+    return true;
+  });
+  if (serviceType === "PERSONALIZED") {
+    links.splice(links.length - 1, 0, ["Registros", "/portal/registro", "✎"]);
+  }
   const initials = studentName
     .split(/\s+/)
     .slice(0, 2)
@@ -134,7 +149,8 @@ export function PortalShell({
 
       <nav
         aria-label="Navegación móvil del portal"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-yellow-400/10 bg-black/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(0,0,0,.45)] backdrop-blur md:hidden"
+        style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
+        className="fixed inset-x-0 bottom-0 z-40 grid border-t border-yellow-400/10 bg-black/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(0,0,0,.45)] backdrop-blur md:hidden"
       >
         {links.map(([title, href, icon]) => {
           const active =

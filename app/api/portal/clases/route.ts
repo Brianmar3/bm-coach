@@ -10,6 +10,7 @@ import {
   dispatchTrainerPush,
 } from "@/lib/trainer-notifications";
 import type { Student } from "@/types/gestion";
+import { hasGroupClasses } from "@/lib/student-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,6 +70,7 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
 export async function GET(request: Request) {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
+  if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Las clases grupales no están disponibles para tu servicio." }, { status: 403 });
   if (session.credential.mustChangePassword) return Response.json({ error: "Primero cambiá tu contraseña.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   try {
     const summaryOnly = new URL(request.url).searchParams.get("summary") === "1";
@@ -139,6 +141,7 @@ export async function POST(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
+  if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Las clases grupales no están disponibles para tu servicio." }, { status: 403 });
   try {
     const input = await request.json() as { occurrenceId?: unknown; response?: unknown };
     if (typeof input.occurrenceId !== "string" || !["GOING", "NOT_GOING"].includes(String(input.response))) {

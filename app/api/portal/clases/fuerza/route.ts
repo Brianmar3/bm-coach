@@ -5,6 +5,7 @@ import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
 import type { Student } from "@/types/gestion";
 import { notifyNewAchievements } from "@/lib/push-notifications";
+import { hasGroupClasses } from "@/lib/student-service";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
+  if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "El registro de clases no está disponible para tu servicio." }, { status: 403 });
   try {
     const input = await request.json() as { logId?: unknown; occurrenceId?: unknown; status?: unknown; notes?: unknown; exercises?: unknown };
     if (typeof input.occurrenceId !== "string" || !["DRAFT", "COMPLETED"].includes(String(input.status)) || !Array.isArray(input.exercises) || input.exercises.length > 30) {
@@ -94,6 +96,7 @@ export async function DELETE(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
+  if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "El registro de clases no está disponible para tu servicio." }, { status: 403 });
   try {
     const input = await request.json().catch(() => null) as { logId?: unknown } | null;
     if (typeof input?.logId !== "string" || !input.logId.trim()) return Response.json({ error: "El bloque seleccionado no es válido." }, { status: 400 });

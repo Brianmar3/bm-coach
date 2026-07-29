@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { studentServiceLabel } from "@/lib/student-service";
 import { useEffect, useRef, useState } from "react";
 import { PROFILE_AVATARS } from "@/lib/profile-avatars";
 import type { PortalProfile } from "@/types/portal";
@@ -195,7 +196,7 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
     </header>
     <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
       <h2 className="font-semibold">Información personal y deportiva</h2>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2"><Item title="Teléfono" value={profile.phone} /><Item title="Correo" value={profile.email || "Sin correo"} /><Item title="Fecha de nacimiento" value={showDate(profile.birthDate)} /><Item title="Objetivo" value={profile.goal || "No definido"} /><Item title="Plan" value={profile.plan} /><Item title="Fecha de ingreso" value={showDate(profile.joinedAt)} /><Item title="Estado" value={profile.status} /></dl>
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2"><Item title="Teléfono" value={profile.phone} /><Item title="Correo" value={profile.email || "Sin correo"} /><Item title="Fecha de nacimiento" value={showDate(profile.birthDate)} /><Item title="Objetivo" value={profile.goal || "No definido"} /><Item title="Tipo de servicio" value={studentServiceLabel(profile.serviceType)} /><Item title="Plan" value={profile.plan} /><Item title="Fecha de ingreso" value={showDate(profile.joinedAt)} /><Item title="Estado" value={profile.status} /></dl>
       <p className="mt-5 text-xs text-zinc-500">Para modificar estos datos, contactá a tu entrenador.</p>
     </section>
     <Link href="/portal/registro" className="mt-4 flex min-h-14 items-center justify-between rounded-2xl border border-yellow-400/15 bg-gradient-to-r from-zinc-900 to-[#0d0d0d] px-4 py-3 shadow-[0_10px_28px_rgba(0,0,0,.2)] transition hover:border-yellow-400/30 focus:outline-none focus:ring-2 focus:ring-yellow-300"><span><strong className="block text-yellow-300">Mis registros</strong><span className="mt-0.5 block text-xs text-zinc-500">Consultá las notas y archivos que guardaste.</span></span><span className="ml-3 text-yellow-400">›</span></Link>

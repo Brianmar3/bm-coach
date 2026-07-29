@@ -11,6 +11,7 @@ import type { PortalAchievement } from "@/lib/portal-achievements";
 import { StudentProfileView } from "@/componentes/student-profile-view";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
+import { hasGroupClasses } from "@/lib/student-service";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -47,18 +48,19 @@ export function PortalSection({ section }: { section: Section }) {
 function PortalOverview({ data }: { data: PortalData }) {
   const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  const groupClassesEnabled = hasGroupClasses(data.profile.serviceType);
   return <div className="space-y-4">
     <header className="relative overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_85%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(135deg,#181818,#090909_65%)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.35)] sm:p-5">
       <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-3 h-px w-48 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/35 to-transparent" /><span aria-hidden="true" className="pointer-events-none absolute -right-5 top-12 h-px w-40 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
-      <div className="relative min-h-24 pr-20 sm:min-h-28 sm:pr-24">
+      <div className={`relative min-h-24 sm:min-h-28 ${groupClassesEnabled ? "pr-20 sm:pr-24" : ""}`}>
         <p className="flex items-center gap-2 text-xs capitalize text-zinc-400"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p>
         <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
         <p className="mt-1 text-sm text-zinc-400">Vamos por un día más de progreso.</p>
-        <MonthlyAttendanceIndicator data={data} />
+        {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </header>
     <section className="flex items-center justify-between gap-4 rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.24)]"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-2 text-sm leading-relaxed text-zinc-200">{dailyFocusForDate(todayKey)}</p></div><span aria-hidden="true" className="shrink-0 text-2xl text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,.35)]">ϟ</span></section>
-    <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div>
+    {groupClassesEnabled ? <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div> : <div className="max-w-md"><QuotaSummaryCard data={data} /></div>}
     <ProgressSummary data={data} />
     <span id="logros" className="scroll-mt-24" />
     <AchievementsSpotlight data={data} />

@@ -13,11 +13,12 @@ import { portalPaymentAccount, serializePayment } from "@/lib/payments";
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 import { planDays } from "@/lib/student-enrollment";
 import { BM_TRAINING_START_DATE } from "@/lib/bm-training";
+import { hasGroupClasses } from "@/lib/student-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date) {
+async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date, includeClasses: boolean) {
   const today = dateKeyToDatabase(todayKey);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
   const previousMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
@@ -43,10 +44,10 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   ] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: weekStart } } }),
-    prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }),
-    prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+    includeClasses ? prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }) : Promise.resolve([]),
+    includeClasses ? prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }) : Promise.resolve([]),
     prisma.physicalEvaluation.findMany({ where: { ...meaningfulEvaluation, date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
-    prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }),
+    includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
     loadStrengthAchievements(studentId, activityStart),
     prisma.trainingRoutineAssignment.count({ where: { studentId, active: true } }),
   ]);
@@ -60,10 +61,10 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   const monthStartKey = monthStart.toISOString().slice(0, 10);
   const previousMonthStartKey = previousMonthStart.toISOString().slice(0, 10);
   const previousMonthEndKey = previousMonthEnd.toISOString().slice(0, 10);
-  const hasClassParticipation = Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog);
+  const hasClassParticipation = includeClasses && (Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog));
   const attendedThisMonth = attendedClassDates.filter((date) => date >= monthStartKey && date <= todayKey).length;
   const attendedPreviousMonth = attendedClassDates.filter((date) => date >= previousMonthStartKey && date <= previousMonthEndKey).length;
-  const weeklyGoal = planDays(plan) ?? 0;
+  const weeklyGoal = includeClasses ? planDays(plan) ?? 0 : 0;
   const elapsedWeeks = Math.max(1, Math.ceil(today.getUTCDate() / 7));
   const expectedClasses = weeklyGoal * elapsedWeeks;
   const previousMonthExpectedClasses = weeklyGoal * Math.max(1, Math.ceil(previousMonthEnd.getUTCDate() / 7));
@@ -98,6 +99,8 @@ export async function GET(request: Request) {
     if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
     if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
     const studentId = session.studentId;
+    const serviceType = session.credential.student.serviceType;
+    const groupClassesEnabled = hasGroupClasses(serviceType);
     const section = new URL(request.url).searchParams.get("section") ?? "inicio";
     const fullWorkoutHistory = section === "rutina" || section === "entrenamiento";
     const fullEvaluationHistory = section === "evaluaciones";
@@ -107,7 +110,7 @@ export async function GET(request: Request) {
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio"
-      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart)
+      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [] });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: { status: "ACTIVA", assignments: { some: { studentId, active: true } } }, include: routineInclude, orderBy: { updatedAt: "desc" } }),
@@ -125,17 +128,20 @@ export async function GET(request: Request) {
         include: { exercise: true },
         orderBy: { createdAt: "desc" },
       }),
-      session.credential.student.primaryScheduleId
+      groupClassesEnabled && session.credential.student.primaryScheduleId
         ? prisma.weeklyClassSchedule.findUnique({ where: { id: session.credential.student.primaryScheduleId } })
         : Promise.resolve(null),
       homeInsightsPromise,
       section === "pagos" || section === "inicio" ? prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
-      prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }),
+      groupClassesEnabled ? prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }) : Promise.resolve([]),
     ]);
+    if ((section === "rutina" || section === "entrenamiento") && serviceType === "CLASSES" && !routine) {
+      return Response.json({ error: "No tenés una rutina personalizada activa." }, { status: 403 });
+    }
     const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
-      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: student.flexibleSchedule ?? "", profileImageUrl: student.profileImageUrl ?? "" },
+      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: student.profileImageUrl ?? "" },
       routine: privateRoutine,
       evaluations: evaluations.map(serializeEvaluation),
       payments: payments.map(serializePayment),
@@ -195,7 +201,7 @@ export async function GET(request: Request) {
       weeklyWorkouts: workoutSessions.filter((workout) => workout.status === "COMPLETED" && workout.date >= weekStart).length,
       pendingResponses: comments.filter((comment) => comment.author === "STUDENT" && comment.status === "PENDING").length,
       home: {
-        mode: routine && homeInsights.hasClassParticipation ? "MIXTO" : routine ? "RUTINA_PERSONALIZADA" : homeInsights.hasClassParticipation ? "PRESENCIAL" : "SIN_DEFINIR",
+        mode: serviceType === "MIXED" ? "MIXTO" : serviceType === "PERSONALIZED" ? "RUTINA_PERSONALIZADA" : "PRESENCIAL",
         hasClassParticipation: homeInsights.hasClassParticipation,
         classesAttendedThisMonth: homeInsights.classesAttendedThisMonth,
         monthlyAttendancePercentage: homeInsights.monthlyAttendancePercentage,

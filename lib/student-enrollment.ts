@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isDateKey } from "@/lib/payment-dates";
 import type { CoachSettings, Student, StudentPlanOption, StudentStatus } from "@/types/gestion";
+import { isStudentServiceType } from "@/lib/student-service";
 
 const PLAN_DAYS = [2, 3, 4, 5] as const;
 const DAY_LABELS = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" } as const;
@@ -71,6 +72,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     joinedAt: stored.joinedAt ?? "",
     dueDate: stored.dueDate ?? "",
     status: stored.status === "inactivo" ? "inactivo" : "activo",
+    serviceType: record.serviceType,
     notes: stored.notes ?? "",
     studentType: stored.studentType === "Kids" ? "Kids" : "Adulto",
     responsibleName: typeof stored.responsibleName === "string" ? stored.responsibleName : "",
@@ -106,6 +108,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
     : scheduleId ? [scheduleId] : [];
   const flexibleSchedule = typeof input.flexibleSchedule === "string" ? input.flexibleSchedule.trim().slice(0, 80) : "";
   const status = input.status as StudentStatus;
+  const serviceType = isStudentServiceType(input.serviceType) ? input.serviceType : null;
   const requestedDays = typeof input.planDays === "number" ? input.planDays : planDays(typeof input.plan === "string" ? input.plan : "");
   const selectedPlan = plans.find((plan) => plan.days === requestedDays);
 
@@ -116,6 +119,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   if (!isDateKey(joinedAt)) return { data: null, error: "Ingresá una fecha de ingreso válida." };
   if (dueDate && !isDateKey(dueDate)) return { data: null, error: "Ingresá un próximo vencimiento válido." };
   if (!(status === "activo" || status === "inactivo")) return { data: null, error: "Seleccioná un estado válido." };
+  if (!serviceType) return { data: null, error: "Seleccioná un tipo de servicio válido." };
 
   const weight = input.weight === "" || input.weight === undefined ? 0 : Number(input.weight);
   const height = input.height === "" || input.height === undefined ? 0 : Number(input.height);
@@ -139,6 +143,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       joinedAt,
       dueDate,
       status,
+      serviceType,
       notes: typeof input.notes === "string" ? input.notes.trim() : "",
       studentType,
       responsibleName,
@@ -167,6 +172,7 @@ export function studentJsonData(input: ParsedStudentInput): Prisma.InputJsonObje
     joinedAt: input.joinedAt,
     dueDate: input.dueDate,
     status: input.status,
+    serviceType: input.serviceType,
     notes: input.notes,
     studentType: input.studentType,
     responsibleName: input.responsibleName,
