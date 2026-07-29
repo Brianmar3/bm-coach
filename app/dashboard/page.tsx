@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { DashboardData } from "@/types/dashboard";
-import type { PaymentAccountStatus } from "@/types/gestion";
+import type { CoachSettings, PaymentAccountStatus } from "@/types/gestion";
 import { DashboardFloatingActions } from "@/componentes/dashboard-floating-actions";
+import { useBrowserStore } from "@/lib/browser-store";
 
 const quickActions = [
   { label: "Nuevo alumno", href: "/alumnos?accion=nuevo", symbol: "+" },
@@ -42,6 +43,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const [quickOpen, setQuickOpen] = useState(false);
+  const { items: settings } = useBrowserStore<CoachSettings>("bm-coach-settings", []);
+  const coachName = settings[0]?.coachName?.trim() || "Entrenador";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,17 +61,17 @@ export default function Home() {
     return () => controller.abort();
   }, [reload]);
 
-  return <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(250,204,21,0.07),_transparent_28%),#09090b] p-4 text-white sm:p-6 xl:p-8">
+  return <main className="admin-page min-h-screen p-4 text-white sm:p-6 xl:p-8">
     <div className="mx-auto max-w-[1600px]">
-      <header className="relative mb-7 flex flex-col gap-5 border-b border-zinc-800/80 pb-6 md:flex-row md:items-center md:justify-between">
+      <header className="admin-welcome relative mb-7 flex flex-col gap-5 rounded-3xl p-5 sm:p-7 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.25em] text-yellow-400">Panel general</p>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">¡Bienvenido, Brian!</h1>
-          <p className="mt-1 text-sm text-zinc-400">{data ? `${data.metrics.activeStudents} alumnos activos · Todo listo para organizar tu día` : "Preparando el resumen de tu actividad"}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[.25em] text-yellow-400">Panel general</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
+          <p className="mt-2 text-sm text-zinc-300">{data ? `${data.metrics.activeStudents} alumnos activos · Este es el estado actual de BM Training.` : "Preparando el resumen de tu actividad"}</p>
         </div>
         <div className="flex items-center justify-between gap-3 md:justify-end">
           <div className="text-left md:text-right"><p className="text-xs uppercase tracking-wider text-zinc-500">Hoy</p><p className="mt-1 text-sm font-semibold capitalize text-zinc-200">{data ? showDate(data.today, true) : "—"}</p></div>
-          <button onClick={() => setQuickOpen((value) => !value)} aria-expanded={quickOpen} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 shadow-lg shadow-yellow-400/10">＋ Agregar rápido</button>
+          <button onClick={() => setQuickOpen((value) => !value)} aria-expanded={quickOpen} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 shadow-lg shadow-yellow-400/10 transition hover:bg-yellow-300">＋ Agregar rápido</button>
         </div>
         {quickOpen && <div className="absolute right-0 top-full z-20 mt-2 grid w-full gap-2 rounded-2xl border border-yellow-400/20 bg-zinc-900 p-3 shadow-2xl sm:w-80 sm:grid-cols-2">{quickActions.map((action) => <Link key={action.label} href={action.href} onClick={() => setQuickOpen(false)} className="rounded-xl bg-zinc-950 p-3 text-sm font-semibold transition hover:bg-yellow-400 hover:text-zinc-950"><span className="mr-2 text-yellow-400">{action.symbol}</span>{action.label}</Link>)}</div>}
       </header>
