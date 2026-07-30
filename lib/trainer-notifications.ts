@@ -59,7 +59,12 @@ function displayDateKey(dateKey: string) {
   return `${day}/${month}`;
 }
 
-function buildAttendanceMessage(input: AttendanceNotificationInput) {
+export function buildAttendanceMessage(
+  input: Pick<
+    AttendanceNotificationInput,
+    "studentName" | "className" | "classDateKey" | "startTime" | "response"
+  >,
+) {
   const date = displayDateKey(input.classDateKey);
   if (input.response === ClassResponseStatus.GOING) {
     return `${input.studentName} confirmó asistencia a ${input.className} de las ${input.startTime} del ${date}.`;

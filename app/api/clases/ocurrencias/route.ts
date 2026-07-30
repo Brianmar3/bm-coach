@@ -1,5 +1,5 @@
 import { databaseDateKey, dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
-import { ensureClassOccurrences, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
+import { ensureClassOccurrences, occurrenceClassName, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -43,8 +43,8 @@ export async function GET(request: Request) {
         date: databaseDateKey(occurrence.date),
         startTime: occurrence.startTime,
         endTime: occurrence.endTime,
-        name: occurrence.classNameSnapshot,
-        category: occurrence.categorySnapshot,
+        name: occurrenceClassName(occurrence),
+        category: occurrenceClassName(occurrence),
         status: occurrence.status,
         statusLabel: occurrenceStatusLabel(occurrence.status, started),
         capacity: occurrence.capacityOverride,

@@ -8,10 +8,13 @@ import {
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
 import {
+  buildAttendanceMessage,
   buildAttendanceUrl,
   TRAINER_OWNER_KEY,
 } from "@/lib/trainer-notifications";
 import { databaseDateKey } from "@/lib/payment-dates";
+import { occurrenceClassName } from "@/lib/class-occurrences";
+import type { Student } from "@/types/gestion";
 
 async function isAuthenticatedTrainer() {
   const cookieStore = await cookies();
@@ -36,11 +39,25 @@ export async function GET() {
         message: true,
         url: true,
         studentId: true,
+        student: {
+          select: {
+            data: true,
+          },
+        },
         occurrenceId: true,
         occurrence: {
           select: {
             date: true,
+            startTime: true,
+            status: true,
+            classNameSnapshot: true,
+            categorySnapshot: true,
             scheduleId: true,
+            schedule: {
+              select: {
+                classType: true,
+              },
+            },
           },
         },
         response: true,
@@ -57,18 +74,45 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    notifications: notifications.map(({ occurrence, ...notification }) => ({
-      ...notification,
-      url:
-        notification.type === "CLASS_RESPONSE" && occurrence
-          ? buildAttendanceUrl({
+    notifications: notifications.map(({ occurrence, student, ...notification }) => {
+      const attendanceContext =
+        notification.type === "CLASS_RESPONSE" &&
+        occurrence &&
+        notification.response
+          ? {
               classDateKey: databaseDateKey(occurrence.date),
-              scheduleId: occurrence.scheduleId,
-              studentId: notification.studentId,
-              occurrenceId: notification.occurrenceId,
+              className: occurrenceClassName(occurrence),
+              studentName: student
+                ? [
+                    (student.data as unknown as Partial<Student>).firstName,
+                    (student.data as unknown as Partial<Student>).lastName,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim() || "Alumno"
+                : "Alumno",
+            }
+          : null;
+      return {
+        ...notification,
+        message: attendanceContext
+          ? buildAttendanceMessage({
+              ...attendanceContext,
+              startTime: occurrence!.startTime,
+              response: notification.response!,
             })
-          : notification.url,
-    })),
+          : notification.message,
+        url:
+          attendanceContext
+            ? buildAttendanceUrl({
+                classDateKey: attendanceContext.classDateKey,
+                scheduleId: occurrence!.scheduleId,
+                studentId: notification.studentId,
+                occurrenceId: notification.occurrenceId,
+              })
+            : notification.url,
+      };
+    }),
     unreadCount,
   });
 }

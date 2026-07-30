@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { after } from "next/server";
-import { argentinaClock, ensureClassOccurrences, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
+import { argentinaClock, ensureClassOccurrences, occurrenceClassName, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
 import { databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const occurrenceInclude = (studentId: string) => ({
+  schedule: { select: { classType: true } },
   responses: { where: { studentId }, select: { response: true } },
   _count: { select: { responses: { where: { response: "GOING" as const } } } },
 });
@@ -28,8 +29,8 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
     date: databaseDateKey(occurrence.date),
     startTime: occurrence.startTime,
     endTime: occurrence.endTime,
-    name: occurrence.classNameSnapshot,
-    category: occurrence.categorySnapshot,
+    name: occurrenceClassName(occurrence),
+    category: occurrenceClassName(occurrence),
     status: occurrence.status,
     statusLabel: occurrenceStatusLabel(occurrence.status, started),
     capacity: occurrence.capacityOverride,
@@ -87,7 +88,11 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (transaction) => {
       const occurrence = await transaction.classOccurrence.findUnique({
         where: { id: occurrenceId },
-        include: { _count: { select: { responses: { where: { response: "GOING" } } } }, responses: { where: { studentId: session.studentId } } },
+        include: {
+          schedule: { select: { classType: true } },
+          _count: { select: { responses: { where: { response: "GOING" } } } },
+          responses: { where: { studentId: session.studentId } },
+        },
       });
       if (!occurrence) throw new Error("NOT_FOUND");
       if (occurrence.status !== "SCHEDULED" || occurrenceHasStarted(occurrence.date, occurrence.startTime)) throw new Error("CLOSED");
@@ -105,6 +110,7 @@ export async function POST(request: Request) {
       return { occurrence, changed: true, responseUpdatedAt: savedResponse.updatedAt };
     }, { isolationLevel: "Serializable" });
     const occurrence = result.occurrence;
+    const className = occurrenceClassName(occurrence);
     if (result.changed && result.responseUpdatedAt) {
       const student = session.credential.student.data as unknown as Student;
       const notificationInput = {
@@ -113,7 +119,7 @@ export async function POST(request: Request) {
         studentName: `${student.firstName} ${student.lastName}`.trim(),
         occurrenceId: occurrence.id,
         scheduleId: occurrence.scheduleId,
-        className: occurrence.classNameSnapshot,
+        className,
         classDateKey: databaseDateKey(occurrence.date),
         startTime: occurrence.startTime,
         response: requestedResponse,
@@ -132,7 +138,7 @@ export async function POST(request: Request) {
     const day = new Date(`${databaseDateKey(occurrence.date)}T12:00:00Z`).toLocaleDateString("es-AR", { weekday: "long", timeZone: "UTC" });
     return Response.json({
       message: requestedResponse === "GOING"
-        ? `Asistencia confirmada para ${occurrence.classNameSnapshot} · ${day} ${occurrence.startTime}`
+        ? `Asistencia confirmada para ${className} · ${day} ${occurrence.startTime}`
         : "Tu asistencia fue cancelada.",
       savedAt: argentinaClock(),
     });

@@ -6,6 +6,14 @@ import { prisma } from "@/lib/prisma";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
+type OccurrenceClassSource = {
+  date: Date;
+  status: string;
+  classNameSnapshot: string;
+  categorySnapshot?: string;
+  schedule?: { classType: string } | null;
+};
+
 const weekdayNumber: Record<ClassWeekday, number> = {
   MONDAY: 1,
   TUESDAY: 2,
@@ -40,6 +48,44 @@ export function occurrenceHasStarted(date: Date, startTime: string) {
   return key < now.date || (key === now.date && startTime <= now.time);
 }
 
+export function occurrenceClassName(occurrence: OccurrenceClassSource) {
+  const scheduleName = occurrence.schedule?.classType.trim() ?? "";
+  const snapshotName = occurrence.classNameSnapshot.trim();
+  const categoryName = occurrence.categorySnapshot?.trim() ?? "";
+  const today = argentinaClock().date;
+  const usesCurrentSchedule =
+    occurrence.status === "SCHEDULED" &&
+    databaseDateKey(occurrence.date) >= today &&
+    Boolean(scheduleName);
+
+  if (usesCurrentSchedule) return scheduleName;
+  return snapshotName || scheduleName || categoryName || "Clase";
+}
+
+export async function syncFutureOccurrenceNamesForSchedule(
+  schedule: { id: string; classType: string },
+  client: DbClient = prisma,
+) {
+  const classType = schedule.classType.trim();
+  if (!classType) return 0;
+  const result = await client.classOccurrence.updateMany({
+    where: {
+      scheduleId: schedule.id,
+      status: "SCHEDULED",
+      date: { gte: dateKeyToDatabase(argentinaDateKey()) },
+      OR: [
+        { classNameSnapshot: { not: classType } },
+        { categorySnapshot: { not: classType } },
+      ],
+    },
+    data: {
+      classNameSnapshot: classType,
+      categorySnapshot: classType,
+    },
+  });
+  return result.count;
+}
+
 export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = prisma) {
   const today = argentinaDateKey();
   const end = addDateKeyDays(today, daysAhead);
@@ -65,6 +111,9 @@ export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = 
     }
   }
   if (rows.length) await client.classOccurrence.createMany({ data: rows, skipDuplicates: true });
+  for (const schedule of schedules) {
+    await syncFutureOccurrenceNamesForSchedule(schedule, client);
+  }
   return { from: today, to: end };
 }
 

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseWeeklyClassInput, serializeWeeklyClass, studentsExist, weeklyClassInclude } from "@/lib/weekly-classes";
+import { syncFutureOccurrenceNamesForSchedule } from "@/lib/class-occurrences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,11 +61,13 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
           data: { primaryScheduleId: firstActiveAssignment?.scheduleId ?? null },
         });
       }
-      return transaction.weeklyClassSchedule.update({
+      const updatedSchedule = await transaction.weeklyClassSchedule.update({
         where: { id },
         data: scheduleData,
         include: weeklyClassInclude,
       });
+      await syncFutureOccurrenceNamesForSchedule(updatedSchedule, transaction);
+      return updatedSchedule;
     });
     return Response.json(serializeWeeklyClass(schedule));
   } catch (error) {

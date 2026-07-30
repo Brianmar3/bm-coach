@@ -9,7 +9,7 @@ import {
 } from "@/lib/payment-dates";
 import type { DashboardData } from "@/types/dashboard";
 import type { PaymentAccountStatus, Student } from "@/types/gestion";
-import { ensureClassOccurrences } from "@/lib/class-occurrences";
+import { ensureClassOccurrences, occurrenceClassName } from "@/lib/class-occurrences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,7 +161,7 @@ export async function GET() {
       id: occurrence.id,
       startTime: occurrence.startTime,
       endTime: occurrence.endTime,
-      name: occurrence.classNameSnapshot,
+      name: occurrenceClassName(occurrence),
       enrolled: occurrence.schedule?.assignments.filter(({ student }) => studentData(student.data).status !== "inactivo").length ?? 0,
       attendance: occurrence.responses.some((item) => item.actualAttendance !== "UNKNOWN")
         ? occurrence.responses.filter((item) => item.actualAttendance === "PRESENT").length
