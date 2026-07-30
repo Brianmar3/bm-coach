@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { RoutineFollowUp } from "@/componentes/routine-follow-up";
+import { RoutineTableView } from "@/componentes/routine-table-view";
 import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
 type ExerciseDraft = Omit<TrainingExercise, "id"> & { id?: string; clientId: string };
@@ -100,12 +101,13 @@ export default function RutinasPage() {
   });
   const [trackingRoutineId, setTrackingRoutineId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("routineId") ?? "");
   const [trackingStudentId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("studentId") ?? "");
+  const [requestedStudentView] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "active");
   const [items, setItems] = useState<TrainingRoutine[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"activas" | "borradores" | "finalizadas" | "archivadas" | "todas">("activas");
   const [objectiveFilter, setObjectiveFilter] = useState("todos");
-  const [studentFilter, setStudentFilter] = useState("todos");
+  const [studentFilter, setStudentFilter] = useState(trackingStudentId || "todos");
   const [form, setForm] = useState<RoutineDraft>(blankRoutine());
   const [editing, setEditing] = useState<TrainingRoutine | null>(null);
   const [viewing, setViewing] = useState<TrainingRoutine | null>(null);
@@ -128,9 +130,20 @@ export default function RutinasPage() {
     Promise.all([
       fetch("/api/rutinas", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar las rutinas.")); return response.json() as Promise<TrainingRoutine[]>; }),
       fetch("/api/alumnos", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los alumnos.")); return response.json() as Promise<Student[]>; }),
-    ]).then(([routines, realStudents]) => { setItems(routines); setStudents(realStudents); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
+    ]).then(([routines, realStudents]) => {
+      setItems(routines);
+      setStudents(realStudents);
+      if (requestedStudentView && trackingStudentId) {
+        const activeRoutine = routines.find((routine) =>
+          routine.kind === "assigned" &&
+          routine.status === "activa" &&
+          routine.studentIds.includes(trackingStudentId)
+        );
+        if (activeRoutine) setViewing(activeRoutine);
+      }
+    }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
     return () => controller.abort();
-  }, []);
+  }, [requestedStudentView, trackingStudentId]);
 
   const objectiveOptions = useMemo(() => [...new Set([...objectives, ...items.map((item) => item.objective)])].sort((a, b) => a.localeCompare(b, "es")), [items]);
   const visible = useMemo(() => {
@@ -325,7 +338,16 @@ export default function RutinasPage() {
     <section className="mt-6 grid gap-4 lg:grid-cols-2">{!ready ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando rutinas…</p> : visible.length === 0 ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">{activeTab === "plantillas" ? "No hay plantillas que coincidan con los filtros." : statusFilter === "archivadas" ? "No hay rutinas archivadas." : "No hay rutinas que coincidan con los filtros."}</p> : visible.map((routine) => <RoutineCard key={routine.id} routine={routine} view={() => setViewing(routine)} history={() => openHistory(routine)} tracking={() => { setTrackingRoutineId(routine.id); setActiveTab("seguimiento"); }} edit={() => begin(routine)} duplicate={() => duplicate(routine)} saveAsTemplate={() => setCopyFlow({ source: routine, mode: "saveAsTemplate" })} useTemplate={() => setCopyFlow({ source: routine, mode: "useTemplate" })} copyToStudent={() => setCopyFlow({ source: routine, mode: "copyToStudent" })} archive={() => archive(routine)} remove={() => remove(routine)} restore={() => restore(routine)} duplicating={duplicatingId === routine.id} busy={actionId === routine.id} />)}</section>
     </>}
     {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving} />}
-    {viewing && <RoutineDetail routine={viewing} close={() => setViewing(null)} />}
+    {viewing && <RoutineTableView
+      routine={viewing}
+      close={() => setViewing(null)}
+      actions={<>
+        {viewing.status !== "archivada" && <button type="button" onClick={() => { const routine = viewing; setViewing(null); begin(routine); }} className="min-h-10 rounded-xl bg-yellow-400 px-3 text-sm font-black text-zinc-950">Editar rutina</button>}
+        <button type="button" disabled={duplicatingId === viewing.id} onClick={() => duplicate(viewing)} className="min-h-10 rounded-xl border border-yellow-400/25 px-3 text-sm font-bold text-yellow-300 disabled:opacity-50">Duplicar</button>
+        {viewing.kind === "assigned" && <button type="button" onClick={() => setCopyFlow({ source: viewing, mode: "copyToStudent" })} className="min-h-10 rounded-xl border border-zinc-700 px-3 text-sm font-bold text-zinc-300">Asignar</button>}
+        {viewing.status !== "archivada" && <button type="button" disabled={actionId === viewing.id} onClick={() => archive(viewing)} className="min-h-10 rounded-xl border border-orange-400/25 px-3 text-sm font-bold text-orange-300 disabled:opacity-50">Archivar</button>}
+      </>}
+    />}
     {copyFlow && <RoutineCopyDialog flow={copyFlow} students={students} routines={items} busy={duplicatingId === copyFlow.source.id} close={() => setCopyFlow(null)} submit={createCopy} />}
     {historyRoutine && <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><section className="mx-auto my-10 max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">Historial de {historyRoutine.name}</h2><p className="text-sm text-zinc-400">Las versiones más recientes aparecen primero.</p></div><button onClick={() => setHistoryRoutine(null)} className="text-zinc-400">Cerrar</button></div><div className="mt-5 space-y-3">{versions.length === 0 ? <p className="rounded-xl bg-zinc-950 p-5 text-sm text-zinc-500">Todavía no hay versiones guardadas.</p> : versions.map((version) => <article key={version.id} className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold">Versión {version.version}</p><p className="text-sm text-zinc-400">{version.summary} · {new Date(version.createdAt).toLocaleString("es-AR")}</p></div><button disabled={actionId === historyRoutine.id} onClick={() => restoreVersion(version.id)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300 disabled:opacity-50">Restaurar versión</button></article>)}</div></section></div>}
   </ModuleShell>;
@@ -505,8 +527,4 @@ function ExerciseEditor({ exercise, update, move, remove }: { exercise: Exercise
     else update("repetitions", `${minimum}-${maximum}`);
   }
   return <article className="rounded-xl border border-zinc-800 bg-zinc-900 p-4"><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><span className="text-sm text-zinc-500">Orden</span><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-1 text-zinc-300" aria-label="Mover ejercicio arriba">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-1 text-zinc-300" aria-label="Mover ejercicio abajo">↓</button></div><button type="button" onClick={remove} className="text-sm text-red-300">Eliminar ejercicio</button></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6"><label className="xl:col-span-2">Ejercicio<input required value={exercise.name} onChange={(event) => update("name", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Grupo muscular<input required list="muscle-groups" value={exercise.muscleGroup} onChange={(event) => update("muscleGroup", event.target.value)} className={`${inputClass} mt-1`} /><datalist id="muscle-groups">{muscleGroups.map((group) => <option key={group} value={group} />)}</datalist></label><label>Series<input required type="number" min="1" max="100" value={exercise.sets} onChange={(event) => update("sets", Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Reps mínimas<input required type="number" min="1" max="1000" value={minimumRepetitions} onChange={(event) => updateRepetitions(event.target.value, String(maximumRepetitions))} className={`${inputClass} mt-1`} /></label><label>Reps máximas<input required type="number" min="1" max="1000" value={maximumRepetitions} onChange={(event) => updateRepetitions(String(minimumRepetitions), event.target.value)} className={`${inputClass} mt-1`} /></label><label>Peso inicial (kg)<input type="number" min="0" max="1000" step="0.25" value={exercise.weight ?? ""} onChange={(event) => update("weight", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Esfuerzo objetivo<select value={exercise.effortType} onChange={(event) => update("effortType", event.target.value as TrainingEffortType)} className={`${inputClass} mt-1`}><option>RIR</option><option>RPE</option></select></label><label>RIR/RPE objetivo<input type="number" min="0" max="10" step="0.5" value={exercise.effortValue ?? ""} onChange={(event) => update("effortValue", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Descanso (seg.)<input type="number" min="0" max="3600" value={exercise.restSeconds ?? ""} onChange={(event) => update("restSeconds", event.target.value === "" ? null : Number(event.target.value))} className={`${inputClass} mt-1`} /></label><label>Tempo<input maxLength={40} value={exercise.tempo} onChange={(event) => update("tempo", event.target.value)} placeholder="3-1-1" className={`${inputClass} mt-1`} /></label><label>Equipamiento<input maxLength={120} value={exercise.equipment} onChange={(event) => update("equipment", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="xl:col-span-2">Ejercicio alternativo<input maxLength={120} value={exercise.alternativeExercise} onChange={(event) => update("alternativeExercise", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="flex items-center gap-2 self-end rounded-xl border border-zinc-700 px-3 py-3"><input type="checkbox" checked={exercise.optional} onChange={(event) => update("optional", event.target.checked)} /> Opcional</label><label className="xl:col-span-2">Video demostrativo<input type="url" placeholder="https://…" value={exercise.videoUrl} onChange={(event) => update("videoUrl", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="md:col-span-2 xl:col-span-6">Observaciones técnicas<textarea maxLength={1000} rows={2} value={exercise.observations} onChange={(event) => update("observations", event.target.value)} className={`${inputClass} mt-1`} /></label></div></article>;
-}
-
-function RoutineDetail({ routine, close }: { routine: TrainingRoutine; close: () => void }) {
-  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><section className="mx-auto my-8 w-full max-w-5xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div><h2 className="text-2xl font-bold">{routine.name}</h2><p className="mt-1 text-yellow-400">{routine.objective} · {label(routine.level)} · {label(routine.status)}</p><p className="mt-2 text-sm text-zinc-500">Asignada a {routine.students.map((student) => student.name).join(" · ")}</p></div><button onClick={close} className="self-start text-zinc-400">Cerrar</button></div><div className="mt-6 space-y-4">{routine.days.map((day) => <article key={day.id} className="rounded-xl border border-zinc-800"><h3 className="border-b border-zinc-800 p-4 font-bold text-yellow-400">Día {day.dayNumber} <span className="ml-2 text-xs font-normal text-zinc-500">{day.exercises.length} ejercicios</span></h3>{day.exercises.length === 0 ? <p className="p-4 text-sm text-zinc-600">Descanso o sin ejercicios planificados.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-3">#</th><th>Ejercicio</th><th>Grupo</th><th>Series × reps</th><th>Peso</th><th>Esfuerzo</th><th>Descanso</th><th>Observaciones</th></tr></thead><tbody>{day.exercises.map((exercise) => <tr key={exercise.id} className="border-t border-zinc-800"><td className="p-3 text-yellow-400">{exercise.order}</td><td className="font-medium">{exercise.videoUrl ? <a href={exercise.videoUrl} target="_blank" rel="noreferrer" className="text-yellow-300 underline decoration-yellow-400/40">{exercise.name}</a> : exercise.name}</td><td>{exercise.muscleGroup}</td><td>{exercise.sets} × {exercise.repetitions}</td><td>{exercise.weight === null ? "—" : `${exercise.weight} kg`}</td><td>{exercise.effortValue === null ? exercise.effortType : `${exercise.effortType} ${exercise.effortValue}`}</td><td>{exercise.restSeconds === null ? "—" : `${exercise.restSeconds} s`}</td><td className="max-w-48 text-zinc-400">{exercise.observations || "—"}</td></tr>)}</tbody></table></div>}</article>)}</div></section></div>;
 }

@@ -44,6 +44,21 @@ function planDays(value: string) {
   return match ? Number(match[1]) : null;
 }
 
+function minutesBetween(startTime: string, endTime: string) {
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+  if (
+    !Number.isInteger(startHour) ||
+    !Number.isInteger(startMinute) ||
+    !Number.isInteger(endHour) ||
+    !Number.isInteger(endMinute)
+  ) return 0;
+  return Math.max(
+    0,
+    endHour * 60 + endMinute - (startHour * 60 + startMinute),
+  );
+}
+
 function databaseUnavailable(error: unknown) {
   return error instanceof Prisma.PrismaClientInitializationError ||
     (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
@@ -63,7 +78,7 @@ export async function GET() {
     const weekday = WEEKDAY[todayDate.getUTCDay()];
     await ensureClassOccurrences(35);
 
-    const [studentRecords, paymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events] = await Promise.all([
+    const [studentRecords, paymentRecords, completedMonthOccurrences, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events] = await Promise.all([
       prisma.studentRecord.findMany({
         select: {
           id: true,
@@ -77,6 +92,16 @@ export async function GET() {
         where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
         select: { amount: true, paidDate: true },
         orderBy: { paidDate: "asc" },
+      }),
+      prisma.classOccurrence.findMany({
+        where: {
+          status: "COMPLETED",
+          date: {
+            gte: dateKeyToDatabase(monthStart),
+            lt: dateKeyToDatabase(nextMonthStart),
+          },
+        },
+        select: { id: true, startTime: true, endTime: true },
       }),
       weekday ? prisma.classOccurrence.findMany({
         where: { date: todayDate },
@@ -144,6 +169,12 @@ export async function GET() {
     const previousPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) < monthStart);
     const monthIncome = currentPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const previousIncome = previousPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const workedMinutesThisMonth = completedMonthOccurrences.reduce(
+      (sum, occurrence) =>
+        sum + minutesBetween(occurrence.startTime, occurrence.endTime),
+      0,
+    );
+    const workedHoursThisMonth = workedMinutesThisMonth / 60;
     const incomeByDate = new Map<string, number>();
     for (const payment of currentPayments) {
       if (!payment.paidDate) continue;
@@ -198,6 +229,13 @@ export async function GET() {
         monthIncome,
         monthPaymentCount: currentPayments.length,
         incomeChangePercent: previousIncome > 0 ? Math.round(((monthIncome - previousIncome) / previousIncome) * 100) : null,
+        completedClassesThisMonth: completedMonthOccurrences.length,
+        workedHoursThisMonth,
+        incomePerWorkedHour:
+          workedHoursThisMonth > 0
+            ? Math.round(monthIncome / workedHoursThisMonth)
+            : null,
+        workedHoursBasis: "completed_classes",
         pendingCount: actionableAccounts.length,
         pendingAmount: actionableAccounts.reduce((sum, account) => sum + account.amount, 0),
         overdueCount: actionableAccounts.filter((account) => account.status === "VENCIDA").length,
