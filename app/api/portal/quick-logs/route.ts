@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { del, put } from "@vercel/blob";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
-import { detectedImageType, MAX_QUICK_LOG_PHOTO_BYTES, QUICK_LOG_TYPES, quickLogJson } from "@/lib/quick-logs";
+import { detectedImageType, MAX_QUICK_LOG_PHOTO_BYTES, QUICK_LOG_TYPES, quickLogJson, quickLogRelations } from "@/lib/quick-logs";
+import { normalizeExerciseName } from "@/lib/exercise-name";
+import { loadQuickLogAchievements, recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
+import { notifyNewAchievements } from "@/lib/push-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +19,7 @@ export async function GET(request: Request) {
   const query = params.get("query")?.trim().slice(0, 100) ?? "";
   const from = params.get("from");
   const to = params.get("to");
+  await loadQuickLogAchievements(session.studentId);
   const logs = await prisma.quickLog.findMany({
     where: {
       studentId: session.studentId,
@@ -22,7 +27,7 @@ export async function GET(request: Request) {
       ...(query ? { OR: [{ title: { contains: query, mode: "insensitive" } }, { content: { contains: query, mode: "insensitive" } }, { exerciseName: { contains: query, mode: "insensitive" } }] } : {}),
       ...((from || to) ? { date: { ...(from ? { gte: new Date(`${from}T00:00:00Z`) } : {}), ...(to ? { lte: new Date(`${to}T00:00:00Z`) } : {}) } } : {}),
     },
-    include: { photos: { orderBy: { createdAt: "asc" } } },
+    include: quickLogRelations,
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
   return Response.json({ logs: logs.map(quickLogJson) });
@@ -49,12 +54,15 @@ export async function POST(request: Request) {
   const previousValue = number("previousValue");
   const currentValue = number("currentValue");
   const metricType = text("metricType", 60);
+  const exerciseName = text("exerciseName", 120);
+  const exerciseKey = normalizeExerciseName(exerciseName);
+  const idempotencyKey = text("idempotencyKey", 100) || null;
   if (
     (sets !== null && (!Number.isInteger(sets) || sets < 1 || sets > 100)) ||
     (repetitions !== null && (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 10000))
   ) return Response.json({ error: "Revisá las series y repeticiones." }, { status: 400 });
   if ((durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440)) || [previousValue, currentValue].some((value) => value !== null && (!Number.isFinite(value) || value < 0))) return Response.json({ error: "Revisá los valores numéricos." }, { status: 400 });
-  if (type === "PROGRESS" && (!text("exerciseName", 120) || currentValue === null)) return Response.json({ error: "Ejercicio y nuevo valor son obligatorios." }, { status: 400 });
+  if (type === "PROGRESS" && (!exerciseName || currentValue === null)) return Response.json({ error: "Ejercicio y nuevo valor son obligatorios." }, { status: 400 });
   if (type === "PROGRESS" && metricType === "carga" && (sets === null || repetitions === null)) return Response.json({ error: "Series y repeticiones son obligatorias." }, { status: 400 });
   const files = form.getAll("photos").filter((item): item is File => item instanceof File && item.size > 0);
   if (files.length > 4) return Response.json({ error: "Podés adjuntar hasta 4 fotos por registro." }, { status: 400 });
@@ -67,27 +75,89 @@ export async function POST(request: Request) {
     if (!detected || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return Response.json({ error: "Las fotos deben ser JPG, PNG o WEBP válidos." }, { status: 400 });
     checkedFiles.push({ bytes, type: detected });
   }
-  const log = await prisma.quickLog.create({
-    data: {
-      studentId: session.studentId,
-      type: type as (typeof QUICK_LOG_TYPES)[number],
-      title: text("title", 120),
-      content: text("content", 5000),
-      category: text("category", 60),
-      date: new Date(`${date}T00:00:00Z`),
-      durationMinutes,
-      exerciseName: text("exerciseName", 120),
-      sets,
-      repetitions,
-      metricType,
-      previousValue,
-      currentValue,
-      unit: text("unit", 30),
-      mood: text("mood", 60),
-      hasPain: form.get("hasPain") === "true",
-      painDetails: text("painDetails", 1000),
-    },
-  });
+  let log: { id: string };
+  let repeatedRequest = false;
+  try {
+    log = await prisma.$transaction(async (transaction) => {
+      if (idempotencyKey) {
+        const existing = await transaction.quickLog.findUnique({
+          where: { idempotencyKey },
+          select: { id: true, studentId: true },
+        });
+        if (existing) {
+          if (existing.studentId !== session.studentId) throw new Error("IDEMPOTENCY_CONFLICT");
+          repeatedRequest = true;
+          return { id: existing.id };
+        }
+      }
+      const previous = type === "PROGRESS" && metricType === "carga"
+        ? await transaction.quickLog.findFirst({
+          where: {
+            studentId: session.studentId,
+            type: "PROGRESS",
+            metricType: "carga",
+            exerciseKey,
+            currentValue: { not: null },
+          },
+          select: { currentValue: true },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        })
+        : null;
+      const created = await transaction.quickLog.create({
+        data: {
+          studentId: session.studentId,
+          type: type as (typeof QUICK_LOG_TYPES)[number],
+          title: text("title", 120),
+          content: text("content", 5000),
+          category: text("category", 60),
+          date: new Date(`${date}T00:00:00Z`),
+          durationMinutes,
+          exerciseName,
+          exerciseKey,
+          idempotencyKey,
+          sets,
+          repetitions,
+          metricType,
+          previousValue: previous?.currentValue ?? previousValue,
+          currentValue,
+          unit: text("unit", 30),
+          mood: text("mood", 60),
+          hasPain: form.get("hasPain") === "true",
+          painDetails: text("painDetails", 1000),
+        },
+        select: { id: true },
+      });
+      if (type === "PROGRESS" && metricType === "carga") {
+        await recalculateQuickLogAchievements(
+          transaction,
+          session.studentId,
+          created.id,
+        );
+      }
+      return created;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") {
+      return Response.json({ error: "No se pudo validar este reintento." }, { status: 409 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && idempotencyKey) {
+      const existing = await prisma.quickLog.findFirst({ where: { idempotencyKey, studentId: session.studentId }, select: { id: true } });
+      if (!existing) return Response.json({ error: "El registro ya fue procesado." }, { status: 409 });
+      log = existing;
+      repeatedRequest = true;
+    } else if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return Response.json(
+        { error: "El historial cambió mientras guardabas. Reintentá el registro." },
+        { status: 409 },
+      );
+    } else {
+      throw error;
+    }
+  }
+  if (repeatedRequest) {
+    const existing = await prisma.quickLog.findUniqueOrThrow({ where: { id: log.id }, include: quickLogRelations });
+    return Response.json({ log: quickLogJson(existing), message: "El registro ya estaba guardado." });
+  }
   const uploaded: string[] = [];
   try {
     for (const file of checkedFiles) {
@@ -99,9 +169,28 @@ export async function POST(request: Request) {
   } catch (error) {
     await Promise.all(uploaded.map((url) => del(url).catch(() => undefined)));
     await prisma.quickLog.delete({ where: { id: log.id } }).catch(() => undefined);
+    await prisma.$transaction((transaction) => recalculateQuickLogAchievements(transaction, session.studentId)).catch(() => undefined);
     console.error("No se pudo guardar una foto del registro rápido", error);
     return Response.json({ error: "No se pudo guardar el registro. Intentá nuevamente." }, { status: 500 });
   }
-  const saved = await prisma.quickLog.findUniqueOrThrow({ where: { id: log.id }, include: { photos: true } });
+  const saved = await prisma.quickLog.findUniqueOrThrow({ where: { id: log.id }, include: quickLogRelations });
+  if (type === "PROGRESS" && metricType === "carga") {
+    const historicalAchievements = await prisma.quickLogAchievement.findMany({
+      where: { studentId: session.studentId, quickLogId: { not: log.id } },
+      select: { achievementKey: true, unlockedAt: true },
+    });
+    if (historicalAchievements.length) {
+      await prisma.achievementNotification.createMany({
+        data: historicalAchievements.map((achievement) => ({
+          studentId: session.studentId,
+          achievementKey: achievement.achievementKey,
+          unlockedAt: achievement.unlockedAt,
+          status: "BASELINE",
+        })),
+        skipDuplicates: true,
+      });
+    }
+    await notifyNewAchievements(session.studentId);
+  }
   return Response.json({ log: quickLogJson(saved), message: "Registro guardado correctamente." }, { status: 201 });
 }

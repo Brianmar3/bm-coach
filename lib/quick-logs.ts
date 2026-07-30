@@ -14,9 +14,15 @@ export function detectedImageType(bytes: Uint8Array) {
 
 export function quickLogJson(log: {
   id: string; type: string; title: string; content: string; category: string; date: Date; durationMinutes: number | null;
-  exerciseName: string; sets: number | null; repetitions: number | null; metricType: string; previousValue: Prisma.Decimal | null; currentValue: Prisma.Decimal | null;
+  exerciseName: string; exerciseKey: string; sets: number | null; repetitions: number | null; previousSets: number | null; previousRepetitions: number | null; metricType: string; previousValue: Prisma.Decimal | null; currentValue: Prisma.Decimal | null;
   unit: string; mood: string; hasPain: boolean; painDetails: string; createdAt: Date; updatedAt: Date;
   photos: Array<{ id: string; blobUrl: string; blobPathname: string; createdAt: Date }>;
+  achievements?: Array<{
+    id: string; achievementKey: string; type: string; exerciseName: string; sets: number | null; repetitions: number | null; unit: string;
+    currentLoad: Prisma.Decimal | null; previousLoad: Prisma.Decimal | null; difference: Prisma.Decimal | null;
+    recordCount: number | null; unlockedAt: Date;
+  }>;
+  feedback?: { id: string; trainerName: string; preset: string; text: string; createdAt: Date; updatedAt: Date } | null;
 }) {
   return {
     ...log,
@@ -26,5 +32,23 @@ export function quickLogJson(log: {
     createdAt: log.createdAt.toISOString(),
     updatedAt: log.updatedAt.toISOString(),
     photos: log.photos.map((photo) => ({ ...photo, createdAt: photo.createdAt.toISOString() })),
+    achievements: (log.achievements ?? []).map((achievement) => ({
+      ...achievement,
+      currentLoad: achievement.currentLoad === null ? null : Number(achievement.currentLoad),
+      previousLoad: achievement.previousLoad === null ? null : Number(achievement.previousLoad),
+      difference: achievement.difference === null ? null : Number(achievement.difference),
+      unlockedAt: achievement.unlockedAt.toISOString(),
+    })),
+    feedback: log.feedback ? {
+      ...log.feedback,
+      createdAt: log.feedback.createdAt.toISOString(),
+      updatedAt: log.feedback.updatedAt.toISOString(),
+    } : null,
   };
 }
+
+export const quickLogRelations = {
+  photos: { orderBy: { createdAt: "asc" as const } },
+  achievements: { orderBy: { unlockedAt: "desc" as const } },
+  feedback: true,
+};

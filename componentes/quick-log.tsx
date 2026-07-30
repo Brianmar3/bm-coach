@@ -4,6 +4,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { QuickLog, QuickLogType } from "@/types/quick-log";
+import { normalizeExerciseName } from "@/lib/exercise-name";
 
 const labels: Record<QuickLogType, { title: string; icon: string }> = {
   WORKOUT: { title: "Entrenamiento", icon: "✓" },
@@ -40,10 +41,6 @@ type ExerciseOption = {
   reference: ExerciseReference;
 };
 
-function normalizeExercise(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es");
-}
-
 function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => void }) {
   const [exercise, setExercise] = useState("");
   const [sets, setSets] = useState("");
@@ -58,9 +55,10 @@ function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => v
   }>({ key: "", value: null });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const exerciseKey = normalizeExercise(exercise);
+  const requestKey = useRef("");
+  const exerciseKey = normalizeExerciseName(exercise);
   const localReference =
-    options.find((option) => normalizeExercise(option.name) === exerciseKey)
+    options.find((option) => normalizeExerciseName(option.name) === exerciseKey)
       ?.reference ?? null;
   const reference =
     localReference ??
@@ -89,7 +87,7 @@ function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => v
     const trimmed = exercise.trim();
     if (!trimmed || localReference) return;
     const controller = new AbortController();
-    const requestedKey = normalizeExercise(trimmed);
+    const requestedKey = normalizeExerciseName(trimmed);
     const timeout = window.setTimeout(() => {
       fetch(`/api/portal/quick-logs/exercises?exercise=${encodeURIComponent(trimmed)}`, { cache: "no-store", signal: controller.signal })
         .then(async (response) => {
@@ -138,6 +136,8 @@ function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => v
       form.set("previousValue", reference?.load?.toString() ?? "");
       form.set("currentValue", load);
       form.set("unit", "kg");
+      if (!requestKey.current) requestKey.current = window.crypto.randomUUID();
+      form.set("idempotencyKey", requestKey.current);
       const response = await fetch("/api/portal/quick-logs", { method: "POST", body: form });
       const body = await response.json() as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar el registro.");
@@ -153,8 +153,8 @@ function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => v
     {error && <p role="alert" className="mt-3 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     {lastRecord && <button type="button" onClick={repeatLast} className="mt-4 min-h-11 w-full rounded-xl border border-yellow-400/25 bg-yellow-400/[.05] px-3 text-sm font-bold text-yellow-300">Repetir último registro</button>}
     <Link href="/portal/registro" onNavigate={close} className="mt-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-1 text-sm font-semibold text-yellow-300 transition hover:text-yellow-200 focus:outline-none focus:ring-2 focus:ring-yellow-300">Ver mis registros <span aria-hidden="true">›</span></Link>
-    <div className="mt-2 space-y-4"><Field label="Ejercicio"><input required autoFocus list="quick-exercise-options" value={exercise} onChange={(event) => setExercise(event.target.value)} maxLength={120} placeholder="Ej: Sentadilla goblet" autoComplete="off" className="input min-h-12" /><datalist id="quick-exercise-options">{options.map((option) => <option key={normalizeExercise(option.name)} value={option.name} />)}</datalist></Field>
-      {options.length > 0 && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Ejercicios recientes">{options.slice(0, 6).map((option) => <button key={normalizeExercise(option.name)} type="button" onClick={() => chooseOption(option)} className="min-h-9 shrink-0 rounded-full border border-zinc-700 bg-zinc-950 px-3 text-xs text-zinc-300">{option.name}</button>)}</div>}
+    <div className="mt-2 space-y-4"><Field label="Ejercicio"><input required autoFocus list="quick-exercise-options" value={exercise} onChange={(event) => setExercise(event.target.value)} maxLength={120} placeholder="Ej: Sentadilla goblet" autoComplete="off" className="input min-h-12" /><datalist id="quick-exercise-options">{options.map((option) => <option key={normalizeExerciseName(option.name)} value={option.name} />)}</datalist></Field>
+      {options.length > 0 && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Ejercicios recientes">{options.slice(0, 6).map((option) => <button key={normalizeExerciseName(option.name)} type="button" onClick={() => chooseOption(option)} className="min-h-9 shrink-0 rounded-full border border-zinc-700 bg-zinc-950 px-3 text-xs text-zinc-300">{option.name}</button>)}</div>}
       <div className="rounded-xl border border-zinc-800 bg-black/60 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Carga anterior</p>{loadingReference ? <p className="mt-1 text-sm text-zinc-500">Buscando…</p> : reference ? <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><strong className="text-lg text-yellow-300">{reference.load === null ? "Sin carga" : `${reference.load.toLocaleString("es-AR")} ${reference.unit}`}</strong>{reference.sets !== null && reference.repetitions !== null && <span className="text-xs text-zinc-500">{reference.sets} series × {reference.repetitions} repeticiones</span>}</div> : <p className="mt-1 text-sm text-zinc-500">{exercise.trim() ? "No hay un registro anterior de este ejercicio." : "Elegí un ejercicio para consultar tu última carga."}</p>}</div>
       <div className="grid grid-cols-2 gap-3"><Field label="Series"><input required type="number" min="1" max="100" inputMode="numeric" value={sets} onChange={(event) => setSets(event.target.value)} placeholder="3" className="input min-h-12" /></Field><Field label="Repeticiones"><input required type="number" min="1" max="10000" inputMode="numeric" value={repetitions} onChange={(event) => setRepetitions(event.target.value)} placeholder="12" className="input min-h-12" /></Field></div>
       <Field label="Carga de hoy (kg)"><input required type="number" min="0" step="0.01" inputMode="decimal" value={load} onChange={(event) => setLoad(event.target.value)} placeholder="14" className="input min-h-12" /></Field>
@@ -173,6 +173,8 @@ export function QuickLogHistory() {
   const [to, setTo] = useState("");
   const [creating, setCreating] = useState<QuickLogType | null>(null);
   const [editing, setEditing] = useState<QuickLog | null>(null);
+  const [view, setView] = useState<"chronological" | "exercises">("chronological");
+  const [selectedExercise, setSelectedExercise] = useState("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
     const params = new URLSearchParams(); if (type) params.set("type", type); if (query.trim()) params.set("query", query.trim()); if (from) params.set("from", from); if (to) params.set("to", to);
@@ -181,6 +183,25 @@ export function QuickLogHistory() {
     finally { setLoading(false); }
   }, [from, query, to, type]);
   useEffect(() => { const timeout = window.setTimeout(load, 250); return () => window.clearTimeout(timeout); }, [load]);
+  useEffect(() => {
+    if (loading || !window.location.hash.startsWith("#registro-")) return;
+    window.setTimeout(() => document.querySelector(window.location.hash)?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+  }, [loading, logs]);
+  const exerciseGroups = useMemo(() => {
+    const groups = new Map<string, QuickLog[]>();
+    for (const log of logs) {
+      if (log.type !== "PROGRESS" || log.metricType !== "carga" || !log.exerciseName.trim()) continue;
+      const key = log.exerciseKey || normalizeExerciseName(log.exerciseName);
+      groups.set(key, [...(groups.get(key) ?? []), log]);
+    }
+    return [...groups.entries()].map(([key, items]) => ({
+      key,
+      name: items[0].exerciseName,
+      logs: items,
+      latest: items[0],
+      maximum: Math.max(...items.map((item) => item.currentValue ?? 0)),
+    })).sort((left, right) => right.latest.createdAt.localeCompare(left.latest.createdAt));
+  }, [logs]);
   async function remove(log: QuickLog) {
     if (!window.confirm(`¿Eliminar “${log.title || labels[log.type].title}”? Esta acción no se puede deshacer.`)) return;
     const response = await fetch(`/api/portal/quick-logs/${log.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -193,13 +214,18 @@ export function QuickLogHistory() {
     const body = await response.json() as { error?: string; message?: string }; if (!response.ok) { setError(body.error ?? "No se pudo eliminar la foto."); return; }
     setNotice(body.message ?? "Foto eliminada correctamente."); await load();
   }
-  return <div><header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro personal</p><h1 className="mt-1 text-2xl font-bold">Mis registros</h1><p className="mt-1 text-sm text-zinc-500">Tus notas, entrenamientos, progresos y fotos, en orden cronológico.</p></div><button onClick={() => setCreating("NOTE")} className="rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950">+ Nueva nota</button></header>
+  return <div><header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro personal</p><h1 className="mt-1 text-2xl font-bold">Mis registros</h1><p className="mt-1 text-sm text-zinc-500">Consultá tu historial cronológico o la evolución de cada ejercicio.</p></div><button onClick={() => setCreating("NOTE")} className="rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950">+ Nueva nota</button></header>
     {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}{notice && <p role="status" className="mt-4 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
+    <div className="mt-4 inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1" role="tablist" aria-label="Vista de registros"><button type="button" role="tab" aria-selected={view === "chronological"} onClick={() => setView("chronological")} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${view === "chronological" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Cronológico</button><button type="button" role="tab" aria-selected={view === "exercises"} onClick={() => setView("exercises")} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${view === "exercises" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Por ejercicio</button></div>
     <section className="mt-4 grid gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3 sm:grid-cols-2 lg:grid-cols-4"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en mis registros" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-yellow-400" /><select value={type} onChange={(event) => setType(event.target.value as QuickLogType | "")} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">Todos</option>{(Object.keys(labels) as QuickLogType[]).map((value) => <option key={value} value={value}>{labels[value].title}</option>)}</select><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Desde" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" /><input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="Hasta" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" /></section>
-    <div className="mt-4 space-y-3">{loading ? <p className="rounded-xl bg-zinc-900 p-8 text-center text-zinc-500">Cargando registros…</p> : logs.length ? logs.map((log) => <QuickLogCard key={log.id} log={log} edit={() => setEditing(log)} remove={() => remove(log)} removePhoto={(photoId) => removePhoto(log, photoId)} />) : <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Todavía no hay registros personales.</p>}</div>
+    <div className="mt-4 space-y-3">{loading ? <p className="rounded-xl bg-zinc-900 p-8 text-center text-zinc-500">Cargando registros…</p> : view === "chronological" ? logs.length ? logs.map((log) => <QuickLogCard key={log.id} log={log} edit={() => setEditing(log)} remove={() => remove(log)} removePhoto={(photoId) => removePhoto(log, photoId)} />) : <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Todavía no hay registros personales.</p> : exerciseGroups.length ? exerciseGroups.map((group) => <section key={group.key} className="rounded-2xl border border-yellow-400/10 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold text-zinc-100">{group.name}</h2><p className="mt-1 text-xs text-zinc-500">{group.logs.length} registro{group.logs.length === 1 ? "" : "s"} · Último: {new Date(`${group.latest.date}T12:00:00`).toLocaleDateString("es-AR")}</p></div><button type="button" onClick={() => setSelectedExercise((value) => value === group.key ? "" : group.key)} className="min-h-10 rounded-lg border border-yellow-400/20 px-3 text-xs font-bold text-yellow-300">{selectedExercise === group.key ? "Ocultar historial" : "Ver historial"}</button></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label="Última carga" value={group.latest.currentValue === null ? "Sin carga" : `${group.latest.currentValue.toLocaleString("es-AR")} ${group.latest.unit || "kg"}`} /><Metric label="Máxima histórica" value={`${group.maximum.toLocaleString("es-AR")} ${group.latest.unit || "kg"}`} /><Metric label="Último trabajo" value={group.latest.sets !== null && group.latest.repetitions !== null ? `${group.latest.sets} × ${group.latest.repetitions}` : "Sin datos"} /><Metric label="Última fecha" value={new Date(`${group.latest.date}T12:00:00`).toLocaleDateString("es-AR")} /></div>{selectedExercise === group.key && <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">{group.logs.map((log) => <QuickLogCard key={log.id} log={log} edit={() => setEditing(log)} remove={() => remove(log)} removePhoto={(photoId) => removePhoto(log, photoId)} />)}</div>}</section>) : <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Todavía no hay ejercicios registrados.</p>}</div>
     {creating && <QuickLogForm type={creating} close={() => setCreating(null)} saved={async () => { setCreating(null); setNotice("Registro guardado correctamente."); await load(); }} />}
     {editing && <QuickLogForm type={editing.type} initial={editing} close={() => setEditing(null)} saved={async () => { setEditing(null); setNotice("Registro actualizado correctamente."); await load(); }} />}
   </div>;
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0 rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-zinc-200">{value}</p></div>;
 }
 
 function QuickLogCard({ log, edit, remove, removePhoto }: { log: QuickLog; edit: () => void; remove: () => void; removePhoto: (photoId: string) => void }) {
@@ -208,21 +234,21 @@ function QuickLogCard({ log, edit, remove, removePhoto }: { log: QuickLog; edit:
   const summary = strength ? log.content : log.content || (log.type === "PROGRESS" ? `${log.exerciseName}: ${log.previousValue ?? "Sin valor anterior"} → ${log.currentValue} ${log.unit}` : log.category);
   const createdAt = new Date(log.createdAt);
   const time = Number.isNaN(createdAt.getTime()) ? "" : createdAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-  return <article className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-[0_10px_28px_rgba(0,0,0,.2)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{labels[log.type].icon} {strength ? "Ejercicio" : labels[log.type].title}</p><h2 className="mt-1 break-words font-bold">{log.title || log.exerciseName || labels[log.type].title}</h2><p className="mt-1 text-xs text-zinc-500">{new Date(`${log.date}T12:00:00`).toLocaleDateString("es-AR")}{time ? ` · ${time}` : ""}{!strength && log.category ? ` · ${log.category}` : ""}</p></div><div className="flex shrink-0 gap-3 text-xs"><button onClick={edit} className="text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-300">Editar</button><button onClick={remove} className="text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button></div></div>
-    {strength && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Trabajo</p><p className="mt-1 font-bold">{log.sets} × {log.repetitions}</p></div><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Carga</p><p className="mt-1 font-bold text-yellow-300">{log.currentValue?.toLocaleString("es-AR")} {log.unit || "kg"}</p></div><div className="col-span-2 rounded-xl bg-black/55 p-3 sm:col-span-1"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Anterior</p><p className="mt-1 text-sm">{log.previousValue === null ? "Sin registro" : `${log.previousValue.toLocaleString("es-AR")} ${log.unit || "kg"}`}{difference !== null && <span className="ml-2 text-zinc-500">{difference === 0 ? "Sin cambios" : `${difference > 0 ? "+" : ""}${difference.toLocaleString("es-AR")} ${log.unit || "kg"}`}</span>}</p></div></div>}
-    {summary && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-zinc-300">{summary}</p>}{log.mood && <p className="mt-2 text-xs text-zinc-500">Sensación: {log.mood}</p>}{log.hasPain && <p className="mt-2 rounded-lg bg-red-400/10 p-2 text-xs text-red-200">Molestia: {log.painDetails || "Sin detalle"}</p>}{log.photos.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{log.photos.map((photo) => <div key={photo.id} className="relative min-w-0 overflow-hidden rounded-xl bg-black"><a href={photo.blobUrl} target="_blank" rel="noreferrer" aria-label="Abrir fotografía en tamaño completo" className="group block focus:outline-none focus:ring-2 focus:ring-yellow-300"><img src={photo.blobUrl} alt="Foto adjunta al registro" loading="lazy" className="aspect-square w-full object-cover transition group-hover:opacity-80" /><span className="absolute inset-x-1 bottom-1 rounded bg-black/75 px-2 py-1 text-center text-[10px] text-zinc-200">Ver completa</span></a><button onClick={() => removePhoto(photo.id)} aria-label="Eliminar foto" className="absolute right-1 top-1 rounded-full bg-black/85 px-2 py-1 text-xs text-red-200 focus:outline-none focus:ring-2 focus:ring-red-300">×</button></div>)}</div>}</article>;
+  return <article id={`registro-${log.id}`} className="min-w-0 scroll-mt-24 overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-[0_10px_28px_rgba(0,0,0,.2)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{labels[log.type].icon} {strength ? "Ejercicio" : labels[log.type].title}</p><h2 className="mt-1 break-words font-bold">{log.title || log.exerciseName || labels[log.type].title}</h2><p className="mt-1 text-xs text-zinc-500">{new Date(`${log.date}T12:00:00`).toLocaleDateString("es-AR")}{time ? ` · ${time}` : ""}{!strength && log.category ? ` · ${log.category}` : ""}</p></div><div className="flex shrink-0 gap-3 text-xs"><button onClick={edit} className="text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-300">Editar</button><button onClick={remove} className="text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button></div></div>
+    {strength && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Trabajo actual</p><p className="mt-1 font-bold">{log.sets} × {log.repetitions}</p></div><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Carga actual</p><p className="mt-1 font-bold text-yellow-300">{log.currentValue?.toLocaleString("es-AR")} {log.unit || "kg"}</p></div><div className="col-span-2 rounded-xl bg-black/55 p-3 sm:col-span-1"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Registro anterior</p><p className="mt-1 text-sm">{log.previousValue === null ? "Primera marca registrada" : `${log.previousSets ?? "—"} × ${log.previousRepetitions ?? "—"} · ${log.previousValue.toLocaleString("es-AR")} ${log.unit || "kg"}`}{difference !== null && <span className="ml-2 text-zinc-500">{difference === 0 ? "Sin cambios" : `${difference > 0 ? "+" : ""}${difference.toLocaleString("es-AR")} ${log.unit || "kg"}`}</span>}</p></div></div>}
+    {log.achievements.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.achievements.map((achievement) => <span key={achievement.id} className="rounded-full border border-yellow-400/20 bg-yellow-400/[.06] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-yellow-200">{achievement.type === "FIRST_MARK" ? "Primera marca" : achievement.type === "MAX_LOAD" ? "Nueva carga máxima" : achievement.type === "REPETITION_PR" ? "Récord de repeticiones" : `${achievement.recordCount} registros`}</span>)}</div>}{summary && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-zinc-300">{summary}</p>}{log.feedback && <div className="mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400">Devolución de {log.feedback.trainerName}</p><p className="mt-1 text-sm text-zinc-200">{log.feedback.text}</p><p className="mt-2 text-[10px] text-zinc-500">{new Date(log.feedback.updatedAt).toLocaleString("es-AR")}</p></div>}{log.mood && <p className="mt-2 text-xs text-zinc-500">Sensación: {log.mood}</p>}{log.hasPain && <p className="mt-2 rounded-lg bg-red-400/10 p-2 text-xs text-red-200">Molestia: {log.painDetails || "Sin detalle"}</p>}{log.photos.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{log.photos.map((photo) => <div key={photo.id} className="relative min-w-0 overflow-hidden rounded-xl bg-black"><a href={photo.blobUrl} target="_blank" rel="noreferrer" aria-label="Abrir fotografía en tamaño completo" className="group block focus:outline-none focus:ring-2 focus:ring-yellow-300"><img src={photo.blobUrl} alt="Foto adjunta al registro" loading="lazy" className="aspect-square w-full object-cover transition group-hover:opacity-80" /><span className="absolute inset-x-1 bottom-1 rounded bg-black/75 px-2 py-1 text-center text-[10px] text-zinc-200">Ver completa</span></a><button onClick={() => removePhoto(photo.id)} aria-label="Eliminar foto" className="absolute right-1 top-1 rounded-full bg-black/85 px-2 py-1 text-xs text-red-200 focus:outline-none focus:ring-2 focus:ring-red-300">×</button></div>)}</div>}</article>;
 }
 
 function QuickLogForm({ type, initial, close, saved }: { type: QuickLogType; initial?: QuickLog; close: () => void; saved: () => void | Promise<void> }) {
   const [form, setForm] = useState({ title: initial?.title ?? "", content: initial?.content ?? "", category: initial?.category ?? "", date: initial?.date ?? today(), durationMinutes: initial?.durationMinutes?.toString() ?? "", exerciseName: initial?.exerciseName ?? "", metricType: initial?.metricType ?? "peso", previousValue: initial?.previousValue?.toString() ?? "", currentValue: initial?.currentValue?.toString() ?? "", unit: initial?.unit ?? "kg", mood: initial?.mood ?? "", hasPain: initial?.hasPain ?? false, painDetails: initial?.painDetails ?? "" });
-  const [files, setFiles] = useState<File[]>([]); const [error, setError] = useState(""); const [saving, setSaving] = useState(false); const fileInput = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<File[]>([]); const [error, setError] = useState(""); const [saving, setSaving] = useState(false); const fileInput = useRef<HTMLInputElement>(null); const requestKey = useRef("");
   const previews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
   useEffect(() => () => previews.forEach(URL.revokeObjectURL), [previews]);
   const set = (key: keyof typeof form, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
   async function submit(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError("");
     try {
-      const response = initial ? await fetch(`/api/portal/quick-logs/${initial.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, type }) }) : await fetch("/api/portal/quick-logs", { method: "POST", body: (() => { const body = new FormData(); body.set("type", type); Object.entries(form).forEach(([key, value]) => body.set(key, String(value))); files.forEach((file) => body.append("photos", file)); return body; })() });
+      const response = initial ? await fetch(`/api/portal/quick-logs/${initial.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, type }) }) : await fetch("/api/portal/quick-logs", { method: "POST", body: (() => { const body = new FormData(); body.set("type", type); if (!requestKey.current) requestKey.current = window.crypto.randomUUID(); body.set("idempotencyKey", requestKey.current); Object.entries(form).forEach(([key, value]) => body.set(key, String(value))); files.forEach((file) => body.append("photos", file)); return body; })() });
       const body = await response.json() as { error?: string }; if (!response.ok) throw new Error(body.error ?? "No se pudo guardar."); await saved();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo guardar."); } finally { setSaving(false); }
   }

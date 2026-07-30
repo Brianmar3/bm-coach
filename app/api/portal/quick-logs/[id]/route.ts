@@ -1,7 +1,9 @@
 import { del } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
-import { QUICK_LOG_TYPES, quickLogJson } from "@/lib/quick-logs";
+import { QUICK_LOG_TYPES, quickLogJson, quickLogRelations } from "@/lib/quick-logs";
+import { normalizeExerciseName } from "@/lib/exercise-name";
+import { recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
 
 export const runtime = "nodejs";
 
@@ -31,17 +33,24 @@ export async function PATCH(request: Request, context: RouteContext<"/api/portal
   const exerciseName = text("exerciseName", existing.exerciseName, 120);
   if (type === "PROGRESS" && (!exerciseName || currentValue === null)) return Response.json({ error: "Ejercicio y nuevo valor son obligatorios." }, { status: 400 });
   if (type === "PROGRESS" && metricType === "carga" && (sets === null || repetitions === null)) return Response.json({ error: "Series y repeticiones son obligatorias." }, { status: 400 });
-  const updated = await prisma.quickLog.update({
-    where: { id },
-    data: {
-      type, title: text("title", existing.title, 120), content: text("content", existing.content, 5000),
-      category: text("category", existing.category, 60), date, durationMinutes, exerciseName, sets, repetitions,
-      metricType, previousValue, currentValue,
-      unit: text("unit", existing.unit, 30), mood: text("mood", existing.mood, 60),
-      hasPain: typeof input.hasPain === "boolean" ? input.hasPain : existing.hasPain,
-      painDetails: text("painDetails", existing.painDetails, 1000),
-    },
-    include: { photos: true },
+  const updated = await prisma.$transaction(async (transaction) => {
+    await transaction.quickLog.update({
+      where: { id },
+      data: {
+        type, title: text("title", existing.title, 120), content: text("content", existing.content, 5000),
+        category: text("category", existing.category, 60), date, durationMinutes, exerciseName,
+        exerciseKey: normalizeExerciseName(exerciseName), sets, repetitions,
+        metricType, previousValue, currentValue,
+        unit: text("unit", existing.unit, 30), mood: text("mood", existing.mood, 60),
+        hasPain: typeof input.hasPain === "boolean" ? input.hasPain : existing.hasPain,
+        painDetails: text("painDetails", existing.painDetails, 1000),
+      },
+    });
+    await recalculateQuickLogAchievements(transaction, session.studentId);
+    return transaction.quickLog.findUniqueOrThrow({
+      where: { id },
+      include: quickLogRelations,
+    });
   });
   return Response.json({ log: quickLogJson(updated), message: "Registro actualizado correctamente." });
 }
@@ -61,7 +70,10 @@ export async function DELETE(request: Request, context: RouteContext<"/api/porta
     await del(photo.blobUrl).catch((error) => console.error("No se pudo retirar la foto del Blob Store", error));
     return Response.json({ message: "Foto eliminada correctamente." });
   }
-  await prisma.quickLog.delete({ where: { id } });
+  await prisma.$transaction(async (transaction) => {
+    await transaction.quickLog.delete({ where: { id } });
+    await recalculateQuickLogAchievements(transaction, session.studentId);
+  });
   await Promise.all(existing.photos.map((photo) => del(photo.blobUrl).catch((error) => console.error("No se pudo retirar una foto del registro", error))));
   return Response.json({ message: "Registro eliminado correctamente." });
 }

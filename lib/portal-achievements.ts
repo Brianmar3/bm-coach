@@ -1,4 +1,4 @@
-export type AchievementCategory = "CONSTANCIA" | "ASISTENCIA" | "FUERZA" | "REPETICIONES" | "VOLUMEN" | "RUTINAS" | "CLASES" | "EVALUACIONES" | "ANTIGUEDAD" | "RECORDS_PERSONALES" | "TIEMPO";
+export type AchievementCategory = "CONSTANCIA" | "ASISTENCIA" | "FUERZA" | "REPETICIONES" | "VOLUMEN" | "RUTINAS" | "CLASES" | "EVALUACIONES" | "ANTIGUEDAD" | "RECORDS_PERSONALES" | "TIEMPO" | "PROGRESO";
 export type AchievementLevel = "COMUN" | "DESTACADO" | "ESPECIAL" | "HITO";
 
 export type PortalAchievement = {
@@ -16,7 +16,9 @@ export type PortalAchievement = {
   previousValue?: string;
   newValue?: string;
   sessionId?: string;
-  source?: "ROUTINE" | "CLASS";
+  quickLogId?: string;
+  feedback?: string;
+  source?: "ROUTINE" | "CLASS" | "QUICK_LOG";
 };
 
 type AchievementFacts = {

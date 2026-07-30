@@ -10,6 +10,59 @@ function vapidConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT);
 }
 
+export async function sendStudentPush(
+  studentId: string,
+  message: { title: string; body: string; url: string; tag: string },
+) {
+  try {
+    if (!vapidConfigured()) return;
+    const subscriptions = await prisma.studentPushSubscription.findMany({
+      where: { studentId, active: true },
+    });
+    if (!subscriptions.length) return;
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT!,
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+      process.env.VAPID_PRIVATE_KEY!,
+    );
+    const payload = JSON.stringify(message);
+    await Promise.all(
+      subscriptions.map(async (subscription) => {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: subscription.endpoint,
+              keys: { p256dh: subscription.p256dh, auth: subscription.auth },
+            },
+            payload,
+            { TTL: 86400, urgency: "normal" },
+          );
+          await prisma.studentPushSubscription.update({
+            where: { id: subscription.id },
+            data: { lastUsedAt: new Date() },
+          });
+        } catch (error) {
+          const statusCode =
+            typeof error === "object" && error && "statusCode" in error
+              ? Number(error.statusCode)
+              : 0;
+          if (statusCode === 404 || statusCode === 410) {
+            await prisma.studentPushSubscription.update({
+              where: { id: subscription.id },
+              data: { active: false },
+            });
+          }
+          console.error("No se pudo entregar una notificación al alumno", {
+            statusCode,
+          });
+        }
+      }),
+    );
+  } catch (error) {
+    console.error("No se pudo procesar la notificación al alumno", error);
+  }
+}
+
 function unlockedAt(value: string) {
   return new Date(`${value.slice(0, 10)}T12:00:00.000Z`);
 }
@@ -25,6 +78,8 @@ export async function establishAchievementBaseline(studentId: string) {
 function content(items: PortalAchievement[]) {
   if (items.length > 1) return { title: `Desbloqueaste ${items.length} logros`, body: "Entrá a BM Training para verlos." };
   const item = items[0];
+  if (item.id.startsWith("quick-log:first:")) return { title: "Primera marca registrada", body: `Guardaste tu primera marca en ${item.exercise}.` };
+  if (item.id.startsWith("quick-log:milestone:")) return { title: "Nuevo logro desbloqueado", body: item.description };
   if (item.exercise) return { title: "Nuevo récord personal", body: `Mejoraste tu marca en ${item.exercise}.` };
   if (item.category === "EVALUACIONES") return { title: "Nuevo logro en BM Training", body: "Entrá a la app para ver tu progreso." };
   return { title: "Nuevo logro desbloqueado", body: item.description };

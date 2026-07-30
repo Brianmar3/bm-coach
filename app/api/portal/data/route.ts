@@ -15,6 +15,7 @@ import { planDays } from "@/lib/student-enrollment";
 import { BM_TRAINING_START_DATE } from "@/lib/bm-training";
 import { hasGroupClasses } from "@/lib/student-service";
 import { activePortalRoutineWhere } from "@/lib/portal-service-access";
+import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     evaluationDates,
     firstStrengthLog,
     strengthAchievements,
+    quickLogAchievements,
     activeRoutineCount,
   ] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
@@ -50,6 +52,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     prisma.physicalEvaluation.findMany({ where: { ...meaningfulEvaluation, date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
     loadStrengthAchievements(studentId, activityStart),
+    loadQuickLogAchievements(studentId),
     prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId) }),
   ]);
   const newDates = newAttendanceDates.map((item) => item.occurrence.date.toISOString().slice(0, 10));
@@ -90,7 +93,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
       active: studentStatus !== "inactivo",
       hasRoutine: activeRoutineCount > 0 || completedWorkoutDates.length > 0,
       hasClassParticipation,
-    }), ...strengthAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
+    }), ...strengthAchievements, ...quickLogAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
   };
 }
 

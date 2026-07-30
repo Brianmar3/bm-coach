@@ -8,8 +8,9 @@ import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { planDays } from "@/lib/student-enrollment";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { prisma } from "@/lib/prisma";
+import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 
-const notifiableCategories = new Set(["ASISTENCIA", "CONSTANCIA", "FUERZA", "REPETICIONES", "VOLUMEN", "RECORDS_PERSONALES"]);
+const notifiableCategories = new Set(["ASISTENCIA", "CONSTANCIA", "FUERZA", "REPETICIONES", "VOLUMEN", "RECORDS_PERSONALES", "PROGRESO"]);
 
 export async function loadNotifiableAchievements(studentId: string) {
   const record = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { data: true, primaryScheduleId: true, weeklyClasses: { where: { active: true }, select: { scheduleId: true }, take: 1 } } });
@@ -17,13 +18,14 @@ export async function loadNotifiableAchievements(studentId: string) {
   const student = record.data as unknown as Student;
   const today = argentinaDateKey();
   const activityStart = dateKeyToDatabase(bmTrainingActivityStart(student.joinedAt));
-  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, firstStrength, strength] = await Promise.all([
+  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, firstStrength, strength, quickLogs] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
     prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }),
     prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
     prisma.physicalEvaluation.findMany({ where: { studentId, date: { gte: activityStart }, OR: [{ weight: { not: null } }, { height: { not: null } }, { bodyFatPercentage: { not: null } }, { muscleMass: { not: null } }, { waist: { not: null } }, { hip: { not: null } }] }, select: { date: true }, orderBy: { date: "asc" } }),
     prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: { classDateSnapshot: "asc" } }),
     loadStrengthAchievements(studentId, activityStart),
+    loadQuickLogAchievements(studentId),
   ]);
   const newDates = occurrenceAttendances.map((item) => item.occurrence.date.toISOString().slice(0, 10));
   const firstNewDate = newDates[0] ?? "";
@@ -41,6 +43,6 @@ export async function loadNotifiableAchievements(studentId: string) {
     hasRoutine: workouts.length > 0,
     hasClassParticipation: hasClasses,
   });
-  return [...general.filter((item) => notifiableCategories.has(item.category ?? "") || (item.category === "EVALUACIONES" && item.level !== "COMUN")), ...strength]
+  return [...general.filter((item) => notifiableCategories.has(item.category ?? "") || (item.category === "EVALUACIONES" && item.level !== "COMUN")), ...strength, ...quickLogs]
     .filter((item): item is PortalAchievement & { unlockedAt: string } => item.unlocked && Boolean(item.unlockedAt));
 }

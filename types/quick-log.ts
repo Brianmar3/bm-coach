@@ -7,6 +7,30 @@ export type QuickLogPhoto = {
   createdAt: string;
 };
 
+export type QuickLogAchievement = {
+  id: string;
+  achievementKey: string;
+  type: "FIRST_MARK" | "MAX_LOAD" | "REPETITION_PR" | "RECORD_MILESTONE";
+  exerciseName: string;
+  sets: number | null;
+  repetitions: number | null;
+  unit: string;
+  currentLoad: number | null;
+  previousLoad: number | null;
+  difference: number | null;
+  recordCount: number | null;
+  unlockedAt: string;
+};
+
+export type QuickLogFeedback = {
+  id: string;
+  trainerName: string;
+  preset: string;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type QuickLog = {
   id: string;
   type: QuickLogType;
@@ -16,8 +40,11 @@ export type QuickLog = {
   date: string;
   durationMinutes: number | null;
   exerciseName: string;
+  exerciseKey: string;
   sets: number | null;
   repetitions: number | null;
+  previousSets: number | null;
+  previousRepetitions: number | null;
   metricType: string;
   previousValue: number | null;
   currentValue: number | null;
@@ -28,4 +55,6 @@ export type QuickLog = {
   createdAt: string;
   updatedAt: string;
   photos: QuickLogPhoto[];
+  achievements: QuickLogAchievement[];
+  feedback: QuickLogFeedback | null;
 };

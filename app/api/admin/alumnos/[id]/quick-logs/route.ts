@@ -3,7 +3,8 @@ import { del } from "@vercel/blob";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
-import { quickLogJson } from "@/lib/quick-logs";
+import { quickLogJson, quickLogRelations } from "@/lib/quick-logs";
+import { loadQuickLogAchievements, recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
 
 async function authorize() {
   const auth = verifyAdminSessionValue((await cookies()).get(ADMIN_SESSION_COOKIE)?.value);
@@ -13,7 +14,8 @@ async function authorize() {
 export async function GET(_request: Request, context: RouteContext<"/api/admin/alumnos/[id]/quick-logs">) {
   const failure = await authorize(); if (failure) return Response.json({ error: failure.error }, { status: failure.status });
   const { id } = await context.params;
-  const logs = await prisma.quickLog.findMany({ where: { studentId: id }, include: { photos: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] });
+  await loadQuickLogAchievements(id);
+  const logs = await prisma.quickLog.findMany({ where: { studentId: id }, include: quickLogRelations, orderBy: [{ date: "desc" }, { createdAt: "desc" }] });
   return Response.json({ logs: logs.map(quickLogJson) });
 }
 
@@ -35,7 +37,10 @@ export async function DELETE(request: Request, context: RouteContext<"/api/admin
   const input = await request.json() as { logId?: string };
   const existing = input.logId ? await prisma.quickLog.findFirst({ where: { id: input.logId, studentId: id }, include: { photos: true } }) : null;
   if (!existing) return Response.json({ error: "No se encontró el registro." }, { status: 404 });
-  await prisma.quickLog.delete({ where: { id: existing.id } });
+  await prisma.$transaction(async (transaction) => {
+    await transaction.quickLog.delete({ where: { id: existing.id } });
+    await recalculateQuickLogAchievements(transaction, id);
+  });
   await Promise.all(existing.photos.map((photo) => del(photo.blobUrl).catch((error) => console.error("No se pudo retirar una foto del registro", error))));
   return Response.json({ message: "Registro eliminado correctamente." });
 }
