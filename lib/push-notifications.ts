@@ -68,9 +68,15 @@ function unlockedAt(value: string) {
 }
 
 export async function establishAchievementBaseline(studentId: string) {
-  const achievements = await loadNotifiableAchievements(studentId);
+  const achievements = await loadNotifiableAchievements(studentId, { includeAll: true });
   await prisma.achievementNotification.createMany({
-    data: achievements.map((item) => ({ studentId, achievementKey: item.id, unlockedAt: unlockedAt(item.unlockedAt), status: "BASELINE" })),
+    data: achievements.map((item) => ({
+      studentId,
+      achievementKey: item.id,
+      unlockedAt: unlockedAt(item.unlockedAt),
+      celebratedAt: new Date(),
+      status: "BASELINE" as const,
+    })),
     skipDuplicates: true,
   });
 }
@@ -87,10 +93,7 @@ function content(items: PortalAchievement[]) {
 
 export async function notifyNewAchievements(studentId: string) {
   try {
-    if (!vapidConfigured()) return;
-    const subscriptions = await prisma.studentPushSubscription.findMany({ where: { studentId, active: true } });
-    if (!subscriptions.length) return;
-    const achievements = await loadNotifiableAchievements(studentId);
+    const achievements = await loadNotifiableAchievements(studentId, { includeAll: true });
     const claimed: Array<{ notificationId: string; achievement: PortalAchievement }> = [];
     for (const achievement of achievements) {
       try {
@@ -101,6 +104,21 @@ export async function notifyNewAchievements(studentId: string) {
       }
     }
     if (!claimed.length) return;
+    if (!vapidConfigured()) {
+      await prisma.achievementNotification.updateMany({
+        where: { id: { in: claimed.map((item) => item.notificationId) } },
+        data: { status: "FAILED", error: "Web Push no configurado" },
+      });
+      return;
+    }
+    const subscriptions = await prisma.studentPushSubscription.findMany({ where: { studentId, active: true } });
+    if (!subscriptions.length) {
+      await prisma.achievementNotification.updateMany({
+        where: { id: { in: claimed.map((item) => item.notificationId) } },
+        data: { status: "FAILED", error: "Sin dispositivos suscriptos" },
+      });
+      return;
+    }
     webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
     const message = content(claimed.map((item) => item.achievement));
     const payload = JSON.stringify({ ...message, url: "/portal#logros", tag: "bm-training-achievements" });

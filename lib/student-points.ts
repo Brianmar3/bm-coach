@@ -435,7 +435,7 @@ export async function syncStudentPoints(
       console.error("No se pudo notificar el movimiento de puntos", error);
     });
   }
-  return { total, gained };
+  return { total, gained, desiredCount: desired.length };
 }
 
 export async function loadStudentPointSummary(

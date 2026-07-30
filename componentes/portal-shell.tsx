@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
+import { AchievementCelebration } from "@/componentes/achievement-celebration";
 
 type PortalLink = readonly [title: string, href: string, icon: string];
 
@@ -70,6 +71,7 @@ export function PortalShell({
 
   return (
     <div className="min-h-screen overflow-x-clip bg-[#070707] text-white">
+      <AchievementCelebration />
       <header className="sticky top-0 z-30 border-b border-yellow-400/10 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
           <Link

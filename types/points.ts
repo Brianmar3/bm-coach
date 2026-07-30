@@ -24,6 +24,9 @@ export type StudentRankingEntry = {
   studentName: string;
   profileImageUrl: string;
   total: number;
+  historicalTotal: number;
+  level: string;
+  serviceType: "CLASSES" | "PERSONALIZED" | "MIXED";
   achievementCount: number;
   attendanceThisMonth: number;
   recordCount: number;

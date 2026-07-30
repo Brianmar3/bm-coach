@@ -181,6 +181,7 @@ model AchievementNotification {
   achievementKey String
   unlockedAt     DateTime
   notifiedAt     DateTime?
+  celebratedAt   DateTime?
   status         AchievementNotificationStatus @default(PENDING)
   error          String?
   createdAt      DateTime                      @default(now())
@@ -189,6 +190,7 @@ model AchievementNotification {
 
   @@unique([studentId, achievementKey])
   @@index([studentId, status])
+  @@index([studentId, celebratedAt, createdAt])
   @@index([status, createdAt])
   @@map("achievement_notifications")
 }

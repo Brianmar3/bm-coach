@@ -35,22 +35,29 @@ export async function GET(request: Request) {
   const monthStart = new Date(
     Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
   );
-  const where = {
+  const periodWhere = {
     active: true,
     ...(from ? { occurredAt: { gte: from } } : {}),
   } as const;
-  const totals = await prisma.studentPointTransaction.groupBy({
-    by: ["studentId"],
-    where,
-    _sum: { points: true },
-    orderBy: { _sum: { points: "desc" } },
-    take: 10,
+  const allStudents = await prisma.studentRecord.findMany({
+    select: { id: true, data: true },
+    orderBy: { createdAt: "asc" },
   });
-  const studentIds = totals.map((item) => item.studentId);
-  const [students, details] = await Promise.all([
-    prisma.studentRecord.findMany({
-      where: { id: { in: studentIds } },
-      select: { id: true, data: true },
+  const students = allStudents.filter((record) => {
+    const data = record.data as unknown as Student;
+    return data.status !== "inactivo";
+  });
+  const studentIds = students.map((student) => student.id);
+  const [totals, historicalTotals, details] = await Promise.all([
+    prisma.studentPointTransaction.groupBy({
+      by: ["studentId"],
+      where: { ...periodWhere, studentId: { in: studentIds } },
+      _sum: { points: true },
+    }),
+    prisma.studentPointTransaction.groupBy({
+      by: ["studentId"],
+      where: { active: true, studentId: { in: studentIds } },
+      _sum: { points: true },
     }),
     prisma.studentPointTransaction.groupBy({
       by: ["studentId", "eventType"],
@@ -66,32 +73,36 @@ export async function GET(request: Request) {
       _count: { _all: true },
     }),
   ]);
+  const totalByStudent = new Map(totals.map((item) => [item.studentId, item._sum.points ?? 0]));
+  const historicalByStudent = new Map(historicalTotals.map((item) => [item.studentId, item._sum.points ?? 0]));
   const detail = new Map<string, Map<string, number>>();
   for (const item of details) {
     const values = detail.get(item.studentId) ?? new Map<string, number>();
     values.set(item.eventType, item._count._all);
     detail.set(item.studentId, values);
   }
-  const ranking: StudentRankingEntry[] = totals.flatMap((item) => {
-    const record = students.find((student) => student.id === item.studentId);
-    if (!record) return [];
+  const ranking: StudentRankingEntry[] = students.map((record) => {
     const data = record.data as unknown as Student;
-    const counts = detail.get(item.studentId) ?? new Map<string, number>();
-    return [
-      {
-        studentId: item.studentId,
-        studentName: studentName(record.data),
-        profileImageUrl: data.profileImageUrl ?? "",
-        total: item._sum.points ?? 0,
-        achievementCount:
-          (counts.get("ACHIEVEMENT") ?? 0) +
-          (counts.get("MILESTONE") ?? 0),
-        attendanceThisMonth: counts.get("ATTENDANCE") ?? 0,
-        recordCount: counts.get("RECORD") ?? 0,
-      },
-    ];
-  });
-  return Response.json({ period, ranking });
+    const counts = detail.get(record.id) ?? new Map<string, number>();
+    const historicalTotal = historicalByStudent.get(record.id) ?? 0;
+    return {
+      studentId: record.id,
+      studentName: studentName(record.data),
+      profileImageUrl: data.profileImageUrl ?? "",
+      total: totalByStudent.get(record.id) ?? 0,
+      historicalTotal,
+      level: historicalTotal >= 500 ? "Hito" : historicalTotal >= 250 ? "Progreso" : historicalTotal >= 100 ? "Constancia" : "Inicio",
+      serviceType: data.serviceType ?? "CLASSES",
+      achievementCount: (counts.get("ACHIEVEMENT") ?? 0) + (counts.get("MILESTONE") ?? 0),
+      attendanceThisMonth: counts.get("ATTENDANCE") ?? 0,
+      recordCount: counts.get("RECORD") ?? 0,
+    };
+  }).sort((left, right) =>
+    right.total - left.total ||
+    right.historicalTotal - left.historicalTotal ||
+    left.studentName.localeCompare(right.studentName, "es"),
+  );
+  return Response.json({ period, ranking, activeStudentCount: ranking.length });
 }
 
 export async function POST(request: Request) {
@@ -102,17 +113,35 @@ export async function POST(request: Request) {
   if (failure) {
     return Response.json({ error: failure.error }, { status: failure.status });
   }
-  const students = await prisma.studentRecord.findMany({
-    select: { id: true },
+  const records = await prisma.studentRecord.findMany({
+    select: { id: true, data: true },
     orderBy: { createdAt: "asc" },
   });
+  const students = records.filter((record) => (record.data as unknown as Student).status !== "inactivo");
   let processed = 0;
+  let eventsCreated = 0;
+  let eventsOmitted = 0;
+  const errors: Array<{ studentId: string; studentName: string; error: string }> = [];
   for (const student of students) {
-    await syncStudentPoints(student.id, { notify: false });
-    processed += 1;
+    try {
+      const result = await syncStudentPoints(student.id, { notify: false });
+      processed += 1;
+      eventsCreated += result.gained.length;
+      eventsOmitted += Math.max(0, result.desiredCount - result.gained.length);
+    } catch (error) {
+      errors.push({
+        studentId: student.id,
+        studentName: studentName(student.data),
+        error: error instanceof Error ? error.message.slice(0, 180) : "Error desconocido",
+      });
+    }
   }
   return Response.json({
     processed,
-    message: `Ranking recalculado para ${processed} alumnos.`,
+    totalActiveStudents: students.length,
+    eventsCreated,
+    eventsOmitted,
+    errors,
+    message: `Ranking recalculado: ${processed} de ${students.length} alumnos activos procesados.`,
   });
 }

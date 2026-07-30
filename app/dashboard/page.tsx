@@ -115,13 +115,14 @@ function DashboardContent({ data }: { data: DashboardData }) {
     </section>
 
     <PaymentSummary metrics={metrics} />
-    <PointsRanking />
 
     <section className="mt-5 grid gap-5 xl:grid-cols-[1.45fr_1fr_1fr]">
       <IncomeChart data={data.income} total={metrics.monthIncome} />
       <TodayClasses items={data.todayClasses} />
       <UpcomingPayments items={data.upcomingPayments} today={data.today} />
     </section>
+
+    <div className="mt-5"><PointsRanking /></div>
 
     <section className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
       <RecentStudents items={data.recentStudents} />
