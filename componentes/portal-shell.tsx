@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
@@ -46,6 +46,16 @@ export function PortalShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const [currentProfileImageUrl, setCurrentProfileImageUrl] =
+    useState(profileImageUrl);
+  useEffect(() => {
+    const update = (event: Event) => {
+      const detail = (event as CustomEvent<{ photoUrl?: string }>).detail;
+      setCurrentProfileImageUrl(detail?.photoUrl ?? "");
+    };
+    window.addEventListener("bm:profile-photo-updated", update);
+    return () => window.removeEventListener("bm:profile-photo-updated", update);
+  }, []);
   const links = allLinks.filter(([, href]) => {
     if (href === "/portal/clases") return serviceType !== "PERSONALIZED";
     if (href === "/portal/rutina") return serviceType !== "CLASSES" || hasRoutine;
@@ -97,9 +107,9 @@ export function PortalShell({
               className="group flex min-w-0 items-center gap-2 rounded-xl p-1 transition hover:bg-zinc-900 sm:pr-3"
               aria-label={`Abrir perfil de ${studentName}`}
             >
-              {profileImageUrl ? (
+              {currentProfileImageUrl ? (
                 <Image
-                  src={profileImageUrl}
+                  src={currentProfileImageUrl}
                   alt=""
                   width={36}
                   height={36}

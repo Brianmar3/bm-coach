@@ -11,6 +11,37 @@ import type { PortalProfile } from "@/types/portal";
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const showDate = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("es-AR") : "Sin definir";
+type PhotoResponse = {
+  success?: boolean;
+  photoUrl?: string;
+  url?: string;
+  message?: string;
+  error?: string;
+};
+
+async function readPhotoResponse(response: Response): Promise<PhotoResponse> {
+  const text = await response.text();
+  if (!text.trim()) {
+    throw new Error(
+      response.ok
+        ? "El servidor no confirmó el guardado de la imagen."
+        : "El servidor no pudo procesar la imagen.",
+    );
+  }
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      response.ok
+        ? "El servidor devolvió una respuesta no válida."
+        : "No se pudo guardar la imagen. Intentá nuevamente.",
+    );
+  }
+  try {
+    return JSON.parse(text) as PhotoResponse;
+  } catch {
+    throw new Error("El servidor devolvió una respuesta no válida.");
+  }
+}
 
 async function compressProfilePhoto(file: File) {
   const source = URL.createObjectURL(file);
@@ -49,6 +80,7 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
   const [saving, setSaving] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const avatarButton = useRef<HTMLButtonElement>(null);
+  const savingLock = useRef(false);
   const initials = `${profile.firstName[0] ?? ""}${profile.lastName[0] ?? ""}`.toUpperCase();
 
   useEffect(() => () => {
@@ -72,6 +104,10 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
     setError("");
     setMessage("");
     if (!file) return;
+    if (file.type === "image/heic" || file.type === "image/heif") {
+      setError("El formato HEIC/HEIF no está permitido. Elegí una foto JPG, PNG o WEBP.");
+      return;
+    }
     if (file.size > MAX_PHOTO_BYTES || !ALLOWED_PHOTO_TYPES.includes(file.type)) {
       setError("Elegí una foto JPG, PNG o WEBP de hasta 3 MB.");
       return;
@@ -97,71 +133,86 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
   }
 
   async function savePhoto() {
-    if (!pendingFile) return;
+    if (!pendingFile || savingLock.current) return;
+    savingLock.current = true;
     setSaving(true);
     setError("");
+    setMessage("");
     try {
       const form = new FormData();
       form.set("photo", pendingFile);
       const response = await fetch("/api/portal/profile-photo", { method: "POST", body: form });
-      const body = await response.json() as { url?: string; message?: string; error?: string };
-      if (!response.ok || !body.url) throw new Error(body.error ?? "No se pudo guardar la imagen.");
-      setPhoto(body.url);
+      const body = await readPhotoResponse(response);
+      const photoUrl = body.photoUrl ?? body.url;
+      if (!response.ok || body.success === false || !photoUrl) throw new Error(body.error ?? "No se pudo guardar la imagen.");
+      setPhoto(photoUrl);
       setPreview("");
       setPendingFile(null);
       if (input.current) input.current.value = "";
-      setMessage(body.message ?? "Imagen actualizada correctamente.");
+      setMessage(body.message ?? "Foto de perfil actualizada.");
+      window.dispatchEvent(new CustomEvent("bm:profile-photo-updated", { detail: { photoUrl } }));
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo guardar la imagen.");
     } finally {
+      savingLock.current = false;
       setSaving(false);
     }
   }
 
   async function saveAvatar() {
-    if (!avatarChoice) return;
+    if (!avatarChoice || savingLock.current) return;
+    savingLock.current = true;
     setSaving(true);
     setError("");
+    setMessage("");
     try {
       const response = await fetch("/api/portal/profile-photo", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ avatarId: avatarChoice }),
       });
-      const body = await response.json() as { url?: string; message?: string; error?: string };
-      if (!response.ok || !body.url) throw new Error(body.error ?? "No se pudo guardar el avatar.");
-      setPhoto(body.url);
+      const body = await readPhotoResponse(response);
+      const photoUrl = body.photoUrl ?? body.url;
+      if (!response.ok || body.success === false || !photoUrl) throw new Error(body.error ?? "No se pudo guardar el avatar.");
+      setPhoto(photoUrl);
       setPreview("");
       setPendingFile(null);
       setAvatarPickerOpen(false);
       setMessage(body.message ?? "Avatar actualizado correctamente.");
+      window.dispatchEvent(new CustomEvent("bm:profile-photo-updated", { detail: { photoUrl } }));
       router.refresh();
       window.setTimeout(() => avatarButton.current?.focus(), 0);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo guardar el avatar.");
     } finally {
+      savingLock.current = false;
       setSaving(false);
     }
   }
 
   async function remove() {
     if (!window.confirm("¿Eliminar tu foto o avatar de perfil y volver a mostrar tus iniciales?")) return;
+    if (savingLock.current) return;
+    savingLock.current = true;
     setSaving(true);
     setError("");
+    setMessage("");
     try {
       const response = await fetch("/api/portal/profile-photo", { method: "DELETE" });
-      const body = await response.json() as { message?: string; error?: string };
-      if (!response.ok) throw new Error(body.error ?? "No se pudo eliminar la imagen.");
+      const body = await readPhotoResponse(response);
+      if (!response.ok || body.success === false) throw new Error(body.error ?? "No se pudo eliminar la imagen.");
       setPhoto("");
       setPreview("");
       setPendingFile(null);
       setAvatarChoice("");
       setMessage(body.message ?? "Imagen eliminada correctamente.");
+      window.dispatchEvent(new CustomEvent("bm:profile-photo-updated", { detail: { photoUrl: "" } }));
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo eliminar la imagen.");
     } finally {
+      savingLock.current = false;
       setSaving(false);
     }
   }
