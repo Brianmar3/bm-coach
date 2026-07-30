@@ -8,6 +8,7 @@ import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
 import { AchievementCelebration } from "@/componentes/achievement-celebration";
+import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 
 type PortalLink = readonly [title: string, href: string, icon: string];
 
@@ -64,13 +65,6 @@ export function PortalShell({
   if (serviceType === "PERSONALIZED") {
     links.splice(links.length - 1, 0, ["Registros", "/portal/registro", "✎"]);
   }
-  const initials = studentName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-
   const linkStyle = (href: string) => {
     const active =
       href === "/portal" ? pathname === href : pathname.startsWith(href);
@@ -107,20 +101,14 @@ export function PortalShell({
               className="group flex min-w-0 items-center gap-2 rounded-xl p-1 transition hover:bg-zinc-900 sm:pr-3"
               aria-label={`Abrir perfil de ${studentName}`}
             >
-              {currentProfileImageUrl ? (
-                <Image
-                  src={currentProfileImageUrl}
-                  alt=""
-                  width={36}
-                  height={36}
-                  unoptimized
-                  className="h-9 w-9 shrink-0 rounded-full border border-yellow-400/30 object-cover"
-                />
-              ) : (
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-yellow-400/40 bg-black text-[10px] font-black text-yellow-300">
-                  {initials || "BM"}
-                </span>
-              )}
+              <Image
+                src={currentProfileImageUrl || DEFAULT_PROFILE_AVATAR.src}
+                alt=""
+                width={36}
+                height={36}
+                unoptimized
+                className="h-9 w-9 shrink-0 rounded-full border border-yellow-400/30 object-cover"
+              />
               <span className="hidden min-w-0 md:block">
                 <span className="block max-w-40 truncate text-xs font-semibold text-zinc-200">
                   {studentName}

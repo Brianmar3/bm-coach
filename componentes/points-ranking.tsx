@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { StudentRankingEntry } from "@/types/points";
+import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 
 const periods = [
   ["month", "Este mes"],
@@ -99,7 +100,6 @@ export function PointsRanking() {
       ) : ranking.length ? (
         <ol className="mt-4 space-y-2">
           {visibleRanking.map((student, index) => {
-            const initials = student.studentName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
             const participation = student.serviceType === "PERSONALIZED"
               ? "Personalizado"
               : student.serviceType === "MIXED"
@@ -108,12 +108,8 @@ export function PointsRanking() {
             return (
               <li key={student.studentId} className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-zinc-800/80 bg-black/35 p-3 sm:gap-3">
                 <span className="w-5 text-center text-sm font-black text-yellow-300">{index + 1}</span>
-                {student.profileImageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- validated profile URL
-                  <img src={student.profileImageUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
-                ) : (
-                  <span className="grid h-9 w-9 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.06] text-xs font-bold text-yellow-200">{initials}</span>
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element -- validated profile URL or bundled avatar */}
+                <img src={student.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" className="h-9 w-9 rounded-full border border-yellow-400/20 object-cover" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold">{student.studentName}</p>
                   <p className="truncate text-[10px] text-zinc-500">{student.level} · {student.achievementCount} logros · {participation} · {student.recordCount} registros</p>

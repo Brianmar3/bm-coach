@@ -165,7 +165,6 @@ export async function PUT(request: Request) {
       where: { id: auth.session.studentId },
       data: { data: { ...student, profileImageUrl: avatar.src } },
     });
-    await removeOwnedBlob(student.profileImageUrl ?? "");
     return json({
       success: true,
       photoUrl: avatar.src,
