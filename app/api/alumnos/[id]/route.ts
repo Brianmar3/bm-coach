@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInput, serializeStudent, studentInclude, studentJsonData } from "@/lib/student-enrollment";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +54,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       }
       return transaction.studentRecord.findUniqueOrThrow({ where: { id }, include: studentInclude });
     });
+    await reconcileStudentPointsAfterMutation(id);
     return Response.json(serializeStudent(record));
   } catch (error) {
     console.error("Error al actualizar alumno", error);

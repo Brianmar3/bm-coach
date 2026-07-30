@@ -306,6 +306,7 @@ async function notifyPointGain(
   const relevant = gained.filter(
     (item) =>
       item.eventType === "PERSONAL_RECORD" ||
+      item.eventType === "ACHIEVEMENT" ||
       item.eventType === "MILESTONE",
   );
   if (!relevant.length) return;
