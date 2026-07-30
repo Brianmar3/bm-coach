@@ -177,6 +177,47 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     {!showWeek && todayItems.length === 0 && <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Hoy no hay clases programadas.</p>}
     <div className="mt-6 space-y-5">{grouped.map(([date, items]) => <section key={date}><h2 className="mb-3 capitalize font-bold text-yellow-300">{dateLabel(date)}</h2><div className="grid gap-3 sm:grid-cols-2">{items.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{item.name}</h3><p className="mt-1 text-sm text-zinc-400">{item.startTime}–{item.endTime} · {item.category}</p></div><span className="rounded-full bg-zinc-950 px-2 py-1 text-xs text-zinc-400">{item.statusLabel}</span></div><p className="mt-3 text-xs text-zinc-500">{item.confirmedCount} confirmados{item.capacity === null ? "" : ` · cupo ${item.capacity}`}</p>{item.canRespond && <ResponseButtons item={item} saving={savingId === item.id} respond={respond} />}{item.strengthAvailable && <button onClick={() => editOccurrence(item)} className="mt-3 w-full rounded-xl border border-yellow-400/40 p-3 font-bold text-yellow-300">{item.workoutLog ? "Editar bloque de fuerza" : "Registrar bloque de fuerza"}</button>}</article>)}</div></section>)}</div>
     <section id="historial-clases" className="mt-8 scroll-mt-24"><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Historial de clases</h2>{data?.history.length ? <div className="mt-4 space-y-3">{data.history.map((log, logIndex) => <details key={log.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer list-none"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{log.name}</p><p className="mt-1 text-xs text-zinc-400">{dateLabel(log.date)} · {log.startTime} · {attendanceLabel(log)}</p><p className="mt-2 text-xs text-zinc-500">{log.strengthBlockName || "Bloque de fuerza registrado"} · {log.exercises.length} ejercicios</p></div><span className="text-sm font-bold text-yellow-400">Ver detalle</span></div></summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{log.exercises.map((exercise) => { const current = bestWeight(exercise); const previous = previousClassResult(data.history, logIndex, exercise.exerciseName); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${log.id}-${exercise.order}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-semibold">{exercise.exerciseName}</p>{previous && <span className="rounded-full bg-zinc-800 px-2 py-1 text-xs font-bold text-zinc-300">Anterior {previous.weight} kg · {difference === null ? "sin comparación" : `${difference > 0 ? "↑ +" : difference < 0 ? "↓ " : ""}${difference} kg`}</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${set.weight ?? "—"} kg × ${set.repetitions ?? "—"}${set.effort === null ? "" : ` · RIR ${set.effort}`}`).join(" · ")}</p>{exercise.notes && <p className="mt-2 text-xs text-zinc-500">{exercise.notes}</p>}{!previous && <p className="mt-2 text-xs text-zinc-600">Primer registro de este ejercicio en clases.</p>}</div>; })}{log.notes && <p className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-400">{log.notes}</p>}<div className="flex flex-wrap justify-end gap-2 pt-2"><button type="button" onClick={() => editHistory(log)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300">Editar</button><button type="button" disabled={savingId === log.id} onClick={() => deleteHistory(log)} className="rounded-lg border border-red-400/40 px-3 py-2 text-sm text-red-300 disabled:opacity-50">{savingId === log.id ? "Eliminando…" : "Eliminar"}</button></div></div></details>)}</div> : <p className="mt-3 rounded-2xl border border-dashed border-zinc-800 p-6 text-center text-zinc-500">Todavía no hay clases registradas.</p>}</section>
+    {data?.history.some((log) =>
+      log.exercises.some((exercise) => Boolean(exercise.feedback)),
+    ) && (
+      <section
+        id="devoluciones-clases"
+        className="mt-8 scroll-mt-24 rounded-2xl border border-yellow-400/20 bg-zinc-900 p-4"
+      >
+        <p className="text-xs font-bold uppercase tracking-wider text-yellow-400">
+          Devoluciones del entrenador
+        </p>
+        <div className="mt-3 space-y-2">
+          {data.history.flatMap((log) =>
+            log.exercises
+              .filter((exercise) => Boolean(exercise.feedback))
+              .map((exercise) => (
+                <article
+                  key={`feedback-${exercise.id ?? `${log.id}-${exercise.order}`}`}
+                  className="rounded-xl border border-zinc-800 bg-zinc-950 p-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold">
+                        {exercise.exerciseName}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {log.name} · {dateLabel(log.date)}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-yellow-300">
+                      {exercise.feedback?.trainerName}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-zinc-300">
+                    {exercise.feedback?.text}
+                  </p>
+                </article>
+              )),
+          )}
+        </div>
+      </section>
+    )}
     {editing && <ClassStrengthLogEditor title={editing.title} initialValue={editing.value} close={() => setEditing(null)} save={saveStrength} />}
   </div>;
 }

@@ -1,6 +1,7 @@
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
 import { notifyNewAchievements } from "@/lib/push-notifications";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const { id } = await context.params;
     const input = await request.json() as Record<string, unknown>;
-    const occurrence = await prisma.classOccurrence.findUnique({ where: { id }, select: { id: true } });
+    const occurrence = await prisma.classOccurrence.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        responses: { select: { studentId: true } },
+      },
+    });
     if (!occurrence) return Response.json({ error: "La clase no existe." }, { status: 404 });
     if (input.action === "attendance") {
       if (typeof input.studentId !== "string" || !actualValues.includes(input.actualAttendance as typeof actualValues[number])) return Response.json({ error: "La asistencia no es válida." }, { status: 400 });
@@ -24,6 +31,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         update: { actualAttendance: input.actualAttendance as typeof actualValues[number], checkedInAt: new Date() },
       });
       if (input.actualAttendance === "PRESENT") await notifyNewAchievements(input.studentId);
+      await reconcileStudentPointsAfterMutation(input.studentId);
       return Response.json({ message: "Asistencia real actualizada." });
     }
     if (input.action === "remove-response") {
@@ -73,6 +81,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         strengthEnabled: typeof input.strengthEnabled === "boolean" ? input.strengthEnabled : undefined,
       },
     });
+    if (status === "CANCELLED") {
+      await Promise.all(
+        occurrence.responses.map((item) =>
+          reconcileStudentPointsAfterMutation(item.studentId),
+        ),
+      );
+    }
     return Response.json({ message: status === "CANCELLED" ? "Clase cancelada." : status === "COMPLETED" ? "Clase cerrada." : "Clase actualizada." });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID_BLOCK") return Response.json({ error: "Revisá los ejercicios del bloque de fuerza." }, { status: 400 });

@@ -12,7 +12,10 @@ import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 
 const notifiableCategories = new Set(["ASISTENCIA", "CONSTANCIA", "FUERZA", "REPETICIONES", "VOLUMEN", "RECORDS_PERSONALES", "PROGRESO"]);
 
-export async function loadNotifiableAchievements(studentId: string) {
+export async function loadNotifiableAchievements(
+  studentId: string,
+  options: { includeAll?: boolean } = {},
+) {
   const record = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { data: true, primaryScheduleId: true, weeklyClasses: { where: { active: true }, select: { scheduleId: true }, take: 1 } } });
   if (!record) return [];
   const student = record.data as unknown as Student;
@@ -43,6 +46,19 @@ export async function loadNotifiableAchievements(studentId: string) {
     hasRoutine: workouts.length > 0,
     hasClassParticipation: hasClasses,
   });
-  return [...general.filter((item) => notifiableCategories.has(item.category ?? "") || (item.category === "EVALUACIONES" && item.level !== "COMUN")), ...strength, ...quickLogs]
-    .filter((item): item is PortalAchievement & { unlockedAt: string } => item.unlocked && Boolean(item.unlockedAt));
+  const selected = options.includeAll
+    ? [...general, ...strength, ...quickLogs]
+    : [
+        ...general.filter(
+          (item) =>
+            notifiableCategories.has(item.category ?? "") ||
+            (item.category === "EVALUACIONES" && item.level !== "COMUN"),
+        ),
+        ...strength,
+        ...quickLogs,
+      ];
+  return selected.filter(
+    (item): item is PortalAchievement & { unlockedAt: string } =>
+      item.unlocked && Boolean(item.unlockedAt),
+  );
 }

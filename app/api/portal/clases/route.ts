@@ -21,7 +21,7 @@ const occurrenceInclude = (studentId: string) => ({
   strengthBlock: { include: { exercises: { orderBy: { order: "asc" as const } } } },
   workoutLogs: {
     where: { studentId },
-    include: { exercises: { orderBy: { order: "asc" as const }, include: { sets: { orderBy: { setNumber: "asc" as const } } } } },
+    include: { exercises: { orderBy: { order: "asc" as const }, include: { sets: { orderBy: { setNumber: "asc" as const } }, feedback: true } } },
   },
 });
 
@@ -51,9 +51,15 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
       createdAt: log.createdAt.toISOString(),
       updatedAt: log.updatedAt.toISOString(),
       exercises: log.exercises.map((exercise) => ({
+        id: exercise.id,
         exerciseName: exercise.exerciseNameSnapshot,
         order: exercise.order,
         notes: exercise.notes,
+        feedback: exercise.feedback ? {
+          trainerName: exercise.feedback.trainerName,
+          text: exercise.feedback.text,
+          updatedAt: exercise.feedback.updatedAt.toISOString(),
+        } : null,
         sets: exercise.sets.map((set) => ({
           setNumber: set.setNumber,
           weight: set.weight === null ? null : Number(set.weight),
@@ -101,7 +107,7 @@ export async function GET(request: Request) {
             },
           },
         },
-        exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } } } },
+        exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } }, feedback: true } },
       },
       orderBy: { classDateSnapshot: "desc" },
       take: 20,
@@ -124,9 +130,15 @@ export async function GET(request: Request) {
         createdAt: log.createdAt.toISOString(),
         updatedAt: log.updatedAt.toISOString(),
         exercises: log.exercises.map((exercise) => ({
+          id: exercise.id,
           exerciseName: exercise.exerciseNameSnapshot,
           order: exercise.order,
           notes: exercise.notes,
+          feedback: exercise.feedback ? {
+            trainerName: exercise.feedback.trainerName,
+            text: exercise.feedback.text,
+            updatedAt: exercise.feedback.updatedAt.toISOString(),
+          } : null,
           sets: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight === null ? null : Number(set.weight), repetitions: set.repetitions, effort: set.effort === null ? null : Number(set.effort), unit: set.unit, notes: set.notes })),
         })),
       })),

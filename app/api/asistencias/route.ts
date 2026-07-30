@@ -4,6 +4,7 @@ import { apiAttendanceStatus, attendanceDate, attendanceStatus, classDayForDate,
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 import type { AttendanceRoster, Student } from "@/types/gestion";
 import { notifyNewAchievements } from "@/lib/push-notifications";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -128,6 +129,11 @@ export async function PUT(request: Request) {
       return parsedRecords.length;
     });
     await Promise.all(parsedRecords.filter((record) => record.status === "presente").map((record) => notifyNewAchievements(record.studentId)));
+    await Promise.all(
+      parsedRecords.map((record) =>
+        reconcileStudentPointsAfterMutation(record.studentId),
+      ),
+    );
     return Response.json({ ok: true, saved: result });
   } catch (error) {
     console.error("Error al guardar asistencia", error);

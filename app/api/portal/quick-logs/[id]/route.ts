@@ -4,6 +4,7 @@ import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { QUICK_LOG_TYPES, quickLogJson, quickLogRelations } from "@/lib/quick-logs";
 import { normalizeExerciseName } from "@/lib/exercise-name";
 import { recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/portal
       include: quickLogRelations,
     });
   });
+  await reconcileStudentPointsAfterMutation(session.studentId);
   return Response.json({ log: quickLogJson(updated), message: "Registro actualizado correctamente." });
 }
 
@@ -75,5 +77,6 @@ export async function DELETE(request: Request, context: RouteContext<"/api/porta
     await recalculateQuickLogAchievements(transaction, session.studentId);
   });
   await Promise.all(existing.photos.map((photo) => del(photo.blobUrl).catch((error) => console.error("No se pudo retirar una foto del registro", error))));
+  await reconcileStudentPointsAfterMutation(session.studentId);
   return Response.json({ message: "Registro eliminado correctamente." });
 }

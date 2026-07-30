@@ -7,6 +7,7 @@ import { detectedImageType, MAX_QUICK_LOG_PHOTO_BYTES, QUICK_LOG_TYPES, quickLog
 import { normalizeExerciseName } from "@/lib/exercise-name";
 import { loadQuickLogAchievements, recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
 import { notifyNewAchievements } from "@/lib/push-notifications";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,5 +193,6 @@ export async function POST(request: Request) {
     }
     await notifyNewAchievements(session.studentId);
   }
+  await reconcileStudentPointsAfterMutation(session.studentId);
   return Response.json({ log: quickLogJson(saved), message: "Registro guardado correctamente." }, { status: 201 });
 }

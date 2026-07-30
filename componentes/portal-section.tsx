@@ -62,11 +62,85 @@ function PortalOverview({ data }: { data: PortalData }) {
     <section className="flex items-center justify-between gap-4 rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.24)]"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-2 text-sm leading-relaxed text-zinc-200">{dailyFocusForDate(todayKey)}</p></div><span aria-hidden="true" className="shrink-0 text-2xl text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,.35)]">ϟ</span></section>
     {groupClassesEnabled ? <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div> : <div className="max-w-md"><QuotaSummaryCard data={data} /></div>}
     <ProgressSummary data={data} />
+    <PointsSummary data={data} />
     <span id="logros" className="scroll-mt-24" />
     <AchievementsSpotlight data={data} />
     <AchievementsOverview data={data} />
     <QuickNoteButton />
   </div>;
+}
+
+function PointsSummary({ data }: { data: PortalData }) {
+  const points = data.home.points;
+  const progress =
+    points.nextTarget > 0
+      ? Math.min(100, (points.total / points.nextTarget) * 100)
+      : 0;
+  return (
+    <section
+      id="puntos"
+      className="scroll-mt-24 rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_92%_10%,rgba(250,204,21,.1),transparent_32%),linear-gradient(145deg,#181818,#090909)] p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">
+            Tus puntos
+          </p>
+          <p className="mt-2 text-3xl font-black text-white">
+            {points.total.toLocaleString("es-AR")}
+          </p>
+        </div>
+        <span
+          aria-hidden="true"
+          className="grid h-10 w-10 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.07] font-black text-yellow-300"
+        >
+          +
+        </span>
+      </div>
+      {points.latest ? (
+        <p className="mt-3 text-sm text-zinc-300">
+          <strong className="text-emerald-300">
+            +{points.latest.points}
+          </strong>{" "}
+          · {points.latest.description}
+        </p>
+      ) : (
+        <p className="mt-3 text-sm text-zinc-500">
+          Tus próximos avances aparecerán acá.
+        </p>
+      )}
+      <div className="mt-4 flex justify-between gap-3 text-xs text-zinc-500">
+        <span>Próximo objetivo: {points.nextTarget} pts</span>
+        <span>{points.pointsToNextTarget} pts restantes</span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      {points.recent.length > 1 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-bold text-yellow-300">
+            Ver últimos movimientos
+          </summary>
+          <div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">
+            {points.recent.slice(0, 5).map((item) => (
+              <div
+                key={item.id}
+                className="flex items-start justify-between gap-3 text-xs"
+              >
+                <span className="text-zinc-400">{item.description}</span>
+                <strong className="shrink-0 text-emerald-300">
+                  +{item.points}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  );
 }
 
 function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {

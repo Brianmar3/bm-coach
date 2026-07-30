@@ -2,6 +2,7 @@ import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvalu
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { notifyNewAchievements } from "@/lib/push-notifications";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/evaluaci
       include: { student: true },
     });
     await notifyNewAchievements(record.studentId);
+    await reconcileStudentPointsAfterMutation(record.studentId);
     return Response.json(serializeEvaluation(record));
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });
@@ -63,6 +65,7 @@ export async function DELETE(request: Request, context: RouteContext<"/api/evalu
     const evaluation = await prisma.physicalEvaluation.findFirst({ where: { id, studentId }, select: { id: true } });
     if (!evaluation) return Response.json({ error: "La evaluación no existe o no pertenece al alumno indicado." }, { status: 404 });
     await prisma.physicalEvaluation.delete({ where: { id: evaluation.id } });
+    await reconcileStudentPointsAfterMutation(studentId);
     return new Response(null, { status: 204 });
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });

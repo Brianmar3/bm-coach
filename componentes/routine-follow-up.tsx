@@ -176,7 +176,7 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
     </section>
     {selectedStudent && <StudentFollowUpDetail student={selectedStudent} sessions={data.sessions.filter((session) => session.studentId === selectedStudent.studentId)} tab={detailTab} setTab={setDetailTab} close={() => setSelectedStudent(null)} openSession={(session) => setSelected(session)} />}
     {selected && <SessionDetail session={selected} close={() => setSelected(null)} reply={reply} setReply={setReply} privateNote={privateNote} setPrivateNote={setPrivateNote} reviewed={reviewed} setReviewed={setReviewed} saving={saving} deleting={deleting} submit={sendFeedback} deleteSession={deleteSession} deleteAll={deleteAllForRoutine} />}
-    {editingClass && <ClassStrengthLogEditor title={`${editingClass.studentName} · ${editingClass.className}`} initialValue={{ id: editingClass.id, notes: editingClass.notes, exercises: editingClass.exercises.map((exercise) => ({ exerciseName: exercise.name, order: exercise.order, notes: exercise.notes, sets: exercise.sets })) }} close={() => setEditingClass(null)} save={saveClassSession} />}
+    {editingClass && <ClassStrengthLogEditor title={`${editingClass.studentName} · ${editingClass.className}`} initialValue={{ id: editingClass.id, notes: editingClass.notes, exercises: editingClass.exercises.map((exercise) => ({ id: exercise.id, exerciseName: exercise.name, order: exercise.order, notes: exercise.notes, sets: exercise.sets })) }} close={() => setEditingClass(null)} save={saveClassSession} />}
   </section>;
 }
 

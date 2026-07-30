@@ -1,5 +1,6 @@
 import type { CoachEvent, Payment, PhysicalEvaluation, PortalPaymentAccount, StudentServiceType, TrainingRoutine } from "@/types/gestion";
 import type { PortalAchievement } from "@/lib/portal-achievements";
+import type { StudentPointSummary } from "@/types/points";
 
 export type PortalProfile = {
   id: string;
@@ -96,5 +97,6 @@ export type PortalData = {
     previousMonthAttendancePercentage: number | null;
     coachPhone: string;
     achievements: PortalAchievement[];
+    points: StudentPointSummary;
   };
 };

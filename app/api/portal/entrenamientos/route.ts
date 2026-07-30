@@ -7,6 +7,7 @@ import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
 import type { Student } from "@/types/gestion";
 import { notifyNewAchievements } from "@/lib/push-notifications";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -206,6 +207,7 @@ export async function POST(request: Request) {
       ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.id)
       : [];
     if (input.status === "finalizado") await notifyNewAchievements(session.studentId);
+    await reconcileStudentPointsAfterMutation(session.studentId);
     return Response.json({ id: saved.id, status: input.status, achievements });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") return Response.json({ error: "El entrenamiento ya no existe o no te pertenece." }, { status: 404 });

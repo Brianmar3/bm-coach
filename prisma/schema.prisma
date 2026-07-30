@@ -31,6 +31,8 @@ model StudentRecord {
   quickLogs                QuickLog[]
   quickLogAchievements     QuickLogAchievement[]
   quickLogFeedbacks        QuickLogFeedback[]
+  classExerciseFeedbacks   ClassExerciseLogFeedback[]
+  pointTransactions        StudentPointTransaction[]
   trainerNotifications     TrainerNotification[]
   notifications            StudentNotification[]
 
@@ -199,6 +201,7 @@ enum StudentNotificationType {
   NEWS
   REMINDER
   ACHIEVEMENT
+  POINTS
 }
 
 model StudentNotification {
@@ -218,6 +221,7 @@ model StudentNotification {
 
 enum TrainerNotificationType {
   CLASS_RESPONSE
+  POINTS
 }
 
 model TrainerPushSubscription {
@@ -248,7 +252,7 @@ model TrainerNotification {
   url             String
   studentId       String?
   occurrenceId    String?
-  response        ClassResponseStatus
+  response        ClassResponseStatus?
   readAt          DateTime?
   pushAttemptedAt DateTime?
   pushDeliveredAt DateTime?
@@ -261,6 +265,46 @@ model TrainerNotification {
   @@index([studentId, createdAt(sort: Desc)])
   @@index([occurrenceId, createdAt(sort: Desc)])
   @@map("trainer_notifications")
+}
+
+enum StudentPointEventType {
+  ATTENDANCE
+  RECORD
+  PERSONAL_RECORD
+  ACHIEVEMENT
+  MILESTONE
+}
+
+enum StudentPointSourceType {
+  CLASS_OCCURRENCE_ATTENDANCE
+  LEGACY_ATTENDANCE
+  QUICK_LOG
+  CLASS_WORKOUT_LOG
+  WORKOUT_SESSION
+  ACHIEVEMENT
+}
+
+model StudentPointTransaction {
+  id            String                 @id @default(cuid())
+  studentId     String
+  eventKey      String
+  eventType     StudentPointEventType
+  sourceType    StudentPointSourceType
+  sourceId      String?
+  points        Int
+  description   String
+  occurredAt    DateTime
+  active        Boolean                @default(true)
+  invalidatedAt DateTime?
+  notifiedAt    DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  student       StudentRecord          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, eventKey])
+  @@index([studentId, active, occurredAt(sort: Desc)])
+  @@index([active, occurredAt(sort: Desc)])
+  @@map("student_point_transactions")
 }
 
 model StudentPortalCredential {
@@ -749,6 +793,12 @@ enum ClassWorkoutLogStatus {
   COMPLETED
 }
 
+enum ClassWorkoutLogAuthor {
+  UNKNOWN
+  STUDENT
+  TRAINER
+}
+
 model ClassOccurrence {
   id                   String                      @id @default(cuid())
   scheduleId           String?
@@ -832,6 +882,8 @@ model ClassWorkoutLog {
   completedAt       DateTime?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
+  createdBy         ClassWorkoutLogAuthor @default(UNKNOWN)
+  lastEditedBy      ClassWorkoutLogAuthor @default(UNKNOWN)
   occurrence        ClassOccurrence       @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
   student           StudentRecord         @relation(fields: [studentId], references: [id], onDelete: Restrict)
   exercises         ClassExerciseLog[]
@@ -842,16 +894,33 @@ model ClassWorkoutLog {
 }
 
 model ClassExerciseLog {
-  id                   String          @id @default(cuid())
+  id                   String                    @id @default(cuid())
   classWorkoutLogId    String
   exerciseNameSnapshot String
   order                Int
-  notes                String          @default("")
-  workoutLog           ClassWorkoutLog @relation(fields: [classWorkoutLogId], references: [id], onDelete: Cascade)
+  notes                String                    @default("")
+  workoutLog           ClassWorkoutLog           @relation(fields: [classWorkoutLogId], references: [id], onDelete: Cascade)
   sets                 ClassSetLog[]
+  feedback             ClassExerciseLogFeedback?
 
   @@unique([classWorkoutLogId, order])
   @@map("class_exercise_logs")
+}
+
+model ClassExerciseLogFeedback {
+  id                 String           @id @default(cuid())
+  classExerciseLogId String           @unique
+  studentId          String
+  trainerName        String
+  preset             String           @default("")
+  text               String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  classExerciseLog   ClassExerciseLog @relation(fields: [classExerciseLogId], references: [id], onDelete: Cascade)
+  student            StudentRecord    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, createdAt(sort: Desc)])
+  @@map("class_exercise_log_feedback")
 }
 
 model ClassSetLog {

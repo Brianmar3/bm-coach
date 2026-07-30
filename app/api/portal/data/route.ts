@@ -16,6 +16,7 @@ import { BM_TRAINING_START_DATE } from "@/lib/bm-training";
 import { hasGroupClasses } from "@/lib/student-service";
 import { activePortalRoutineWhere } from "@/lib/portal-service-access";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
+import { loadStudentPointSummary } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     strengthAchievements,
     quickLogAchievements,
     activeRoutineCount,
+    points,
   ] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: weekStart } } }),
@@ -54,6 +56,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     loadStrengthAchievements(studentId, activityStart),
     loadQuickLogAchievements(studentId),
     prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId) }),
+    loadStudentPointSummary(studentId),
   ]);
   const newDates = newAttendanceDates.map((item) => item.occurrence.date.toISOString().slice(0, 10));
   const firstNewDate = newDates[0] ?? "";
@@ -94,6 +97,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
       hasRoutine: activeRoutineCount > 0 || completedWorkoutDates.length > 0,
       hasClassParticipation,
     }), ...strengthAchievements, ...quickLogAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
+    points,
   };
 }
 
@@ -115,7 +119,7 @@ export async function GET(request: Request) {
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled)
-      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [] });
+      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [], points: { total: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
@@ -213,6 +217,7 @@ export async function GET(request: Request) {
         previousMonthAttendancePercentage: homeInsights.previousMonthAttendancePercentage,
         coachPhone: settings?.phone ?? "",
         achievements: homeInsights.achievements,
+        points: homeInsights.points,
       },
     };
     if (section === "inicio") data.weeklyWorkouts = homeInsights.weeklyWorkoutCount;

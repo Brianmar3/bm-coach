@@ -12,10 +12,16 @@ export type ClassStrengthSet = {
 };
 
 export type ClassStrengthExerciseLog = {
+  id?: string;
   exerciseName: string;
   order: number;
   notes: string;
   sets: ClassStrengthSet[];
+  feedback?: {
+    trainerName: string;
+    text: string;
+    updatedAt: string;
+  } | null;
 };
 
 export type PortalClassOccurrence = {

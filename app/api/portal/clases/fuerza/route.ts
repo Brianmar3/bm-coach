@@ -6,11 +6,12 @@ import { bmTrainingActivityStart } from "@/lib/bm-training";
 import type { Student } from "@/types/gestion";
 import { notifyNewAchievements } from "@/lib/push-notifications";
 import { hasGroupClasses } from "@/lib/student-service";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 
 type SetInput = { setNumber?: unknown; weight?: unknown; repetitions?: unknown; effort?: unknown; notes?: unknown };
-type ExerciseInput = { blockExerciseId?: unknown; exerciseName?: unknown; order?: unknown; notes?: unknown; sets?: unknown };
+type ExerciseInput = { id?: unknown; blockExerciseId?: unknown; exerciseName?: unknown; order?: unknown; notes?: unknown; sets?: unknown };
 
 function finiteNumber(value: unknown) {
   if (value === null || value === "") return null;
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
       const order = blockExercise?.order ?? Number(exercise.order ?? index + 1);
       if (!exerciseName || exerciseName.length > 120 || !Number.isInteger(order) || order < 1 || !Array.isArray(exercise.sets) || exercise.sets.length > 20) throw new Error("INVALID");
       return {
+        id: typeof exercise.id === "string" ? exercise.id : null,
         exerciseNameSnapshot: exerciseName,
         order,
         notes: typeof exercise.notes === "string" ? exercise.notes.trim().slice(0, 1000) : "",
@@ -68,13 +70,57 @@ export async function POST(request: Request) {
         status: input.status === "COMPLETED" ? "COMPLETED" as const : "DRAFT" as const,
         notes: typeof input.notes === "string" ? input.notes.trim().slice(0, 2000) : "",
         completedAt: input.status === "COMPLETED" ? new Date() : null,
+        lastEditedBy: "STUDENT" as const,
       };
       const log = existing
         ? await transaction.classWorkoutLog.update({ where: { id: existing.id }, data })
-        : await transaction.classWorkoutLog.create({ data: { ...data, occurrenceId: occurrence.id, studentId: session.studentId } });
-      await transaction.classExerciseLog.deleteMany({ where: { classWorkoutLogId: log.id } });
-      for (const exercise of exercises) {
-        await transaction.classExerciseLog.create({ data: { ...exercise, classWorkoutLogId: log.id, sets: { create: exercise.sets } } });
+        : await transaction.classWorkoutLog.create({ data: { ...data, createdBy: "STUDENT", occurrenceId: occurrence.id, studentId: session.studentId } });
+      const storedExercises = await transaction.classExerciseLog.findMany({
+        where: { classWorkoutLogId: log.id },
+        select: { id: true, order: true },
+      });
+      const storedIds = new Set(storedExercises.map((exercise) => exercise.id));
+      const storedByOrder = new Map(
+        storedExercises.map((exercise) => [exercise.order, exercise.id]),
+      );
+      const resolved = exercises.map((exercise) => {
+        const requestedId = exercise.id;
+        if (requestedId && !storedIds.has(requestedId)) {
+          throw new Error("FORBIDDEN");
+        }
+        return {
+          ...exercise,
+          id: requestedId ?? storedByOrder.get(exercise.order) ?? null,
+        };
+      });
+      const retainedIds = resolved.flatMap((exercise) =>
+        exercise.id ? [exercise.id] : [],
+      );
+      await transaction.classExerciseLog.deleteMany({
+        where: {
+          classWorkoutLogId: log.id,
+          ...(retainedIds.length ? { id: { notIn: retainedIds } } : {}),
+        },
+      });
+      for (const exercise of resolved) {
+        const { id, sets, ...exerciseData } = exercise;
+        if (id) {
+          await transaction.classSetLog.deleteMany({
+            where: { classExerciseLogId: id },
+          });
+          await transaction.classExerciseLog.update({
+            where: { id },
+            data: { ...exerciseData, sets: { create: sets } },
+          });
+        } else {
+          await transaction.classExerciseLog.create({
+            data: {
+              ...exerciseData,
+              classWorkoutLogId: log.id,
+              sets: { create: sets },
+            },
+          });
+        }
       }
       return { log, updated: Boolean(existing) };
     });
@@ -83,6 +129,7 @@ export async function POST(request: Request) {
       ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.log.id)
       : [];
     if (saved.log.status === "COMPLETED") await notifyNewAchievements(session.studentId);
+    await reconcileStudentPointsAfterMutation(session.studentId);
     return Response.json({ id: saved.log.id, status: saved.log.status, achievements, message: saved.updated ? "Bloque de fuerza actualizado correctamente." : saved.log.status === "COMPLETED" ? "Registro de fuerza finalizado." : "Borrador guardado." });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID") return Response.json({ error: "Revisá los ejercicios, series, pesos, repeticiones y RIR." }, { status: 400 });
@@ -104,6 +151,7 @@ export async function DELETE(request: Request) {
     if (!log) return Response.json({ error: "No se encontró el bloque." }, { status: 404 });
     if (log.studentId !== session.studentId) return Response.json({ error: "No tenés permiso para modificar este registro." }, { status: 403 });
     await prisma.$transaction((transaction) => transaction.classWorkoutLog.delete({ where: { id: log.id } }));
+    await reconcileStudentPointsAfterMutation(session.studentId);
     return Response.json({ message: "Bloque eliminado correctamente." });
   } catch (error) {
     console.error("No se pudo eliminar el bloque de fuerza", error);

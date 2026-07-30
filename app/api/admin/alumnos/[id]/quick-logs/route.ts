@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { quickLogJson, quickLogRelations } from "@/lib/quick-logs";
 import { loadQuickLogAchievements, recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 async function authorize() {
   const auth = verifyAdminSessionValue((await cookies()).get(ADMIN_SESSION_COOKIE)?.value);
@@ -27,6 +28,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
   const existing = input.logId ? await prisma.quickLog.findFirst({ where: { id: input.logId, studentId: id } }) : null;
   if (!existing) return Response.json({ error: "No se encontró el registro." }, { status: 404 });
   await prisma.quickLog.update({ where: { id: existing.id }, data: { title: input.title?.trim().slice(0, 120) ?? existing.title, content: input.content?.trim().slice(0, 5000) ?? existing.content, category: input.category?.trim().slice(0, 60) ?? existing.category, painDetails: input.painDetails?.trim().slice(0, 1000) ?? existing.painDetails } });
+  await reconcileStudentPointsAfterMutation(id);
   return Response.json({ message: "Registro actualizado correctamente." });
 }
 
@@ -42,5 +44,6 @@ export async function DELETE(request: Request, context: RouteContext<"/api/admin
     await recalculateQuickLogAchievements(transaction, id);
   });
   await Promise.all(existing.photos.map((photo) => del(photo.blobUrl).catch((error) => console.error("No se pudo retirar una foto del registro", error))));
+  await reconcileStudentPointsAfterMutation(id);
   return Response.json({ message: "Registro eliminado correctamente." });
 }

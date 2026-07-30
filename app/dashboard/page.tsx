@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { DashboardData } from "@/types/dashboard";
 import type { CoachSettings, PaymentAccountStatus } from "@/types/gestion";
 import { DashboardFloatingActions } from "@/componentes/dashboard-floating-actions";
+import { PointsRanking } from "@/componentes/points-ranking";
 import { useBrowserStore } from "@/lib/browser-store";
 
 const quickActions = [
@@ -114,6 +115,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
     </section>
 
     <PaymentSummary metrics={metrics} />
+    <PointsRanking />
 
     <section className="mt-5 grid gap-5 xl:grid-cols-[1.45fr_1fr_1fr]">
       <IncomeChart data={data.income} total={metrics.monthIncome} />

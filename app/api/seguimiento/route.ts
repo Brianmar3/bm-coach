@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
 import type { Student } from "@/types/gestion";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -165,6 +166,7 @@ export async function GET(request: Request) {
         createdAt: session.createdAt.toISOString(),
         updatedAt: session.updatedAt.toISOString(),
         exercises: session.exercises.map((exercise) => ({
+          id: exercise.id,
           name: exercise.exerciseNameSnapshot,
           order: exercise.order,
           notes: exercise.notes,
@@ -218,7 +220,7 @@ export async function PATCH(request: Request) {
       classWorkoutLogId?: unknown;
       status?: unknown;
       notes?: unknown;
-      exercises?: Array<{ exerciseName?: unknown; order?: unknown; notes?: unknown; sets?: Array<{ setNumber?: unknown; weight?: unknown; repetitions?: unknown; effort?: unknown; notes?: unknown }> }>;
+      exercises?: Array<{ id?: unknown; exerciseName?: unknown; order?: unknown; notes?: unknown; sets?: Array<{ setNumber?: unknown; weight?: unknown; repetitions?: unknown; effort?: unknown; notes?: unknown }> }>;
     };
     if (typeof input.classWorkoutLogId !== "string" || !["DRAFT", "COMPLETED"].includes(String(input.status)) || !Array.isArray(input.exercises) || input.exercises.length > 30) {
       return Response.json({ error: "El bloque seleccionado no es válido." }, { status: 400 });
@@ -228,6 +230,7 @@ export async function PATCH(request: Request) {
       const order = Number(exercise.order ?? index + 1);
       if (!exerciseName || exerciseName.length > 120 || !Number.isInteger(order) || order < 1 || !Array.isArray(exercise.sets) || exercise.sets.length > 20) throw new Error("INVALID_CLASS_LOG");
       return {
+        id: typeof exercise.id === "string" ? exercise.id : null,
         exerciseNameSnapshot: exerciseName,
         order,
         notes: typeof exercise.notes === "string" ? exercise.notes.trim().slice(0, 1000) : "",
@@ -241,16 +244,66 @@ export async function PATCH(request: Request) {
         }),
       };
     });
-    const existing = await prisma.classWorkoutLog.findUnique({ where: { id: input.classWorkoutLogId }, select: { id: true } });
+    const existing = await prisma.classWorkoutLog.findUnique({
+      where: { id: input.classWorkoutLogId },
+      select: {
+        id: true,
+        studentId: true,
+        exercises: { select: { id: true, order: true } },
+      },
+    });
     if (!existing) return Response.json({ error: "No se encontró el bloque." }, { status: 404 });
     await prisma.$transaction(async (transaction) => {
       await transaction.classWorkoutLog.update({
         where: { id: existing.id },
-        data: { status: input.status === "COMPLETED" ? "COMPLETED" : "DRAFT", notes: typeof input.notes === "string" ? input.notes.trim().slice(0, 2000) : "", completedAt: input.status === "COMPLETED" ? new Date() : null },
+        data: { status: input.status === "COMPLETED" ? "COMPLETED" : "DRAFT", notes: typeof input.notes === "string" ? input.notes.trim().slice(0, 2000) : "", completedAt: input.status === "COMPLETED" ? new Date() : null, lastEditedBy: "TRAINER" },
       });
-      await transaction.classExerciseLog.deleteMany({ where: { classWorkoutLogId: existing.id } });
-      for (const exercise of exercises) await transaction.classExerciseLog.create({ data: { ...exercise, classWorkoutLogId: existing.id, sets: { create: exercise.sets } } });
+      const storedIds = new Set(
+        existing.exercises.map((exercise) => exercise.id),
+      );
+      const storedByOrder = new Map(
+        existing.exercises.map((exercise) => [exercise.order, exercise.id]),
+      );
+      const resolved = exercises.map((exercise) => {
+        if (exercise.id && !storedIds.has(exercise.id)) {
+          throw new Error("INVALID_CLASS_LOG");
+        }
+        return {
+          ...exercise,
+          id: exercise.id ?? storedByOrder.get(exercise.order) ?? null,
+        };
+      });
+      const retainedIds = resolved.flatMap((exercise) =>
+        exercise.id ? [exercise.id] : [],
+      );
+      await transaction.classExerciseLog.deleteMany({
+        where: {
+          classWorkoutLogId: existing.id,
+          ...(retainedIds.length ? { id: { notIn: retainedIds } } : {}),
+        },
+      });
+      for (const exercise of resolved) {
+        const { id, sets, ...exerciseData } = exercise;
+        if (id) {
+          await transaction.classSetLog.deleteMany({
+            where: { classExerciseLogId: id },
+          });
+          await transaction.classExerciseLog.update({
+            where: { id },
+            data: { ...exerciseData, sets: { create: sets } },
+          });
+        } else {
+          await transaction.classExerciseLog.create({
+            data: {
+              ...exerciseData,
+              classWorkoutLogId: existing.id,
+              sets: { create: sets },
+            },
+          });
+        }
+      }
     });
+    await reconcileStudentPointsAfterMutation(existing.studentId);
     return Response.json({ message: "Bloque de fuerza actualizado correctamente." });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID_CLASS_LOG") return Response.json({ error: "Revisá ejercicios, series, pesos, repeticiones y RIR." }, { status: 400 });
@@ -264,9 +317,10 @@ export async function DELETE(request: Request) {
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json().catch(() => null) as { sessionId?: string; classWorkoutLogId?: string; studentId?: string; routineId?: string; deleteAll?: boolean } | null;
     if (input?.classWorkoutLogId?.trim()) {
-      const existing = await prisma.classWorkoutLog.findUnique({ where: { id: input.classWorkoutLogId }, select: { id: true } });
+      const existing = await prisma.classWorkoutLog.findUnique({ where: { id: input.classWorkoutLogId }, select: { id: true, studentId: true } });
       if (!existing) return Response.json({ error: "No se encontró el bloque." }, { status: 404 });
       await prisma.$transaction((transaction) => transaction.classWorkoutLog.delete({ where: { id: existing.id } }));
+      await reconcileStudentPointsAfterMutation(existing.studentId);
       return Response.json({ message: "Bloque eliminado correctamente.", deleted: 1 });
     }
     if (input?.deleteAll) {
@@ -278,11 +332,19 @@ export async function DELETE(request: Request) {
         const deleted = await transaction.workoutSession.deleteMany({ where });
         return deleted.count;
       });
+      await reconcileStudentPointsAfterMutation(input.studentId);
       return Response.json({ message: `${result} registros de entrenamiento eliminados definitivamente.`, deleted: result });
     }
     if (!input?.sessionId?.trim()) return Response.json({ error: "El registro seleccionado no es válido." }, { status: 400 });
+    const existingSession = await prisma.workoutSession.findUnique({
+      where: { id: input.sessionId },
+      select: { studentId: true },
+    });
     const deleted = await prisma.workoutSession.deleteMany({ where: { id: input.sessionId } });
     if (!deleted.count) return Response.json({ error: "Registro de entrenamiento no encontrado." }, { status: 404 });
+    if (existingSession) {
+      await reconcileStudentPointsAfterMutation(existingSession.studentId);
+    }
     return Response.json({ message: "Registro de entrenamiento eliminado correctamente.", deleted: 1 });
   } catch (error) {
     console.error("Error al eliminar seguimiento", error);
