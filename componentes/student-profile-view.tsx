@@ -202,40 +202,16 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
       </section>
 
       <Link
-        href="/portal/registro"
+        href="/portal/configuracion"
         className="mt-4 flex min-h-14 items-center justify-between rounded-2xl border border-yellow-400/15 bg-gradient-to-r from-zinc-900 to-[#0d0d0d] px-4 py-3 shadow-[0_10px_28px_rgba(0,0,0,.2)] transition hover:border-yellow-400/30 focus:outline-none focus:ring-2 focus:ring-yellow-300"
       >
         <span>
-          <strong className="block text-yellow-300">Mis registros</strong>
+          <strong className="block text-yellow-300">Configuración</strong>
           <span className="mt-0.5 block text-xs text-zinc-500">
-            Consultá las notas y archivos que guardaste.
-          </span>
-        </span>
-        <span className="ml-3 text-yellow-400">›</span>
-      </Link>
-      <Link
-        href="/portal/pagos"
-        className="mt-3 flex min-h-12 items-center justify-between rounded-xl border border-yellow-400/20 bg-yellow-400/5 px-4 py-3"
-      >
-        <span>
-          <strong className="block text-yellow-300">Mi cuota</strong>
-          <span className="text-xs text-zinc-500">
-            Estado e historial de pagos
-          </span>
-        </span>
-        <span>›</span>
-      </Link>
-      <Link
-        href="/portal/configuracion"
-        className="mt-3 flex min-h-12 items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3"
-      >
-        <span>
-          <strong className="block">Configuración</strong>
-          <span className="text-xs text-zinc-500">
             Cuenta, seguridad y notificaciones
           </span>
         </span>
-        <span className="text-yellow-400">›</span>
+        <span aria-hidden="true" className="ml-3 text-yellow-400">›</span>
       </Link>
 
       {avatarPickerOpen && (

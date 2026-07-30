@@ -336,12 +336,6 @@ function PaymentsView({ data }: { data: PortalData }) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function ProfileView({ data }: { data: PortalData }) {
-  const profile = data.profile;
-  return <PageHeader title="Mi perfil" subtitle="Datos personales básicos"><Link href="/portal/pagos" className="mb-4 flex min-h-12 items-center justify-between rounded-xl border border-yellow-400/25 bg-yellow-400/5 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-400"><span><span className="block font-bold text-yellow-300">Mi cuota</span><span className="mt-0.5 block text-xs text-zinc-500">Estado e historial de pagos</span></span><span aria-hidden="true" className="text-yellow-400">›</span></Link><section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><dl className="grid gap-4 sm:grid-cols-2"><ProfileItem title="Nombre" value={`${profile.firstName} ${profile.lastName}`} /><ProfileItem title="Teléfono" value={profile.phone} /><ProfileItem title="Correo" value={profile.email || "Sin correo"} /><ProfileItem title="Fecha de nacimiento" value={date(profile.birthDate)} /><ProfileItem title="Objetivo" value={profile.goal || "No definido"} /><ProfileItem title="Plan" value={profile.plan} /><ProfileItem title="Fecha de ingreso" value={date(profile.joinedAt)} /><ProfileItem title="Estado" value={profile.status} /></dl><p className="mt-5 text-xs text-zinc-500">Para modificar estos datos, contactá a tu entrenador.</p></section><ChangePasswordCard /></PageHeader>;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function PortalSchedules({ data }: { data: PortalData }) {
   const { scheduleLabels, flexibleSchedule } = data.profile;
   if (!scheduleLabels.length && !flexibleSchedule) return null;
@@ -587,6 +581,5 @@ function PortalLogoutCard() {
 
 function PageHeader({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <><header className="mb-6"><h1 className="text-2xl font-bold">{title}</h1><p className="mt-1 text-sm text-zinc-500">{subtitle}</p></header>{children}</>; }
 function SmallMetric({ title, value }: { title: string; value: string }) { return <div className="rounded-lg bg-zinc-950 p-2"><p className="text-[10px] text-zinc-500">{title}</p><p className="mt-1 font-semibold">{value}</p></div>; }
-function ProfileItem({ title, value }: { title: string; value: string }) { return <div><dt className="text-xs text-zinc-500">{title}</dt><dd className="mt-1 capitalize">{value}</dd></div>; }
 function Notice({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "error" }) { return <section className={`rounded-2xl border p-5 text-sm ${tone === "error" ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-zinc-800 bg-zinc-900 text-zinc-400"}`}>{children}</section>; }
 function PortalLoading() { return <div className="animate-pulse space-y-4"><div className="h-8 w-48 rounded bg-zinc-800" /><div className="h-4 w-72 rounded bg-zinc-900" /><div className="grid gap-4 sm:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-32 rounded-2xl bg-zinc-900" />)}</div><div className="h-64 rounded-2xl bg-zinc-900" /></div>; }
