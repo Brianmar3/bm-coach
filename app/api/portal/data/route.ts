@@ -17,6 +17,7 @@ import { hasGroupClasses } from "@/lib/student-service";
 import { activePortalRoutineWhere } from "@/lib/portal-service-access";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 import { loadStudentPointSummary } from "@/lib/student-points";
+import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     firstStrengthLog,
     strengthAchievements,
     quickLogAchievements,
+    unifiedRecordAchievements,
     activeRoutineCount,
     points,
   ] = await Promise.all([
@@ -55,6 +57,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
     loadStrengthAchievements(studentId, activityStart),
     loadQuickLogAchievements(studentId),
+    loadUnifiedRecordAchievements(studentId, activityStart),
     prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId) }),
     loadStudentPointSummary(studentId),
   ]);
@@ -96,7 +99,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
       active: studentStatus !== "inactivo",
       hasRoutine: activeRoutineCount > 0 || completedWorkoutDates.length > 0,
       hasClassParticipation,
-    }), ...strengthAchievements, ...quickLogAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
+    }), ...strengthAchievements.filter((item) => !item.id.includes("-weight-") && !item.id.includes("-reps-")), ...quickLogAchievements.filter((item) => item.id.includes(":milestone:")), ...unifiedRecordAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
     points,
   };
 }

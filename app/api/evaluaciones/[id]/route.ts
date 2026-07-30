@@ -1,7 +1,7 @@
 import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvaluation, type EvaluationInput } from "@/lib/evaluaciones";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { notifyNewAchievements } from "@/lib/push-notifications";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
@@ -42,9 +42,14 @@ export async function PUT(request: Request, context: RouteContext<"/api/evaluaci
       data: evaluationData(input),
       include: { student: true },
     });
-    await notifyNewAchievements(record.studentId);
-    await reconcileStudentPointsAfterMutation(record.studentId);
-    return Response.json(serializeEvaluation(record));
+    const claimedAchievements = await notifyNewAchievements(record.studentId);
+    const pointResult = await reconcileStudentPointsAfterMutation(record.studentId);
+    const newAchievements = await achievementCelebrationPayload(record.studentId, claimedAchievements);
+    return Response.json({
+      ...serializeEvaluation(record),
+      newAchievements,
+      pointsAwarded: pointResult?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
+    });
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });
     console.error("Error al actualizar evaluación física", error);

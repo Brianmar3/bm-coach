@@ -1,4 +1,4 @@
-self.__BM_TRAINING_SW_VERSION__ = "push-v5-trainer-attendance";
+self.__BM_TRAINING_SW_VERSION__ = "push-v6-immediate-achievements";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -18,7 +18,7 @@ self.addEventListener("push", (event) => {
   try {
     data = { ...data, ...event.data.json() };
   } catch {}
-  event.waitUntil(
+  event.waitUntil(Promise.all([
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: "/icons/bm-training-pwa-192-v4.png",
@@ -27,7 +27,12 @@ self.addEventListener("push", (event) => {
       vibrate: [120, 60, 120],
       data: { url: data.url },
     }),
-  );
+    data.event === "achievement"
+      ? self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+          windows.forEach((client) => client.postMessage({ type: "BM_ACHIEVEMENT_AVAILABLE" }));
+        })
+      : Promise.resolve(),
+  ]));
 });
 
 self.addEventListener("notificationclick", (event) => {

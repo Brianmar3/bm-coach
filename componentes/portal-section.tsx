@@ -12,6 +12,7 @@ import { StudentProfileView } from "@/componentes/student-profile-view";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
 import { hasGroupClasses } from "@/lib/student-service";
+import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -31,6 +32,11 @@ const billingPeriod = (value: string) => value
 export function PortalSection({ section }: { section: Section }) {
   const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false); const [reload, setReload] = useState(0);
   useEffect(() => { const controller = new AbortController(); fetch(`/api/portal/data?section=${section}`, { cache: "no-store", signal: controller.signal }).then(async (response) => { const body = await response.json() as PortalData & { error?: string; code?: string }; if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); } if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; } if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información."); return body; }).then((body) => { if (body) setData(body); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [reload, section]);
+  useEffect(() => {
+    const refresh = () => setReload((value) => value + 1);
+    window.addEventListener("bm:portal-data-refresh", refresh);
+    return () => window.removeEventListener("bm:portal-data-refresh", refresh);
+  }, []);
   if (loading) return <PortalLoading />;
   if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); setLoading(true); setReload((value) => value + 1); }} />;
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
@@ -368,7 +374,6 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [painLocation, setPainLocation] = useState("");
   const [painIntensity, setPainIntensity] = useState<number | null>(null);
   const [completionSuccess, setCompletionSuccess] = useState(false);
-  const [newAchievements, setNewAchievements] = useState<PortalAchievement[]>([]);
   const autosaveSignature = useRef("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -467,8 +472,9 @@ function WorkoutView({ data }: { data: PortalData }) {
         : draft.painDetails;
       const payload = { ...draft, durationMinutes: duration, finalComment, painDetails, status: finalize ? "finalizado" as const : "en_progreso" as const };
       const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const body = await response.json() as { id?: string; error?: string; achievements?: PortalAchievement[] };
+      const body = await response.json() as { id?: string; error?: string; achievements?: PortalAchievement[]; newAchievements?: CelebrationAchievement[] };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
+      announceNewAchievements(body.newAchievements);
       const updated = { ...payload, id: body.id };
       if (finalize) {
         window.localStorage.removeItem(`bm-workout-${data.profile.id}-${draft.dayId}`);
@@ -477,9 +483,8 @@ function WorkoutView({ data }: { data: PortalData }) {
         setFinalOpen(false);
         setDraft(null);
         setCompletionSuccess(true);
-        setNewAchievements(body.achievements ?? []);
         setMessage("Tu entrenamiento se guardó con éxito.");
-        window.setTimeout(() => window.location.assign("/portal/rutina#historial-entrenamientos"), body.achievements?.length ? 4200 : 1400);
+        window.setTimeout(() => window.location.assign("/portal/rutina#historial-entrenamientos"), body.newAchievements?.length ? 4200 : 1400);
       } else {
         setDraft(updated);
         setMessage("Progreso guardado.");
@@ -500,7 +505,6 @@ function WorkoutView({ data }: { data: PortalData }) {
     <div className="mb-2 flex gap-2 overflow-x-auto">{trainingDays.map((day) => <button key={day.id} onClick={() => chooseDay(day.id)} className={`shrink-0 rounded-xl px-4 py-3 text-left font-bold ${day.id === selectedDayId ? "bg-yellow-400 text-zinc-950" : "bg-zinc-900 text-zinc-300"}`}>Día {day.dayNumber}<span className="block text-xs font-normal opacity-70">{day.name}</span></button>)}</div>
     <section className="mb-5 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold text-yellow-300">{selectedDay.objective || routine.objective}</p><p className="mt-1 text-xs text-zinc-500">{selectedDay.exercises.length} ejercicios{selectedDay.estimatedMinutes ? ` · ${selectedDay.estimatedMinutes} min estimados` : ""} · {selectedDay.id === suggestedDayId ? "Día sugerido" : "Día elegido manualmente"}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${completedTotal === totalSets && totalSets ? "bg-emerald-400/10 text-emerald-300" : started ? "bg-yellow-400/10 text-yellow-300" : "bg-zinc-800 text-zinc-400"}`}>{completedTotal === totalSets && totalSets ? "Completado" : started ? "En progreso" : "Sin comenzar"}</span></div>{draft && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-yellow-400" style={{ width: `${totalSets ? completedTotal / totalSets * 100 : 0}%` }} /></div>}</section>
     {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento cargado correctamente</div>}
-    {newAchievements.length > 0 && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+5rem)] z-[101] mx-auto max-w-md rounded-2xl border border-yellow-400/40 bg-zinc-950 p-4 shadow-2xl"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Nuevo logro</p><p className="mt-1 font-bold">{newAchievements[0].name}{newAchievements[0].exercise ? ` en ${newAchievements[0].exercise}` : ""}</p><p className="mt-1 text-sm text-zinc-400">{newAchievements[0].previousValue} → {newAchievements[0].newValue}</p>{newAchievements.length > 1 && <p className="mt-2 text-xs text-yellow-300">También desbloqueaste {newAchievements.length - 1} logro{newAchievements.length > 2 ? "s" : ""} más.</p>}</div><button type="button" onClick={() => setNewAchievements([])} className="rounded-lg px-2 py-1 text-sm text-zinc-400">Cerrar</button></div></div>}
     {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-zinc-500">Preparando ejercicios…</p>}
     {draft && <>
       <div className="mt-5 space-y-4">{draft.exercises.map((exercise, exerciseIndex) => {

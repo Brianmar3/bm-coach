@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
 import type { Student } from "@/types/gestion";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -303,8 +304,16 @@ export async function PATCH(request: Request) {
         }
       }
     });
-    await reconcileStudentPointsAfterMutation(existing.studentId);
-    return Response.json({ message: "Bloque de fuerza actualizado correctamente." });
+    const claimedAchievements = input.status === "COMPLETED"
+      ? await notifyNewAchievements(existing.studentId)
+      : [];
+    const pointResult = await reconcileStudentPointsAfterMutation(existing.studentId);
+    const newAchievements = await achievementCelebrationPayload(existing.studentId, claimedAchievements);
+    return Response.json({
+      message: "Bloque de fuerza actualizado correctamente.",
+      newAchievements,
+      pointsAwarded: pointResult?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID_CLASS_LOG") return Response.json({ error: "Revisá ejercicios, series, pesos, repeticiones y RIR." }, { status: 400 });
     console.error("Error al editar bloque de fuerza presencial", error);

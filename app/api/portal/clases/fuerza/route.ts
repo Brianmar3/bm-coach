@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
 import type { Student } from "@/types/gestion";
-import { notifyNewAchievements } from "@/lib/push-notifications";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { hasGroupClasses } from "@/lib/student-service";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
@@ -128,9 +128,19 @@ export async function POST(request: Request) {
     const achievements = saved.log.status === "COMPLETED"
       ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.log.id)
       : [];
-    if (saved.log.status === "COMPLETED") await notifyNewAchievements(session.studentId);
-    await reconcileStudentPointsAfterMutation(session.studentId);
-    return Response.json({ id: saved.log.id, status: saved.log.status, achievements, message: saved.updated ? "Bloque de fuerza actualizado correctamente." : saved.log.status === "COMPLETED" ? "Registro de fuerza finalizado." : "Borrador guardado." });
+    const claimedAchievements = saved.log.status === "COMPLETED"
+      ? await notifyNewAchievements(session.studentId)
+      : [];
+    const pointResult = await reconcileStudentPointsAfterMutation(session.studentId);
+    const newAchievements = await achievementCelebrationPayload(session.studentId, claimedAchievements);
+    return Response.json({
+      id: saved.log.id,
+      status: saved.log.status,
+      achievements,
+      newAchievements,
+      pointsAwarded: pointResult?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
+      message: saved.updated ? "Bloque de fuerza actualizado correctamente." : saved.log.status === "COMPLETED" ? "Registro de fuerza finalizado." : "Borrador guardado.",
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID") return Response.json({ error: "Revisá los ejercicios, series, pesos, repeticiones y RIR." }, { status: 400 });
     if (error instanceof Error && error.message === "FORBIDDEN") return Response.json({ error: "No tenés permiso para modificar este registro." }, { status: 403 });

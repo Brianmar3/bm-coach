@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Link from "next/link";
 import type { QuickLog, QuickLogType } from "@/types/quick-log";
 import { normalizeExerciseName } from "@/lib/exercise-name";
+import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
 
 const labels: Record<QuickLogType, { title: string; icon: string }> = {
   WORKOUT: { title: "Entrenamiento", icon: "✓" },
@@ -139,8 +140,9 @@ function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => v
       if (!requestKey.current) requestKey.current = window.crypto.randomUUID();
       form.set("idempotencyKey", requestKey.current);
       const response = await fetch("/api/portal/quick-logs", { method: "POST", body: form });
-      const body = await response.json() as { error?: string };
+      const body = await response.json() as { error?: string; newAchievements?: CelebrationAchievement[] };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar el registro.");
+      announceNewAchievements(body.newAchievements);
       saved();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo guardar el registro.");
@@ -249,7 +251,7 @@ function QuickLogForm({ type, initial, close, saved }: { type: QuickLogType; ini
     event.preventDefault(); setSaving(true); setError("");
     try {
       const response = initial ? await fetch(`/api/portal/quick-logs/${initial.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, type }) }) : await fetch("/api/portal/quick-logs", { method: "POST", body: (() => { const body = new FormData(); body.set("type", type); if (!requestKey.current) requestKey.current = window.crypto.randomUUID(); body.set("idempotencyKey", requestKey.current); Object.entries(form).forEach(([key, value]) => body.set(key, String(value))); files.forEach((file) => body.append("photos", file)); return body; })() });
-      const body = await response.json() as { error?: string }; if (!response.ok) throw new Error(body.error ?? "No se pudo guardar."); await saved();
+      const body = await response.json() as { error?: string; newAchievements?: CelebrationAchievement[] }; if (!response.ok) throw new Error(body.error ?? "No se pudo guardar."); announceNewAchievements(body.newAchievements); await saved();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo guardar."); } finally { setSaving(false); }
   }
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-2 sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && close()}><form onSubmit={submit} className="mx-auto my-2 w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:my-8 sm:p-5"><div className="flex justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro rápido</p><h2 className="mt-1 text-xl font-bold">{initial ? "Editar" : "Nuevo"} {labels[type].title.toLowerCase()}</h2></div><button type="button" onClick={close} disabled={saving} className="text-sm text-zinc-400">Cerrar</button></div>{error && <p role="alert" className="mt-3 rounded-lg bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}<div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label="Título opcional"><input value={form.title} onChange={(event) => set("title", event.target.value)} maxLength={120} className="input" /></Field><Field label="Fecha"><input required type="date" value={form.date} onChange={(event) => set("date", event.target.value)} className="input" /></Field>

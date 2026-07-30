@@ -1,6 +1,6 @@
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
-import { notifyNewAchievements } from "@/lib/push-notifications";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
@@ -30,9 +30,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         create: { occurrenceId: id, studentId: input.studentId, response: input.response === "GOING" ? "GOING" : null, respondedAt: input.response === "GOING" ? new Date() : null, actualAttendance: input.actualAttendance as typeof actualValues[number], checkedInAt: new Date() },
         update: { actualAttendance: input.actualAttendance as typeof actualValues[number], checkedInAt: new Date() },
       });
-      if (input.actualAttendance === "PRESENT") await notifyNewAchievements(input.studentId);
-      await reconcileStudentPointsAfterMutation(input.studentId);
-      return Response.json({ message: "Asistencia real actualizada." });
+      const claimedAchievements = input.actualAttendance === "PRESENT"
+        ? await notifyNewAchievements(input.studentId)
+        : [];
+      const pointResult = await reconcileStudentPointsAfterMutation(input.studentId);
+      const newAchievements = await achievementCelebrationPayload(input.studentId, claimedAchievements);
+      return Response.json({
+        message: "Asistencia real actualizada.",
+        newAchievements,
+        pointsAwarded: pointResult?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
+      });
     }
     if (input.action === "remove-response") {
       if (typeof input.studentId !== "string") return Response.json({ error: "El alumno no es válido." }, { status: 400 });

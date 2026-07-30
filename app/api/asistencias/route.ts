@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { apiAttendanceStatus, attendanceDate, attendanceStatus, classDayForDate, databaseAttendanceStatus, studentName } from "@/lib/attendance";
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 import type { AttendanceRoster, Student } from "@/types/gestion";
-import { notifyNewAchievements } from "@/lib/push-notifications";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
@@ -128,13 +128,26 @@ export async function PUT(request: Request) {
       }
       return parsedRecords.length;
     });
-    await Promise.all(parsedRecords.filter((record) => record.status === "presente").map((record) => notifyNewAchievements(record.studentId)));
-    await Promise.all(
-      parsedRecords.map((record) =>
-        reconcileStudentPointsAfterMutation(record.studentId),
-      ),
+    const claimedByStudent = new Map(
+      await Promise.all(parsedRecords
+        .filter((record) => record.status === "presente")
+        .map(async (record) => [record.studentId, await notifyNewAchievements(record.studentId)] as const)),
     );
-    return Response.json({ ok: true, saved: result });
+    const pointResults = new Map(
+      await Promise.all(parsedRecords.map(async (record) => [
+        record.studentId,
+        await reconcileStudentPointsAfterMutation(record.studentId),
+      ] as const)),
+    );
+    const achievementResults = await Promise.all([...claimedByStudent].map(async ([studentId, claimed]) => {
+      const newAchievements = await achievementCelebrationPayload(studentId, claimed);
+      return {
+        studentId,
+        newAchievements,
+        pointsAwarded: pointResults.get(studentId)?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
+      };
+    }));
+    return Response.json({ ok: true, saved: result, achievementResults });
   } catch (error) {
     console.error("Error al guardar asistencia", error);
     if (error instanceof SyntaxError) return Response.json({ error: "Los datos enviados no son válidos." }, { status: 400 });

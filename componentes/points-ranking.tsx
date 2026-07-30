@@ -46,6 +46,10 @@ export function PointsRanking() {
         message?: string;
         eventsCreated?: number;
         eventsOmitted?: number;
+        quickLogsProcessed?: number;
+        classExercisesProcessed?: number;
+        attendancesProcessed?: number;
+        studentsWithoutActivity?: number;
         errors?: Array<unknown>;
         error?: string;
       };
@@ -53,7 +57,7 @@ export function PointsRanking() {
         setNotice(body.error ?? "No se pudo recalcular el ranking.");
         return;
       }
-      setNotice(`${body.message ?? "Ranking recalculado."} ${body.eventsCreated ?? 0} eventos reconstruidos · ${body.eventsOmitted ?? 0} ya existentes · ${body.errors?.length ?? 0} errores.`);
+      setNotice(`${body.message ?? "Ranking recalculado."} ${body.quickLogsProcessed ?? 0} registros rápidos · ${body.classExercisesProcessed ?? 0} ejercicios presenciales · ${body.attendancesProcessed ?? 0} asistencias · ${body.eventsCreated ?? 0} eventos reconstruidos · ${body.eventsOmitted ?? 0} ya existentes · ${body.studentsWithoutActivity ?? 0} alumnos sin actividad · ${body.errors?.length ?? 0} errores.`);
       setLoading(true);
       setRevision((value) => value + 1);
     } catch {

@@ -4,6 +4,7 @@ import type {
   StudentPointEventType,
   StudentPointSourceType,
 } from "@prisma/client";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { studentName } from "@/lib/attendance";
 import { loadNotifiableAchievements } from "@/lib/notifiable-achievements";
@@ -123,7 +124,17 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
           classDateSnapshot: true,
           completedAt: true,
           createdAt: true,
-          exercises: { select: { id: true }, take: 1 },
+          exercises: {
+            select: {
+              id: true,
+              exerciseNameSnapshot: true,
+              sets: {
+                where: { weight: { not: null }, repetitions: { gt: 0 } },
+                select: { id: true },
+                take: 1,
+              },
+            },
+          },
         },
       }),
       prisma.workoutSession.findMany({
@@ -197,17 +208,18 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
   }
 
   for (const log of classWorkoutLogs) {
-    if (!log.exercises.length) continue;
-    events.push({
-      eventKey: `record:class-workout:${log.id}`,
-      eventType: "RECORD",
-      sourceType: "CLASS_WORKOUT_LOG",
-      sourceId: log.id,
-      points: POINT_RULES.RECORD,
-      description: `Registro cargado en ${log.classNameSnapshot}`,
-      occurredAt:
-        log.completedAt ?? dateAtNoon(log.classDateSnapshot),
-    });
+    for (const exercise of log.exercises) {
+      if (!exercise.sets.length) continue;
+      events.push({
+        eventKey: `record:class-exercise:${exercise.id}`,
+        eventType: "RECORD",
+        sourceType: "CLASS_WORKOUT_LOG",
+        sourceId: exercise.id,
+        points: POINT_RULES.RECORD,
+        description: `Registro cargado: ${exercise.exerciseNameSnapshot} en ${log.classNameSnapshot}`,
+        occurredAt: log.completedAt ?? dateAtNoon(log.classDateSnapshot),
+      });
+    }
   }
 
   for (const session of workoutSessions) {
@@ -343,14 +355,14 @@ async function notifyPointGain(
       return null;
     });
   if (!notification) return;
-  await dispatchTrainerPush(notification.id, {
+  after(() => dispatchTrainerPush(notification.id, {
     title: "BM Training",
     body: message,
     url: notification.url,
     tag: `points-${studentId}`,
   }).catch((error) => {
     console.error("No se pudo enviar el avance por push", error);
-  });
+  }));
 }
 
 export async function syncStudentPoints(
@@ -435,7 +447,19 @@ export async function syncStudentPoints(
       console.error("No se pudo notificar el movimiento de puntos", error);
     });
   }
-  return { total, gained, desiredCount: desired.length };
+  const sourceCounts = {
+    quickLogs: desired.filter((event) => event.eventKey.startsWith("record:quick-log:")).length,
+    classExercises: desired.filter((event) => event.eventKey.startsWith("record:class-exercise:")).length,
+    attendances: desired.filter((event) => event.eventType === "ATTENDANCE").length,
+    workoutSessions: desired.filter((event) => event.eventKey.startsWith("record:workout-session:")).length,
+  };
+  return {
+    total,
+    gained,
+    desiredCount: desired.length,
+    sourceCounts,
+    activityEventCount: sourceCounts.quickLogs + sourceCounts.classExercises + sourceCounts.attendances + sourceCounts.workoutSessions,
+  };
 }
 
 export async function loadStudentPointSummary(
@@ -458,10 +482,11 @@ export async function loadStudentPointSummary(
 }
 
 export async function reconcileStudentPointsAfterMutation(studentId: string) {
-  await syncStudentPoints(studentId).catch((error) => {
+  return syncStudentPoints(studentId).catch((error) => {
     console.error("No se pudieron recalcular los puntos del alumno", {
       studentId,
       error,
     });
+    return null;
   });
 }

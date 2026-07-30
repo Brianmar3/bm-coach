@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvaluation, type EvaluationInput } from "@/lib/evaluaciones";
 import { prisma } from "@/lib/prisma";
-import { notifyNewAchievements } from "@/lib/push-notifications";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
@@ -40,9 +40,14 @@ export async function POST(request: Request) {
       if (duplicate) throw new Error("DUPLICATE_EVALUATION");
       return transaction.physicalEvaluation.create({ data: evaluationData(input), include: { student: true } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    await notifyNewAchievements(record.studentId);
-    await reconcileStudentPointsAfterMutation(record.studentId);
-    return Response.json(serializeEvaluation(record), { status: 201 });
+    const claimedAchievements = await notifyNewAchievements(record.studentId);
+    const pointResult = await reconcileStudentPointsAfterMutation(record.studentId);
+    const newAchievements = await achievementCelebrationPayload(record.studentId, claimedAchievements);
+    return Response.json({
+      ...serializeEvaluation(record),
+      newAchievements,
+      pointsAwarded: pointResult?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "DUPLICATE_EVALUATION") return Response.json({ error: "Ya existe una evaluación para ese alumno en esa fecha." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La evaluación cambió mientras la guardabas. Intentá nuevamente." }, { status: 409 });

@@ -9,6 +9,7 @@ import { planDays } from "@/lib/student-enrollment";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { prisma } from "@/lib/prisma";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
+import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements";
 
 const notifiableCategories = new Set(["ASISTENCIA", "CONSTANCIA", "FUERZA", "REPETICIONES", "VOLUMEN", "RECORDS_PERSONALES", "PROGRESO"]);
 
@@ -21,7 +22,7 @@ export async function loadNotifiableAchievements(
   const student = record.data as unknown as Student;
   const today = argentinaDateKey();
   const activityStart = dateKeyToDatabase(bmTrainingActivityStart(student.joinedAt));
-  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, firstStrength, strength, quickLogs] = await Promise.all([
+  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, firstStrength, strength, quickLogs, unifiedRecords] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
     prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }),
     prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
@@ -29,6 +30,7 @@ export async function loadNotifiableAchievements(
     prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: { classDateSnapshot: "asc" } }),
     loadStrengthAchievements(studentId, activityStart),
     loadQuickLogAchievements(studentId),
+    loadUnifiedRecordAchievements(studentId, activityStart),
   ]);
   const newDates = occurrenceAttendances.map((item) => item.occurrence.date.toISOString().slice(0, 10));
   const firstNewDate = newDates[0] ?? "";
@@ -47,15 +49,16 @@ export async function loadNotifiableAchievements(
     hasClassParticipation: hasClasses,
   });
   const selected = options.includeAll
-    ? [...general, ...strength, ...quickLogs]
+    ? [...general, ...strength.filter((item) => !item.id.includes("-weight-") && !item.id.includes("-reps-")), ...quickLogs.filter((item) => item.id.includes(":milestone:")), ...unifiedRecords]
     : [
         ...general.filter(
           (item) =>
             notifiableCategories.has(item.category ?? "") ||
             (item.category === "EVALUACIONES" && item.level !== "COMUN"),
         ),
-        ...strength,
-        ...quickLogs,
+        ...strength.filter((item) => !item.id.includes("-weight-") && !item.id.includes("-reps-")),
+        ...quickLogs.filter((item) => item.id.includes(":milestone:")),
+        ...unifiedRecords,
       ];
   return selected.filter(
     (item): item is PortalAchievement & { unlockedAt: string } =>

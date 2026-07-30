@@ -67,3 +67,8 @@ export function argentinaMonthBounds(today = argentinaDateKey()) {
   const monthStart = `${today.slice(0, 7)}-01`;
   return { monthStart, nextMonthStart: addMonthsToDateKey(monthStart) };
 }
+
+export function argentinaDateTimeBoundary(dateKey: string) {
+  if (!isDateKey(dateKey)) throw new Error("Fecha inválida.");
+  return new Date(`${dateKey}T03:00:00.000Z`);
+}

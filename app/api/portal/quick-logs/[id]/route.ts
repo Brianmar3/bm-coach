@@ -5,6 +5,7 @@ import { QUICK_LOG_TYPES, quickLogJson, quickLogRelations } from "@/lib/quick-lo
 import { normalizeExerciseName } from "@/lib/exercise-name";
 import { recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 
 export const runtime = "nodejs";
 
@@ -53,8 +54,15 @@ export async function PATCH(request: Request, context: RouteContext<"/api/portal
       include: quickLogRelations,
     });
   });
+  const claimedAchievements = await notifyNewAchievements(session.studentId);
   await reconcileStudentPointsAfterMutation(session.studentId);
-  return Response.json({ log: quickLogJson(updated), message: "Registro actualizado correctamente." });
+  const newAchievements = await achievementCelebrationPayload(session.studentId, claimedAchievements);
+  return Response.json({
+    log: quickLogJson(updated),
+    newAchievements,
+    pointsAwarded: newAchievements.reduce((sum, item) => sum + item.points, 0),
+    message: "Registro actualizado correctamente.",
+  });
 }
 
 export async function DELETE(request: Request, context: RouteContext<"/api/portal/quick-logs/[id]">) {

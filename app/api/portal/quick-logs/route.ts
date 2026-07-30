@@ -6,7 +6,7 @@ import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { detectedImageType, MAX_QUICK_LOG_PHOTO_BYTES, QUICK_LOG_TYPES, quickLogJson, quickLogRelations } from "@/lib/quick-logs";
 import { normalizeExerciseName } from "@/lib/exercise-name";
 import { loadQuickLogAchievements, recalculateQuickLogAchievements } from "@/lib/quick-log-achievements";
-import { notifyNewAchievements } from "@/lib/push-notifications";
+import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
@@ -175,6 +175,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "No se pudo guardar el registro. Intentá nuevamente." }, { status: 500 });
   }
   const saved = await prisma.quickLog.findUniqueOrThrow({ where: { id: log.id }, include: quickLogRelations });
+  let claimedAchievements: Awaited<ReturnType<typeof notifyNewAchievements>> = [];
   if (type === "PROGRESS" && metricType === "carga") {
     const historicalAchievements = await prisma.quickLogAchievement.findMany({
       where: { studentId: session.studentId, quickLogId: { not: log.id } },
@@ -191,8 +192,14 @@ export async function POST(request: Request) {
         skipDuplicates: true,
       });
     }
-    await notifyNewAchievements(session.studentId);
+    claimedAchievements = await notifyNewAchievements(session.studentId);
   }
-  await reconcileStudentPointsAfterMutation(session.studentId);
-  return Response.json({ log: quickLogJson(saved), message: "Registro guardado correctamente." }, { status: 201 });
+  const pointResult = await reconcileStudentPointsAfterMutation(session.studentId);
+  const newAchievements = await achievementCelebrationPayload(session.studentId, claimedAchievements);
+  return Response.json({
+    log: quickLogJson(saved),
+    newAchievements,
+    pointsAwarded: pointResult?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
+    message: "Registro guardado correctamente.",
+  }, { status: 201 });
 }

@@ -6,7 +6,7 @@ import {
 } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { studentName } from "@/lib/attendance";
-import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { argentinaDateKey, argentinaDateTimeBoundary, argentinaMonthBounds } from "@/lib/payment-dates";
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { syncStudentPoints } from "@/lib/student-points";
 import type { Student } from "@/types/gestion";
@@ -25,16 +25,15 @@ export async function GET(request: Request) {
     return Response.json({ error: failure.error }, { status: failure.status });
   }
   const period = new URL(request.url).searchParams.get("period") ?? "month";
-  const today = dateKeyToDatabase(argentinaDateKey());
+  const todayKey = argentinaDateKey();
+  const { monthStart: argentinaMonthStart } = argentinaMonthBounds(todayKey);
   const from =
     period === "total"
       ? null
       : period === "30d"
-        ? new Date(today.getTime() - 29 * 86400000)
-        : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-  const monthStart = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
-  );
+        ? new Date(argentinaDateTimeBoundary(todayKey).getTime() - 29 * 86400000)
+        : argentinaDateTimeBoundary(argentinaMonthStart);
+  const monthStart = argentinaDateTimeBoundary(argentinaMonthStart);
   const periodWhere = {
     active: true,
     ...(from ? { occurredAt: { gte: from } } : {}),
@@ -121,6 +120,10 @@ export async function POST(request: Request) {
   let processed = 0;
   let eventsCreated = 0;
   let eventsOmitted = 0;
+  let quickLogsProcessed = 0;
+  let classExercisesProcessed = 0;
+  let attendancesProcessed = 0;
+  let studentsWithoutActivity = 0;
   const errors: Array<{ studentId: string; studentName: string; error: string }> = [];
   for (const student of students) {
     try {
@@ -128,6 +131,10 @@ export async function POST(request: Request) {
       processed += 1;
       eventsCreated += result.gained.length;
       eventsOmitted += Math.max(0, result.desiredCount - result.gained.length);
+      quickLogsProcessed += result.sourceCounts.quickLogs;
+      classExercisesProcessed += result.sourceCounts.classExercises;
+      attendancesProcessed += result.sourceCounts.attendances;
+      if (result.activityEventCount === 0) studentsWithoutActivity += 1;
     } catch (error) {
       errors.push({
         studentId: student.id,
@@ -141,6 +148,10 @@ export async function POST(request: Request) {
     totalActiveStudents: students.length,
     eventsCreated,
     eventsOmitted,
+    quickLogsProcessed,
+    classExercisesProcessed,
+    attendancesProcessed,
+    studentsWithoutActivity,
     errors,
     message: `Ranking recalculado: ${processed} de ${students.length} alumnos activos procesados.`,
   });
