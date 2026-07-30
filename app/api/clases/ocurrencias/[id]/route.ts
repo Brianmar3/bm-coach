@@ -47,30 +47,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return Response.json({ message: "Confirmación quitada." });
     }
     if (input.action === "strength-block") {
-      const block = input.block as { name?: unknown; notes?: unknown; exercises?: unknown };
-      if (!block || typeof block.name !== "string" || !block.name.trim() || !Array.isArray(block.exercises)) return Response.json({ error: "El bloque de fuerza no es válido." }, { status: 400 });
-      const blockName = block.name.trim();
-      const blockNotes = typeof block.notes === "string" ? block.notes.trim() : "";
-      const blockExercises = block.exercises;
-      await prisma.$transaction(async (transaction) => {
-        const saved = await transaction.classStrengthBlock.upsert({
-          where: { occurrenceId: id },
-          create: { occurrenceId: id, name: blockName, notes: blockNotes },
-          update: { name: blockName, notes: blockNotes },
-        });
-        await transaction.classStrengthExercise.deleteMany({ where: { strengthBlockId: saved.id } });
-        await transaction.classStrengthExercise.createMany({
-          data: blockExercises.map((raw, index) => {
-            const exercise = raw as Record<string, unknown>;
-            const name = typeof exercise.exerciseName === "string" ? exercise.exerciseName.trim() : "";
-            const sets = Number(exercise.suggestedSets);
-            if (!name || !Number.isInteger(sets) || sets < 1) throw new Error("INVALID_BLOCK");
-            return { strengthBlockId: saved.id, exerciseName: name, order: index + 1, suggestedSets: sets, suggestedReps: typeof exercise.suggestedReps === "string" ? exercise.suggestedReps.trim() : "", instructions: typeof exercise.instructions === "string" ? exercise.instructions.trim() : "" };
-          }),
-        });
-        await transaction.classOccurrence.update({ where: { id }, data: { strengthEnabled: true } });
-      });
-      return Response.json({ message: "Bloque de fuerza guardado y habilitado." });
+      return Response.json(
+        { error: "El registro de ejercicios dentro de clases ya no está disponible. Usá Registro rápido." },
+        { status: 410 },
+      );
     }
     const status = typeof input.status === "string" && statusValues.includes(input.status as typeof statusValues[number]) ? input.status as typeof statusValues[number] : undefined;
     const startTime = typeof input.startTime === "string" && /^\d{2}:\d{2}$/.test(input.startTime) ? input.startTime : undefined;
@@ -85,7 +65,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         endTime,
         capacityOverride: capacity,
         internalNotes: typeof input.internalNotes === "string" ? input.internalNotes.trim().slice(0, 2000) : undefined,
-        strengthEnabled: typeof input.strengthEnabled === "boolean" ? input.strengthEnabled : undefined,
       },
     });
     if (status === "CANCELLED") {
@@ -97,7 +76,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     return Response.json({ message: status === "CANCELLED" ? "Clase cancelada." : status === "COMPLETED" ? "Clase cerrada." : "Clase actualizada." });
   } catch (error) {
-    if (error instanceof Error && error.message === "INVALID_BLOCK") return Response.json({ error: "Revisá los ejercicios del bloque de fuerza." }, { status: 400 });
     console.error("No se pudo actualizar la clase concreta", error);
     return Response.json({ error: "No se pudo actualizar la clase." }, { status: 500 });
   }

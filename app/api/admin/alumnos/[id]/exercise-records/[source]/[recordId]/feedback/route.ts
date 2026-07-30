@@ -38,7 +38,13 @@ export async function PUT(
   }
 
   const { id: studentId, source, recordId } = await context.params;
-  if (!["quick", "class"].includes(source)) {
+  if (source === "class") {
+    return Response.json(
+      { error: "Los registros presenciales históricos son de solo lectura." },
+      { status: 410 },
+    );
+  }
+  if (source !== "quick") {
     return Response.json({ error: "El origen no es válido." }, { status: 400 });
   }
 
@@ -73,38 +79,19 @@ export async function PUT(
     | { preset: string; text: string; trainerName: string }
     | null = null;
 
-  if (source === "quick") {
-    const record = await prisma.quickLog.findFirst({
-      where: { id: recordId, studentId },
-      select: { exerciseName: true, feedback: true },
-    });
-    if (!record) {
-      return Response.json(
-        { error: "No se encontró el registro del alumno." },
-        { status: 404 },
-      );
-    }
-    exerciseName = record.exerciseName;
-    existing = record.feedback;
-    url = `/portal/registro#registro-${recordId}`;
-  } else {
-    const record = await prisma.classExerciseLog.findFirst({
-      where: {
-        id: recordId,
-        workoutLog: { studentId, status: "COMPLETED" },
-      },
-      select: { exerciseNameSnapshot: true, feedback: true },
-    });
-    if (!record) {
-      return Response.json(
-        { error: "No se encontró el ejercicio de la clase." },
-        { status: 404 },
-      );
-    }
-    exerciseName = record.exerciseNameSnapshot;
-    existing = record.feedback;
-    url = "/portal/clases#devoluciones-clases";
+  const record = await prisma.quickLog.findFirst({
+    where: { id: recordId, studentId },
+    select: { exerciseName: true, feedback: true },
+  });
+  if (!record) {
+    return Response.json(
+      { error: "No se encontró el registro del alumno." },
+      { status: 404 },
+    );
   }
+  exerciseName = record.exerciseName;
+  existing = record.feedback;
+  url = `/portal/registro#registro-${recordId}`;
 
   if (
     existing &&
@@ -116,31 +103,17 @@ export async function PUT(
   }
 
   await prisma.$transaction(async (transaction) => {
-    if (source === "quick") {
-      await transaction.quickLogFeedback.upsert({
-        where: { quickLogId: recordId },
-        create: {
-          quickLogId: recordId,
-          studentId,
-          trainerName,
-          preset,
-          text,
-        },
-        update: { trainerName, preset, text },
-      });
-    } else {
-      await transaction.classExerciseLogFeedback.upsert({
-        where: { classExerciseLogId: recordId },
-        create: {
-          classExerciseLogId: recordId,
-          studentId,
-          trainerName,
-          preset,
-          text,
-        },
-        update: { trainerName, preset, text },
-      });
-    }
+    await transaction.quickLogFeedback.upsert({
+      where: { quickLogId: recordId },
+      create: {
+        quickLogId: recordId,
+        studentId,
+        trainerName,
+        preset,
+        text,
+      },
+      update: { trainerName, preset, text },
+    });
     await transaction.studentNotification.create({
       data: {
         studentId,

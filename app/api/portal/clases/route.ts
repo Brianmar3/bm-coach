@@ -18,16 +18,10 @@ export const dynamic = "force-dynamic";
 const occurrenceInclude = (studentId: string) => ({
   responses: { where: { studentId }, select: { response: true } },
   _count: { select: { responses: { where: { response: "GOING" as const } } } },
-  strengthBlock: { include: { exercises: { orderBy: { order: "asc" as const } } } },
-  workoutLogs: {
-    where: { studentId },
-    include: { exercises: { orderBy: { order: "asc" as const }, include: { sets: { orderBy: { setNumber: "asc" as const } }, feedback: true } } },
-  },
 });
 
 function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ include: ReturnType<typeof occurrenceInclude> }>) {
   const started = occurrenceHasStarted(occurrence.date, occurrence.startTime);
-  const log = occurrence.workoutLogs[0] ?? null;
   return {
     id: occurrence.id,
     scheduleId: occurrence.scheduleId,
@@ -42,44 +36,18 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
     confirmedCount: occurrence._count.responses,
     response: occurrence.responses[0]?.response ?? null,
     canRespond: occurrence.status === "SCHEDULED" && !started,
-    strengthAvailable: occurrence.status !== "CANCELLED" && (occurrence.strengthEnabled || started),
-    strengthBlock: occurrence.strengthBlock,
-    workoutLog: log ? {
-      id: log.id,
-      status: log.status,
-      notes: log.notes,
-      createdAt: log.createdAt.toISOString(),
-      updatedAt: log.updatedAt.toISOString(),
-      exercises: log.exercises.map((exercise) => ({
-        id: exercise.id,
-        exerciseName: exercise.exerciseNameSnapshot,
-        order: exercise.order,
-        notes: exercise.notes,
-        feedback: exercise.feedback ? {
-          trainerName: exercise.feedback.trainerName,
-          text: exercise.feedback.text,
-          updatedAt: exercise.feedback.updatedAt.toISOString(),
-        } : null,
-        sets: exercise.sets.map((set) => ({
-          setNumber: set.setNumber,
-          weight: set.weight === null ? null : Number(set.weight),
-          repetitions: set.repetitions,
-          effort: set.effort === null ? null : Number(set.effort),
-          unit: set.unit,
-          notes: set.notes,
-        })),
-      })),
-    } : null,
+    strengthAvailable: false,
+    strengthBlock: null,
+    workoutLog: null,
   };
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
   if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Las clases grupales no están disponibles para tu servicio." }, { status: 403 });
   if (session.credential.mustChangePassword) return Response.json({ error: "Primero cambiá tu contraseña.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   try {
-    const summaryOnly = new URL(request.url).searchParams.get("summary") === "1";
     const range = await ensureClassOccurrences(35);
     const schedules = await prisma.weeklyClassAssignment.findMany({ where: { studentId: session.studentId, active: true }, include: { schedule: true } });
     const occurrences = await prisma.classOccurrence.findMany({
@@ -88,60 +56,15 @@ export async function GET(request: Request) {
         OR: [
           { schedule: { active: true } },
           { responses: { some: { studentId: session.studentId } } },
-          { workoutLogs: { some: { studentId: session.studentId } } },
         ],
       },
       include: occurrenceInclude(session.studentId),
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     });
-    const history = summaryOnly ? [] : await prisma.classWorkoutLog.findMany({
-      where: { studentId: session.studentId, status: "COMPLETED" },
-      include: {
-        occurrence: {
-          select: {
-            startTime: true,
-            strengthBlock: { select: { name: true } },
-            responses: {
-              where: { studentId: session.studentId },
-              select: { response: true, actualAttendance: true },
-            },
-          },
-        },
-        exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } }, feedback: true } },
-      },
-      orderBy: { classDateSnapshot: "desc" },
-      take: 20,
-    });
     return Response.json({
       scheduleLabels: schedules.map((item) => weeklyScheduleLabel(item.schedule)),
       flexibleSchedule: (session.credential.student.data as unknown as Student).flexibleSchedule ?? "",
       occurrences: occurrences.map(serializeOccurrence),
-      history: history.map((log) => ({
-        id: log.id,
-        occurrenceId: log.occurrenceId,
-        date: databaseDateKey(log.classDateSnapshot),
-        name: log.classNameSnapshot,
-        startTime: log.occurrence.startTime,
-        attendanceResponse: log.occurrence.responses[0]?.response ?? null,
-        actualAttendance: log.occurrence.responses[0]?.actualAttendance ?? "UNKNOWN",
-        strengthBlockName: log.occurrence.strengthBlock?.name ?? "",
-        notes: log.notes,
-        status: log.status,
-        createdAt: log.createdAt.toISOString(),
-        updatedAt: log.updatedAt.toISOString(),
-        exercises: log.exercises.map((exercise) => ({
-          id: exercise.id,
-          exerciseName: exercise.exerciseNameSnapshot,
-          order: exercise.order,
-          notes: exercise.notes,
-          feedback: exercise.feedback ? {
-            trainerName: exercise.feedback.trainerName,
-            text: exercise.feedback.text,
-            updatedAt: exercise.feedback.updatedAt.toISOString(),
-          } : null,
-          sets: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight === null ? null : Number(set.weight), repetitions: set.repetitions, effort: set.effort === null ? null : Number(set.effort), unit: set.unit, notes: set.notes })),
-        })),
-      })),
     });
   } catch (error) {
     console.error("No se pudieron cargar las clases del portal", error);

@@ -6,10 +6,8 @@ import { calculatePortalAchievements } from "@/lib/portal-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { planDays } from "@/lib/student-enrollment";
-import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { prisma } from "@/lib/prisma";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
-import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements";
 
 const notifiableCategories = new Set(["ASISTENCIA", "CONSTANCIA", "FUERZA", "REPETICIONES", "VOLUMEN", "RECORDS_PERSONALES", "PROGRESO"]);
 
@@ -22,25 +20,22 @@ export async function loadNotifiableAchievements(
   const student = record.data as unknown as Student;
   const today = argentinaDateKey();
   const activityStart = dateKeyToDatabase(bmTrainingActivityStart(student.joinedAt));
-  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, firstStrength, strength, quickLogs, unifiedRecords] = await Promise.all([
+  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, quickLogs] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
     prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }),
     prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
     prisma.physicalEvaluation.findMany({ where: { studentId, date: { gte: activityStart }, OR: [{ weight: { not: null } }, { height: { not: null } }, { bodyFatPercentage: { not: null } }, { muscleMass: { not: null } }, { waist: { not: null } }, { hip: { not: null } }] }, select: { date: true }, orderBy: { date: "asc" } }),
-    prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: { classDateSnapshot: "asc" } }),
-    loadStrengthAchievements(studentId, activityStart),
     loadQuickLogAchievements(studentId),
-    loadUnifiedRecordAchievements(studentId, activityStart),
   ]);
   const newDates = occurrenceAttendances.map((item) => item.occurrence.date.toISOString().slice(0, 10));
   const firstNewDate = newDates[0] ?? "";
   const attendanceDates = [...legacyAttendances.map((item) => item.date.toISOString().slice(0, 10)).filter((value) => !firstNewDate || value < firstNewDate), ...newDates].sort();
-  const hasClasses = Boolean(record.primaryScheduleId || record.weeklyClasses.length || attendanceDates.length || firstStrength);
+  const hasClasses = Boolean(record.primaryScheduleId || record.weeklyClasses.length || attendanceDates.length);
   const general = calculatePortalAchievements({
     completedWorkoutDates: workouts.map((item) => item.date.toISOString().slice(0, 10)),
     attendedClassDates: attendanceDates,
     evaluationDates: evaluations.map((item) => item.date.toISOString().slice(0, 10)),
-    firstStrengthLogDate: firstStrength?.classDateSnapshot.toISOString().slice(0, 10) ?? "",
+    firstStrengthLogDate: "",
     joinedAt: student.joinedAt,
     today,
     weeklyGoal: planDays(student.plan) ?? 0,
@@ -49,16 +44,14 @@ export async function loadNotifiableAchievements(
     hasClassParticipation: hasClasses,
   });
   const selected = options.includeAll
-    ? [...general, ...strength.filter((item) => !item.id.includes("-weight-") && !item.id.includes("-reps-")), ...quickLogs.filter((item) => item.id.includes(":milestone:")), ...unifiedRecords]
+    ? [...general, ...quickLogs]
     : [
         ...general.filter(
           (item) =>
             notifiableCategories.has(item.category ?? "") ||
             (item.category === "EVALUACIONES" && item.level !== "COMUN"),
         ),
-        ...strength.filter((item) => !item.id.includes("-weight-") && !item.id.includes("-reps-")),
-        ...quickLogs.filter((item) => item.id.includes(":milestone:")),
-        ...unifiedRecords,
+        ...quickLogs,
       ];
   return selected.filter(
     (item): item is PortalAchievement & { unlockedAt: string } =>

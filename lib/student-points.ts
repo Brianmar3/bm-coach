@@ -67,8 +67,6 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
     occurrenceAttendances,
     legacyAttendances,
     quickLogs,
-    classWorkoutLogs,
-    workoutSessions,
     achievements,
   ] =
     await Promise.all([
@@ -115,37 +113,6 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
           createdAt: true,
         },
         orderBy: [{ date: "asc" }, { createdAt: "asc" }],
-      }),
-      prisma.classWorkoutLog.findMany({
-        where: { studentId, status: "COMPLETED" },
-        select: {
-          id: true,
-          classNameSnapshot: true,
-          classDateSnapshot: true,
-          completedAt: true,
-          createdAt: true,
-          exercises: {
-            select: {
-              id: true,
-              exerciseNameSnapshot: true,
-              sets: {
-                where: { weight: { not: null }, repetitions: { gt: 0 } },
-                select: { id: true },
-                take: 1,
-              },
-            },
-          },
-        },
-      }),
-      prisma.workoutSession.findMany({
-        where: { studentId, status: "COMPLETED" },
-        select: {
-          id: true,
-          routineNameSnapshot: true,
-          date: true,
-          createdAt: true,
-          exercises: { select: { id: true }, take: 1 },
-        },
       }),
       loadNotifiableAchievements(studentId, { includeAll: true }),
     ]);
@@ -204,34 +171,6 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
       points: POINT_RULES.RECORD,
       description: `Registro cargado: ${detail}`,
       occurredAt: log.createdAt,
-    });
-  }
-
-  for (const log of classWorkoutLogs) {
-    for (const exercise of log.exercises) {
-      if (!exercise.sets.length) continue;
-      events.push({
-        eventKey: `record:class-exercise:${exercise.id}`,
-        eventType: "RECORD",
-        sourceType: "CLASS_WORKOUT_LOG",
-        sourceId: exercise.id,
-        points: POINT_RULES.RECORD,
-        description: `Registro cargado: ${exercise.exerciseNameSnapshot} en ${log.classNameSnapshot}`,
-        occurredAt: log.completedAt ?? dateAtNoon(log.classDateSnapshot),
-      });
-    }
-  }
-
-  for (const session of workoutSessions) {
-    if (!session.exercises.length) continue;
-    events.push({
-      eventKey: `record:workout-session:${session.id}`,
-      eventType: "RECORD",
-      sourceType: "WORKOUT_SESSION",
-      sourceId: session.id,
-      points: POINT_RULES.RECORD,
-      description: `Entrenamiento finalizado: ${session.routineNameSnapshot || "rutina personalizada"}`,
-      occurredAt: dateAtNoon(session.date),
     });
   }
 
@@ -373,7 +312,7 @@ export async function syncStudentPoints(
   const desiredByKey = new Map(desired.map((item) => [item.eventKey, item]));
   const previous = await prisma.studentPointTransaction.findMany({
     where: { studentId },
-    select: { eventKey: true, active: true },
+    select: { eventKey: true, active: true, sourceType: true, sourceId: true },
   });
   const previouslyActive = new Set(
     previous.filter((item) => item.active).map((item) => item.eventKey),
@@ -406,7 +345,14 @@ export async function syncStudentPoints(
       }
       const obsoleteKeys = previous
         .filter(
-          (item) => item.active && !desiredByKey.has(item.eventKey),
+          (item) =>
+            item.active &&
+            !desiredByKey.has(item.eventKey) &&
+            item.sourceType !== "CLASS_WORKOUT_LOG" &&
+            item.sourceType !== "WORKOUT_SESSION" &&
+            item.sourceId !== "first-strength-log" &&
+            !item.sourceId?.startsWith("performance-class-") &&
+            !item.sourceId?.includes(":class:"),
         )
         .map((item) => item.eventKey);
       if (obsoleteKeys.length) {
@@ -449,16 +395,15 @@ export async function syncStudentPoints(
   }
   const sourceCounts = {
     quickLogs: desired.filter((event) => event.eventKey.startsWith("record:quick-log:")).length,
-    classExercises: desired.filter((event) => event.eventKey.startsWith("record:class-exercise:")).length,
     attendances: desired.filter((event) => event.eventType === "ATTENDANCE").length,
-    workoutSessions: desired.filter((event) => event.eventKey.startsWith("record:workout-session:")).length,
+    achievements: desired.filter((event) => event.eventType === "ACHIEVEMENT" || event.eventType === "MILESTONE").length,
   };
   return {
     total,
     gained,
     desiredCount: desired.length,
     sourceCounts,
-    activityEventCount: sourceCounts.quickLogs + sourceCounts.classExercises + sourceCounts.attendances + sourceCounts.workoutSessions,
+    activityEventCount: sourceCounts.quickLogs + sourceCounts.attendances + sourceCounts.achievements,
   };
 }
 

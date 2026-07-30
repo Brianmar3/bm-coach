@@ -229,7 +229,7 @@ export async function loadUnifiedExerciseRecords(studentId: string) {
         unit: result.best.unit,
         setDetails: result.valid,
         context: session.classNameSnapshot,
-        originLabel: "Clase presencial",
+        originLabel: "Registro histórico de clase",
         recordedByLabel,
         feedback: feedback(exercise.feedback),
       });

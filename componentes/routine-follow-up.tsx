@@ -2,7 +2,6 @@
 /* eslint-disable @next/next/no-img-element -- profile photos are validated object-storage URLs */
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { ClassStrengthLogEditor, type ClassStrengthEditorValue } from "@/componentes/class-strength-log-editor";
 import { inputClass } from "@/componentes/module-shell";
 import type { AdminFollowUpData, AdminStudentFollowUp, AdminWorkoutExercise, AdminWorkoutSession } from "@/types/follow-up";
 
@@ -10,23 +9,6 @@ const emptyData: AdminFollowUpData = { sessions: [], students: [], classSessions
 const moneyNumber = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
 const showDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR");
 const statusLabel = { pending: "Pendiente", in_progress: "En progreso", completed: "Finalizado" } as const;
-type AdminClassSession = AdminFollowUpData["classSessions"][number];
-const classExerciseBest = (exercise: AdminClassSession["exercises"][number]) => {
-  const weights = exercise.sets.flatMap((set) => set.weight === null ? [] : [set.weight]);
-  return weights.length ? Math.max(...weights) : null;
-};
-function previousClassExercise(sessions: AdminClassSession[], currentIndex: number, studentId: string, exerciseName: string) {
-  const normalized = exerciseName.trim().toLocaleLowerCase("es");
-  for (let index = currentIndex + 1; index < sessions.length; index += 1) {
-    if (sessions[index].studentId !== studentId) continue;
-    const exercise = sessions[index].exercises.find((item) => item.name.trim().toLocaleLowerCase("es") === normalized);
-    if (exercise) {
-      const weight = classExerciseBest(exercise);
-      if (weight !== null) return { weight, date: sessions[index].date };
-    }
-  }
-  return null;
-}
 
 export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }: { initialRoutineId?: string; initialStudentId?: string }) {
   const [data, setData] = useState(emptyData);
@@ -46,7 +28,6 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState("");
-  const [editingClass, setEditingClass] = useState<AdminClassSession | null>(null);
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -133,33 +114,6 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
     finally { setDeleting(false); }
   }
 
-  async function saveClassSession(status: "DRAFT" | "COMPLETED", value: ClassStrengthEditorValue) {
-    if (!editingClass) return;
-    const response = await fetch("/api/seguimiento", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classWorkoutLogId: editingClass.id, status, notes: value.notes, exercises: value.exercises }),
-    });
-    const body = await response.json() as { error?: string; message?: string };
-    if (!response.ok) throw new Error(body.error ?? "No se pudo guardar. Tus cambios permanecen en pantalla.");
-    setNotice(body.message ?? "Bloque de fuerza actualizado correctamente.");
-    setEditingClass(null);
-    await load();
-  }
-
-  async function deleteClassSession(session: AdminClassSession) {
-    if (!window.confirm(`¿Eliminar el bloque de fuerza de ${session.studentName}? Esta acción no se puede deshacer.`)) return;
-    setDeleting(true); setError(""); setNotice("");
-    try {
-      const response = await fetch("/api/seguimiento", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classWorkoutLogId: session.id }) });
-      const body = await response.json() as { error?: string; message?: string };
-      if (!response.ok) throw new Error(body.error ?? "No se pudo eliminar. Intentá nuevamente.");
-      setData((current) => ({ ...current, classSessions: current.classSessions.filter((item) => item.id !== session.id) }));
-      setNotice(body.message ?? "Bloque eliminado correctamente.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo eliminar. Intentá nuevamente."); }
-    finally { setDeleting(false); }
-  }
-
   return <section>
     {error && <p role="alert" className="mb-4 rounded-xl bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
     {notice && <p role="status" className="mb-4 rounded-xl bg-emerald-400/10 p-4 text-sm text-emerald-200">{notice}</p>}
@@ -171,12 +125,8 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
       <label className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm"><input type="checkbox" checked={painOnly} onChange={(event) => setPainOnly(event.target.checked)} className="accent-yellow-400" /> Con dolor o molestias</label>
     </div>
     <div className="mt-5 grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">{loading ? <p className="col-span-full rounded-2xl bg-zinc-900 p-10 text-center text-zinc-500">Cargando seguimiento…</p> : visible.length ? visible.map((student) => <StudentFollowUpCard key={student.studentId} student={student} open={() => { setSelectedStudent(student); setDetailTab("resumen"); }} />) : <p className="col-span-full rounded-2xl border border-dashed border-zinc-700 p-10 text-center text-zinc-500">No hay alumnos que coincidan con los filtros.</p>}</div>
-    <section className="mt-8"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Registro de clase presencial</p><h2 className="mt-1 text-xl font-bold">Bloques de fuerza en clases</h2></div>
-      {data.classSessions.length ? <div className="mt-4 grid gap-4 lg:grid-cols-2">{data.classSessions.map((session, sessionIndex) => ({ session, sessionIndex })).filter(({ session }) => !query.trim() || session.studentName.toLocaleLowerCase("es").includes(query.trim().toLocaleLowerCase("es"))).map(({ session, sessionIndex }) => <details key={session.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><summary className="cursor-pointer"><span className="font-bold">{session.studentName}</span><span className="ml-2 text-sm text-yellow-400">{session.className} · {showDate(session.date)}</span></summary><div className="mt-4 space-y-3">{session.exercises.map((exercise, index) => { const current = classExerciseBest(exercise); const previous = previousClassExercise(data.classSessions, sessionIndex, session.studentId, exercise.name); const difference = current !== null && previous ? current - previous.weight : null; return <div key={`${session.id}-${index}`} className="rounded-xl bg-zinc-950 p-3"><div className="flex flex-wrap justify-between gap-2"><p className="font-semibold">{exercise.name}</p>{previous && <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${difference !== null && difference > 0 ? "bg-emerald-400/10 text-emerald-300" : difference !== null && difference < 0 ? "bg-red-400/10 text-red-300" : "bg-zinc-800 text-zinc-300"}`}>Último {previous.weight} kg · {difference !== null && difference > 0 ? "+" : ""}{difference ?? 0} kg</span>}</div><p className="mt-1 text-sm text-zinc-400">{exercise.sets.map((set) => `${moneyNumber(set.weight, ` ${set.unit}`)} × ${set.repetitions ?? "—"}${set.effort === null ? "" : ` · RIR ${set.effort}`}`).join(" · ")}</p>{exercise.notes && <p className="mt-2 text-xs text-zinc-500">{exercise.notes}</p>}</div>; })}{session.notes && <p className="text-sm text-zinc-400">{session.notes}</p>}<p className="text-[10px] text-zinc-600">Última modificación: {new Date(session.updatedAt).toLocaleString("es-AR")}</p><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setEditingClass(session)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300">Editar</button><button type="button" disabled={deleting} onClick={() => deleteClassSession(session)} className="rounded-lg border border-red-400/40 px-3 py-2 text-sm text-red-300 disabled:opacity-50">Eliminar</button></div></div></details>)}</div> : <p className="mt-4 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">No hay bloques de fuerza registrados.</p>}
-    </section>
     {selectedStudent && <StudentFollowUpDetail student={selectedStudent} sessions={data.sessions.filter((session) => session.studentId === selectedStudent.studentId)} tab={detailTab} setTab={setDetailTab} close={() => setSelectedStudent(null)} openSession={(session) => setSelected(session)} />}
     {selected && <SessionDetail session={selected} close={() => setSelected(null)} reply={reply} setReply={setReply} privateNote={privateNote} setPrivateNote={setPrivateNote} reviewed={reviewed} setReviewed={setReviewed} saving={saving} deleting={deleting} submit={sendFeedback} deleteSession={deleteSession} deleteAll={deleteAllForRoutine} />}
-    {editingClass && <ClassStrengthLogEditor title={`${editingClass.studentName} · ${editingClass.className}`} initialValue={{ id: editingClass.id, notes: editingClass.notes, exercises: editingClass.exercises.map((exercise) => ({ id: exercise.id, exerciseName: exercise.name, order: exercise.order, notes: exercise.notes, sets: exercise.sets })) }} close={() => setEditingClass(null)} save={saveClassSession} />}
   </section>;
 }
 
@@ -187,7 +137,6 @@ function StudentFollowUpCard({ student, open }: { student: AdminStudentFollowUp;
     <div className="mt-4 grid grid-cols-2 gap-2"><Value label="Sesiones completadas" value={student.sessionCount ? String(student.sessionCount) : "Sin registros"} /><Value label="Última sesión" value={student.latestSession ? showDate(student.latestSession.date) : "Sin registros"} /><Value label="Duración promedio" value={student.averageDuration ? `${student.averageDuration} min` : "Sin registros"} /><Value label="Series acumuladas" value={student.completedSets ? String(student.completedSets) : "Sin registros"} /></div>
     <div className="mt-3 rounded-xl bg-black/30 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Progreso reciente</p><p className="mt-1 line-clamp-2 text-xs text-zinc-300">{student.recentProgress || (student.recentSessionCount ? `${student.recentSessionCount} sesiones en las últimas 4 semanas.` : "Todavía no hay suficiente historial para comparar.")}</p></div>
     {student.latestPainReport && <div className="mt-3 rounded-xl bg-red-400/10 p-3 text-red-200"><p className="text-xs font-bold">Molestia reportada · {showDate(student.latestPainReport.date)}</p><p className="mt-1 line-clamp-2 text-xs">{student.latestPainReport.details}</p></div>}
-    {student.hasClassStrength && <p className="mt-3 text-xs text-zinc-500">También registra fuerza en clases.</p>}
     <button type="button" onClick={open} className="mt-auto pt-4 text-left text-sm font-bold text-yellow-400">Ver seguimiento</button>
   </article>;
 }

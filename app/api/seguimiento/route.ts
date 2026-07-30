@@ -223,6 +223,12 @@ export async function PATCH(request: Request) {
       notes?: unknown;
       exercises?: Array<{ id?: unknown; exerciseName?: unknown; order?: unknown; notes?: unknown; sets?: Array<{ setNumber?: unknown; weight?: unknown; repetitions?: unknown; effort?: unknown; notes?: unknown }> }>;
     };
+    if (typeof input.classWorkoutLogId === "string") {
+      return Response.json(
+        { error: "Los registros presenciales históricos son de solo lectura. Usá Registro rápido para nuevas cargas." },
+        { status: 410 },
+      );
+    }
     if (typeof input.classWorkoutLogId !== "string" || !["DRAFT", "COMPLETED"].includes(String(input.status)) || !Array.isArray(input.exercises) || input.exercises.length > 30) {
       return Response.json({ error: "El bloque seleccionado no es válido." }, { status: 400 });
     }
@@ -326,11 +332,10 @@ export async function DELETE(request: Request) {
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json().catch(() => null) as { sessionId?: string; classWorkoutLogId?: string; studentId?: string; routineId?: string; deleteAll?: boolean } | null;
     if (input?.classWorkoutLogId?.trim()) {
-      const existing = await prisma.classWorkoutLog.findUnique({ where: { id: input.classWorkoutLogId }, select: { id: true, studentId: true } });
-      if (!existing) return Response.json({ error: "No se encontró el bloque." }, { status: 404 });
-      await prisma.$transaction((transaction) => transaction.classWorkoutLog.delete({ where: { id: existing.id } }));
-      await reconcileStudentPointsAfterMutation(existing.studentId);
-      return Response.json({ message: "Bloque eliminado correctamente.", deleted: 1 });
+      return Response.json(
+        { error: "Los registros presenciales históricos son de solo lectura y no se pueden eliminar desde este flujo." },
+        { status: 410 },
+      );
     }
     if (input?.deleteAll) {
       if (!input.studentId?.trim() || !input.routineId?.trim()) return Response.json({ error: "Alumno y rutina son obligatorios." }, { status: 400 });

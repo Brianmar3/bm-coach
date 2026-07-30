@@ -121,8 +121,8 @@ export async function POST(request: Request) {
   let eventsCreated = 0;
   let eventsOmitted = 0;
   let quickLogsProcessed = 0;
-  let classExercisesProcessed = 0;
   let attendancesProcessed = 0;
+  let achievementsProcessed = 0;
   let studentsWithoutActivity = 0;
   const errors: Array<{ studentId: string; studentName: string; error: string }> = [];
   for (const student of students) {
@@ -132,8 +132,8 @@ export async function POST(request: Request) {
       eventsCreated += result.gained.length;
       eventsOmitted += Math.max(0, result.desiredCount - result.gained.length);
       quickLogsProcessed += result.sourceCounts.quickLogs;
-      classExercisesProcessed += result.sourceCounts.classExercises;
       attendancesProcessed += result.sourceCounts.attendances;
+      achievementsProcessed += result.sourceCounts.achievements;
       if (result.activityEventCount === 0) studentsWithoutActivity += 1;
     } catch (error) {
       errors.push({
@@ -143,14 +143,18 @@ export async function POST(request: Request) {
       });
     }
   }
+  const historicalClassExercisesIgnored = await prisma.classExerciseLog.count({
+    where: { workoutLog: { status: "COMPLETED" } },
+  });
   return Response.json({
     processed,
     totalActiveStudents: students.length,
     eventsCreated,
     eventsOmitted,
     quickLogsProcessed,
-    classExercisesProcessed,
     attendancesProcessed,
+    achievementsProcessed,
+    historicalClassExercisesIgnored,
     studentsWithoutActivity,
     errors,
     message: `Ranking recalculado: ${processed} de ${students.length} alumnos activos procesados.`,

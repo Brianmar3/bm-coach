@@ -298,9 +298,9 @@ export function AdminQuickLogSummary({ studentId }: { studentId: string }) {
                 key={record.id}
                 record={record}
                 feedback={
-                  record.source === "ROUTINE"
-                    ? undefined
-                    : () => setFeedbacking(record)
+                  record.source === "QUICK_LOG"
+                    ? () => setFeedbacking(record)
+                    : undefined
                 }
                 editQuick={
                   record.source === "QUICK_LOG"
