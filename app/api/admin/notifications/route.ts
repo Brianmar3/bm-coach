@@ -7,7 +7,11 @@ import {
 } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
-import { TRAINER_OWNER_KEY } from "@/lib/trainer-notifications";
+import {
+  buildAttendanceUrl,
+  TRAINER_OWNER_KEY,
+} from "@/lib/trainer-notifications";
+import { databaseDateKey } from "@/lib/payment-dates";
 
 async function isAuthenticatedTrainer() {
   const cookieStore = await cookies();
@@ -31,6 +35,14 @@ export async function GET() {
         title: true,
         message: true,
         url: true,
+        studentId: true,
+        occurrenceId: true,
+        occurrence: {
+          select: {
+            date: true,
+            scheduleId: true,
+          },
+        },
         response: true,
         readAt: true,
         createdAt: true,
@@ -44,7 +56,21 @@ export async function GET() {
     }),
   ]);
 
-  return NextResponse.json({ notifications, unreadCount });
+  return NextResponse.json({
+    notifications: notifications.map(({ occurrence, ...notification }) => ({
+      ...notification,
+      url:
+        notification.type === "CLASS_RESPONSE" && occurrence
+          ? buildAttendanceUrl({
+              classDateKey: databaseDateKey(occurrence.date),
+              scheduleId: occurrence.scheduleId,
+              studentId: notification.studentId,
+              occurrenceId: notification.occurrenceId,
+            })
+          : notification.url,
+    })),
+    unreadCount,
+  });
 }
 
 export async function PATCH(request: Request) {

@@ -22,7 +22,7 @@ type AttendanceNotificationInput = {
   occurrenceId: string;
   scheduleId?: string | null;
   className: string;
-  classDate: Date;
+  classDateKey: string;
   startTime: string;
   response: ClassResponseStatus;
 };
@@ -54,21 +54,13 @@ function getVapidConfiguration() {
   return { publicKey, privateKey, subject };
 }
 
-function formatArgentinaDateKey(date: Date) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+function displayDateKey(dateKey: string) {
+  const [, month, day] = dateKey.split("-");
+  return `${day}/${month}`;
 }
 
 function buildAttendanceMessage(input: AttendanceNotificationInput) {
-  const date = new Intl.DateTimeFormat("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    day: "2-digit",
-    month: "2-digit",
-  }).format(input.classDate);
+  const date = displayDateKey(input.classDateKey);
   if (input.response === ClassResponseStatus.GOING) {
     return `${input.studentName} confirmó asistencia a ${input.className} de las ${input.startTime} del ${date}.`;
   }
@@ -76,14 +68,22 @@ function buildAttendanceMessage(input: AttendanceNotificationInput) {
   return `${input.studentName} indicó que no asistirá a ${input.className} de las ${input.startTime} del ${date}.`;
 }
 
-function buildAttendanceUrl(input: AttendanceNotificationInput) {
+export function buildAttendanceUrl(input: {
+  classDateKey: string;
+  scheduleId?: string | null;
+  studentId?: string | null;
+  occurrenceId?: string | null;
+}) {
   const params = new URLSearchParams({
-    date: formatArgentinaDateKey(input.classDate),
+    view: "attendance",
+    date: input.classDateKey,
   });
 
   if (input.scheduleId) {
     params.set("scheduleId", input.scheduleId);
   }
+  if (input.studentId) params.set("studentId", input.studentId);
+  if (input.occurrenceId) params.set("occurrenceId", input.occurrenceId);
 
   return `/asistencias?${params.toString()}`;
 }

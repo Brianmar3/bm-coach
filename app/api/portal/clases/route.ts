@@ -114,7 +114,7 @@ export async function POST(request: Request) {
         occurrenceId: occurrence.id,
         scheduleId: occurrence.scheduleId,
         className: occurrence.classNameSnapshot,
-        classDate: occurrence.date,
+        classDateKey: databaseDateKey(occurrence.date),
         startTime: occurrence.startTime,
         response: requestedResponse,
       } as const;
