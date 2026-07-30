@@ -27,9 +27,6 @@ const accountStyle: Record<PaymentAccountStatus, { label: string; className: str
 function money(value: number) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 }
-function hours(value: number) {
-  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(value);
-}
 function showDate(value: string, long = false) {
   if (!value) return "Sin definir";
   return new Date(`${value}T12:00:00`).toLocaleDateString("es-AR", long
@@ -109,11 +106,10 @@ export default function Home() {
 function DashboardContent({ data }: { data: DashboardData }) {
   const metrics = data.metrics;
   return <>
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <MetricCard eyebrow="Alumnos activos" value={String(metrics.activeStudents)} detail={`${metrics.activeStudentsMonthChange >= 0 ? "+" : ""}${metrics.activeStudentsMonthChange} vs. altas del mes anterior`} href="/alumnos?estado=activo" symbol="◎" />
       <MetricCard eyebrow="Ingresos del mes" value={money(metrics.monthIncome)} detail={metrics.incomeChangePercent === null ? "Sin comparación anterior" : `${metrics.incomeChangePercent >= 0 ? "+" : ""}${metrics.incomeChangePercent}% vs. mes anterior`} href="/pagos" symbol="$" tone="green" />
       <MetricCard eyebrow="Cuotas por cobrar" value={String(metrics.pendingCount)} detail={`${money(metrics.pendingAmount)} · ${metrics.overdueCount} vencidas`} href="/pagos?estado=VENCIDA" symbol="!" tone={metrics.overdueCount ? "red" : "yellow"} />
-      <HourlyIncomeCard metrics={metrics} />
       <MetricCard eyebrow="Clases hoy" value={String(metrics.classesToday)} detail={`${metrics.attendanceToday} asistencias registradas`} href="/clases" symbol="▦" />
       <MetricCard eyebrow="Nuevos alumnos" value={String(metrics.newStudents)} detail="Este mes" href="/alumnos?orden=recientes" symbol="+" />
     </section>
@@ -138,19 +134,6 @@ function DashboardContent({ data }: { data: DashboardData }) {
       <QuickAccess />
     </section>
   </>;
-}
-
-function HourlyIncomeCard({ metrics }: { metrics: DashboardData["metrics"] }) {
-  const hasHours = metrics.workedHoursThisMonth > 0;
-  return <Link href="/clases" className="group rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-xl shadow-black/10 transition hover:-translate-y-0.5 hover:border-yellow-400/45">
-    <div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Ingreso por hora</p><span className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400/10 text-sm font-black text-yellow-300">÷</span></div>
-    <p className="mt-3 whitespace-nowrap text-xl font-bold tracking-tight text-white sm:text-2xl">{hasHours ? `${money(metrics.incomePerWorkedHour ?? 0)} / hora` : "Sin horas registradas"}</p>
-    <div className="mt-2 space-y-1 text-xs text-zinc-500">
-      <p>{hasHours ? `${hours(metrics.workedHoursThisMonth)} horas trabajadas` : "Sin horas registradas este mes"}</p>
-      <p>{money(metrics.monthIncome)} cobrados este mes</p>
-      <p className="text-[10px] text-zinc-600">{metrics.completedClassesThisMonth} clases cerradas · Calculado sobre clases registradas</p>
-    </div>
-  </Link>;
 }
 
 function PaymentSummary({ metrics }: { metrics: DashboardData["metrics"] }) {
@@ -254,5 +237,5 @@ function EmptyState({ text, href, action }: { text: string; href: string; action
   return <div className="rounded-xl border border-dashed border-zinc-700 p-5 text-center"><p className="text-sm text-zinc-500">{text}</p><Link href={href} className="mt-3 inline-block text-xs font-bold text-yellow-400">{action} →</Link></div>;
 }
 function DashboardSkeleton() {
-  return <div className="animate-pulse space-y-5"><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-36 rounded-2xl bg-zinc-900" />)}</section><section className="grid gap-5 xl:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-72 rounded-2xl bg-zinc-900" />)}</section><section className="grid gap-5 xl:grid-cols-2">{Array.from({ length: 2 }, (_, index) => <div key={index} className="h-80 rounded-2xl bg-zinc-900" />)}</section></div>;
+  return <div className="animate-pulse space-y-5"><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-32 rounded-2xl bg-zinc-900" />)}</section><section className="grid gap-5 xl:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-72 rounded-2xl bg-zinc-900" />)}</section><section className="grid gap-5 xl:grid-cols-2">{Array.from({ length: 2 }, (_, index) => <div key={index} className="h-80 rounded-2xl bg-zinc-900" />)}</section></div>;
 }

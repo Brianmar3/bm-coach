@@ -9,10 +9,6 @@ export type DashboardData = {
     monthIncome: number;
     monthPaymentCount: number;
     incomeChangePercent: number | null;
-    completedClassesThisMonth: number;
-    workedHoursThisMonth: number;
-    incomePerWorkedHour: number | null;
-    workedHoursBasis: "completed_classes";
     pendingCount: number;
     pendingAmount: number;
     overdueCount: number;
