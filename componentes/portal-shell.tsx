@@ -16,8 +16,8 @@ const allLinks: PortalLink[] = [
   ["Inicio", "/portal", "⌂"],
   ["Rutina", "/portal/rutina", "◫"],
   ["Clases", "/portal/clases", "▷"],
+  ["Nutrición", "/portal/nutricion", "◉"],
   ["Evaluaciones", "/portal/evaluaciones", "◇"],
-  ["Perfil", "/portal/perfil", "○"],
 ];
 
 function BrandMark() {
@@ -62,9 +62,6 @@ export function PortalShell({
     if (href === "/portal/rutina") return serviceType !== "CLASSES" || hasRoutine;
     return true;
   });
-  if (serviceType === "PERSONALIZED") {
-    links.splice(links.length - 1, 0, ["Registros", "/portal/registro", "✎"]);
-  }
   const linkStyle = (href: string) => {
     const active =
       href === "/portal" ? pathname === href : pathname.startsWith(href);
@@ -98,7 +95,7 @@ export function PortalShell({
             <StudentNotificationCenter />
             <Link
               href="/portal/perfil"
-              className="group flex min-w-0 items-center gap-2 rounded-xl p-1 transition hover:bg-zinc-900 sm:pr-3"
+              className="group flex min-h-11 min-w-11 items-center gap-2 rounded-xl p-1 transition hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 sm:pr-3"
               aria-label={`Abrir perfil de ${studentName}`}
             >
               <Image

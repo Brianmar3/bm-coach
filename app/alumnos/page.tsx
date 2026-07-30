@@ -6,6 +6,7 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { StudentAccessControls } from "@/componentes/student-access-controls";
 import { StudentAttendanceSummaryCard } from "@/componentes/student-attendance-summary";
 import { AdminQuickLogSummary } from "@/componentes/admin-quick-log-summary";
+import { AdminNutritionSummary } from "@/componentes/admin-nutrition-summary";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
 import type { Student, StudentPlanOption, StudentServiceType, StudentStatus } from "@/types/gestion";
 type StudentFormValue = Omit<Student, "id" | "scheduleId" | "scheduleLabel" | "scheduleLabels"> & {
@@ -264,7 +265,45 @@ function StudentDetail({ item, close, edit }: {
     item: Student;
     close: () => void;
     edit: () => void;
-}) { return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 sm:p-4"><section className="mx-auto my-3 w-full max-w-4xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white sm:my-8 sm:p-6"><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold">{item.firstName} {item.lastName}</h2><ServiceBadge value={item.serviceType}/></div><p className="mt-1 text-sm text-zinc-400">{item.plan} · {item.status}</p></div><button onClick={close} className="text-zinc-400">Cerrar</button></div><dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4"><Detail label="Servicio" value={studentServiceLabel(item.serviceType)}/><Detail label="Edad / IMC" value={`${age(item.birthDate)} años · ${bmi(item.weight, item.height)}`}/><Detail label="Objetivo" value={item.goal || "No definido"}/><Detail label="Cuota" value={money(item.monthlyFee)}/><Detail label="Contacto" value={item.phone}/><Detail label="Vencimiento" value={showDate(item.dueDate)}/><Detail label="Fecha de inicio" value={showDate(item.joinedAt)}/><Detail label="Horario principal" value={item.scheduleLabel ?? "Sin horario principal"} wide/></dl><p className="mt-5 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-300">{item.notes || "Sin observaciones."}</p><StudentAttendanceSummaryCard studentId={item.id}/><AdminQuickLogSummary studentId={item.id}/><StudentAccessControls studentId={item.id}/><div className="mt-5 flex flex-wrap gap-3"><button onClick={edit} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">Completar o editar ficha</button><Link href="/asistencias" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver asistencias</Link><Link href="/pagos" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Registrar pago</Link><Link href="/rutinas" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver rutinas</Link><Link href="/evaluaciones" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver evaluaciones</Link><Link href="/clases" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver clases</Link></div></section></div>; }
+}) {
+    return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 sm:p-4">
+        <section className="mx-auto my-3 w-full max-w-4xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white sm:my-8 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-xl font-bold">{item.firstName} {item.lastName}</h2>
+                        <ServiceBadge value={item.serviceType}/>
+                    </div>
+                    <p className="mt-1 text-sm text-zinc-400">{item.plan} · {item.status}</p>
+                </div>
+                <button onClick={close} className="text-zinc-400">Cerrar</button>
+            </div>
+            <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <Detail label="Servicio" value={studentServiceLabel(item.serviceType)}/>
+                <Detail label="Edad / IMC" value={`${age(item.birthDate)} años · ${bmi(item.weight, item.height)}`}/>
+                <Detail label="Objetivo" value={item.goal || "No definido"}/>
+                <Detail label="Cuota" value={money(item.monthlyFee)}/>
+                <Detail label="Contacto" value={item.phone}/>
+                <Detail label="Vencimiento" value={showDate(item.dueDate)}/>
+                <Detail label="Fecha de inicio" value={showDate(item.joinedAt)}/>
+                <Detail label="Horario principal" value={item.scheduleLabel ?? "Sin horario principal"} wide/>
+            </dl>
+            <p className="mt-5 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-300">{item.notes || "Sin observaciones."}</p>
+            <StudentAttendanceSummaryCard studentId={item.id}/>
+            <AdminQuickLogSummary studentId={item.id}/>
+            <AdminNutritionSummary studentId={item.id}/>
+            <StudentAccessControls studentId={item.id}/>
+            <div className="mt-5 flex flex-wrap gap-3">
+                <button onClick={edit} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">Completar o editar ficha</button>
+                <Link href="/asistencias" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver asistencias</Link>
+                <Link href="/pagos" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Registrar pago</Link>
+                <Link href={`/rutinas?studentId=${encodeURIComponent(item.id)}&view=active`} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver rutina</Link>
+                <Link href="/evaluaciones" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver evaluaciones</Link>
+                <Link href="/clases" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver clases</Link>
+            </div>
+        </section>
+    </div>;
+}
 function Detail({ label, value, wide = false }: {
     label: string;
     value: string;

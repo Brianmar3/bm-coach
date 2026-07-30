@@ -35,9 +35,43 @@ model StudentRecord {
   pointTransactions        StudentPointTransaction[]
   trainerNotifications     TrainerNotification[]
   notifications            StudentNotification[]
+  nutritionCheckins        NutritionDailyCheckin[]
+  nutritionNotes           TrainerNutritionNote[]
 
   @@index([primaryScheduleId])
   @@map("students")
+}
+
+model NutritionDailyCheckin {
+  id               String        @id @default(cuid())
+  studentId        String
+  dateKey          String
+  hydration        Boolean       @default(false)
+  protein          Boolean       @default(false)
+  fruitsVegetables Boolean       @default(false)
+  mealOrganization Boolean       @default(false)
+  energy           Boolean       @default(false)
+  comment          String        @default("")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  student          StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, dateKey])
+  @@index([studentId, dateKey(sort: Desc)])
+  @@map("nutrition_daily_checkins")
+}
+
+model TrainerNutritionNote {
+  id        String        @id @default(cuid())
+  studentId String
+  trainerId String
+  text      String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  student   StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt(sort: Desc)])
+  @@map("trainer_nutrition_notes")
 }
 
 enum StudentServiceType {
