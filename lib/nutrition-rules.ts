@@ -1,10 +1,14 @@
+import {
+  INGREDIENT_CATALOG,
+  NUTRITION_RECIPE_CATALOG,
+  type NutritionBudgetLevel,
+} from "./nutrition-catalog.ts";
 import type {
   NutritionContextSnapshot,
-  NutritionIngredient,
   NutritionPlanMeal,
   NutritionRecipeResult,
   NutritionShoppingItem,
-} from "@/types/nutrition-intelligence";
+} from "../types/nutrition-intelligence.ts";
 
 const CLINICAL_PATTERNS = [
   /diabetes/i,
@@ -23,6 +27,35 @@ const CLINICAL_PATTERNS = [
   /suplemento.*dosis/i,
 ];
 
+const BASIC_PANTRY = new Set([
+  "agua",
+  "sal",
+  "pimienta",
+  "aceite",
+  "vinagre",
+  "oregano",
+  "pimenton",
+  "comino",
+  "canela",
+]);
+
+const SUBSTITUTION_GROUPS = [
+  ["lenteja", "garbanzo", "poroto", "arveja"],
+  ["pollo", "carne de pollo desmenuzada"],
+  ["leche", "leche vegetal", "yogur"],
+  ["papa", "batata", "pure de papa", "pure de zapallo"],
+  ["zapallito", "berenjena", "zapallo"],
+  ["merluza", "atun", "caballa", "sardina"],
+  ["pan", "tortilla de trigo", "tortilla de maiz"],
+];
+
+const BUDGET_ORDER: Record<NutritionBudgetLevel, number> = {
+  VERY_LOW: 0,
+  LOW: 1,
+  MODERATE: 2,
+  HIGH: 3,
+};
+
 export const PROFESSIONAL_REDIRECT =
   "Este tema necesita una evaluación profesional. Puedo ayudarte con orientación general, pero no reemplazar una consulta con un nutricionista o profesional de salud.";
 
@@ -30,9 +63,50 @@ export function normalizeNutritionText(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("es")
+    .toLocaleLowerCase("es-AR")
+    .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+const ingredientAliases = INGREDIENT_CATALOG.flatMap((ingredient) =>
+  [ingredient.name, ...ingredient.aliases].map((alias) => ({
+    alias: normalizeNutritionText(alias),
+    canonical: ingredient.name,
+  })),
+).sort((left, right) => right.alias.length - left.alias.length);
+
+export function canonicalIngredient(value: string) {
+  const normalized = normalizeNutritionText(value)
+    .replace(/\b(?:tengo|hay|me queda|quedo|quedan|un|una|unos|unas|dos|tres|cuatro|cocido|cocida|cocidos|cocidas)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const exact = ingredientAliases.find((item) => item.alias === normalized);
+  if (exact) return exact.canonical;
+  const contained = ingredientAliases.find((item) =>
+    new RegExp(`(?:^|\\s)${item.alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|\\s)`).test(normalized),
+  );
+  return contained?.canonical ?? normalized;
+}
+
+export function normalizeIngredientInput(value: string | string[]) {
+  const text = Array.isArray(value) ? value.join(", ") : value;
+  const normalized = normalizeNutritionText(text);
+  const found: string[] = [];
+  for (const item of ingredientAliases) {
+    if (!item.alias) continue;
+    const pattern = new RegExp(
+      `(?:^|\\s)${item.alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|\\s)`,
+    );
+    if (pattern.test(normalized) && !found.includes(item.canonical)) {
+      found.push(item.canonical);
+    }
+  }
+  if (found.length) return found;
+  return text
+    .split(/,|\by\b|\n/gi)
+    .map(canonicalIngredient)
+    .filter(Boolean);
 }
 
 export function nutritionSafetyCategory(value: string) {
@@ -68,169 +142,48 @@ export function safeInteger(
     : fallback;
 }
 
-function ingredient(
-  name: string,
-  quantity: number | null,
-  unit: string,
-  category: string,
-): NutritionIngredient {
-  return { name, quantity, unit, category };
-}
-
-const RECIPE_LIBRARY: NutritionRecipeResult[] = [
-  {
-    title: "Bowl de arroz, pollo y vegetales",
-    description: "Una comida completa y fácil de preparar con ingredientes cotidianos.",
-    servings: 1,
-    preparationMinutes: 30,
-    difficulty: "Fácil",
-    ingredients: [
-      ingredient("arroz", 80, "g", "Cereales y legumbres"),
-      ingredient("pollo", 150, "g", "Proteínas"),
-      ingredient("zanahoria", 1, "unidad", "Frutas y verduras"),
-      ingredient("zapallito", 1, "unidad", "Frutas y verduras"),
-      ingredient("aceite de oliva", 1, "cucharada", "Almacén"),
-    ],
-    steps: [
-      "Cociná el arroz hasta que quede tierno.",
-      "Cociná el pollo en una sartén y agregá los vegetales cortados.",
-      "Serví todo en un bowl y condimentá a gusto.",
-    ],
-    equipment: ["olla", "sartén"],
-    substitutions: [
-      { ingredient: "pollo", replacement: "lentejas cocidas o tofu" },
-      { ingredient: "arroz", replacement: "papa o fideos" },
-    ],
-    rationale: "Combina una fuente de proteína, carbohidratos y vegetales.",
-    warnings: [],
-    tags: ["almuerzo", "cena", "postentrenamiento"],
-  },
-  {
-    title: "Tostadas con huevo y tomate",
-    description: "Una opción rápida para desayuno, merienda o comida liviana.",
-    servings: 1,
-    preparationMinutes: 12,
-    difficulty: "Fácil",
-    ingredients: [
-      ingredient("pan integral", 2, "rebanadas", "Cereales y legumbres"),
-      ingredient("huevo", 2, "unidades", "Proteínas"),
-      ingredient("tomate", 1, "unidad", "Frutas y verduras"),
-      ingredient("aceite de oliva", 1, "cucharadita", "Almacén"),
-    ],
-    steps: [
-      "Tostá el pan.",
-      "Cociná los huevos de la forma que prefieras.",
-      "Serví con tomate y condimentá.",
-    ],
-    equipment: ["sartén", "tostadora"],
-    substitutions: [
-      { ingredient: "huevo", replacement: "hummus o tofu revuelto" },
-      { ingredient: "pan integral", replacement: "tortilla de maíz o papa cocida" },
-    ],
-    rationale: "Es práctica y aporta energía junto con una fuente de proteína.",
-    warnings: [],
-    tags: ["desayuno", "merienda", "rápido", "preentrenamiento"],
-  },
-  {
-    title: "Guiso rápido de lentejas",
-    description: "Una preparación rendidora, económica y fácil de reutilizar.",
-    servings: 2,
-    preparationMinutes: 35,
-    difficulty: "Fácil",
-    ingredients: [
-      ingredient("lentejas cocidas", 400, "g", "Cereales y legumbres"),
-      ingredient("cebolla", 1, "unidad", "Frutas y verduras"),
-      ingredient("zanahoria", 1, "unidad", "Frutas y verduras"),
-      ingredient("tomate triturado", 250, "ml", "Almacén"),
-      ingredient("arroz", 100, "g", "Cereales y legumbres"),
-    ],
-    steps: [
-      "Rehogá cebolla y zanahoria.",
-      "Agregá tomate, lentejas y un poco de agua.",
-      "Cociná hasta integrar y serví con arroz.",
-    ],
-    equipment: ["olla"],
-    substitutions: [
-      { ingredient: "lentejas cocidas", replacement: "garbanzos o porotos" },
-      { ingredient: "arroz", replacement: "papa" },
-    ],
-    rationale: "Usa alimentos rendidores y combina legumbres con cereales.",
-    warnings: [],
-    tags: ["almuerzo", "cena", "económico", "preparación anticipada"],
-  },
-  {
-    title: "Avena nocturna con fruta",
-    description: "Se prepara con anticipación y queda lista para llevar.",
-    servings: 1,
-    preparationMinutes: 8,
-    difficulty: "Fácil",
-    ingredients: [
-      ingredient("avena", 50, "g", "Cereales y legumbres"),
-      ingredient("leche o bebida vegetal", 180, "ml", "Lácteos"),
-      ingredient("banana", 1, "unidad", "Frutas y verduras"),
-      ingredient("maní o semillas", 1, "cucharada", "Almacén"),
-    ],
-    steps: [
-      "Mezclá la avena con la leche o bebida vegetal.",
-      "Agregá la fruta y el maní o semillas.",
-      "Guardá tapado en la heladera durante la noche.",
-    ],
-    equipment: ["heladera", "frasco"],
-    substitutions: [
-      { ingredient: "leche o bebida vegetal", replacement: "yogur o agua" },
-      { ingredient: "banana", replacement: "manzana o pera" },
-    ],
-    rationale: "Ayuda a resolver una comida con anticipación y pocos pasos.",
-    warnings: [],
-    tags: ["desayuno", "merienda", "para llevar", "sin cocinar"],
-  },
-  {
-    title: "Ensalada de garbanzos para llevar",
-    description: "Una opción fresca que puede prepararse con anticipación.",
-    servings: 1,
-    preparationMinutes: 15,
-    difficulty: "Fácil",
-    ingredients: [
-      ingredient("garbanzos cocidos", 200, "g", "Cereales y legumbres"),
-      ingredient("tomate", 1, "unidad", "Frutas y verduras"),
-      ingredient("zanahoria", 1, "unidad", "Frutas y verduras"),
-      ingredient("hojas verdes", 1, "taza", "Frutas y verduras"),
-      ingredient("aceite de oliva", 1, "cucharada", "Almacén"),
-    ],
-    steps: [
-      "Enjuagá los garbanzos.",
-      "Cortá los vegetales y mezclá todo.",
-      "Llevá el aderezo aparte si vas a transportarla.",
-    ],
-    equipment: ["recipiente con tapa"],
-    substitutions: [
-      { ingredient: "garbanzos cocidos", replacement: "lentejas o porotos" },
-      { ingredient: "hojas verdes", replacement: "repollo fino" },
-    ],
-    rationale: "Es simple, transportable y combina legumbres con vegetales.",
-    warnings: [],
-    tags: ["almuerzo", "rápido", "para llevar", "sin cocinar"],
-  },
-];
-
-function restrictions(context: NutritionContextSnapshot) {
+function contextRestrictions(context: NutritionContextSnapshot) {
   return [
     ...context.profile.allergies,
     ...context.profile.intolerances,
     ...context.profile.restrictions,
     ...context.profile.dislikedFoods,
-  ].map(normalizeNutritionText).filter(Boolean);
+  ].map(canonicalIngredient).filter(Boolean);
+}
+
+function vegetarianProfile(context: NutritionContextSnapshot) {
+  const value = normalizeNutritionText(
+    `${context.profile.dietaryType} ${context.profile.restrictions.join(" ")}`,
+  );
+  return /vegetarian|vegano/.test(value);
 }
 
 export function recipeIsCompatible(
   recipe: NutritionRecipeResult,
   context: NutritionContextSnapshot,
 ) {
-  const blocked = restrictions(context);
-  if (!blocked.length) return true;
+  const blocked = contextRestrictions(context);
+  const animalProteins = new Set([
+    "pollo",
+    "carne de pollo desmenuzada",
+    "carne vacuna",
+    "cerdo",
+    "merluza",
+    "atun",
+    "caballa",
+    "sardina",
+    "jamon cocido",
+  ]);
   return recipe.ingredients.every((item) => {
-    const name = normalizeNutritionText(item.name);
-    return blocked.every((value) => !name.includes(value) && !value.includes(name));
+    const canonical = canonicalIngredient(item.name);
+    if (vegetarianProfile(context) && animalProteins.has(normalizeNutritionText(canonical))) return false;
+    return blocked.every((value) => {
+      const normalizedBlocked = normalizeNutritionText(value);
+      const normalizedIngredient = normalizeNutritionText(canonical);
+      return normalizedIngredient !== normalizedBlocked &&
+        !normalizedIngredient.includes(normalizedBlocked) &&
+        !normalizedBlocked.includes(normalizedIngredient);
+    });
   });
 }
 
@@ -243,46 +196,171 @@ export function objectiveLabel(objective: string) {
   return objective.trim() || "Mejorar hábitos";
 }
 
+function budgetFrom(value: string): NutritionBudgetLevel | null {
+  const normalized = normalizeNutritionText(value);
+  if (/muy econom|economico|economica|bajo/.test(normalized)) return "LOW";
+  if (/moderad/.test(normalized)) return "MODERATE";
+  if (/flexible|alto|sin limite/.test(normalized)) return "HIGH";
+  return null;
+}
+
+function stableHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return Math.abs(hash >>> 0);
+}
+
+function recipeId(recipe: NutritionRecipeResult) {
+  return recipe.id ?? recipe.tags.find((tag) => tag.startsWith("catalog:"))?.slice(8) ?? normalizeNutritionText(recipe.title).replace(/\s+/g, "-");
+}
+
+function mealTypeMatches(recipe: NutritionRecipeResult, mealType: string) {
+  const desired = normalizeNutritionText(mealType);
+  if (!desired) return true;
+  return (recipe.mealTypes ?? recipe.tags).some((item) =>
+    normalizeNutritionText(item) === desired,
+  );
+}
+
+export type RecipeSelectionInput = {
+  mealType?: string;
+  tags?: string[];
+  limit?: number;
+  search?: string;
+  ingredient?: string;
+  budget?: string;
+  maxMinutes?: number;
+  seed?: string;
+  recentRecipeIds?: string[];
+  rejectedRecipeIds?: string[];
+  acceptedRecipeIds?: string[];
+  candidates?: NutritionRecipeResult[];
+};
+
 export function fallbackRecipes(
   context: NutritionContextSnapshot,
-  input: { mealType?: string; tags?: string[]; limit?: number },
+  input: RecipeSelectionInput,
 ) {
-  const desiredTags = [
-    safeText(input.mealType, 30),
-    ...stringList(input.tags, 5),
-  ].map(normalizeNutritionText).filter(Boolean);
-  const compatible = RECIPE_LIBRARY.filter((recipe) => recipeIsCompatible(recipe, context));
-  const scored = compatible.map((recipe) => ({
-    recipe,
-    score: desiredTags.reduce(
-      (sum, tag) => sum + (recipe.tags.some((item) => normalizeNutritionText(item).includes(tag)) ? 1 : 0),
-      0,
-    ),
-  })).sort((left, right) => right.score - left.score || left.recipe.preparationMinutes - right.recipe.preparationMinutes);
-  return scored.slice(0, Math.max(1, Math.min(input.limit ?? 4, 5))).map(({ recipe }) => ({
+  const desiredTags = stringList(input.tags, 10).map(normalizeNutritionText);
+  const search = normalizeNutritionText(input.search ?? "");
+  const desiredIngredient = input.ingredient
+    ? canonicalIngredient(input.ingredient)
+    : "";
+  const budget = budgetFrom(input.budget || context.profile.budgetPreference);
+  const recent = new Set(stringList(input.recentRecipeIds, 100));
+  const rejected = new Set(stringList(input.rejectedRecipeIds, 100));
+  const accepted = new Set(stringList(input.acceptedRecipeIds, 100));
+  const seed = input.seed || `${context.today}:${context.localHour}`;
+  const maxMinutes = Number(input.maxMinutes) || context.profile.cookingTimeMinutes || 240;
+
+  const candidates = (input.candidates ?? NUTRITION_RECIPE_CATALOG).filter((recipe) => {
+    const id = recipeId(recipe);
+    if (rejected.has(id) || !recipeIsCompatible(recipe, context)) return false;
+    if (!mealTypeMatches(recipe, input.mealType ?? "")) return false;
+    if (recipe.preparationMinutes > maxMinutes) return false;
+    if (search) {
+      const searchable = normalizeNutritionText(
+        `${recipe.title} ${recipe.ingredients.map((item) => item.name).join(" ")} ${recipe.tags.join(" ")}`,
+      );
+      if (!searchable.includes(search)) return false;
+    }
+    if (desiredIngredient && !recipe.ingredients.some((item) => canonicalIngredient(item.name) === desiredIngredient)) return false;
+    return true;
+  });
+
+  const scored = candidates.map((recipe) => {
+    const id = recipeId(recipe);
+    let score = 20;
+    score += desiredTags.reduce((sum, tag) =>
+      sum + (recipe.tags.some((item) => normalizeNutritionText(item).includes(tag)) ? 8 : 0), 0);
+    if (budget && recipe.budgetLevel) {
+      const difference = BUDGET_ORDER[recipe.budgetLevel] - BUDGET_ORDER[budget];
+      score += difference <= 0 ? 8 : -difference * 12;
+    }
+    if (recent.has(id) && !accepted.has(id)) score -= 100;
+    if (accepted.has(id)) score += 12;
+    if (context.profile.preferredFoods.some((food) =>
+      recipe.ingredients.some((item) => canonicalIngredient(item.name) === canonicalIngredient(food)))) score += 6;
+    score += (stableHash(`${seed}:${id}`) % 1000) / 1000;
+    return { recipe, score };
+  }).sort((left, right) => right.score - left.score || left.recipe.title.localeCompare(right.recipe.title, "es"));
+
+  const limit = Math.max(1, Math.min(input.limit ?? 4, 20));
+  const preferred = scored.filter((item) => item.score > -50);
+  const pool = preferred.length >= limit ? preferred : scored;
+  return pool.slice(0, limit).map(({ recipe }) => ({
     ...recipe,
     rationale: `${recipe.rationale} Orientación alineada con tu objetivo: ${objectiveLabel(context.student.objective)}.`,
   }));
 }
 
+function availableReplacement(missing: string, pantry: Set<string>) {
+  const normalizedMissing = normalizeNutritionText(missing);
+  const group = SUBSTITUTION_GROUPS.find((items) =>
+    items.map(normalizeNutritionText).includes(normalizedMissing),
+  );
+  if (!group) return null;
+  return group.find((item) => pantry.has(canonicalIngredient(item))) ?? null;
+}
+
+export type PantryRecipeMatch = {
+  recipe: NutritionRecipeResult;
+  missing: string[];
+  replacements?: Array<{ ingredient: string; replacement: string }>;
+  matchRatio?: number;
+};
+
+export function classifyPantryRecipes(
+  context: NutritionContextSnapshot,
+  pantryInput: string | string[],
+  recipes = NUTRITION_RECIPE_CATALOG,
+) {
+  const available = normalizeIngredientInput(pantryInput);
+  const pantry = new Set(available.map(canonicalIngredient));
+  const blockedAvailable = available.filter((item) =>
+    contextRestrictions(context).includes(canonicalIngredient(item)),
+  );
+  const results = recipes.filter((recipe) => recipeIsCompatible(recipe, context)).map((recipe) => {
+    const essential = (recipe.essentialIngredients?.length
+      ? recipe.essentialIngredients
+      : recipe.ingredients.filter((item) => !item.optional).map((item) => item.name))
+      .map(canonicalIngredient)
+      .filter((item) => !BASIC_PANTRY.has(normalizeNutritionText(item)));
+    const missing = essential.filter((item) => !pantry.has(item));
+    const replacements = missing.flatMap((item) => {
+      const replacement = availableReplacement(item, pantry);
+      return replacement ? [{ ingredient: item, replacement }] : [];
+    });
+    const matched = essential.length - missing.length;
+    return {
+      recipe,
+      missing,
+      replacements,
+      matchRatio: essential.length ? matched / essential.length : 1,
+    };
+  }).sort((left, right) =>
+    right.matchRatio - left.matchRatio ||
+    left.missing.length - right.missing.length ||
+    (left.recipe.budgetLevel ? BUDGET_ORDER[left.recipe.budgetLevel] : 9) - (right.recipe.budgetLevel ? BUDGET_ORDER[right.recipe.budgetLevel] : 9) ||
+    left.recipe.preparationMinutes - right.recipe.preparationMinutes,
+  );
+  return {
+    normalizedIngredients: available,
+    blockedIngredients: blockedAvailable,
+    canCookNow: results.filter((item) => item.missing.length === 0).slice(0, 8),
+    missingOne: results.filter((item) => item.missing.length === 1 && item.replacements.length === 0).slice(0, 8),
+    alternatives: results.filter((item) => item.missing.length > 0 && item.missing.length === item.replacements.length).slice(0, 8),
+  };
+}
+
 export function fallbackPantry(
   context: NutritionContextSnapshot,
-  pantryIngredients: string[],
+  pantryIngredients: string[] | string,
 ) {
-  const pantry = pantryIngredients.map(normalizeNutritionText);
-  const recipes = RECIPE_LIBRARY.filter((recipe) => recipeIsCompatible(recipe, context));
-  const results = recipes.map((recipe) => {
-    const missing = recipe.ingredients.filter((item) => {
-      const name = normalizeNutritionText(item.name);
-      return !pantry.some((available) => name.includes(available) || available.includes(name));
-    });
-    return { recipe, missing: missing.map((item) => item.name) };
-  }).sort((left, right) => left.missing.length - right.missing.length);
-  return {
-    canCookNow: results.filter((item) => item.missing.length === 0).slice(0, 3),
-    missingOne: results.filter((item) => item.missing.length === 1).slice(0, 3),
-    alternatives: results.filter((item) => item.missing.length > 1).slice(0, 2),
-  };
+  return classifyPantryRecipes(context, pantryIngredients);
 }
 
 function addDays(dateKey: string, days: number) {
@@ -293,35 +371,76 @@ function addDays(dateKey: string, days: number) {
 
 export function fallbackMealPlan(
   context: NutritionContextSnapshot,
-  input: { days?: number; meals?: string[]; startDate?: string },
+  input: RecipeSelectionInput & { days?: number; meals?: string[]; startDate?: string; mode?: string },
 ) {
   const days = safeInteger(input.days, 1, 7, 7);
-  const mealTypes = stringList(input.meals, 5);
-  const selectedMeals = mealTypes.length ? mealTypes : ["Almuerzo", "Cena"];
+  const selectedMeals = stringList(input.meals, 6).length
+    ? stringList(input.meals, 6)
+    : ["Almuerzo", "Cena"];
   const startDate = /^\d{4}-\d{2}-\d{2}$/.test(input.startDate ?? "")
     ? input.startDate!
     : context.today;
-  const recipes = fallbackRecipes(context, { limit: 5 });
-  if (!recipes.length) return { startDate, endDate: addDays(startDate, days - 1), meals: [] };
+  const maxRepeats = normalizeNutritionText(input.mode ?? "").includes("pocas recetas") ? 2 : 1;
+  const counts = new Map<string, number>();
+  const proteinLastUsed = new Map<string, number>();
+  const methodLastUsed = new Map<string, number>();
   const meals: NutritionPlanMeal[] = [];
+  const selectedRecipes = new Map<string, NutritionRecipeResult>();
+
   for (let day = 0; day < days; day += 1) {
     for (let position = 0; position < selectedMeals.length; position += 1) {
-      const recipe = recipes[(day + position) % recipes.length];
       const mealType = selectedMeals[position];
+      const candidates = fallbackRecipes(context, {
+        ...input,
+        mealType,
+        limit: 20,
+        seed: `${input.seed ?? startDate}:${day}:${position}`,
+      }).filter((recipe) => (counts.get(recipeId(recipe)) ?? 0) < maxRepeats);
+      const pool = candidates.length ? candidates : fallbackRecipes(context, { ...input, mealType, limit: 20 });
+      const recipe = [...pool].sort((left, right) => {
+        const leftProtein = proteinLastUsed.get(left.mainProtein ?? "") ?? -10;
+        const rightProtein = proteinLastUsed.get(right.mainProtein ?? "") ?? -10;
+        const leftMethod = methodLastUsed.get(left.cookingMethod ?? "") ?? -10;
+        const rightMethod = methodLastUsed.get(right.cookingMethod ?? "") ?? -10;
+        return (leftProtein + leftMethod) - (rightProtein + rightMethod) ||
+          stableHash(`${startDate}:${day}:${position}:${recipeId(left)}`) - stableHash(`${startDate}:${day}:${position}:${recipeId(right)}`);
+      })[0];
+      if (!recipe) continue;
+      const id = recipeId(recipe);
+      selectedRecipes.set(id, recipe);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+      proteinLastUsed.set(recipe.mainProtein ?? "", day * selectedMeals.length + position);
+      methodLastUsed.set(recipe.cookingMethod ?? "", day * selectedMeals.length + position);
       meals.push({
         id: `${day}-${position}-${normalizeNutritionText(mealType).replace(/\s/g, "-")}`,
         dateKey: addDays(startDate, day),
         mealType,
         title: recipe.title,
-        suggestedTime: context.profile.usualMealTimes[mealType.toLocaleLowerCase("es")] ?? "",
-        relationToTraining: context.training.routineName
-          ? "Organizada para acompañar tus días de entrenamiento."
-          : "Organizada según tu objetivo y hábitos.",
+        suggestedTime: context.profile.usualMealTimes[mealType.toLocaleLowerCase("es-AR")] ?? "",
+        relationToTraining: context.training.todayActivities.length
+          ? "Organizada para acompañar tu actividad y facilitar la recuperación."
+          : "Organizada según tu objetivo, presupuesto y hábitos.",
         status: "PLANNED",
       });
     }
   }
-  return { startDate, endDate: addDays(startDate, days - 1), meals };
+  return {
+    startDate,
+    endDate: addDays(startDate, days - 1),
+    meals,
+    recipes: [...selectedRecipes.values()],
+  };
+}
+
+export function validateMealPlanDiversity(meals: NutritionPlanMeal[]) {
+  const counts = new Map<string, number>();
+  for (const meal of meals) counts.set(meal.title, (counts.get(meal.title) ?? 0) + 1);
+  const maximumRepeat = Math.max(0, ...counts.values());
+  return {
+    uniqueRecipes: counts.size,
+    maximumRepeat,
+    valid: meals.every((meal) => meal.mealType && meal.title) && maximumRepeat <= 2,
+  };
 }
 
 export function shoppingItemsFromRecipes(
@@ -329,15 +448,15 @@ export function shoppingItemsFromRecipes(
 ): NutritionShoppingItem[] {
   const grouped = new Map<string, NutritionShoppingItem>();
   for (const recipe of recipes) {
-    for (const ingredient of recipe.ingredients) {
-      const key = `${normalizeNutritionText(ingredient.name)}|${normalizeNutritionText(ingredient.unit)}`;
+    for (const ingredient of recipe.ingredients.filter((item) => !item.optional)) {
+      const key = `${canonicalIngredient(ingredient.name)}|${normalizeNutritionText(ingredient.unit)}`;
       const current = grouped.get(key);
       if (current && current.quantity !== null && ingredient.quantity !== null) {
         current.quantity += ingredient.quantity;
       } else if (!current) {
         grouped.set(key, {
           ...ingredient,
-          id: `item-${grouped.size + 1}-${normalizeNutritionText(ingredient.name).replace(/\s/g, "-")}`,
+          id: `item-${grouped.size + 1}-${canonicalIngredient(ingredient.name).replace(/\s/g, "-")}`,
           checked: false,
         });
       }
@@ -363,7 +482,7 @@ export function validateRecipeResult(value: unknown): NutritionRecipeResult | nu
     if (!name) return [];
     const quantityValue = Number(ingredientRecord.quantity);
     return [{
-      name,
+      name: canonicalIngredient(name),
       quantity: Number.isFinite(quantityValue) && quantityValue >= 0 ? quantityValue : null,
       unit: safeText(ingredientRecord.unit, 30),
       category: safeText(ingredientRecord.category, 50) || "Otros",
@@ -372,13 +491,18 @@ export function validateRecipeResult(value: unknown): NutritionRecipeResult | nu
   }).slice(0, 30);
   const steps = stringList(record.steps, 20);
   if (!title || ingredients.length < 2 || !steps.length) return null;
+  const budget = safeText(record.budgetLevel, 20);
+  const budgetLevel = (["VERY_LOW", "LOW", "MODERATE", "HIGH"] as const).find((item) => item === budget);
   return {
+    id: safeText(record.id, 100) || undefined,
     title,
     description,
     servings: safeInteger(record.servings, 1, 12, 1),
     preparationMinutes: safeInteger(record.preparationMinutes, 1, 240, 20),
     difficulty: record.difficulty === "Intermedia" ? "Intermedia" : "Fácil",
     ingredients,
+    essentialIngredients: stringList(record.essentialIngredients, 30).map(canonicalIngredient),
+    optionalIngredients: stringList(record.optionalIngredients, 30).map(canonicalIngredient),
     steps,
     equipment: stringList(record.equipment, 12),
     substitutions: Array.isArray(record.substitutions)
@@ -387,11 +511,19 @@ export function validateRecipeResult(value: unknown): NutritionRecipeResult | nu
           const source = item as Record<string, unknown>;
           const ingredientName = safeText(source.ingredient, 80);
           const replacement = safeText(source.replacement, 100);
-          return ingredientName && replacement ? [{ ingredient: ingredientName, replacement }] : [];
+          return ingredientName && replacement ? [{ ingredient: canonicalIngredient(ingredientName), replacement: canonicalIngredient(replacement) }] : [];
         }).slice(0, 12)
       : [],
     rationale: safeText(record.rationale, 300),
     warnings: stringList(record.warnings, 8),
-    tags: stringList(record.tags, 12),
+    tags: stringList(record.tags, 20),
+    mealTypes: stringList(record.mealTypes, 8),
+    budgetLevel,
+    region: safeText(record.region, 20) || "AR",
+    objectiveTags: stringList(record.objectiveTags, 8),
+    trainingTags: stringList(record.trainingTags, 8),
+    mainProtein: safeText(record.mainProtein, 50),
+    cookingMethod: safeText(record.cookingMethod, 50),
+    reusable: record.reusable === true,
   };
 }

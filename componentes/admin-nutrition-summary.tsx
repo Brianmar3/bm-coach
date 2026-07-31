@@ -25,6 +25,9 @@ type AdminNutritionData = {
   } | null;
   recentUsage: {
     feature: string;
+    provider: string;
+    fallbackReason: string | null;
+    modelVersion: string | null;
     createdAt: string;
   } | null;
 };
@@ -130,6 +133,8 @@ export function AdminNutritionSummary({ studentId }: { studentId: string }) {
             <Metric label="Perfil nutricional" value={data.profile.completed ? "Completado" : "Pendiente"} />
             <Metric label="Plan activo" value={data.activePlan ? `${showDate(data.activePlan.startDate)} al ${showDate(data.activePlan.endDate)}` : "Sin plan"} />
             <Metric label="Uso reciente" value={data.recentUsage ? new Date(data.recentUsage.createdAt).toLocaleDateString("es-AR") : "Sin uso"} />
+            <Metric label="Motor nutricional" value={data.recentUsage?.provider === "external" ? `Externo${data.recentUsage.modelVersion ? ` · ${data.recentUsage.modelVersion}` : ""}` : "Respaldo local"} />
+            <Metric label="Motivo de respaldo" value={data.recentUsage?.fallbackReason || "Sin incidencias"} />
           </div>
           {data.profile.restrictions.length > 0 && (
             <div className="mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] p-3">

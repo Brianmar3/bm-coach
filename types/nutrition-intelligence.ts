@@ -7,6 +7,7 @@ export type NutritionIngredient = {
 };
 
 export type NutritionRecipeResult = {
+  id?: string;
   title: string;
   description: string;
   servings: number;
@@ -19,6 +20,16 @@ export type NutritionRecipeResult = {
   rationale: string;
   warnings: string[];
   tags: string[];
+  mealTypes?: string[];
+  essentialIngredients?: string[];
+  optionalIngredients?: string[];
+  budgetLevel?: "VERY_LOW" | "LOW" | "MODERATE" | "HIGH";
+  region?: string;
+  objectiveTags?: string[];
+  trainingTags?: string[];
+  mainProtein?: string;
+  cookingMethod?: string;
+  reusable?: boolean;
 };
 
 export type NutritionPlanMeal = {
@@ -90,6 +101,18 @@ export type NutritionContextSnapshot = {
       startTime: string;
       classType: string;
     }>;
+    todayActivities: Array<{
+      source: "OCCURRENCE" | "SCHEDULE" | "ROUTINE";
+      name: string;
+      startTime: string;
+      status: "UPCOMING" | "IN_PROGRESS" | "COMPLETED" | "GENERAL";
+    }>;
+    relevantActivity: {
+      source: "OCCURRENCE" | "SCHEDULE" | "ROUTINE";
+      name: string;
+      startTime: string;
+      status: "UPCOMING" | "IN_PROGRESS" | "COMPLETED" | "GENERAL";
+    } | null;
     recentAttendances: number;
   };
   habits: {

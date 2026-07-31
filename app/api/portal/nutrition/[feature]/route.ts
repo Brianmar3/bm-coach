@@ -14,7 +14,9 @@ import {
   shoppingItemsFromRecipes,
   stringList,
   validateRecipeResult,
+  normalizeIngredientInput,
 } from "@/lib/nutrition-rules";
+import { catalogRecipesByTitles } from "@/lib/nutrition-catalog";
 import type {
   NutritionPlanMeal,
   NutritionRecipeResult,
@@ -37,6 +39,7 @@ const FEATURES = new Set([
   "education",
   "assistant",
   "consent",
+  "feedback",
 ]);
 
 async function authorize(feature: string) {
@@ -99,6 +102,13 @@ function parseShoppingItems(value: unknown): NutritionShoppingItem[] {
 }
 
 function recipePayload(recipe: NutritionRecipeResult) {
+  const metadataTags = [
+    ...recipe.tags,
+    ...(recipe.mealTypes ?? []),
+    ...(recipe.id ? [`catalog:${recipe.id}`] : []),
+    ...(recipe.budgetLevel ? [`presupuesto:${recipe.budgetLevel.toLocaleLowerCase()}`] : []),
+    ...(recipe.cookingMethod ? [`coccion:${recipe.cookingMethod}`] : []),
+  ];
   return {
     title: recipe.title,
     description: recipe.description,
@@ -109,7 +119,7 @@ function recipePayload(recipe: NutritionRecipeResult) {
     steps: jsonValue(recipe.steps),
     equipment: recipe.equipment,
     substitutions: jsonValue(recipe.substitutions),
-    tags: recipe.tags,
+    tags: [...new Set(metadataTags)],
     warnings: recipe.warnings,
     rationale: recipe.rationale,
   };
@@ -234,7 +244,11 @@ export async function POST(
     if (feature === "ideas" || feature === "pantry") {
       const result = await generateNutrition(studentId, feature, input);
       if (feature === "pantry") {
-        const ingredients = stringList(input.ingredients, 30);
+        const ingredients = normalizeIngredientInput(
+          typeof input.ingredientsText === "string"
+            ? input.ingredientsText
+            : stringList(input.ingredients, 30),
+        );
         await prisma.nutritionPantrySession.create({
           data: {
             studentId,
@@ -267,7 +281,7 @@ export async function POST(
     }
     if (feature === "plans") {
       const result = await generateNutrition(studentId, "plan", input);
-      const generated = result.data as { startDate?: unknown; endDate?: unknown; meals?: unknown };
+      const generated = result.data as { startDate?: unknown; endDate?: unknown; meals?: unknown; recipes?: unknown };
       const startDate = safeText(generated.startDate, 10);
       const endDate = safeText(generated.endDate, 10);
       const meals = parsePlanMeals(generated.meals);
@@ -284,7 +298,7 @@ export async function POST(
             studentId,
             startDate: dateKeyToDatabase(startDate),
             endDate: dateKeyToDatabase(endDate),
-            configuration: jsonValue(input),
+            configuration: jsonValue({ ...input, generatedRecipes: generated.recipes ?? [] }),
             meals: jsonValue(meals),
             contextSnapshot: jsonValue(result.context),
           },
@@ -298,7 +312,7 @@ export async function POST(
       const ownedMealPlan = requestedMealPlanId
         ? await prisma.nutritionMealPlan.findFirst({
             where: { id: requestedMealPlanId, studentId },
-            select: { id: true },
+            select: { id: true, meals: true, configuration: true },
           })
         : null;
       if (requestedMealPlanId && !ownedMealPlan) {
@@ -322,6 +336,19 @@ export async function POST(
         });
         return candidate ? [candidate] : [];
       });
+      if (ownedMealPlan) {
+        const meals = parsePlanMeals(ownedMealPlan.meals);
+        const configuration = parseJsonObject(ownedMealPlan.configuration);
+        const storedGenerated = Array.isArray(configuration.generatedRecipes)
+          ? configuration.generatedRecipes.flatMap((value) => {
+              const recipe = validateRecipeResult(value);
+              return recipe ? [recipe] : [];
+            })
+          : [];
+        parsedRecipes = storedGenerated.length
+          ? storedGenerated
+          : catalogRecipesByTitles(meals.map((meal) => meal.title));
+      }
       if (!parsedRecipes.length) {
         const generated = await generateNutrition(studentId, "ideas", { tags: ["económico"] });
         parsedRecipes = ((generated.data as { recipes?: NutritionRecipeResult[] }).recipes ?? []);
@@ -338,6 +365,23 @@ export async function POST(
       });
       await analytics(studentId, "shopping_list_generated", { listId: list.id });
       return Response.json({ list, message: "Lista de compras creada." }, { status: 201 });
+    }
+    if (feature === "feedback") {
+      const recipeId = safeText(input.recipeId, 120);
+      const signal = safeText(input.signal, 40);
+      const allowed = new Set([
+        "USEFUL",
+        "DISLIKE",
+        "RECENTLY_EATEN",
+        "TOO_EXPENSIVE",
+        "TOO_DIFFICULT",
+        "MISSING_INGREDIENTS",
+      ]);
+      if (!recipeId || !allowed.has(signal)) {
+        return Response.json({ error: "La señal de preferencia no es válida." }, { status: 400 });
+      }
+      await analytics(studentId, "recipe_feedback", { recipeId, signal });
+      return Response.json({ message: "Preferencia guardada." });
     }
     if (feature === "favorites") {
       const contentType = safeText(input.contentType, 40);

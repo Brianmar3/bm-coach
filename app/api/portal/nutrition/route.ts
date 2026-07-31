@@ -105,7 +105,7 @@ export async function GET() {
   const interactionsToday = await prisma.nutritionAIInteraction.count({
     where: {
       studentId: session.studentId,
-      provider: "configured",
+      provider: { in: ["external", "configured"] },
       createdAt: {
         gte: argentinaDateTimeBoundary(today),
       },

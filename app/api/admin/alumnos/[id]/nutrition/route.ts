@@ -85,7 +85,7 @@ export async function GET(
     prisma.nutritionAIInteraction.findFirst({
       where: { studentId },
       orderBy: { createdAt: "desc" },
-      select: { feature: true, createdAt: true },
+      select: { feature: true, provider: true, errorCode: true, modelVersion: true, createdAt: true },
     }),
   ]);
   if (!studentRecord) {
@@ -119,6 +119,9 @@ export async function GET(
     recentUsage: recentUsage
       ? {
           feature: recentUsage.feature,
+          provider: recentUsage.provider,
+          fallbackReason: recentUsage.errorCode,
+          modelVersion: recentUsage.modelVersion,
           createdAt: recentUsage.createdAt.toISOString(),
         }
       : null,

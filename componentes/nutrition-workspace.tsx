@@ -222,7 +222,7 @@ function PreferencesView() {
       </section>
       <section className="grid gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 md:grid-cols-2">
         <SelectField label="Tipo de alimentación" value={profile.dietaryType} options={["", "Omnívora", "Vegetariana", "Vegana", "Otra"]} onChange={(value) => setProfile({ ...profile, dietaryType: value })} />
-        <SelectField label="Presupuesto" value={profile.budgetPreference} options={["", "Económico", "Intermedio", "Sin prioridad específica"]} onChange={(value) => setProfile({ ...profile, budgetPreference: value })} />
+        <SelectField label="Presupuesto" value={profile.budgetPreference} options={["", "Económico", "Moderado", "Flexible"]} onChange={(value) => setProfile({ ...profile, budgetPreference: value })} />
         <TextListField label="Alergias (declaración obligatoria si existen)" value={profile.allergies} onChange={(value) => setProfile({ ...profile, allergies: value })} placeholder="Ej: maní, huevo" />
         <TextListField label="Intolerancias" value={profile.intolerances} onChange={(value) => setProfile({ ...profile, intolerances: value })} placeholder="Ej: lactosa" />
         <TextListField label="Restricciones" value={profile.restrictions} onChange={(value) => setProfile({ ...profile, restrictions: value })} placeholder="Ej: sin gluten" />
@@ -278,6 +278,10 @@ function PreferencesView() {
 function IdeasView() {
   const [mealType, setMealType] = useState("Almuerzo");
   const [tags, setTags] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [ingredient, setIngredient] = useState("");
+  const [budget, setBudget] = useState("");
+  const [maxMinutes, setMaxMinutes] = useState(45);
   const [recipes, setRecipes] = useState<NutritionRecipeResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -291,7 +295,7 @@ function IdeasView() {
       const response = await fetch("/api/portal/nutrition/ideas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mealType, tags, intention: "meal-ideas" }),
+        body: JSON.stringify({ mealType, tags, search, ingredient, budget, maxMinutes, intention: "meal-ideas" }),
       });
       const body = await apiBody(response);
       if (!response.ok) throw new Error(String(body.error ?? "No pudimos generar opciones."));
@@ -319,6 +323,18 @@ function IdeasView() {
     setMessage(`Guardaste “${recipe.title}”.`);
   }
 
+  async function feedback(recipe: NutritionRecipeResult, signal: string) {
+    const response = await fetch("/api/portal/nutrition/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipeId: recipe.id ?? recipe.title, signal }),
+    });
+    const body = await apiBody(response);
+    if (!response.ok) return setError(String(body.error ?? "No se pudo guardar tu preferencia."));
+    setMessage(String(body.message ?? "Preferencia guardada."));
+    if (signal !== "USEFUL") setRecipes((current) => current.filter((item) => item !== recipe));
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader title="Ideas de comidas" description="Generá entre tres y cinco opciones usando tu objetivo, preferencias, restricciones, tiempo y entrenamiento." />
@@ -326,10 +342,14 @@ function IdeasView() {
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField label="Comida" value={mealType} options={mealTypes} onChange={setMealType} />
+          <SelectField label="Presupuesto" value={budget} options={["", "Económico", "Moderado", "Flexible"]} onChange={setBudget} />
+          <label className="text-sm text-zinc-300">Buscar por nombre o ingrediente<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej: tortilla, pollo" className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-black/40 px-3 outline-none focus:border-yellow-400" /></label>
+          <label className="text-sm text-zinc-300">Ingrediente principal<input value={ingredient} onChange={(event) => setIngredient(event.target.value)} placeholder="Ej: arroz" className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-black/40 px-3 outline-none focus:border-yellow-400" /></label>
+          <label className="text-sm text-zinc-300">Tiempo máximo: {maxMinutes} min<input type="range" min={5} max={90} step={5} value={maxMinutes} onChange={(event) => setMaxMinutes(Number(event.target.value))} className="mt-3 w-full accent-yellow-400" /></label>
           <div>
             <p className="text-sm text-zinc-300">Prioridades</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {["Rápido", "Económico", "Para llevar", "Sin cocinar"].map((tag) => (
+              {["Rápido", "Económico", "Para llevar", "Sin cocinar", "Sin horno", "Vegetariana"].map((tag) => (
                 <button key={tag} type="button" onClick={() => setTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag])} className={`min-h-11 rounded-full border px-3 text-xs font-bold ${tags.includes(tag) ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-200" : "border-zinc-700 text-zinc-400"}`}>{tag}</button>
               ))}
             </div>
@@ -338,7 +358,7 @@ function IdeasView() {
         <button type="button" onClick={generate} disabled={loading} className="mt-5 min-h-12 w-full rounded-xl bg-yellow-400 font-black text-black disabled:opacity-50">{loading ? "Generando opciones…" : recipes.length ? "Dame alternativas" : "Generar ideas"}</button>
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
-        {recipes.map((recipe) => <RecipeCard key={recipe.title} recipe={recipe} onSave={() => saveRecipe(recipe)} />)}
+        {recipes.map((recipe) => <RecipeCard key={recipe.id ?? recipe.title} recipe={recipe} actions={<div className="flex flex-wrap gap-2"><button type="button" onClick={() => saveRecipe(recipe)} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black">Guardar receta</button><button type="button" onClick={() => feedback(recipe, "USEFUL")} className="min-h-11 rounded-xl border border-yellow-400/20 px-3 text-xs font-bold text-yellow-200">Me sirve</button><button type="button" onClick={() => feedback(recipe, "DISLIKE")} className="min-h-11 rounded-xl border border-zinc-700 px-3 text-xs font-bold text-zinc-400">No me gusta</button><button type="button" onClick={() => feedback(recipe, "RECENTLY_EATEN")} className="min-h-11 rounded-xl border border-zinc-700 px-3 text-xs font-bold text-zinc-400">Ya la comí</button><button type="button" onClick={() => feedback(recipe, "TOO_EXPENSIVE")} className="min-h-11 rounded-xl border border-zinc-700 px-3 text-xs font-bold text-zinc-400">Muy cara</button><button type="button" onClick={() => feedback(recipe, "TOO_DIFFICULT")} className="min-h-11 rounded-xl border border-zinc-700 px-3 text-xs font-bold text-zinc-400">Difícil</button><button type="button" onClick={() => feedback(recipe, "MISSING_INGREDIENTS")} className="min-h-11 rounded-xl border border-zinc-700 px-3 text-xs font-bold text-zinc-400">No tengo eso</button></div>} />)}
       </div>
     </div>
   );
@@ -356,6 +376,8 @@ function RecipesView({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("");
   const load = useCallback(async () => {
     const response = await fetch(`/api/portal/nutrition/recipes${id ? `?id=${encodeURIComponent(id)}` : ""}`, { cache: "no-store" });
     const body = await apiBody(response);
@@ -399,15 +421,21 @@ function RecipesView({ id }: { id: string }) {
     window.location.assign(`/portal/nutricion/compras/${String((body.list as JsonRecord).id)}`);
   }
   if (loading) return <Loading />;
+  const visibleRecipes = id ? recipes : recipes.filter((recipe) => {
+    const searchable = `${recipe.title} ${recipe.ingredients.map((item) => item.name).join(" ")} ${recipe.tags.join(" ")}`.toLocaleLowerCase("es-AR");
+    return (!query.trim() || searchable.includes(query.trim().toLocaleLowerCase("es-AR"))) &&
+      (!filter || recipe.tags.some((tag) => tag.toLocaleLowerCase("es-AR").includes(filter.toLocaleLowerCase("es-AR"))));
+  });
   return (
     <div className="space-y-4">
       <PageHeader title={id ? recipes[0]?.title ?? "Receta" : "Mis recetas"} description={id ? "Ingredientes, pasos, reemplazos y relación con tu objetivo." : "Tus recetas guardadas permanecen disponibles aunque la IA no responda."} back={id ? "/portal/nutricion/recetas" : undefined} />
       <Notice error={error} message={message} />
-      {!recipes.length ? (
+      {!id && recipes.length > 0 && <section className="grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 sm:grid-cols-2"><label className="text-sm text-zinc-300">Buscar<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre o ingrediente" className="mt-2 min-h-11 w-full rounded-xl border border-zinc-700 bg-black/40 px-3" /></label><SelectField label="Filtro" value={filter} options={["", "desayuno", "almuerzo", "cena", "económica", "vegetariana", "sin horno", "para llevar"]} onChange={setFilter} /></section>}
+      {!visibleRecipes.length ? (
         <Empty text="Aún no guardaste recetas." action="Generar ideas" href="/portal/nutricion/ideas" />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {recipes.map((recipe) => (
+          {visibleRecipes.map((recipe) => (
             <RecipeCard key={recipe.id} recipe={recipe} detail={id === recipe.id} actions={
               <div className="flex flex-wrap gap-2">
                 {!id && <Link href={`/portal/nutricion/recetas/${recipe.id}`} className="min-h-11 rounded-xl bg-yellow-400 px-4 py-3 text-xs font-black text-black">Abrir receta</Link>}
@@ -438,7 +466,7 @@ function PantryView() {
       const response = await fetch("/api/portal/nutrition/pantry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredients: values }),
+        body: JSON.stringify({ ingredients: values, ingredientsText: ingredients }),
       });
       const body = await apiBody(response);
       if (!response.ok) throw new Error(String(body.error ?? "No se pudieron generar opciones."));
@@ -461,6 +489,8 @@ function PantryView() {
       </section>
       {result && (
         <div className="space-y-4">
+          {asArray<string>(result.normalizedIngredients).length > 0 && <p className="rounded-xl border border-zinc-800 bg-black/30 p-3 text-xs text-zinc-400">Entendimos: {asArray<string>(result.normalizedIngredients).join(", ")}.</p>}
+          {asArray<string>(result.blockedIngredients).length > 0 && <p role="alert" className="rounded-xl bg-red-400/10 p-3 text-xs text-red-200">No usamos ingredientes incompatibles con tus restricciones: {asArray<string>(result.blockedIngredients).join(", ")}.</p>}
           <PantryGroup title="Podés cocinar ahora" values={asArray<{ recipe: NutritionRecipeResult; missing: string[] }>(result.canCookNow)} />
           <PantryGroup title="Te falta un ingrediente" values={asArray<{ recipe: NutritionRecipeResult; missing: string[] }>(result.missingOne)} />
           <PantryGroup title="Alternativas con reemplazo" values={asArray<{ recipe: NutritionRecipeResult; missing: string[] }>(result.alternatives)} />
@@ -483,6 +513,8 @@ function PlansView({ id }: { id: string }) {
   const [plans, setPlans] = useState<StoredPlan[]>([]);
   const [days, setDays] = useState(7);
   const [meals, setMeals] = useState(["Almuerzo", "Cena"]);
+  const [budget, setBudget] = useState("");
+  const [mode, setMode] = useState("Variada");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
@@ -507,7 +539,7 @@ function PlansView({ id }: { id: string }) {
       const response = await fetch("/api/portal/nutrition/plans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, meals, startDate: new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }) }),
+        body: JSON.stringify({ days, meals, budget, mode, startDate: new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }) }),
       });
       const body = await apiBody(response);
       if (!response.ok) throw new Error(String(body.error ?? "No se pudo generar."));
@@ -556,6 +588,8 @@ function PlansView({ id }: { id: string }) {
               <input type="number" min={1} max={7} value={days} onChange={(event) => setDays(Number(event.target.value) || 7)} className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-black/40 px-3" />
             </label>
             <div><p className="text-sm text-zinc-300">Comidas</p><div className="mt-2 flex flex-wrap gap-2">{mealTypes.slice(0, 4).map((item) => <button key={item} type="button" onClick={() => setMeals((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} className={`min-h-11 rounded-full border px-3 text-xs font-bold ${meals.includes(item) ? "border-yellow-400/30 text-yellow-200" : "border-zinc-700 text-zinc-500"}`}>{item}</button>)}</div></div>
+            <SelectField label="Presupuesto" value={budget} options={["", "Económico", "Moderado", "Flexible"]} onChange={setBudget} />
+            <SelectField label="Tipo de planificación" value={mode} options={["Variada", "Económica", "Rápida", "Pocas recetas", "Preparación anticipada"]} onChange={setMode} />
           </div>
           <button type="button" onClick={generate} disabled={working || !meals.length} className="mt-5 min-h-12 w-full rounded-xl bg-yellow-400 font-black text-black disabled:opacity-50">{working ? "Generando plan…" : plans.length ? "Regenerar y guardar nuevo plan" : "Generar y guardar plan"}</button>
         </section>
@@ -791,7 +825,8 @@ function AssistantView({ conversationId }: { conversationId: string }) {
 }
 
 function RecipeCard({ recipe, onSave, actions, detail = false }: { recipe: NutritionRecipeResult; onSave?: () => void; actions?: ReactNode; detail?: boolean }) {
-  return <article className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h2 className="text-lg font-black">{recipe.title}</h2><p className="mt-1 text-xs text-zinc-500">{recipe.preparationMinutes} min · {recipe.difficulty} · {recipe.servings} porción/es</p></div></div><p className="mt-3 text-sm leading-6 text-zinc-300">{recipe.description}</p><div className="mt-4"><h3 className="text-xs font-bold uppercase text-yellow-400">Ingredientes</h3><ul className="mt-2 space-y-1 text-sm text-zinc-400">{recipe.ingredients.map((item, index) => <li key={`${item.name}-${index}`}>{item.quantity ?? "—"} {item.unit} · {item.name}</li>)}</ul></div>{detail && <><div className="mt-4"><h3 className="text-xs font-bold uppercase text-yellow-400">Preparación</h3><ol className="mt-2 space-y-2 text-sm leading-6 text-zinc-300">{recipe.steps.map((step, index) => <li key={step}><span className="mr-2 text-yellow-300">{index + 1}.</span>{step}</li>)}</ol></div>{recipe.substitutions.length > 0 && <div className="mt-4 rounded-xl bg-black/35 p-3"><h3 className="text-xs font-bold text-yellow-300">Reemplazos</h3>{recipe.substitutions.map((item) => <p key={item.ingredient} className="mt-1 text-xs text-zinc-400">{item.ingredient} → {item.replacement}</p>)}</div>}</>}<p className="mt-4 text-xs leading-5 text-zinc-500">{recipe.rationale}</p><div className="mt-4">{actions ?? (onSave && <button type="button" onClick={onSave} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black">Guardar receta</button>)}</div></article>;
+  const budget = recipe.budgetLevel === "VERY_LOW" ? "Muy económica" : recipe.budgetLevel === "LOW" ? "Económica" : recipe.budgetLevel === "MODERATE" ? "Moderada" : recipe.budgetLevel === "HIGH" ? "Más costosa" : "";
+  return <article className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h2 className="text-lg font-black">{recipe.title}</h2><p className="mt-1 text-xs text-zinc-500">{recipe.preparationMinutes} min · {recipe.difficulty} · {recipe.servings} porción/es{budget ? ` · ${budget}` : ""}</p></div></div><p className="mt-3 text-sm leading-6 text-zinc-300">{recipe.description}</p><div className="mt-4"><h3 className="text-xs font-bold uppercase text-yellow-400">Ingredientes</h3><ul className="mt-2 space-y-1 text-sm text-zinc-400">{recipe.ingredients.map((item, index) => <li key={`${item.name}-${index}`}>{item.quantity ?? "—"} {item.unit} · {item.name}{item.optional ? " (opcional)" : ""}</li>)}</ul></div>{detail && <><div className="mt-4"><h3 className="text-xs font-bold uppercase text-yellow-400">Preparación</h3><ol className="mt-2 space-y-2 text-sm leading-6 text-zinc-300">{recipe.steps.map((step, index) => <li key={step}><span className="mr-2 text-yellow-300">{index + 1}.</span>{step}</li>)}</ol></div>{recipe.substitutions.length > 0 && <div className="mt-4 rounded-xl bg-black/35 p-3"><h3 className="text-xs font-bold text-yellow-300">Reemplazos</h3>{recipe.substitutions.map((item) => <p key={item.ingredient} className="mt-1 text-xs text-zinc-400">{item.ingredient} → {item.replacement}</p>)}</div>}</>}<p className="mt-4 text-xs leading-5 text-zinc-500">{recipe.rationale}</p><div className="mt-4">{actions ?? (onSave && <button type="button" onClick={onSave} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black">Guardar receta</button>)}</div></article>;
 }
 
 function PantryGroup({ title, values }: { title: string; values: Array<{ recipe: NutritionRecipeResult; missing: string[] }> }) {

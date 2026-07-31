@@ -13,6 +13,7 @@ import type {
   NutritionContextSnapshot,
   NutritionProfileData,
 } from "@/types/nutrition-intelligence";
+import { resolveNutritionActivities } from "@/lib/nutrition-activity";
 
 function ageAtDate(birthDate: string, today: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return null;
@@ -102,6 +103,7 @@ export async function buildNutritionContext(
     profile,
     routineAssignment,
     weeklyClasses,
+    todayOccurrences,
     recentAttendances,
     checkins,
     activePlan,
@@ -146,10 +148,28 @@ export async function buildNutritionContext(
       where: { studentId, active: true, schedule: { active: true } },
       select: {
         schedule: {
-          select: { dayOfWeek: true, startTime: true, classType: true },
+          select: { dayOfWeek: true, startTime: true, endTime: true, classType: true },
         },
       },
       orderBy: { schedule: { startTime: "asc" } },
+    }),
+    prisma.classOccurrence.findMany({
+      where: {
+        date: dateKeyToDatabase(today),
+        status: { not: "CANCELLED" },
+        OR: [
+          { schedule: { assignments: { some: { studentId, active: true } } } },
+          { responses: { some: { studentId } } },
+        ],
+      },
+      select: {
+        startTime: true,
+        endTime: true,
+        status: true,
+        classNameSnapshot: true,
+        schedule: { select: { classType: true } },
+      },
+      orderBy: { startTime: "asc" },
     }),
     prisma.classOccurrenceAttendance.count({
       where: {
@@ -174,13 +194,25 @@ export async function buildNutritionContext(
   if (!studentRecord) throw new Error("STUDENT_NOT_FOUND");
   const student = studentRecord.data as unknown as Student;
   const summary = nutritionSummary(checkins.map(serializeNutritionCheckin));
-  const localHour = Number(
-    new Intl.DateTimeFormat("en-GB", {
+  const localClock = new Intl.DateTimeFormat("en-GB", {
       timeZone: "America/Argentina/Buenos_Aires",
       hour: "2-digit",
+      minute: "2-digit",
       hourCycle: "h23",
-    }).format(new Date()),
-  );
+    }).format(new Date());
+  const localHour = Number(localClock.slice(0, 2));
+  const trainingActivity = resolveNutritionActivities({
+    today,
+    localTime: localClock,
+    occurrences: todayOccurrences.map((occurrence) => ({
+      name: occurrence.schedule?.classType.trim() || occurrence.classNameSnapshot.trim() || "Clase",
+      startTime: occurrence.startTime,
+      endTime: occurrence.endTime,
+      status: occurrence.status,
+    })),
+    weeklySchedules: weeklyClasses.map(({ schedule }) => schedule),
+    routineName: routineAssignment?.routine.name ?? null,
+  });
   return {
     today,
     localHour: Number.isFinite(localHour) ? localHour : 12,
@@ -218,6 +250,8 @@ export async function buildNutritionContext(
         startTime: schedule.startTime,
         classType: schedule.classType,
       })),
+      todayActivities: trainingActivity.activities,
+      relevantActivity: trainingActivity.relevantActivity,
       recentAttendances,
     },
     habits: summary,
@@ -253,12 +287,23 @@ export function nutritionRecommendation(context: NutritionContextSnapshot) {
       action: "Registrar hábitos",
     };
   }
-  const nextClass = context.training.scheduledClasses[0];
-  if (nextClass) {
+  const activity = context.training.relevantActivity;
+  if (activity?.status === "UPCOMING" || activity?.status === "IN_PROGRESS") {
     return {
-      title: `Organizate para ${nextClass.classType}`,
-      message: `Tenés un horario activo a las ${nextClass.startTime}. Elegí una comida simple que puedas ubicar antes o después sin pasar demasiadas horas sin comer.`,
+      title: `Organizate para ${activity.name}`,
+      message: `${activity.startTime ? `Tu actividad relevante de hoy es a las ${activity.startTime}. ` : ""}Elegí una comida simple que puedas ubicar antes o después sin pasar demasiadas horas sin comer.`,
       href: "/portal/nutricion/ideas?tipo=preentrenamiento",
+      action: "Ver opciones",
+    };
+  }
+  if (
+    context.training.todayActivities.length > 0 &&
+    context.training.todayActivities.every((item) => item.status === "COMPLETED")
+  ) {
+    return {
+      title: "Hoy ya completaste tus actividades programadas",
+      message: "Priorizá una comida completa, hidratación y una organización simple para favorecer la recuperación.",
+      href: "/portal/nutricion/ideas?tipo=postentrenamiento",
       action: "Ver opciones",
     };
   }
