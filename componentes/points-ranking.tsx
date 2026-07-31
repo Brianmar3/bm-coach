@@ -48,8 +48,10 @@ export function PointsRanking() {
         eventsCreated?: number;
         eventsOmitted?: number;
         quickLogsProcessed?: number;
+        routineSessionsProcessed?: number;
         attendancesProcessed?: number;
         achievementsProcessed?: number;
+        individualExerciseEventsRemoved?: number;
         historicalClassExercisesIgnored?: number;
         studentsWithoutActivity?: number;
         errors?: Array<unknown>;
@@ -59,7 +61,7 @@ export function PointsRanking() {
         setNotice(body.error ?? "No se pudo recalcular el ranking.");
         return;
       }
-      setNotice(`${body.message ?? "Ranking recalculado."} ${body.quickLogsProcessed ?? 0} registros rápidos · ${body.attendancesProcessed ?? 0} asistencias · ${body.achievementsProcessed ?? 0} logros e hitos · ${body.historicalClassExercisesIgnored ?? 0} ejercicios presenciales históricos conservados sin reprocesar · ${body.eventsCreated ?? 0} eventos reconstruidos · ${body.eventsOmitted ?? 0} ya existentes · ${body.studentsWithoutActivity ?? 0} alumnos sin actividad · ${body.errors?.length ?? 0} errores.`);
+      setNotice(`${body.message ?? "Ranking recalculado."} ${body.quickLogsProcessed ?? 0} registros rápidos · ${body.routineSessionsProcessed ?? 0} rutinas completadas · ${body.attendancesProcessed ?? 0} asistencias · ${body.achievementsProcessed ?? 0} logros e hitos · ${body.individualExerciseEventsRemoved ?? 0} eventos individuales retirados · ${body.historicalClassExercisesIgnored ?? 0} ejercicios presenciales históricos conservados sin reprocesar · ${body.eventsCreated ?? 0} eventos reconstruidos · ${body.eventsOmitted ?? 0} ya existentes · ${body.studentsWithoutActivity ?? 0} alumnos sin actividad · ${body.errors?.length ?? 0} errores.`);
       setLoading(true);
       setRevision((value) => value + 1);
     } catch {

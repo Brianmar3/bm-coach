@@ -21,6 +21,7 @@ import type {
 export const POINT_RULES = {
   ATTENDANCE: 5,
   RECORD: 3,
+  ROUTINE_COMPLETED: 5,
   PERSONAL_RECORD: 10,
   ACHIEVEMENT: 15,
   MILESTONE: 20,
@@ -62,11 +63,32 @@ function isPersonalRecord(id: string) {
   );
 }
 
+function isIndividualExercisePointEvent(item: {
+  eventKey: string;
+  sourceType: StudentPointSourceType;
+  sourceId: string | null;
+}) {
+  return (
+    item.eventKey.startsWith("record:class-exercise:") ||
+    item.eventKey.startsWith("record:workout-exercise:") ||
+    item.eventKey.startsWith("record:routine-exercise:") ||
+    item.eventKey.includes("performance-routine-") ||
+    item.eventKey.includes("performance-class-") ||
+    item.sourceId?.startsWith("performance-routine-") === true ||
+    item.sourceId?.startsWith("performance-class-") === true
+  );
+}
+
+function isIndividualRoutineAchievement(id: string) {
+  return id.startsWith("performance-routine-");
+}
+
 async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
   const [
     occurrenceAttendances,
     legacyAttendances,
     quickLogs,
+    completedRoutineSessions,
     achievements,
   ] =
     await Promise.all([
@@ -111,6 +133,15 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
           unit: true,
           date: true,
           createdAt: true,
+        },
+        orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+      }),
+      prisma.workoutSession.findMany({
+        where: { studentId, status: "COMPLETED" },
+        select: {
+          id: true,
+          routineNameSnapshot: true,
+          date: true,
         },
         orderBy: [{ date: "asc" }, { createdAt: "asc" }],
       }),
@@ -174,7 +205,20 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
     });
   }
 
+  for (const session of completedRoutineSessions) {
+    events.push({
+      eventKey: `record:workout-session:${session.id}`,
+      eventType: "RECORD",
+      sourceType: "WORKOUT_SESSION",
+      sourceId: session.id,
+      points: POINT_RULES.ROUTINE_COMPLETED,
+      description: `Rutina completada: ${session.routineNameSnapshot || "entrenamiento personalizado"}`,
+      occurredAt: dateAtNoon(session.date),
+    });
+  }
+
   for (const achievement of achievements) {
+    if (isIndividualRoutineAchievement(achievement.id)) continue;
     const important = isImportantMilestone(
       achievement.id,
       achievement.level,
@@ -306,7 +350,7 @@ async function notifyPointGain(
 
 export async function syncStudentPoints(
   studentId: string,
-  options: { notify?: boolean } = {},
+  options: { notify?: boolean; cleanupHistoricalMarks?: boolean } = {},
 ) {
   const desired = await desiredPointEvents(studentId);
   const desiredByKey = new Map(desired.map((item) => [item.eventKey, item]));
@@ -319,6 +363,7 @@ export async function syncStudentPoints(
   );
   const gained = desired.filter((item) => !previouslyActive.has(item.eventKey));
   const now = new Date();
+  let individualExerciseEventsRemoved = 0;
 
   await prisma.$transaction(
     async (transaction) => {
@@ -348,13 +393,20 @@ export async function syncStudentPoints(
           (item) =>
             item.active &&
             !desiredByKey.has(item.eventKey) &&
-            item.sourceType !== "CLASS_WORKOUT_LOG" &&
-            item.sourceType !== "WORKOUT_SESSION" &&
-            item.sourceId !== "first-strength-log" &&
-            !item.sourceId?.startsWith("performance-class-") &&
-            !item.sourceId?.includes(":class:"),
+            ((options.cleanupHistoricalMarks === true &&
+              isIndividualExercisePointEvent(item)) ||
+              (!isIndividualExercisePointEvent(item) &&
+                item.sourceType !== "CLASS_WORKOUT_LOG" &&
+                item.sourceType !== "WORKOUT_SESSION" &&
+                item.sourceId !== "first-strength-log" &&
+                !item.sourceId?.includes(":class:"))),
         )
         .map((item) => item.eventKey);
+      individualExerciseEventsRemoved = previous.filter(
+        (item) =>
+          obsoleteKeys.includes(item.eventKey) &&
+          isIndividualExercisePointEvent(item),
+      ).length;
       if (obsoleteKeys.length) {
         await transaction.studentPointTransaction.updateMany({
           where: { studentId, eventKey: { in: obsoleteKeys } },
@@ -395,6 +447,7 @@ export async function syncStudentPoints(
   }
   const sourceCounts = {
     quickLogs: desired.filter((event) => event.eventKey.startsWith("record:quick-log:")).length,
+    routineSessions: desired.filter((event) => event.sourceType === "WORKOUT_SESSION").length,
     attendances: desired.filter((event) => event.eventType === "ATTENDANCE").length,
     achievements: desired.filter((event) => event.eventType === "ACHIEVEMENT" || event.eventType === "MILESTONE").length,
   };
@@ -403,7 +456,8 @@ export async function syncStudentPoints(
     gained,
     desiredCount: desired.length,
     sourceCounts,
-    activityEventCount: sourceCounts.quickLogs + sourceCounts.attendances + sourceCounts.achievements,
+    individualExerciseEventsRemoved,
+    activityEventCount: sourceCounts.quickLogs + sourceCounts.routineSessions + sourceCounts.attendances + sourceCounts.achievements,
   };
 }
 

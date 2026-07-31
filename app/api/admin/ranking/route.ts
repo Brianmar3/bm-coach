@@ -121,19 +121,26 @@ export async function POST(request: Request) {
   let eventsCreated = 0;
   let eventsOmitted = 0;
   let quickLogsProcessed = 0;
+  let routineSessionsProcessed = 0;
   let attendancesProcessed = 0;
   let achievementsProcessed = 0;
+  let individualExerciseEventsRemoved = 0;
   let studentsWithoutActivity = 0;
   const errors: Array<{ studentId: string; studentName: string; error: string }> = [];
   for (const student of students) {
     try {
-      const result = await syncStudentPoints(student.id, { notify: false });
+      const result = await syncStudentPoints(student.id, {
+        notify: false,
+        cleanupHistoricalMarks: true,
+      });
       processed += 1;
       eventsCreated += result.gained.length;
       eventsOmitted += Math.max(0, result.desiredCount - result.gained.length);
       quickLogsProcessed += result.sourceCounts.quickLogs;
+      routineSessionsProcessed += result.sourceCounts.routineSessions;
       attendancesProcessed += result.sourceCounts.attendances;
       achievementsProcessed += result.sourceCounts.achievements;
+      individualExerciseEventsRemoved += result.individualExerciseEventsRemoved;
       if (result.activityEventCount === 0) studentsWithoutActivity += 1;
     } catch (error) {
       errors.push({
@@ -152,8 +159,10 @@ export async function POST(request: Request) {
     eventsCreated,
     eventsOmitted,
     quickLogsProcessed,
+    routineSessionsProcessed,
     attendancesProcessed,
     achievementsProcessed,
+    individualExerciseEventsRemoved,
     historicalClassExercisesIgnored,
     studentsWithoutActivity,
     errors,

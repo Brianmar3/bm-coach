@@ -3,7 +3,8 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isDateKey } from "@/lib/payment-dates";
-import type { CoachSettings, Student, StudentPlanOption, StudentStatus } from "@/types/gestion";
+import { isStudentType } from "@/types/gestion";
+import type { CoachSettings, Student, StudentPlanOption, StudentStatus, StudentType } from "@/types/gestion";
 import { isStudentServiceType } from "@/lib/student-service";
 
 const PLAN_DAYS = [2, 3, 4, 5] as const;
@@ -17,6 +18,10 @@ export type StudentWithSchedule = Prisma.StudentRecordGetPayload<{ include: type
 
 export function normalizePhone(value: string) {
   return value.replace(/\D/g, "");
+}
+
+export function studentTypeValue(value: unknown): StudentType {
+  return isStudentType(value) ? value : "Adulto";
 }
 
 export function planDays(value: string) {
@@ -74,7 +79,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     status: stored.status === "inactivo" ? "inactivo" : "activo",
     serviceType: record.serviceType,
     notes: stored.notes ?? "",
-    studentType: stored.studentType === "Kids" ? "Kids" : "Adulto",
+    studentType: studentTypeValue(stored.studentType),
     responsibleName: typeof stored.responsibleName === "string" ? stored.responsibleName : "",
     responsiblePhone: typeof stored.responsiblePhone === "string" ? stored.responsiblePhone : "",
     responsibleRelation: typeof stored.responsibleRelation === "string" ? stored.responsibleRelation : "",
@@ -96,7 +101,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const firstName = typeof input.firstName === "string" ? input.firstName.trim() : "";
   const lastName = typeof input.lastName === "string" ? input.lastName.trim() : "";
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
-  const studentType = typeof input.studentType === "string" && (input.studentType === "Adulto" || input.studentType === "Kids") ? input.studentType : "Adulto";
+  const studentType = studentTypeValue(input.studentType);
   const responsibleName = typeof input.responsibleName === "string" ? input.responsibleName.trim() : "";
   const responsiblePhone = typeof input.responsiblePhone === "string" ? input.responsiblePhone.trim() : "";
   const responsibleRelation = typeof input.responsibleRelation === "string" ? input.responsibleRelation.trim() : "";

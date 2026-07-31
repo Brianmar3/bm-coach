@@ -3,6 +3,12 @@ export type PaymentAccountStatus = "VENCIDA" | "VENCE_PRONTO" | "AL_DIA" | "SIN_
 
 export type StudentStatus = "activo" | "inactivo";
 export type StudentServiceType = "CLASSES" | "PERSONALIZED" | "MIXED";
+export const STUDENT_TYPES = ["Adulto", "Kids"] as const;
+export type StudentType = (typeof STUDENT_TYPES)[number];
+
+export function isStudentType(value: unknown): value is StudentType {
+  return typeof value === "string" && STUDENT_TYPES.includes(value as StudentType);
+}
 
 export type Student = {
   id: string;
@@ -21,7 +27,7 @@ export type Student = {
   status: StudentStatus;
   serviceType: StudentServiceType;
   notes: string;
-  studentType?: "Adulto" | "Kids";
+  studentType: StudentType;
   responsibleName?: string;
   responsiblePhone?: string;
   responsibleRelation?: string;
