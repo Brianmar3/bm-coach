@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
@@ -82,8 +82,12 @@ export function PortalShell({
       : "text-zinc-500 hover:text-zinc-200";
   };
 
+  const shellStyle = {
+    "--portal-quick-note-bottom": "calc(env(safe-area-inset-bottom) + 0.85rem + 76px + 0.85rem)",
+  } as CSSProperties;
+
   return (
-    <div className="min-h-screen overflow-x-clip bg-[#070707] text-white">
+    <div className="min-h-screen overflow-x-clip bg-[#070707] text-white" style={shellStyle}>
       <AchievementCelebration />
       <header className="sticky top-0 z-30 border-b border-yellow-400/10 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
@@ -152,7 +156,7 @@ export function PortalShell({
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl p-3 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-6 md:pb-12">
+      <main className="mx-auto max-w-6xl p-3 pb-[calc(env(safe-area-inset-bottom)+8.25rem)] sm:p-6 md:pb-12">
         {children}
       </main>
 
