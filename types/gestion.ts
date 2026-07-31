@@ -83,6 +83,7 @@ export type AttendanceRosterStudent = {
   name: string;
   phone: string;
   assigned: boolean;
+  confirmation: "GOING" | "NOT_GOING" | null;
   status: AttendanceStatus | null;
   attendanceId: string | null;
 };

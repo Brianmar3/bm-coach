@@ -14,6 +14,19 @@ function databaseUnavailable(error: unknown) {
     (error instanceof Prisma.PrismaClientKnownRequestError && ["P1001", "P1002", "P1017"].includes(error.code));
 }
 
+function occurrenceAttendanceStatus(value: string) {
+  if (value === "PRESENT") return "presente" as const;
+  if (value === "ABSENT") return "ausente" as const;
+  if (value === "CANCELLED") return "justificado" as const;
+  return null;
+}
+
+function databaseOccurrenceAttendanceStatus(value: AttendanceStatus) {
+  if (value === "presente") return "PRESENT" as const;
+  if (value === "ausente") return "ABSENT" as const;
+  return "CANCELLED" as const;
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -33,7 +46,7 @@ export async function GET(request: Request) {
       const rosterStudents = activeStudents.map((student) => {
         const data = student.data as unknown as Partial<Student>;
         const attendance = attendanceByStudent.get(student.id);
-        return { id: student.id, name: studentName(student.data), phone: data.phone ?? "", assigned: false, status: attendance ? apiAttendanceStatus(attendance.status) : null, attendanceId: attendance?.id ?? null };
+        return { id: student.id, name: studentName(student.data), phone: data.phone ?? "", assigned: false, confirmation: null, status: attendance ? apiAttendanceStatus(attendance.status) : null, attendanceId: attendance?.id ?? null };
       }).sort((left, right) => left.name.localeCompare(right.name, "es"));
       const roster: AttendanceRoster = {
         date: dateValue,
@@ -48,26 +61,69 @@ export async function GET(request: Request) {
       include: {
         assignments: { where: { active: true }, include: { student: true } },
         attendances: { where: { date }, include: { student: true } },
+        occurrences: {
+          where: { date },
+          take: 1,
+          include: {
+            responses: { include: { student: true } },
+          },
+        },
       },
     });
     if (!schedule) return Response.json({ error: "Horario no encontrado." }, { status: 404 });
     if (classDayForDate(date) !== schedule.dayOfWeek) return Response.json({ error: "La fecha elegida no corresponde al día semanal de este horario." }, { status: 400 });
 
     const attendanceByStudent = new Map(schedule.attendances.map((attendance) => [attendance.studentId, attendance]));
+    const occurrence = schedule.occurrences[0] ?? null;
+    const occurrenceByStudent = new Map(
+      (occurrence?.responses ?? []).map((response) => [response.studentId, response]),
+    );
     const assignedIds = new Set(schedule.assignments.map((assignment) => assignment.studentId));
     const assigned = schedule.assignments
       .filter((assignment) => (assignment.student.data as unknown as Partial<Student>).status === "activo" || attendanceByStudent.has(assignment.studentId))
       .map((assignment) => {
         const attendance = attendanceByStudent.get(assignment.studentId);
+        const occurrenceAttendance = occurrenceByStudent.get(assignment.studentId);
         const data = assignment.student.data as unknown as Partial<Student>;
-        return { id: assignment.studentId, name: studentName(assignment.student.data), phone: data.phone ?? "", assigned: true, status: attendance ? apiAttendanceStatus(attendance.status) : null, attendanceId: attendance?.id ?? null };
+        return {
+          id: assignment.studentId,
+          name: studentName(assignment.student.data),
+          phone: data.phone ?? "",
+          assigned: true,
+          confirmation: occurrenceAttendance?.response ?? null,
+          status: attendance
+            ? apiAttendanceStatus(attendance.status)
+            : occurrenceAttendanceStatus(occurrenceAttendance?.actualAttendance ?? "UNKNOWN"),
+          attendanceId: attendance?.id ?? null,
+        };
       });
-    const exceptional = schedule.attendances
+    const exceptionalStudents = new Map<string, typeof schedule.assignments[number]["student"]>();
+    schedule.attendances
       .filter((attendance) => !assignedIds.has(attendance.studentId))
-      .map((attendance) => {
-        const data = attendance.student.data as unknown as Partial<Student>;
-        return { id: attendance.studentId, name: studentName(attendance.student.data), phone: data.phone ?? "", assigned: false, status: apiAttendanceStatus(attendance.status), attendanceId: attendance.id };
-      });
+      .forEach((attendance) =>
+        exceptionalStudents.set(attendance.studentId, attendance.student),
+      );
+    (occurrence?.responses ?? [])
+      .filter((response) => !assignedIds.has(response.studentId))
+      .forEach((response) =>
+        exceptionalStudents.set(response.studentId, response.student),
+      );
+    const exceptional = [...exceptionalStudents].map(([studentId, student]) => {
+      const attendance = attendanceByStudent.get(studentId);
+      const occurrenceAttendance = occurrenceByStudent.get(studentId);
+      const data = student.data as unknown as Partial<Student>;
+      return {
+        id: studentId,
+        name: studentName(student.data),
+        phone: data.phone ?? "",
+        assigned: false,
+        confirmation: occurrenceAttendance?.response ?? null,
+        status: attendance
+          ? apiAttendanceStatus(attendance.status)
+          : occurrenceAttendanceStatus(occurrenceAttendance?.actualAttendance ?? "UNKNOWN"),
+        attendanceId: attendance?.id ?? null,
+      };
+    });
     const roster: AttendanceRoster = {
       date: dateValue,
       schedule: { id: schedule.id, label: weeklyScheduleLabel(schedule), startTime: schedule.startTime, endTime: schedule.endTime },
@@ -99,6 +155,12 @@ export async function PUT(request: Request) {
       if (students.length !== parsedRecords.length) throw new Error("STUDENT_NOT_FOUND");
       const label = schedule ? weeklyScheduleLabel(schedule) : "Sin horario";
       const startTime = schedule?.startTime ?? "";
+      const occurrence = schedule
+        ? await transaction.classOccurrence.findFirst({
+            where: { scheduleId: schedule.id, date },
+            select: { id: true },
+          })
+        : null;
       for (const record of parsedRecords) {
         if (body.scheduleId) {
           await transaction.classAttendance.upsert({
@@ -106,6 +168,26 @@ export async function PUT(request: Request) {
             create: { scheduleId: body.scheduleId, studentId: record.studentId, date, status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: startTime },
             update: { status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: startTime },
           });
+          if (occurrence) {
+            await transaction.classOccurrenceAttendance.upsert({
+              where: {
+                occurrenceId_studentId: {
+                  occurrenceId: occurrence.id,
+                  studentId: record.studentId,
+                },
+              },
+              create: {
+                occurrenceId: occurrence.id,
+                studentId: record.studentId,
+                actualAttendance: databaseOccurrenceAttendanceStatus(record.status!),
+                checkedInAt: new Date(),
+              },
+              update: {
+                actualAttendance: databaseOccurrenceAttendanceStatus(record.status!),
+                checkedInAt: new Date(),
+              },
+            });
+          }
           continue;
         }
         const existingAttendance = await transaction.classAttendance.findFirst({

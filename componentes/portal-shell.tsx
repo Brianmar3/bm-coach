@@ -62,10 +62,22 @@ export function PortalShell({
     if (href === "/portal/rutina") return serviceType !== "CLASSES" || hasRoutine;
     return true;
   });
+  const isLinkActive = (href: string) => {
+    if (href === "/portal/clases" && pathname.startsWith("/portal/registro")) {
+      return true;
+    }
+    if (
+      href === "/portal/rutina" &&
+      ["/portal/entrenamiento", "/portal/historial", "/portal/comentarios"].some(
+        (route) => pathname.startsWith(route),
+      )
+    ) {
+      return true;
+    }
+    return href === "/portal" ? pathname === href : pathname.startsWith(href);
+  };
   const linkStyle = (href: string) => {
-    const active =
-      href === "/portal" ? pathname === href : pathname.startsWith(href);
-    return active
+    return isLinkActive(href)
       ? "text-yellow-400"
       : "text-zinc-500 hover:text-zinc-200";
   };
@@ -140,32 +152,44 @@ export function PortalShell({
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl p-3 pb-28 sm:p-6 md:pb-12">
+      <main className="mx-auto max-w-6xl p-3 pb-[calc(env(safe-area-inset-bottom)+7rem)] sm:p-6 md:pb-12">
         {children}
       </main>
 
       <nav
         aria-label="Navegación móvil del portal"
         style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
-        className="fixed inset-x-0 bottom-0 z-40 grid border-t border-yellow-400/10 bg-black/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(0,0,0,.45)] backdrop-blur md:hidden"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-5 right-5 z-40 mx-auto grid h-[76px] max-w-[30rem] rounded-[30px] border border-yellow-400/20 bg-black/80 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),0_3px_16px_rgba(250,204,21,.07),inset_0_-1px_0_rgba(250,204,21,.1)] backdrop-blur-xl md:hidden"
       >
         {links.map(([title, href, icon]) => {
-          const active =
-            href === "/portal" ? pathname === href : pathname.startsWith(href);
+          const active = isLinkActive(href);
           return (
             <Link
               key={href}
               href={href}
-              className={`relative flex min-h-16 flex-col items-center justify-center gap-1 text-[10px] font-bold transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-yellow-400 ${linkStyle(
-                href,
-              )}`}
+              aria-current={active ? "page" : undefined}
+              className={`group relative mx-0.5 flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-full border text-[10px] font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-1 focus-visible:ring-offset-black ${
+                active
+                  ? "border-yellow-400/30 bg-[radial-gradient(circle_at_50%_115%,rgba(250,204,21,.13),transparent_55%),linear-gradient(180deg,rgba(39,39,42,.94),rgba(10,10,10,.96))] text-yellow-300 shadow-[0_5px_18px_rgba(250,204,21,.08),inset_0_1px_0_rgba(255,255,255,.035)]"
+                  : "border-transparent bg-transparent text-zinc-500 hover:text-zinc-200"
+              }`}
             >
-              <span aria-hidden="true" className="text-lg leading-none">
+              <span
+                aria-hidden="true"
+                className={`text-[17px] leading-none transition-[color,filter,transform] duration-200 ${
+                  active
+                    ? "scale-105 text-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,.28)]"
+                    : "text-zinc-500 group-hover:text-zinc-300"
+                }`}
+              >
                 {icon}
               </span>
-              {title}
+              <span className="max-w-full truncate px-0.5">{title}</span>
               {active && (
-                <span className="absolute bottom-1 h-0.5 w-5 rounded-full bg-yellow-400" />
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-1.5 h-0.5 w-4 rounded-full bg-yellow-300 shadow-[0_0_6px_rgba(250,204,21,.45)]"
+                />
               )}
             </Link>
           );
