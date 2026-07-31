@@ -26,6 +26,12 @@ type RecipeSpec = {
   protein?: string;
   method: string;
   reusable?: boolean;
+  condiments?: string[];
+  portable?: boolean;
+  argentinianContext?: string[];
+  compatibleRestrictions?: string[];
+  carbBase?: string;
+  requiresCooking?: boolean;
 };
 
 const ingredientRows: Array<[string, string, number, string, string[]?]> = [
@@ -55,7 +61,12 @@ const ingredientRows: Array<[string, string, number, string, string[]?]> = [
   ["merluza", "Proteínas", 160, "g", ["pescado", "filet de merluza"]],
   ["atún", "Proteínas", 1, "lata", ["atun", "atún al natural"]],
   ["sardina", "Proteínas", 1, "lata", ["sardinas"]],
-  ["queso", "Lácteos", 50, "g", ["queso fresco", "queso cremoso", "muzzarella"]],
+  ["mate", "Bebidas", 1, "infusión", ["mate cocido", "mate amargo"]],
+  ["café", "Bebidas", 1, "taza", ["cafe", "café negro"]],
+  ["té", "Bebidas", 1, "taza", ["te", "té verde"]],
+  ["salsa criolla", "Condimentos", 50, "g", ["criolla"]],
+  ["salsa blanca", "Condimentos", 100, "ml", ["bechamel"]],
+  ["queso", "Lácteos", 50, "g", ["queso fresco", "queso cremoso", "muzzarella", "queso untable"]],
   ["ricota", "Lácteos", 100, "g", ["requesón"]],
   ["yogur", "Lácteos", 180, "g", ["yogurt", "yogur natural"]],
   ["leche", "Lácteos", 200, "ml", ["leche descremada", "leche entera"]],
@@ -264,6 +275,15 @@ const recipeSpecs: RecipeSpec[] = [
   { id: "pollo-arvejas-arroz", title: "Pollo con arvejas y arroz", mealTypes: ["almuerzo", "cena", "postentrenamiento"], essential: ["pollo", "arveja", "arroz"], optional: ["cebolla", "zanahoria"], tags: ["rendidora", "reutilizable"], budget: "LOW", minutes: 32, equipment: ["olla"], protein: "pollo", method: "olla", reusable: true },
   { id: "carne-papa-olla", title: "Carne a la olla con papa", mealTypes: ["almuerzo", "cena"], essential: ["carne vacuna", "papa"], optional: ["cebolla", "zanahoria", "tomate triturado"], tags: ["rendidora"], budget: "MODERATE", minutes: 50, equipment: ["olla"], protein: "carne vacuna", method: "olla", reusable: true },
   { id: "cerdo-batata", title: "Cerdo a la plancha con batata", mealTypes: ["almuerzo", "cena"], essential: ["cerdo", "batata"], optional: ["cebolla", "morrón"], tags: ["simple"], budget: "MODERATE", minutes: 30, equipment: ["sartén"], protein: "cerdo", method: "plancha" },
+  { id: "tostadas-huevo-queso", title: "Tostadas con huevo y queso", mealTypes: ["desayuno", "merienda", "preentrenamiento"], essential: ["pan", "huevo", "queso"], optional: ["tomate"], tags: ["rápida", "económica", "para llevar"], budget: "LOW", minutes: 10, equipment: ["sartén"], protein: "huevo", method: "tostado", portable: true, condiments: ["sal", "pimienta", "aceite"], argentinianContext: ["Desayuno simple y frecuente en hogares argentinos."], compatibleRestrictions: ["sin horno", "para llevar"] },
+  { id: "avena-yogur-fruta", title: "Avena con yogur y fruta", mealTypes: ["desayuno", "merienda", "postentrenamiento"], essential: ["avena", "yogur", "banana"], optional: ["canela"], tags: ["rápida", "económica", "sin cocinar"], budget: "LOW", minutes: 7, equipment: [], protein: "yogur", method: "sin cocinar", portable: true, condiments: ["canela"], argentinianContext: ["Merienda casera y práctica para la semana."], compatibleRestrictions: ["sin horno", "sin cocinar"] },
+  { id: "sopa-fideos-huevo", title: "Sopa de fideos con huevo", mealTypes: ["almuerzo", "cena"], essential: ["fideos", "huevo", "caldo"], optional: ["zanahoria", "cebolla"], tags: ["económica", "rendidora"], budget: "VERY_LOW", minutes: 20, equipment: ["olla"], protein: "huevo", method: "sopa", reusable: true, condiments: ["sal", "pimienta", "aceite"], argentinianContext: ["Receta de olla económica, común en menús diarios."], compatibleRestrictions: ["sin horno"] },
+  { id: "guiso-porotos-arroz", title: "Guiso de porotos con arroz", mealTypes: ["almuerzo", "cena"], essential: ["poroto", "arroz", "tomate triturado"], optional: ["cebolla", "zanahoria"], tags: ["vegetariana", "muy económica", "reutilizable"], budget: "VERY_LOW", minutes: 35, equipment: ["olla"], protein: "poroto", method: "olla", reusable: true, condiments: ["sal", "pimienta", "comino"], argentinianContext: ["Comida de olla sencilla y muy habitual."], compatibleRestrictions: ["vegetariana"] },
+  { id: "ensalada-porotos-pollo", title: "Ensalada de porotos y pollo", mealTypes: ["almuerzo", "cena", "para llevar"], essential: ["poroto", "pollo", "tomate"], optional: ["repollo", "lechuga"], tags: ["para llevar", "reutilizable"], budget: "LOW", minutes: 18, equipment: [], protein: "pollo", method: "ensalada", portable: true, condiments: ["sal", "aceite", "limón"], argentinianContext: ["Opción de comida fría para llevar o guardar."], compatibleRestrictions: ["para llevar"] },
+  { id: "wrap-huevo-verdura", title: "Wrap de huevo y verdura", mealTypes: ["almuerzo", "cena", "para llevar"], essential: ["tortilla de trigo", "huevo"], optional: ["tomate", "lechuga"], tags: ["económica", "para llevar"], budget: "LOW", minutes: 12, equipment: ["sartén"], protein: "huevo", method: "wrap", portable: true, condiments: ["sal", "pimienta"], argentinianContext: ["Versión rápida para un almuerzo práctico."], compatibleRestrictions: ["para llevar", "sin horno"] },
+  { id: "bowl-arroz-pollo-verduras", title: "Bowl de arroz, pollo y verduras", mealTypes: ["almuerzo", "cena", "postentrenamiento"], essential: ["arroz", "pollo", "zanahoria"], optional: ["tomate", "morrón"], tags: ["reutilizable", "postentrenamiento"], budget: "LOW", minutes: 25, equipment: ["olla", "sartén"], protein: "pollo", method: "bowl", reusable: true, condiments: ["sal", "pimienta", "aceite"], argentinianContext: ["Preparación práctica para la semana y para entrenar."], compatibleRestrictions: ["postentrenamiento"] },
+  { id: "tortilla-papa-cebolla", title: "Tortilla de papa y cebolla", mealTypes: ["almuerzo", "cena", "para llevar"], essential: ["papa", "huevo", "cebolla"], optional: ["queso"], tags: ["económica", "para llevar"], budget: "VERY_LOW", minutes: 28, equipment: ["sartén"], protein: "huevo", method: "tortilla", portable: true, condiments: ["sal", "pimienta"], argentinianContext: ["Comida casera muy cotidiana en Argentina."], compatibleRestrictions: ["para llevar", "sin horno"] },
+  { id: "milanesa-pollo-ensalada", title: "Milanesa de pollo con ensalada", mealTypes: ["almuerzo", "cena"], essential: ["pollo", "harina", "huevo"], optional: ["lechuga", "tomate"], tags: ["clásica", "horno"], budget: "LOW", minutes: 40, equipment: ["horno"], protein: "pollo", method: "horno", condiments: ["sal", "pimienta", "aceite"], argentinianContext: ["Plato familiar con formato simple y accesible."], compatibleRestrictions: ["sin horno"] },
 ];
 
 const ingredientByName = new Map(
@@ -308,6 +328,7 @@ export const NUTRITION_RECIPE_CATALOG: NutritionRecipeResult[] = recipeSpecs.map
       `Cociná usando el método ${spec.method}, controlando el punto de cocción.`,
       "Integrá los ingredientes opcionales que tengas y condimentá de forma simple.",
     ],
+    condiments: spec.condiments ?? ["sal", "pimienta", "aceite"],
     equipment: spec.equipment,
     substitutions: [],
     rationale:
@@ -327,8 +348,21 @@ export const NUTRITION_RECIPE_CATALOG: NutritionRecipeResult[] = recipeSpecs.map
     objectiveTags: ["mejorar hábitos", "mantener", "rendimiento"],
     trainingTags: spec.mealTypes.filter((item) => item.includes("entrenamiento")),
     mainProtein: spec.protein ?? "",
+    carbBase: spec.carbBase ?? (spec.essential.find((name) => ["arroz", "fideos", "pan", "avena", "polenta", "papa", "batata", "tortilla de trigo", "tortilla de maíz", "cuscús"].includes(name)) ?? ""),
     cookingMethod: spec.method,
     reusable: spec.reusable ?? false,
+    portable: spec.portable ?? spec.tags.includes("para llevar"),
+    requiresCooking: spec.requiresCooking ?? (!spec.tags.includes("sin cocinar") && !spec.tags.includes("sin horno")),
+    compatibleRestrictions: spec.compatibleRestrictions ?? [
+      ...(spec.tags.includes("vegetariana") ? ["vegetariana"] : []),
+      ...(spec.tags.includes("sin horno") ? ["sin horno"] : []),
+      ...(spec.tags.includes("sin cocinar") ? ["sin cocinar"] : []),
+      ...(spec.tags.includes("para llevar") ? ["para llevar"] : []),
+    ],
+    argentinianContext: spec.argentinianContext ?? [
+      "Receta simple con ingredientes habituales en Argentina.",
+      "Se adapta a menús caseros y económicos.",
+    ],
   }),
 );
 

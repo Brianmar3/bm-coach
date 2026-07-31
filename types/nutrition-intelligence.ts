@@ -23,11 +23,17 @@ export type NutritionRecipeResult = {
   mealTypes?: string[];
   essentialIngredients?: string[];
   optionalIngredients?: string[];
+  condiments?: string[];
+  compatibleRestrictions?: string[];
+  portable?: boolean;
+  requiresCooking?: boolean;
+  argentinianContext?: string[];
   budgetLevel?: "VERY_LOW" | "LOW" | "MODERATE" | "HIGH";
   region?: string;
   objectiveTags?: string[];
   trainingTags?: string[];
   mainProtein?: string;
+  carbBase?: string;
   cookingMethod?: string;
   reusable?: boolean;
 };

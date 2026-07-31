@@ -12,7 +12,7 @@ import {
   recipeIsCompatible,
   validateRecipeResult,
 } from "../lib/nutrition-rules.ts";
-import { nutritionCatalogStats } from "../lib/nutrition-catalog.ts";
+import { NUTRITION_RECIPE_CATALOG, nutritionCatalogStats } from "../lib/nutrition-catalog.ts";
 import { resolveNutritionActivities, weekdayForDateKey } from "../lib/nutrition-activity.ts";
 import type { NutritionContextSnapshot } from "../types/nutrition-intelligence.ts";
 
@@ -129,6 +129,15 @@ test("arroz y huevo produce varias opciones cocinables sin exigir condimentos", 
   assert.ok(result.canCookNow.length >= 5);
   assert.ok(result.canCookNow.every((item) => item.missing.length === 0));
   assert.ok(result.canCookNow.some((item) => item.recipe.title === "Arroz con huevo revuelto"));
+});
+
+test("el catálogo local aporta metadatos útiles para recetas argentinas y para llevar", () => {
+  const sample = NUTRITION_RECIPE_CATALOG.find((recipe) => recipe.tags.includes("para llevar") && recipe.tags.includes("económica"));
+  assert.ok(sample);
+  assert.ok(sample?.condiments && sample.condiments.length >= 1);
+  assert.ok(sample?.portable === true || sample?.portable === false);
+  assert.ok(sample?.argentinianContext && sample.argentinianContext.length > 0);
+  assert.ok(sample?.compatibleRestrictions && sample.compatibleRestrictions.length > 0);
 });
 
 test("una alergia al huevo bloquea todas las recetas con huevo", () => {
