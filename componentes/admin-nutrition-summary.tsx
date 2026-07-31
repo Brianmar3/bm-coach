@@ -12,6 +12,21 @@ type AdminNutritionData = {
   evaluation: NutritionEvaluationReference | null;
   summary: NutritionSummary;
   trainerNote: NutritionTrainerNote | null;
+  profile: {
+    completed: boolean;
+    personalizationEnabled: boolean;
+    restrictions: string[];
+    updatedAt: string | null;
+  };
+  activePlan: {
+    id: string;
+    startDate: string;
+    endDate: string;
+  } | null;
+  recentUsage: {
+    feature: string;
+    createdAt: string;
+  } | null;
 };
 
 const showDate = (value: string) =>
@@ -112,7 +127,16 @@ export function AdminNutritionSummary({ studentId }: { studentId: string }) {
             <Metric label="Cumplimiento 7 días" value={`${data.summary.compliancePercentage}%`} />
             <Metric label="Más sostenido" value={data.summary.strongestHabit ?? "Sin datos"} />
             <Metric label="A mejorar" value={data.summary.habitToImprove ?? "Sin datos"} />
+            <Metric label="Perfil nutricional" value={data.profile.completed ? "Completado" : "Pendiente"} />
+            <Metric label="Plan activo" value={data.activePlan ? `${showDate(data.activePlan.startDate)} al ${showDate(data.activePlan.endDate)}` : "Sin plan"} />
+            <Metric label="Uso reciente" value={data.recentUsage ? new Date(data.recentUsage.createdAt).toLocaleDateString("es-AR") : "Sin uso"} />
           </div>
+          {data.profile.restrictions.length > 0 && (
+            <div className="mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400">Restricciones declaradas</p>
+              <p className="mt-2 text-sm text-zinc-300">{data.profile.restrictions.join(", ")}</p>
+            </div>
+          )}
           {data.trainerNote && (
             <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">

@@ -34,7 +34,15 @@ export async function GET(
   const { id: studentId } = await context.params;
   const today = argentinaDateKey();
   const weekStart = addDateKeyDays(today, -6);
-  const [studentRecord, evaluation, checkins, trainerNote] = await Promise.all([
+  const [
+    studentRecord,
+    evaluation,
+    checkins,
+    trainerNote,
+    profile,
+    activePlan,
+    recentUsage,
+  ] = await Promise.all([
     prisma.studentRecord.findUnique({
       where: { id: studentId },
       select: { id: true, data: true },
@@ -59,6 +67,26 @@ export async function GET(
       where: { studentId },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
+    prisma.nutritionProfile.findUnique({
+      where: { studentId },
+      select: {
+        allergies: true,
+        intolerances: true,
+        restrictions: true,
+        personalizationEnabled: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.nutritionMealPlan.findFirst({
+      where: { studentId, active: true, status: "ACTIVE" },
+      orderBy: { startDate: "desc" },
+      select: { id: true, startDate: true, endDate: true },
+    }),
+    prisma.nutritionAIInteraction.findFirst({
+      where: { studentId },
+      orderBy: { createdAt: "desc" },
+      select: { feature: true, createdAt: true },
+    }),
   ]);
   if (!studentRecord) {
     return Response.json({ error: "El alumno no existe." }, { status: 404 });
@@ -71,6 +99,29 @@ export async function GET(
     weekCheckins: serializedCheckins,
     summary: nutritionSummary(serializedCheckins),
     trainerNote: serializeNutritionNote(trainerNote),
+    profile: {
+      completed: Boolean(profile),
+      personalizationEnabled: profile?.personalizationEnabled ?? false,
+      restrictions: [
+        ...(profile?.allergies ?? []),
+        ...(profile?.intolerances ?? []),
+        ...(profile?.restrictions ?? []),
+      ],
+      updatedAt: profile?.updatedAt.toISOString() ?? null,
+    },
+    activePlan: activePlan
+      ? {
+          id: activePlan.id,
+          startDate: activePlan.startDate.toISOString().slice(0, 10),
+          endDate: activePlan.endDate.toISOString().slice(0, 10),
+        }
+      : null,
+    recentUsage: recentUsage
+      ? {
+          feature: recentUsage.feature,
+          createdAt: recentUsage.createdAt.toISOString(),
+        }
+      : null,
   });
 }
 

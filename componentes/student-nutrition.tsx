@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { NUTRITION_HABITS } from "@/lib/nutrition";
-import type {
-  NutritionHabitKey,
-  NutritionPortalData,
-} from "@/types/nutrition";
+import type { NutritionHabitKey } from "@/types/nutrition";
+import type { NutritionDashboardData } from "@/types/nutrition-intelligence";
 
 const emptyHabits: Record<NutritionHabitKey, boolean> = {
   hydration: false,
@@ -16,134 +14,85 @@ const emptyHabits: Record<NutritionHabitKey, boolean> = {
   energy: false,
 };
 
-const generalGuide = [
-  "Organizá comidas completas que puedas sostener en tu rutina.",
-  "Incluí una fuente de proteína en las comidas principales.",
-  "Sumá frutas y verduras variadas a lo largo del día.",
-  "Priorizá agua y mantené una hidratación regular.",
-  "Evitá enfoques extremos y observá cómo responde tu energía.",
-];
-
-function objectiveGuide(objective: string) {
-  const normalized = objective.toLocaleLowerCase("es");
-  if (/masa|músc|muscu|aument|ganar/.test(normalized)) {
-    return {
-      title: "Aumentar masa muscular",
-      items: [
-        "Incluí una fuente de proteína en las comidas principales.",
-        "Evitá pasar demasiadas horas sin comer.",
-        "Incorporá carbohidratos alrededor del entrenamiento.",
-        "Sumá una colación si te cuesta sostener una ingesta suficiente.",
-        "Mantené una hidratación regular durante el día.",
-      ],
-    };
-  }
-  if (/grasa|bajar|descenso|adelgaz/.test(normalized)) {
-    return {
-      title: "Bajar grasa",
-      items: [
-        "Priorizá comidas completas y saciantes.",
-        "Incluí proteína y verduras en las comidas principales.",
-        "Organizá porciones sin recurrir a restricciones extremas.",
-        "Evitá picoteos frecuentes por falta de organización.",
-        "Sostené el entrenamiento y la actividad diaria.",
-      ],
-    };
-  }
-  if (/rend|deport|compet|fuerza/.test(normalized)) {
-    return {
-      title: "Rendimiento",
-      items: [
-        "Llegá al entrenamiento con buena hidratación.",
-        "Evitá entrenar después de demasiadas horas sin comer.",
-        "Incluí carbohidratos y proteínas alrededor del entrenamiento.",
-        "Organizá una comida de recuperación después de las sesiones.",
-        "Registrá cómo cambia tu energía durante el día.",
-      ],
-    };
-  }
-  if (/mantener|mantenimiento/.test(normalized)) {
-    return {
-      title: "Mantener",
-      items: [
-        "Mantené horarios de comida que puedas sostener.",
-        "Incluí proteínas, frutas y verduras de forma variada.",
-        "Priorizá agua durante el día.",
-        "Organizá tus comidas alrededor del entrenamiento.",
-        "Evitá enfoques extremos y observá tu energía.",
-      ],
-    };
-  }
-  if (/hábito|habito|salud|bienestar/.test(normalized)) {
-    return {
-      title: "Mejorar hábitos",
-      items: generalGuide,
-    };
-  }
-  return {
-    title: objective.trim() || "Mantener y mejorar hábitos",
-    items: generalGuide,
-  };
-}
+const quickLinks = [
+  ["Ideas de comidas", "Opciones según tu objetivo y horario.", "/portal/nutricion/ideas", "◌"],
+  ["Planificar semana", "Organizá comidas y días.", "/portal/nutricion/plan", "▦"],
+  ["Lista de compras", "Consolidá lo que necesitás.", "/portal/nutricion/compras", "✓"],
+  ["Cocinar con lo que tengo", "Usá ingredientes disponibles.", "/portal/nutricion/despensa", "◇"],
+  ["Recetas", "Consultá tus recetas guardadas.", "/portal/nutricion/recetas", "≡"],
+  ["Aprender", "Lecciones breves y prácticas.", "/portal/nutricion/aprender", "○"],
+  ["Favoritos", "Volvé a tus contenidos elegidos.", "/portal/nutricion/favoritos", "☆"],
+  ["Historial", "Revisá tu actividad nutricional.", "/portal/nutricion/historial", "↺"],
+  ["Preguntar al asistente", "Orientación contextual y segura.", "/portal/nutricion/asistente", "✦"],
+] as const;
 
 function showDate(value: string) {
   return new Date(`${value}T12:00:00`).toLocaleDateString("es-AR");
 }
 
+async function responseBody(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 export function StudentNutrition() {
-  const [data, setData] = useState<NutritionPortalData | null>(null);
+  const [data, setData] = useState<NutritionDashboardData | null>(null);
   const [habits, setHabits] = useState(emptyHabits);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [consenting, setConsenting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const guide = useMemo(
-    () => objectiveGuide(data?.objective ?? ""),
-    [data?.objective],
-  );
+
+  async function load(signal?: AbortSignal) {
+    const response = await fetch("/api/portal/nutrition", {
+      cache: "no-store",
+      signal,
+    });
+    const body = (await responseBody(response)) as unknown as NutritionDashboardData & {
+      error?: string;
+    };
+    if (!response.ok) throw new Error(body.error ?? "No se pudo cargar Nutrición.");
+    setData(body);
+    setHabits(
+      body.todayCheckin
+        ? {
+            hydration: body.todayCheckin.hydration,
+            protein: body.todayCheckin.protein,
+            fruitsVegetables: body.todayCheckin.fruitsVegetables,
+            mealOrganization: body.todayCheckin.mealOrganization,
+            energy: body.todayCheckin.energy,
+          }
+        : emptyHabits,
+    );
+    setComment(body.todayCheckin?.comment ?? "");
+  }
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/portal/nutrition", {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as NutritionPortalData & {
-          error?: string;
-        };
-        if (!response.ok) {
-          throw new Error(body.error ?? "No se pudo cargar la guía.");
-        }
-        setData(body);
-        const today = body.todayCheckin;
-        setHabits(
-          today
-            ? {
-                hydration: today.hydration,
-                protein: today.protein,
-                fruitsVegetables: today.fruitsVegetables,
-                mealOrganization: today.mealOrganization,
-                energy: today.energy,
-              }
-            : emptyHabits,
-        );
-        setComment(today?.comment ?? "");
-      })
-      .catch((reason: unknown) => {
-        if (reason instanceof Error && reason.name === "AbortError") return;
-        setError(
-          reason instanceof Error ? reason.message : "No se pudo cargar la guía.",
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
+    const timer = window.setTimeout(() => {
+      void load(controller.signal)
+        .catch((reason: unknown) => {
+          if (reason instanceof Error && reason.name === "AbortError") return;
+          setError(reason instanceof Error ? reason.message : "No se pudo cargar Nutrición.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, []);
 
-  async function save() {
+  async function saveHabits() {
     if (saving) return;
     setSaving(true);
     setError("");
@@ -154,270 +103,235 @@ export function StudentNutrition() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...habits, comment }),
       });
-      const body = (await response.json()) as {
-        message?: string;
-        error?: string;
-      };
-      if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
-      setMessage(body.message ?? "Hábitos guardados correctamente.");
-      const refreshed = await fetch("/api/portal/nutrition", {
-        cache: "no-store",
-      });
-      if (refreshed.ok) {
-        const refreshedData = (await refreshed.json()) as NutritionPortalData;
-        setData(refreshedData);
-      }
+      const body = await responseBody(response);
+      if (!response.ok) throw new Error(String(body.error ?? "No se pudo guardar."));
+      setMessage(String(body.message ?? "Hábitos guardados."));
+      await load();
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "No se pudo guardar.",
-      );
+      setError(reason instanceof Error ? reason.message : "No se pudo guardar.");
     } finally {
       setSaving(false);
     }
   }
 
+  async function enablePersonalization() {
+    if (consenting) return;
+    setConsenting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/portal/nutrition/consent", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personalizationEnabled: true }),
+      });
+      const body = await responseBody(response);
+      if (!response.ok) throw new Error(String(body.error ?? "No se pudo activar."));
+      setMessage("Personalización activada. Podés cambiarla desde Preferencias.");
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "No se pudo activar.");
+    } finally {
+      setConsenting(false);
+    }
+  }
+
   if (loading && !data) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-36 rounded-3xl bg-zinc-900" />
-        <div className="h-64 rounded-2xl bg-zinc-900" />
-        <div className="h-72 rounded-2xl bg-zinc-900" />
+      <div className="space-y-4 animate-pulse" aria-label="Cargando Nutrición">
+        <div className="h-44 rounded-3xl bg-zinc-900" />
+        <div className="h-36 rounded-2xl bg-zinc-900" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-28 rounded-2xl bg-zinc-900" />)}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-w-0 space-y-4">
-      <header className="overflow-hidden rounded-3xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 via-[#101010] to-black p-5 shadow-[0_18px_48px_rgba(0,0,0,.3)] sm:p-6">
-        <p className="text-[10px] font-bold uppercase tracking-[.2em] text-yellow-400">
-          Bienestar y entrenamiento
-        </p>
-        <h1 className="mt-2 text-2xl font-black">Nutrición</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-          Esta guía es orientativa y acompaña tu entrenamiento y tus evaluaciones.
-          No reemplaza la atención de un nutricionista.
-        </p>
-        {data?.evaluation ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
-            <span className="text-zinc-400">
-              Guía basada en tu última evaluación del{" "}
-              <strong className="text-zinc-200">
-                {showDate(data.evaluation.date)}
-              </strong>
-              .
-            </span>
-            <Link
-              href="/portal/evaluaciones"
-              className="font-bold text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-300"
-            >
-              Ver mi evaluación →
-            </Link>
-            <div className="flex basis-full flex-wrap gap-2 pt-1">
-              {data.evaluation.weight !== null && (
-                <span className="rounded-full border border-zinc-700 bg-black/30 px-2.5 py-1 text-zinc-400">
-                  Peso {data.evaluation.weight.toLocaleString("es-AR")} kg
-                </span>
-              )}
-              {data.evaluation.height !== null && (
-                <span className="rounded-full border border-zinc-700 bg-black/30 px-2.5 py-1 text-zinc-400">
-                  Altura {data.evaluation.height.toLocaleString("es-AR")} cm
-                </span>
-              )}
-              {data.age !== null && (
-                <span className="rounded-full border border-zinc-700 bg-black/30 px-2.5 py-1 text-zinc-400">
-                  Edad {data.age} años
-                </span>
-              )}
-              {data.evaluation.bodyFatPercentage !== null && (
-                <span className="rounded-full border border-zinc-700 bg-black/30 px-2.5 py-1 text-zinc-400">
-                  Grasa {data.evaluation.bodyFatPercentage.toLocaleString("es-AR")}%
-                </span>
-              )}
-              {data.evaluation.muscleMass !== null && (
-                <span className="rounded-full border border-zinc-700 bg-black/30 px-2.5 py-1 text-zinc-400">
-                  Masa muscular {data.evaluation.muscleMass.toLocaleString("es-AR")} kg
-                </span>
-              )}
-            </div>
+      <header className="overflow-hidden rounded-3xl border border-yellow-400/15 bg-[radial-gradient(circle_at_88%_15%,rgba(250,204,21,.08),transparent_28%),linear-gradient(135deg,#18181b,#090909_70%)] p-5 shadow-[0_18px_48px_rgba(0,0,0,.3)] sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[.2em] text-yellow-400">
+              Tu guía para hoy{data?.studentName ? `, ${data.studentName}` : ""}
+            </p>
+            <h1 className="mt-2 text-2xl font-black">Nutrición</h1>
+            <p className="mt-2 text-sm text-zinc-400">
+              Objetivo: <strong className="text-zinc-200">{data?.objective || "Mejorar hábitos"}</strong>
+            </p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {data?.evaluation
+                ? `Basada en tu evaluación del ${showDate(data.evaluation.date)}.`
+                : "Todavía no hay una evaluación registrada. La guía utiliza tu perfil y objetivo actual."}
+            </p>
           </div>
-        ) : (
-          <div className="mt-4 rounded-xl border border-yellow-400/10 bg-yellow-400/[.04] p-3 text-sm text-zinc-400">
-            Aún no hay una evaluación registrada. Mientras tanto, podés seguir
-            esta guía general de hábitos.{" "}
-            <Link
-              href="/portal/evaluaciones"
-              className="font-bold text-yellow-300"
-            >
-              Ver evaluaciones
+          <span className="rounded-full border border-yellow-400/20 bg-yellow-400/[.06] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-yellow-200">
+            {data?.contextStatus === "FULL" ? "Personalización completa" : data?.contextStatus === "LIMITED" ? "Personalización limitada" : "Guía base"}
+          </span>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/portal/nutricion/preferencias" className="min-h-11 rounded-xl border border-yellow-400/20 px-4 py-3 text-xs font-bold text-yellow-200">
+            Editar preferencias
+          </Link>
+          <Link href="/portal/nutricion/preferencias#datos-utilizados" className="min-h-11 rounded-xl border border-zinc-700 px-4 py-3 text-xs font-bold text-zinc-300">
+            Ver datos utilizados
+          </Link>
+          {data?.evaluation && (
+            <Link href="/portal/evaluaciones" className="min-h-11 rounded-xl border border-zinc-700 px-4 py-3 text-xs font-bold text-zinc-300">
+              Ver mi evaluación
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
-      {error && (
-        <p role="alert" className="rounded-xl bg-red-400/10 p-3 text-sm text-red-300">
-          {error}
-        </p>
-      )}
-      {message && (
-        <p role="status" className="rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-300">
-          {message}
-        </p>
+      {error && <p role="alert" className="rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
+      {message && <p role="status" className="rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-300">{message}</p>}
+
+      {!data?.profile.personalizationEnabled && (
+        <section className="rounded-2xl border border-yellow-400/15 bg-yellow-400/[.035] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+          <div>
+            <h2 className="font-bold text-yellow-100">Activá la personalización inteligente</h2>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">
+              Usa tu objetivo, evaluación, entrenamiento, hábitos y preferencias. No comparte datos de otros alumnos ni reemplaza atención profesional.
+            </p>
+          </div>
+          <button type="button" onClick={enablePersonalization} disabled={consenting} className="mt-3 min-h-11 shrink-0 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black disabled:opacity-50 sm:mt-0">
+            {consenting ? "Activando…" : "Aceptar y activar"}
+          </button>
+        </section>
       )}
 
-      <section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
-        <article className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">
-            Recomendaciones según tu objetivo
-          </p>
-          <h2 className="mt-2 text-lg font-bold">{guide.title}</h2>
-          <ul className="mt-4 space-y-3">
-            {guide.items.map((item) => (
-              <li key={item} className="flex gap-3 text-sm leading-5 text-zinc-300">
-                <span className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-yellow-400/10 text-[10px] text-yellow-300">
-                  ✓
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
+      {data?.evaluationUpdated && (
+        <section className="rounded-2xl border border-yellow-400/20 bg-yellow-400/[.05] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+          <p className="text-sm text-yellow-100">Tu evaluación fue actualizada. Podés revisar tu guía; los planes guardados no cambiarán sin tu permiso.</p>
+          <Link href="/portal/nutricion/preferencias#datos-utilizados" className="mt-3 inline-flex min-h-11 shrink-0 items-center rounded-xl border border-yellow-400/25 px-4 text-xs font-bold text-yellow-200 sm:mt-0">Revisar datos</Link>
+        </section>
+      )}
+
+      <section className="rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-zinc-900 to-black p-5">
+        <p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Recomendación principal</p>
+        <h2 className="mt-2 text-lg font-black">{data?.recommendation.title}</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-300">{data?.recommendation.message}</p>
+        {data?.recommendation && (
+          <Link href={data.recommendation.href} className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-yellow-400 px-4 text-xs font-black text-black">
+            {data.recommendation.action} →
+          </Link>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Accesos rápidos</p>
+          <h2 className="mt-1 text-lg font-bold">Organizá tu alimentación</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {quickLinks.map(([title, description, href, icon]) => (
+            <Link key={href} href={href} className="group min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 transition duration-200 hover:border-yellow-400/25 hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-yellow-300">
+              <span className="grid h-9 w-9 place-items-center rounded-xl border border-yellow-400/15 bg-yellow-400/[.05] text-lg text-yellow-300">{icon}</span>
+              <h3 className="mt-3 text-sm font-bold text-zinc-100">{title}</h3>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">{description}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">Planificación activa</p>
+              <h2 className="mt-2 text-lg font-bold">{data?.activePlan ? `${showDate(data.activePlan.startDate)} al ${showDate(data.activePlan.endDate)}` : "Todavía no organizaste tu semana"}</h2>
+            </div>
+            <Link href="/portal/nutricion/plan" className="text-xs font-bold text-yellow-300">Abrir →</Link>
+          </div>
+          {data?.activePlan ? (
+            <div className="mt-4 space-y-2">
+              {data.activePlan.meals.slice(0, 4).map((meal) => (
+                <div key={meal.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-black/35 p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{meal.title}</p>
+                    <p className="text-[10px] text-zinc-500">{showDate(meal.dateKey)} · {meal.mealType}</p>
+                  </div>
+                  <span className="text-[10px] text-yellow-300">{meal.status === "COMPLETED" ? "Realizada" : "Planificada"}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm leading-6 text-zinc-500">Creá una planificación estable y cambiala solo cuando vos lo decidas.</p>
+          )}
         </article>
 
-        <article className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">
-            Guía diaria
-          </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-            {[
-              ["Agua", "Tomá agua de forma regular y ajustá según clima y entrenamiento."],
-              ["Proteína", "Incluí fuentes variadas en tus comidas principales."],
-              ["Frutas y verduras", "Buscá variedad de colores durante el día."],
-              ["Organización", "Planificá opciones simples para evitar saltear comidas."],
-              ["Energía", "Observá cómo llegás al entrenamiento y cómo te recuperás."],
-              [
-                "Antes y después de entrenar",
-                "Evitá llegar después de demasiadas horas sin comer y organizá una comida de recuperación.",
-              ],
-            ].map(([title, text]) => (
-              <div key={title} className="rounded-xl bg-black/40 p-3">
-                <p className="text-sm font-bold text-yellow-200">{title}</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-500">{text}</p>
+        <article id="habitos" className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 scroll-mt-24">
+          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">Resumen de hábitos</p>
+          {data?.summary.daysRegistered ? (
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Metric label="Días" value={String(data.summary.daysRegistered)} />
+                <Metric label="Cumplimiento" value={`${data.summary.compliancePercentage}%`} />
+                <Metric label="Más sostenido" value={data.summary.strongestHabit ?? "—"} />
+                <Metric label="A mejorar" value={data.summary.habitToImprove ?? "—"} />
               </div>
-            ))}
-          </div>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">{data.summary.automaticMessage}</p>
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-zinc-500">Todavía no registraste tus hábitos esta semana.</p>
+          )}
         </article>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
-        <article className="rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-5">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">
-              Hábitos diarios
-            </p>
-            <h2 className="mt-2 text-lg font-bold">
-              ¿Cómo estuvo tu alimentación hoy?
-            </h2>
-            <p className="mt-1 text-xs text-zinc-500">
-              Podés actualizar este registro durante todo el día.
-            </p>
-          </div>
-          <div className="mt-4 space-y-2">
+        <article className="rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-black p-5">
+          <h2 className="text-lg font-bold">Hábitos de hoy</h2>
+          <p className="mt-1 text-xs text-zinc-500">Podés actualizar este registro durante el día.</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {NUTRITION_HABITS.map(({ key, label }) => (
-              <label
-                key={key}
-                className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-zinc-800 bg-black/35 px-3 py-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={habits[key]}
-                  onChange={(event) =>
-                    setHabits((current) => ({
-                      ...current,
-                      [key]: event.target.checked,
-                    }))
-                  }
-                  className="h-5 w-5 accent-yellow-400"
-                />
+              <label key={key} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-zinc-800 bg-black/35 px-3 py-2 text-sm">
+                <input type="checkbox" checked={habits[key]} onChange={(event) => setHabits((current) => ({ ...current, [key]: event.target.checked }))} className="h-5 w-5 accent-yellow-400" />
                 {label}
               </label>
             ))}
           </div>
           <label className="mt-4 block text-sm text-zinc-300">
             Comentario opcional
-            <textarea
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-              maxLength={500}
-              rows={3}
-              placeholder="¿Cómo estuvo tu alimentación hoy?"
-              className="mt-2 w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-white outline-none focus:border-yellow-400"
-            />
-            <span className="mt-2 block text-xs leading-5 text-zinc-500">
-              Este espacio es para registrar cómo estuvo tu alimentación. No
-              requiere una respuesta diaria del entrenador.
-            </span>
+            <textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={500} rows={3} className="mt-2 w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 p-3 outline-none focus:border-yellow-400" placeholder="¿Cómo estuvo tu alimentación hoy?" />
+            <span className="mt-2 block text-xs leading-5 text-zinc-500">Este registro es personal y no requiere una respuesta diaria del entrenador.</span>
           </label>
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="mt-4 min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50"
-          >
-            {saving ? "Guardando…" : data?.todayCheckin ? "Actualizar hábitos de hoy" : "Guardar hábitos de hoy"}
+          <button type="button" onClick={saveHabits} disabled={saving} className="mt-4 min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-black disabled:opacity-50">
+            {saving ? "Guardando…" : data?.todayCheckin ? "Actualizar hábitos" : "Guardar hábitos"}
           </button>
         </article>
 
         <div className="space-y-4">
-          <article className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-5">
-            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">
-              Resumen semanal
-            </p>
-            {data?.summary.daysRegistered ? (
-              <div className="mt-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <Metric label="Días registrados" value={String(data.summary.daysRegistered)} />
-                  <Metric label="Cumplimiento" value={`${data.summary.compliancePercentage}%`} />
-                  <Metric label="Más sostenido" value={data.summary.strongestHabit ?? "—"} />
-                  <Metric label="A mejorar" value={data.summary.habitToImprove ?? "—"} />
-                </div>
-                <p className="mt-3 rounded-xl border border-yellow-400/10 bg-yellow-400/[.035] p-3 text-sm leading-5 text-zinc-300">
-                  {data.summary.automaticMessage}
-                </p>
+          <article className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-bold">Recetas recientes</h2>
+              <Link href="/portal/nutricion/recetas" className="text-xs font-bold text-yellow-300">Ver todas</Link>
+            </div>
+            {data?.recentRecipes.length ? (
+              <div className="mt-3 space-y-2">
+                {data.recentRecipes.map((recipe) => (
+                  <Link key={recipe.id} href={`/portal/nutricion/recetas/${recipe.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-black/35 p-3">
+                    <span className="min-w-0 truncate text-sm font-bold">{recipe.title}</span>
+                    <span className="shrink-0 text-[10px] text-zinc-500">{recipe.preparationMinutes} min</span>
+                  </Link>
+                ))}
               </div>
-            ) : (
-              <p className="mt-4 rounded-xl border border-dashed border-zinc-700 p-4 text-sm text-zinc-500">
-                Todavía no registraste tus hábitos esta semana.
-              </p>
-            )}
+            ) : <p className="mt-3 text-sm text-zinc-500">Aún no guardaste recetas.</p>}
           </article>
-
           <article className="rounded-2xl border border-yellow-400/15 bg-yellow-400/[.035] p-5">
-            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">
-              Recomendación de tu entrenador
-            </p>
-            {data?.trainerNote ? (
-              <>
-                <p className="mt-3 text-sm leading-6 text-zinc-200">
-                  “{data.trainerNote.text}”
-                </p>
-                <p className="mt-3 text-xs text-zinc-500">
-                  Tu entrenador ·{" "}
-                  {new Date(data.trainerNote.createdAt).toLocaleDateString("es-AR")}
-                </p>
-              </>
-            ) : (
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Seguí tu guía y tus hábitos semanales. Tu entrenador puede
-                agregar una recomendación cuando lo considere necesario.
-              </p>
-            )}
+            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">Recomendación de tu entrenador</p>
+            <p className="mt-3 text-sm leading-6 text-zinc-300">{data?.trainerNote?.text ?? "Seguí tu guía y tus hábitos. Tu entrenador puede agregar una recomendación cuando lo considere necesario."}</p>
           </article>
+          <Link href="/portal/nutricion/asistente" className="block rounded-2xl border border-yellow-400/20 bg-gradient-to-r from-yellow-400/[.08] to-transparent p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">Asistente</p>
+            <h2 className="mt-2 font-bold">¿Qué necesitás resolver hoy?</h2>
+            <p className="mt-1 text-xs text-zinc-500">Usa tu objetivo, preferencias y evaluación actual.</p>
+          </Link>
         </div>
       </section>
 
       <p className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs leading-5 text-zinc-500">
-        Si tenés restricciones, una condición médica o necesitás un plan
-        específico, consultá con un nutricionista o profesional de salud.
+        Esta orientación acompaña tu entrenamiento y tus evaluaciones. No reemplaza la atención de un nutricionista o profesional de salud.
       </p>
     </div>
   );
@@ -425,7 +339,7 @@ export function StudentNutrition() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl bg-black/45 p-3">
+    <div className="min-w-0 rounded-xl bg-black/40 p-3">
       <p className="text-[9px] uppercase tracking-wider text-zinc-600">{label}</p>
       <p className="mt-1 break-words text-sm font-bold text-yellow-200">{value}</p>
     </div>

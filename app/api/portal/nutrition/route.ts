@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
-import { argentinaDateKey } from "@/lib/payment-dates";
+import {
+  argentinaDateKey,
+  argentinaDateTimeBoundary,
+} from "@/lib/payment-dates";
+import { buildNutritionContext, nutritionRecommendation } from "@/lib/nutrition-context";
+import { nutritionAIStatus } from "@/lib/nutrition-ai";
 import {
   addDateKeyDays,
   nutritionSummary,
@@ -29,7 +34,15 @@ export async function GET() {
   }
   const today = argentinaDateKey();
   const weekStart = addDateKeyDays(today, -6);
-  const [evaluation, checkins, trainerNote] = await Promise.all([
+  const [
+    evaluation,
+    checkins,
+    trainerNote,
+    context,
+    activePlan,
+    activeShoppingList,
+    recentRecipes,
+  ] = await Promise.all([
     prisma.physicalEvaluation.findFirst({
       where: { studentId: session.studentId },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
@@ -53,11 +66,54 @@ export async function GET() {
       where: { studentId: session.studentId },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
+    buildNutritionContext(session.studentId),
+    prisma.nutritionMealPlan.findFirst({
+      where: { studentId: session.studentId, active: true, status: "ACTIVE" },
+      orderBy: { startDate: "desc" },
+    }),
+    prisma.nutritionShoppingList.findFirst({
+      where: { studentId: session.studentId, status: "ACTIVE" },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.nutritionRecipe.findMany({
+      where: { studentId: session.studentId },
+      orderBy: { updatedAt: "desc" },
+      take: 4,
+      select: {
+        id: true,
+        title: true,
+        preparationMinutes: true,
+        isFavorite: true,
+      },
+    }),
   ]);
   const serializedCheckins = checkins.map(serializeNutritionCheckin);
   const student = session.credential.student.data as unknown as Student;
+  const aiStatus = nutritionAIStatus();
+  const savedContext =
+    activePlan?.contextSnapshot &&
+    typeof activePlan.contextSnapshot === "object" &&
+    !Array.isArray(activePlan.contextSnapshot)
+      ? activePlan.contextSnapshot
+      : null;
+  const savedEvaluation =
+    savedContext?.evaluation &&
+    typeof savedContext.evaluation === "object" &&
+    !Array.isArray(savedContext.evaluation)
+      ? savedContext.evaluation
+      : null;
+  const interactionsToday = await prisma.nutritionAIInteraction.count({
+    where: {
+      studentId: session.studentId,
+      provider: "configured",
+      createdAt: {
+        gte: argentinaDateTimeBoundary(today),
+      },
+    },
+  });
   return Response.json({
     today,
+    studentName: student.firstName ?? "",
     objective: student.goal ?? "",
     age: ageAtDate(student.birthDate ?? "", today),
     serviceType: session.credential.student.serviceType,
@@ -67,6 +123,41 @@ export async function GET() {
     weekCheckins: serializedCheckins,
     summary: nutritionSummary(serializedCheckins),
     trainerNote: serializeNutritionNote(trainerNote),
+    contextStatus: context.evaluation
+      ? context.profile.personalizationEnabled
+        ? "FULL"
+        : "LIMITED"
+      : "BASE",
+    profile: context.profile,
+    recommendation: nutritionRecommendation(context),
+    activePlan: activePlan
+      ? {
+          id: activePlan.id,
+          startDate: activePlan.startDate.toISOString().slice(0, 10),
+          endDate: activePlan.endDate.toISOString().slice(0, 10),
+          meals: activePlan.meals,
+        }
+      : null,
+    activeShoppingList: activeShoppingList
+      ? {
+          id: activeShoppingList.id,
+          title: activeShoppingList.title,
+          items: activeShoppingList.items,
+        }
+      : null,
+    recentRecipes,
+    ai: {
+      configured: aiStatus.configured,
+      enabled:
+        context.profile.personalizationEnabled &&
+        Boolean(context.profile.consentAt),
+      remainingToday: Math.max(0, aiStatus.dailyLimit - interactionsToday),
+    },
+    evaluationUpdated: Boolean(
+      evaluation &&
+        activePlan &&
+        savedEvaluation?.id !== evaluation.id,
+    ),
   });
 }
 

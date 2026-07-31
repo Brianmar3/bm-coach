@@ -3,6 +3,7 @@ import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvalu
 import { prisma } from "@/lib/prisma";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { notifyNutritionEvaluationUpdate } from "@/lib/nutrition-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     const claimedAchievements = await notifyNewAchievements(record.studentId);
     const pointResult = await reconcileStudentPointsAfterMutation(record.studentId);
+    await notifyNutritionEvaluationUpdate(record.studentId, record.id);
     const newAchievements = await achievementCelebrationPayload(record.studentId, claimedAchievements);
     return Response.json({
       ...serializeEvaluation(record),
