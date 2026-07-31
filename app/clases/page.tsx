@@ -41,6 +41,17 @@ function occupancy(schedule: WeeklyClassSchedule) {
   return schedule.capacity === null ? `${schedule.students.length} asignados` : `${schedule.students.length}/${schedule.capacity} lugares`;
 }
 
+function nextScheduleDate(day: WeeklyClassDay) {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date());
+  const date = new Date(`${today}T12:00:00Z`);
+  const targetWeekday = days.findIndex((item) => item.value === day) + 1;
+  const daysUntilTarget = (targetWeekday - date.getUTCDay() + 7) % 7;
+  date.setUTCDate(date.getUTCDate() + daysUntilTarget);
+  return date.toISOString().slice(0, 10);
+}
+
 async function responseError(response: Response, fallback: string) {
   try { return ((await response.json()) as { error?: string }).error ?? fallback; } catch { return fallback; }
 }
@@ -203,7 +214,7 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void }) {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  const attendanceDate = nextScheduleDate(schedule.dayOfWeek);
   return (
     <article className={`w-full rounded-xl border p-3 text-left transition hover:border-yellow-400/70 ${schedule.active ? "border-yellow-400/25 bg-yellow-400/5" : "border-zinc-700 bg-zinc-950/70 opacity-65"}`}>
       <button onClick={() => open(schedule)} className="w-full text-left">
@@ -215,7 +226,7 @@ function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open
         <p className="mt-2 text-xs text-zinc-400">{occupancy(schedule)}</p>
         {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-zinc-500">{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
       </button>
-      <Link href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${today}`} className="mt-3 block rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
+      <Link href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-3 block rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
     </article>
   );
 }
@@ -241,7 +252,15 @@ function ScheduleDetail({ schedule, close, edit, changeActive, remove }: { sched
         <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">{dayName(schedule.dayOfWeek)}</p><h2 className="mt-2 text-2xl font-bold">{schedule.classType}</h2><p className="mt-1 text-zinc-400">{schedule.startTime} – {schedule.endTime}</p></div><button onClick={close} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">Cerrar</button></div>
         <dl className="mt-6 grid grid-cols-2 gap-3"><DetailValue label="Estado" value={schedule.active ? "Activo" : "Inactivo"} highlight={schedule.active} /><DetailValue label="Cupo" value={schedule.capacity === null ? "Sin límite" : `${schedule.students.length} de ${schedule.capacity}`} /></dl>
         <div className="mt-6"><div className="flex items-center justify-between"><h3 className="font-semibold">Alumnos asignados</h3><span className="text-sm text-zinc-500">{schedule.students.length}</span></div>{schedule.students.length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{schedule.students.map((student) => <div key={student.id} className="flex items-center justify-between rounded-xl bg-zinc-950 px-3 py-3 text-sm"><span>{student.name}</span><span className={student.status === "activo" ? "text-emerald-400" : "text-zinc-600"}>{student.status}</span></div>)}</div> : <p className="mt-3 rounded-xl border border-dashed border-zinc-700 p-5 text-center text-sm text-zinc-500">Todavía no hay alumnos asignados.</p>}</div>
-        <div className="mt-7 grid gap-2 sm:grid-cols-2"><button onClick={edit} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950">Editar y asignar alumnos</button><button onClick={changeActive} className="rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-white">{schedule.active ? "Desactivar horario" : "Activar horario"}</button><button onClick={remove} className="rounded-xl border border-red-400/30 px-4 py-3 text-sm font-semibold text-red-300 sm:col-span-2">Eliminar definitivamente</button></div>
+        <div className="mt-7 grid gap-2 sm:grid-cols-2">
+          <Link
+            href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${nextScheduleDate(schedule.dayOfWeek)}`}
+            className="rounded-xl bg-emerald-400 px-4 py-3 text-center font-bold text-zinc-950 sm:col-span-2"
+          >
+            Tomar asistencia
+          </Link>
+          <button onClick={edit} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950">Editar y asignar alumnos</button><button onClick={changeActive} className="rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-white">{schedule.active ? "Desactivar horario" : "Activar horario"}</button><button onClick={remove} className="rounded-xl border border-red-400/30 px-4 py-3 text-sm font-semibold text-red-300 sm:col-span-2">Eliminar definitivamente</button>
+        </div>
       </section>
     </div>
   );

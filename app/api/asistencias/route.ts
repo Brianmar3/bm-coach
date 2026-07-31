@@ -1,8 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { apiAttendanceStatus, attendanceDate, attendanceStatus, classDayForDate, databaseAttendanceStatus, studentName } from "@/lib/attendance";
+import { ensureClassOccurrences } from "@/lib/class-occurrences";
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
-import type { AttendanceRoster, Student } from "@/types/gestion";
+import type { AttendanceRoster, AttendanceStatus, Student } from "@/types/gestion";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
@@ -29,6 +30,7 @@ function databaseOccurrenceAttendanceStatus(value: AttendanceStatus) {
 
 export async function GET(request: Request) {
   try {
+    await ensureClassOccurrences(35);
     const url = new URL(request.url);
     const scheduleId = url.searchParams.get("scheduleId") ?? "";
     const dateValue = url.searchParams.get("date") ?? "";

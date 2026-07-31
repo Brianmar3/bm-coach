@@ -1,11 +1,9 @@
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
-import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 
 export const runtime = "nodejs";
 
-const actualValues = ["UNKNOWN", "PRESENT", "ABSENT", "CANCELLED"] as const;
 const statusValues = ["SCHEDULED", "CANCELLED", "COMPLETED"] as const;
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -22,24 +20,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     });
     if (!occurrence) return Response.json({ error: "La clase no existe." }, { status: 404 });
     if (input.action === "attendance") {
-      if (typeof input.studentId !== "string" || !actualValues.includes(input.actualAttendance as typeof actualValues[number])) return Response.json({ error: "La asistencia no es válida." }, { status: 400 });
-      const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId }, select: { id: true } });
-      if (!student) return Response.json({ error: "El alumno no existe." }, { status: 404 });
-      await prisma.classOccurrenceAttendance.upsert({
-        where: { occurrenceId_studentId: { occurrenceId: id, studentId: input.studentId } },
-        create: { occurrenceId: id, studentId: input.studentId, response: input.response === "GOING" ? "GOING" : null, respondedAt: input.response === "GOING" ? new Date() : null, actualAttendance: input.actualAttendance as typeof actualValues[number], checkedInAt: new Date() },
-        update: { actualAttendance: input.actualAttendance as typeof actualValues[number], checkedInAt: new Date() },
-      });
-      const claimedAchievements = input.actualAttendance === "PRESENT"
-        ? await notifyNewAchievements(input.studentId)
-        : [];
-      const pointResult = await reconcileStudentPointsAfterMutation(input.studentId);
-      const newAchievements = await achievementCelebrationPayload(input.studentId, claimedAchievements);
-      return Response.json({
-        message: "Asistencia real actualizada.",
-        newAchievements,
-        pointsAwarded: pointResult?.gained.reduce((sum, item) => sum + item.points, 0) ?? 0,
-      });
+      return Response.json(
+        {
+          error:
+            "La asistencia real se registra únicamente desde la pantalla Asistencias.",
+        },
+        { status: 410 },
+      );
     }
     if (input.action === "remove-response") {
       if (typeof input.studentId !== "string") return Response.json({ error: "El alumno no es válido." }, { status: 400 });

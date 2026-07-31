@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { ActualClassAttendance, AdminClassOccurrence } from "@/types/classes";
+import type { AdminClassOccurrence } from "@/types/classes";
 
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
 
@@ -14,8 +14,6 @@ export function ClassOccurrenceAdmin() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
-  const [availableStudents, setAvailableStudents] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
-  const [manualStudentId, setManualStudentId] = useState("");
 
   async function load() {
     setLoading(true);
@@ -43,14 +41,6 @@ export function ClassOccurrenceAdmin() {
       .catch((value: unknown) => { if (value instanceof Error && value.name !== "AbortError") { setError(value.message); setLoading(false); } });
     return () => controller.abort();
   }, [date]);
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/alumnos", { cache: "no-store", signal: controller.signal })
-      .then((response) => response.ok ? response.json() as Promise<Array<{ id: string; firstName: string; lastName: string }>> : [])
-      .then(setAvailableStudents)
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, []);
   const selected = items.find((item) => item.id === selectedId) ?? null;
 
   async function patch(payload: Record<string, unknown>) {
@@ -70,8 +60,25 @@ export function ClassOccurrenceAdmin() {
     {loading ? <p className="p-8 text-center text-zinc-500">Cargando clases…</p> : items.length ? <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">{items.map((item) => <OccurrenceCard key={item.id} item={item} open={() => setSelectedId(item.id)} />)}</div> : <p className="p-8 text-center text-zinc-500">No hay clases programadas para esta fecha.</p>}
     {selected && <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 p-3"><section className="mx-auto my-4 max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-yellow-400">{selected.date} · {selected.startTime}</p><h2 className="text-2xl font-bold">{selected.name}</h2><p className="mt-1 text-zinc-400">{selected.statusLabel} · cupo {selected.capacity ?? "sin límite"}</p></div><button onClick={() => setSelectedId("")}>Cerrar</button></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3"><StudentGroup title="Asistirán" students={selected.students.filter((student) => student.response === "GOING")} /><StudentGroup title="No asistirán" students={selected.students.filter((student) => student.response === "NOT_GOING")} /><StudentGroup title="Sin respuesta" students={selected.noResponse} /></div>
-      <div className="mt-4 flex flex-col gap-2 rounded-xl border border-zinc-800 p-3 sm:flex-row"><select value={manualStudentId} onChange={(event) => setManualStudentId(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 p-3"><option value="">Agregar alumno manualmente…</option>{availableStudents.filter((student) => !selected.students.some((item) => item.id === student.id)).map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select><button disabled={saving || !manualStudentId} onClick={async () => { await patch({ action: "attendance", studentId: manualStudentId, actualAttendance: "UNKNOWN", response: "GOING" }); setManualStudentId(""); }} className="rounded-lg bg-yellow-400 px-4 py-3 font-bold text-zinc-950">Agregar</button></div>
-      <section className="mt-5"><h3 className="font-bold">Asistencia real</h3><div className="mt-3 space-y-2">{selected.students.map((student) => <div key={student.id} className="flex flex-col gap-2 rounded-xl bg-zinc-950 p-3 sm:flex-row sm:items-center sm:justify-between"><span>{student.name}<small className="ml-2 text-zinc-500">{student.response === "GOING" ? "Confirmó" : student.response === "NOT_GOING" ? "Canceló" : "Sin respuesta"}</small></span><div className="flex gap-2"><select disabled={saving} value={student.actualAttendance} onChange={(event) => patch({ action: "attendance", studentId: student.id, actualAttendance: event.target.value as ActualClassAttendance })} className="min-w-0 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2"><option value="UNKNOWN">Sin marcar</option><option value="PRESENT">Asistió</option><option value="ABSENT">Faltó</option><option value="CANCELLED">Canceló</option></select>{student.response && <button disabled={saving} onClick={() => patch({ action: "remove-response", studentId: student.id })} className="rounded-lg border border-zinc-700 px-3 text-xs text-zinc-400">Quitar confirmación</button>}</div></div>)}</div></section>
+      <section className="mt-5 rounded-xl border border-yellow-400/20 bg-yellow-400/5 p-4">
+        <h3 className="font-bold">Asistencia real</h3>
+        <p className="mt-1 text-sm leading-relaxed text-zinc-400">
+          Las respuestas de los alumnos son informativas. La presencia real se
+          registra únicamente desde la vista rápida de Asistencias.
+        </p>
+        {selected.scheduleId ? (
+          <Link
+            href={`/asistencias?scheduleId=${encodeURIComponent(selected.scheduleId)}&date=${selected.date}`}
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950"
+          >
+            Tomar asistencia
+          </Link>
+        ) : (
+          <p className="mt-3 text-xs text-zinc-500">
+            Esta ocurrencia no tiene un horario asociado.
+          </p>
+        )}
+      </section>
       <OccurrenceSettings occurrence={selected} saving={saving} patch={patch} />
     </section></div>}
   </section>;
@@ -80,7 +87,7 @@ export function ClassOccurrenceAdmin() {
 function OccurrenceCard({ item, open }: { item: AdminClassOccurrence; open: () => void }) {
   return <article className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 hover:border-yellow-400/50">
     <button onClick={open} className="w-full text-left"><div className="flex justify-between gap-3"><div><p className="font-bold">{item.name}</p><p className="mt-1 text-sm text-zinc-400">{item.startTime}–{item.endTime}</p></div><span className="text-xs text-zinc-500">{item.statusLabel}</span></div><p className="mt-4 text-sm text-emerald-300">{item.confirmedCount} confirmados</p><p className="mt-1 text-xs text-zinc-500">{item.capacity === null ? "Sin límite" : `${Math.max(item.capacity - item.confirmedCount, 0)} lugares disponibles`} · {item.noResponse.length} sin respuesta</p><div className="mt-3 flex flex-wrap gap-1">{item.students.filter((student) => student.response === "GOING").slice(0, 4).map((student) => <span key={student.id} className="rounded-full bg-zinc-900 px-2 py-1 text-xs">{student.name}</span>)}</div><p className="mt-4 text-sm font-bold text-yellow-400">Ver detalle →</p></button>
-    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3">{item.scheduleId ? <Link href={`/asistencias?scheduleId=${encodeURIComponent(item.scheduleId)}&date=${item.date}`} className="rounded-lg bg-emerald-400 px-3 py-2.5 text-center text-xs font-bold text-zinc-950">Tomar asistencia</Link> : <span className="rounded-lg border border-zinc-800 px-3 py-2.5 text-center text-xs text-zinc-600">Sin horario asociado</span>}<Link href={`/asistencias?date=${item.date}`} className="rounded-lg border border-zinc-700 px-3 py-2.5 text-center text-xs font-semibold text-zinc-300">Ver historial</Link></div>
+    <div className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3">{item.scheduleId ? <Link href={`/asistencias?scheduleId=${encodeURIComponent(item.scheduleId)}&date=${item.date}`} className="rounded-lg bg-emerald-400 px-3 py-2.5 text-center text-xs font-bold text-zinc-950">Tomar asistencia</Link> : <span className="rounded-lg border border-zinc-800 px-3 py-2.5 text-center text-xs text-zinc-600">Sin horario asociado</span>}<Link href={`/asistencias?view=history&scheduleId=${encodeURIComponent(item.scheduleId ?? "")}&date=${item.date}`} className="rounded-lg border border-zinc-700 px-3 py-2.5 text-center text-xs font-semibold text-zinc-300">Ver historial</Link></div>
   </article>;
 }
 
