@@ -13,6 +13,7 @@ import {
   TRAINER_OWNER_KEY,
 } from "@/lib/trainer-notifications";
 import { sendStudentPush } from "@/lib/push-notifications";
+import { resolveTrainerNotificationDestination } from "@/lib/trainer-notification-destination";
 import type {
   StudentPointMovement,
   StudentPointSummary,
@@ -313,6 +314,11 @@ async function notifyPointGain(
   const latestRelevant = relevant.at(-1)!;
   const message = `${studentName(student.data)} sumó +${latestRelevant.points} pts por ${latestRelevant.description.toLocaleLowerCase("es")}. Total: ${total} pts.`;
   const eventKey = `points:${studentId}:${latestRelevant.eventKey}`;
+  const notificationUrl = resolveTrainerNotificationDestination({
+    type: "POINTS",
+    studentId,
+    eventKey,
+  });
   const notification = await prisma.trainerNotification
     .create({
       data: {
@@ -321,7 +327,7 @@ async function notifyPointGain(
         eventKey,
         title: "Progreso destacado",
         message,
-        url: `/alumnos?studentId=${encodeURIComponent(studentId)}`,
+        url: notificationUrl,
         studentId,
         response: null,
       },

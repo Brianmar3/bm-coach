@@ -26,10 +26,10 @@ const markLabel = {
   REPETITION_PR: "Más repeticiones",
 } as const;
 
-export function AdminQuickLogSummary({ studentId }: { studentId: string }) {
+export function AdminQuickLogSummary({ studentId, focusSection = null, focusEntityId = null }: { studentId: string; focusSection?: "records" | "routines" | null; focusEntityId?: string | null }) {
   const [records, setRecords] = useState<UnifiedExerciseRecord[]>([]);
   const [quickLogs, setQuickLogs] = useState<QuickLog[]>([]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(focusSection));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [filter, setFilter] = useState<ReviewFilter>("all");
@@ -141,6 +141,18 @@ export function AdminQuickLogSummary({ studentId }: { studentId: string }) {
     [exerciseFilter, filter, records],
   );
 
+  useEffect(() => {
+    if (!focusSection) return;
+    const timer = window.setTimeout(() => {
+      const section = document.getElementById(`student-section-${focusSection}`);
+      const exact = focusEntityId
+        ? [...document.querySelectorAll<HTMLElement>("[data-record-source-id], [data-record-session-id]")].find((element) => element.dataset.recordSourceId === focusEntityId || element.dataset.recordSessionId === focusEntityId)
+        : null;
+      (exact ?? section)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [focusEntityId, focusSection, records]);
+
   const quickById = useMemo(
     () => new Map(quickLogs.map((log) => [log.id, log])),
     [quickLogs],
@@ -183,7 +195,7 @@ export function AdminQuickLogSummary({ studentId }: { studentId: string }) {
   }
 
   return (
-    <section className="mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+    <section id={`student-section-${focusSection ?? "records"}`} className={`mt-5 scroll-mt-24 rounded-xl border bg-zinc-950 p-4 ${focusSection ? "border-yellow-300/50 ring-1 ring-yellow-300/30" : "border-zinc-800"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-bold">Registros y marcas</h3>
@@ -297,6 +309,7 @@ export function AdminQuickLogSummary({ studentId }: { studentId: string }) {
               <RecordCard
                 key={record.id}
                 record={record}
+                focused={Boolean(focusEntityId && (record.id === focusEntityId || record.sourceId === focusEntityId || record.sessionId === focusEntityId))}
                 feedback={
                   record.source === "QUICK_LOG"
                     ? () => setFeedbacking(record)
@@ -395,17 +408,19 @@ export function AdminQuickLogSummary({ studentId }: { studentId: string }) {
 
 function RecordCard({
   record,
+  focused,
   feedback,
   editQuick,
   removeQuick,
 }: {
   record: UnifiedExerciseRecord;
+  focused: boolean;
   feedback?: () => void;
   editQuick?: () => void;
   removeQuick?: () => void;
 }) {
   return (
-    <article className="rounded-xl border border-zinc-800 bg-zinc-900 p-3">
+    <article data-record-source-id={record.sourceId} data-record-session-id={record.sessionId ?? undefined} className={`scroll-mt-24 rounded-xl border bg-zinc-900 p-3 ${focused ? "border-yellow-300 ring-2 ring-yellow-300/30" : "border-zinc-800"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wide text-yellow-400">

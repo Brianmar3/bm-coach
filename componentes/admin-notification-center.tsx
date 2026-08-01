@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { openNotificationSafely } from "@/lib/trainer-notification-destination";
 
 type HeaderNotification = {
   id: string;
@@ -40,6 +41,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
       : "/api/portal/notifications";
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const openingRef = useRef({ opening: false });
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
@@ -71,7 +73,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
   const close = useCallback(() => {
     setOpen(false);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
-  }, []);
+  }, [setOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -134,9 +136,20 @@ function NotificationCenter({ audience }: { audience: Audience }) {
   }
 
   async function openNotification(notification: HeaderNotification) {
-    if (!notification.readAt) await markRead(notification.id);
-    setOpen(false);
-    router.push(notification.url);
+    await openNotificationSafely(
+      { id: notification.id, readAt: notification.readAt, destination: notification.url },
+      openingRef.current,
+      markRead,
+      (destination) => {
+        setOpen(false);
+        if (audience === "trainer" && destination.startsWith("/alumnos?")) {
+          window.location.assign(destination);
+          return;
+        }
+        router.push(destination);
+        window.setTimeout(() => { openingRef.current.opening = false; }, 1000);
+      },
+    );
   }
 
   const panel =

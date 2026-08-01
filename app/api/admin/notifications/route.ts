@@ -14,6 +14,7 @@ import {
 } from "@/lib/trainer-notifications";
 import { databaseDateKey } from "@/lib/payment-dates";
 import { occurrenceClassName } from "@/lib/class-occurrences";
+import { resolveTrainerNotificationDestination } from "@/lib/trainer-notification-destination";
 import type { Student } from "@/types/gestion";
 
 async function isAuthenticatedTrainer() {
@@ -38,6 +39,7 @@ export async function GET() {
         title: true,
         message: true,
         url: true,
+        eventKey: true,
         studentId: true,
         student: {
           select: {
@@ -102,15 +104,14 @@ export async function GET() {
               response: notification.response!,
             })
           : notification.message,
-        url:
-          attendanceContext
-            ? buildAttendanceUrl({
+        url: attendanceContext
+          ? buildAttendanceUrl({
                 classDateKey: attendanceContext.classDateKey,
                 scheduleId: occurrence!.scheduleId,
                 studentId: notification.studentId,
                 occurrenceId: notification.occurrenceId,
               })
-            : notification.url,
+          : resolveTrainerNotificationDestination(notification),
       };
     }),
     unreadCount,

@@ -9,7 +9,9 @@ import { AdminQuickLogSummary } from "@/componentes/admin-quick-log-summary";
 import { AdminNutritionSummary } from "@/componentes/admin-nutrition-summary";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
 import { STUDENT_TYPES } from "@/types/gestion";
+import type { TrainerNotificationSection } from "@/lib/trainer-notification-destination";
 import type { Student, StudentPlanOption, StudentServiceType, StudentStatus, StudentType } from "@/types/gestion";
+type StudentNotificationFocus = { section: TrainerNotificationSection; entityId: string | null };
 type StudentFormValue = Omit<Student, "id" | "scheduleId" | "scheduleLabel" | "scheduleLabels"> & {
     scheduleId: string;
     scheduleIds: string[];
@@ -61,6 +63,7 @@ export default function AlumnosPage() {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<Student | null>(null);
     const [viewing, setViewing] = useState<Student | null>(null);
+    const [notificationFocus, setNotificationFocus] = useState<StudentNotificationFocus | null>(null);
     const [form, setForm] = useState<StudentFormValue>(() => blank({ plans: [], schedules: [] }));
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
@@ -82,8 +85,12 @@ export default function AlumnosPage() {
                 setQuery(params.get("buscar") ?? "");
             if (params.get("studentId")) {
                 const selectedStudent = students.find((student) => student.id === params.get("studentId"));
-                if (selectedStudent)
+                if (selectedStudent) {
                     setViewing(selectedStudent);
+                    const section = params.get("section");
+                    if (section === "achievements" || section === "records" || section === "routines" || section === "attendance")
+                        setNotificationFocus({ section, entityId: params.get("entityId") });
+                }
             }
             if (params.get("accion") === "nuevo") {
                 setForm(blank(enrollmentOptions));
@@ -100,7 +107,7 @@ export default function AlumnosPage() {
             && (plan === "todos" || item.plan === plan)
             && (serviceType === "todos" || item.serviceType === serviceType);
     });
-    function begin(item?: Student) { setEditing(item ?? null); setForm(item ? editValue(item) : blank(options)); setError(""); setNotice(""); setViewing(null); setOpen(true); }
+    function begin(item?: Student) { setEditing(item ?? null); setForm(item ? editValue(item) : blank(options)); setError(""); setNotice(""); setViewing(null); setNotificationFocus(null); setOpen(true); }
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
@@ -169,7 +176,7 @@ export default function AlumnosPage() {
     {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900"><div className="grid gap-3 border-b border-zinc-800 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, apellido o teléfono" className={inputClass}/><select value={status} onChange={(event) => setStatus(event.target.value)} className={inputClass}><option value="todos">Todos los estados</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select><select value={plan} onChange={(event) => setPlan(event.target.value)} className={inputClass}><option value="todos">Todos los planes</option>{plans.map((item) => <option key={item}>{item}</option>)}</select><select value={serviceType} onChange={(event) => setServiceType(event.target.value as "todos" | StudentServiceType)} className={inputClass}><option value="todos">Todos los servicios</option>{STUDENT_SERVICE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-4">Alumno</th><th>Servicio</th><th>Plan</th><th>Horario principal</th><th>Contacto</th><th>Vencimiento</th><th>Estado</th><th aria-label="Acciones"/></tr></thead><tbody>{!ready ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">Cargando alumnos…</td></tr> : visible.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">No hay alumnos que coincidan con los filtros.</td></tr> : visible.map((item) => <tr key={item.id} className="border-t border-zinc-800"><td className="p-4 font-medium">{item.firstName} {item.lastName}<span className="block text-xs font-normal text-zinc-500">{item.studentType} · IMC {bmi(item.weight, item.height)} · {age(item.birthDate)} años</span></td><td><ServiceBadge value={item.serviceType}/></td><td>{item.plan}<span className="block text-xs text-zinc-500">{money(item.monthlyFee)}</span></td><td className="max-w-56 text-xs text-zinc-400">{item.scheduleLabel ?? "Sin horario principal"}</td><td>{item.studentType === "Kids" ? item.responsiblePhone || item.phone || "Sin teléfono" : item.phone}<span className="block text-xs text-zinc-500">{item.email || "Sin correo"}</span></td><td>{showDate(item.dueDate)}</td><td><span className={`rounded-full px-2 py-1 text-xs font-bold capitalize ${item.status === "activo" ? "bg-emerald-400/15 text-emerald-300" : "bg-zinc-700 text-zinc-300"}`}>{item.status}</span></td><td className="space-x-3 whitespace-nowrap pr-4 text-yellow-400"><button onClick={() => setViewing(item)}>Ver ficha</button><button onClick={() => begin(item)}>Editar</button><button onClick={() => remove(item)} className="text-red-300">Eliminar</button></td></tr>)}</tbody></table></div></section>
     {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
-    {viewing && <StudentDetail item={viewing} close={() => setViewing(null)} edit={() => begin(viewing)}/>}
+    {viewing && <StudentDetail item={viewing} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
   </ModuleShell>;
 }
 
@@ -271,11 +278,18 @@ function ServiceBadge({ value }: { value: StudentServiceType }) {
     return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${styles}`}>{studentServiceLabel(value)}</span>;
 }
 
-function StudentDetail({ item, close, edit }: {
+function StudentDetail({ item, focus, close, edit }: {
     item: Student;
+    focus: StudentNotificationFocus | null;
     close: () => void;
     edit: () => void;
 }) {
+    useEffect(() => {
+        if (!focus || focus.section === "records" || focus.section === "routines")
+            return;
+        const timer = window.setTimeout(() => document.getElementById(`student-section-${focus.section}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+        return () => window.clearTimeout(timer);
+    }, [focus]);
     return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 sm:p-4">
         <section className="mx-auto my-3 w-full max-w-4xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white sm:my-8 sm:p-6">
             <div className="flex items-start justify-between gap-4">
@@ -301,8 +315,9 @@ function StudentDetail({ item, close, edit }: {
                 <Detail label="Horario principal" value={item.scheduleLabel ?? "Sin horario principal"} wide/>
             </dl>
             <p className="mt-5 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-300">{item.notes || "Sin observaciones."}</p>
-            <StudentAttendanceSummaryCard studentId={item.id}/>
-            <AdminQuickLogSummary studentId={item.id}/>
+            {focus?.section === "achievements" && <section id="student-section-achievements" className="mt-5 scroll-mt-24 rounded-xl border border-yellow-300/50 bg-yellow-400/10 p-4 shadow-[0_0_24px_rgba(250,204,21,.08)]"><p className="text-xs font-bold uppercase tracking-wide text-yellow-300">Logros</p><h3 className="mt-1 font-bold">Logro relacionado con la notificación</h3><p className="mt-1 text-sm text-zinc-300">La ficha corresponde a {item.firstName} {item.lastName}. {focus.entityId ? "El logro relacionado fue localizado desde su identificador histórico." : "La notificación no conserva un identificador de logro específico."}</p></section>}
+            <div id="student-section-attendance" className={focus?.section === "attendance" ? "scroll-mt-24 rounded-xl ring-2 ring-yellow-300/50" : ""}><StudentAttendanceSummaryCard studentId={item.id}/></div>
+            <AdminQuickLogSummary studentId={item.id} focusSection={focus?.section === "records" || focus?.section === "routines" ? focus.section : null} focusEntityId={focus?.entityId ?? null}/>
             <AdminNutritionSummary studentId={item.id}/>
             <StudentAccessControls studentId={item.id}/>
             <div className="mt-5 flex flex-wrap gap-3">
