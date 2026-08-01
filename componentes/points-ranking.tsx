@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import type { StudentRankingEntry } from "@/types/points";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
+import { RANKING_SECTION_ID, RANKING_TOP5_HREF, topFiveEntries } from "@/lib/ranking-navigation";
 
 const periods = [
   ["month", "Este mes"],
@@ -18,6 +20,9 @@ export function PointsRanking() {
   const [revision, setRevision] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [notice, setNotice] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [openedFromAnchor, setOpenedFromAnchor] = useState(false);
+  const topFiveNavigationLock = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -29,13 +34,31 @@ export function PointsRanking() {
         setExpanded(false);
       })
       .catch(() => {
-        if (!controller.signal.aborted) setRanking([]);
+        if (!controller.signal.aborted) {
+          setRanking([]);
+          setLoadError("No se pudo cargar el ranking.");
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
   }, [period, revision]);
+
+  useEffect(() => {
+    const syncAnchor = () => setOpenedFromAnchor(window.location.hash === `#${RANKING_SECTION_ID}`);
+    syncAnchor();
+    window.addEventListener("hashchange", syncAnchor);
+    return () => window.removeEventListener("hashchange", syncAnchor);
+  }, []);
+
+  useEffect(() => {
+    if (expanded || !topFiveNavigationLock.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(RANKING_SECTION_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [expanded]);
 
   async function rebuild() {
     if (!window.confirm("¿Recalcular los puntos de todos los alumnos activos? El proceso puede demorar unos segundos.")) return;
@@ -63,6 +86,7 @@ export function PointsRanking() {
       }
       setNotice(`${body.message ?? "Ranking recalculado."} ${body.quickLogsProcessed ?? 0} registros rápidos · ${body.routineSessionsProcessed ?? 0} rutinas completadas · ${body.attendancesProcessed ?? 0} asistencias · ${body.achievementsProcessed ?? 0} logros e hitos · ${body.individualExerciseEventsRemoved ?? 0} eventos individuales retirados · ${body.historicalClassExercisesIgnored ?? 0} ejercicios presenciales históricos conservados sin reprocesar · ${body.eventsCreated ?? 0} eventos reconstruidos · ${body.eventsOmitted ?? 0} ya existentes · ${body.studentsWithoutActivity ?? 0} alumnos sin actividad · ${body.errors?.length ?? 0} errores.`);
       setLoading(true);
+      setLoadError("");
       setRevision((value) => value + 1);
     } catch {
       setNotice("No se pudo recalcular el ranking.");
@@ -71,21 +95,32 @@ export function PointsRanking() {
     }
   }
 
-  const visibleRanking = expanded ? ranking : ranking.slice(0, 5);
+  const visibleRanking = expanded ? ranking : topFiveEntries(ranking);
+
+  function openTopFive(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (topFiveNavigationLock.current) {
+      event.preventDefault();
+      return;
+    }
+    topFiveNavigationLock.current = true;
+    setExpanded(false);
+    window.setTimeout(() => { topFiveNavigationLock.current = false; }, 500);
+  }
 
   return (
-    <section className="rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_14px_35px_rgba(0,0,0,.22)] sm:p-5">
+    <section id={RANKING_SECTION_ID} tabIndex={-1} className="scroll-mt-[calc(env(safe-area-inset-top)+6rem)] rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_14px_35px_rgba(0,0,0,.22)] focus:outline-none sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Ranking por puntos</p>
           <p className="mt-1 text-sm text-zinc-500">Compromiso, constancia y progreso registrado.</p>
+          {openedFromAnchor && <button type="button" onClick={() => window.history.back()} className="mt-2 min-h-9 text-xs font-bold text-yellow-300">← Volver</button>}
         </div>
         <div className="flex max-w-full flex-wrap items-center gap-1 rounded-xl bg-zinc-950 p-1">
           {periods.map(([value, label]) => (
             <button
               key={value}
               type="button"
-              onClick={() => { setLoading(true); setPeriod(value); }}
+              onClick={() => { setLoading(true); setLoadError(""); setPeriod(value); }}
               className={`rounded-lg px-2.5 py-2 text-xs font-semibold ${period === value ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}
             >
               {label}
@@ -99,6 +134,8 @@ export function PointsRanking() {
       {notice && <p role="status" className="mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/[.05] px-3 py-2 text-xs text-yellow-100">{notice}</p>}
       {loading ? (
         <p className="mt-4 rounded-xl bg-zinc-950 p-5 text-center text-sm text-zinc-500">Calculando ranking…</p>
+      ) : loadError ? (
+        <div role="alert" className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[.06] p-5 text-center"><p className="text-sm text-red-200">{loadError}</p><button type="button" onClick={() => { setLoading(true); setLoadError(""); setRevision((value) => value + 1); }} className="mt-3 rounded-lg border border-red-300/30 px-3 py-2 text-xs font-bold text-red-100">Reintentar</button></div>
       ) : ranking.length ? (
         <ol className="mt-4 space-y-2">
           {visibleRanking.map((student, index) => {
@@ -125,12 +162,10 @@ export function PointsRanking() {
           })}
         </ol>
       ) : (
-        <p className="mt-4 rounded-xl border border-dashed border-zinc-800 p-6 text-center text-sm text-zinc-500">No hay alumnos activos para mostrar.</p>
+        <p className="mt-4 rounded-xl border border-dashed border-zinc-800 p-6 text-center text-sm text-zinc-500">Todavía no hay alumnos con puntos para mostrar.</p>
       )}
       {!loading && ranking.length > 5 && (
-        <button type="button" onClick={() => setExpanded((value) => !value)} className="mt-3 min-h-10 w-full rounded-xl border border-zinc-800 text-xs font-bold text-yellow-300 hover:border-yellow-400/30">
-          {expanded ? "Ver Top 5" : `Ver ranking completo (${ranking.length})`}
-        </button>
+        expanded ? <Link href={RANKING_TOP5_HREF} onClick={openTopFive} className="mt-3 grid min-h-10 w-full place-items-center rounded-xl border border-zinc-800 text-xs font-bold text-yellow-300 hover:border-yellow-400/30">Ver Top 5</Link> : <button type="button" onClick={() => setExpanded(true)} className="mt-3 min-h-10 w-full rounded-xl border border-zinc-800 text-xs font-bold text-yellow-300 hover:border-yellow-400/30">Ver ranking completo ({ranking.length})</button>
       )}
     </section>
   );

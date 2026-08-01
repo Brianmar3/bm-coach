@@ -12,7 +12,7 @@
     "prisma:push": "prisma db push",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --experimental-strip-types tests/nutrition-rules.test.ts tests/nutrition-ai.test.ts tests/nutrition-persistence.test.ts tests/nutrition-education.test.ts tests/monthly-summary.test.ts tests/portal-class-schedule.test.ts tests/weekly-attendance.test.ts tests/trainer-notification-destination.test.ts tests/quick-log-flow.test.ts"
+    "test": "node --test --experimental-strip-types tests/nutrition-rules.test.ts tests/nutrition-ai.test.ts tests/nutrition-persistence.test.ts tests/nutrition-education.test.ts tests/monthly-summary.test.ts tests/portal-class-schedule.test.ts tests/weekly-attendance.test.ts tests/trainer-notification-destination.test.ts tests/quick-log-flow.test.ts tests/ranking-navigation.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
