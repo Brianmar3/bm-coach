@@ -131,3 +131,15 @@ test("la carga semanal usa un lote fijo de consultas y no consulta dentro de un 
   assert.equal((querySection.match(/findMany/g) ?? []).length, 5);
   assert.doesNotMatch(source, /for \(const student[^)]*\)[\s\S]{0,300}prisma\./);
 });
+
+test("la vista semanal prioriza la revisión rápida en escritorio y móvil", () => {
+  const source = readFileSync(new URL("../componentes/weekly-attendance-history.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /Datos históricos y limitaciones/);
+  assert.doesNotMatch(source, />Disciplina<select|>Horario<select|>Estado<select|>Servicio<select/);
+  assert.match(source, /type="week"/);
+  assert.match(source, /Alumnos con asistencia/);
+  assert.match(source, /Frecuencia \/ plan/);
+  assert.match(source, /filter\(\(day\) => day\.entries\.length > 0\)/);
+  assert.match(source, /Sin registro/);
+  assert.match(source, /Sin clase/);
+});
