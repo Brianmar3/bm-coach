@@ -30,4 +30,5 @@ export type StudentRankingEntry = {
   achievementCount: number;
   attendanceThisMonth: number;
   recordCount: number;
+  movements: StudentPointMovement[];
 };

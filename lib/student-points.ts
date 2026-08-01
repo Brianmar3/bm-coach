@@ -7,7 +7,11 @@ import type {
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { studentName } from "@/lib/attendance";
-import { loadNotifiableAchievements } from "@/lib/notifiable-achievements";
+import {
+  buildValidPointEvents,
+  pointEventKeysToInvalidate,
+  type ValidPointEvent,
+} from "@/lib/point-event-rules";
 import {
   dispatchTrainerPush,
   TRAINER_OWNER_KEY,
@@ -19,50 +23,7 @@ import type {
   StudentPointSummary,
 } from "@/types/points";
 
-export const POINT_RULES = {
-  ATTENDANCE: 5,
-  RECORD: 3,
-  ROUTINE_COMPLETED: 5,
-  PERSONAL_RECORD: 10,
-  ACHIEVEMENT: 15,
-  MILESTONE: 20,
-} as const;
-
-type PointEvent = {
-  eventKey: string;
-  eventType: StudentPointEventType;
-  sourceType: StudentPointSourceType;
-  sourceId: string | null;
-  points: number;
-  description: string;
-  occurredAt: Date;
-};
-
-function dateAtNoon(value: Date | string) {
-  const key =
-    value instanceof Date
-      ? value.toISOString().slice(0, 10)
-      : value.slice(0, 10);
-  return new Date(`${key}T12:00:00.000Z`);
-}
-
-function isImportantMilestone(id: string, level?: string) {
-  return (
-    level === "ESPECIAL" ||
-    level === "HITO" ||
-    /^classes-(10|25|50|100|200)$/.test(id) ||
-    /^workouts-(10|25|50)$/.test(id) ||
-    /^quick-log:milestone:(10|25|50|100)$/.test(id)
-  );
-}
-
-function isPersonalRecord(id: string) {
-  return (
-    id.startsWith("performance-") ||
-    id.includes(":max:") ||
-    id.includes(":repetitions:")
-  );
-}
+type PointEvent = ValidPointEvent;
 
 function isIndividualExercisePointEvent(item: {
   eventKey: string;
@@ -80,17 +41,12 @@ function isIndividualExercisePointEvent(item: {
   );
 }
 
-function isIndividualRoutineAchievement(id: string) {
-  return id.startsWith("performance-routine-");
-}
-
 async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
   const [
     occurrenceAttendances,
     legacyAttendances,
     quickLogs,
     completedRoutineSessions,
-    achievements,
   ] =
     await Promise.all([
       prisma.classOccurrenceAttendance.findMany({
@@ -146,42 +102,11 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
         },
         orderBy: [{ date: "asc" }, { createdAt: "asc" }],
       }),
-      loadNotifiableAchievements(studentId, { includeAll: true }),
     ]);
 
-  const events: PointEvent[] = [];
   const firstOccurrenceDate =
     occurrenceAttendances[0]?.occurrence.date.toISOString().slice(0, 10) ?? "";
-
-  for (const attendance of legacyAttendances) {
-    const dateKey = attendance.date.toISOString().slice(0, 10);
-    if (firstOccurrenceDate && dateKey >= firstOccurrenceDate) continue;
-    events.push({
-      eventKey: `attendance:legacy:${attendance.id}`,
-      eventType: "ATTENDANCE",
-      sourceType: "LEGACY_ATTENDANCE",
-      sourceId: attendance.id,
-      points: POINT_RULES.ATTENDANCE,
-      description: `Asistencia cumplida a ${attendance.scheduleLabel || "clase presencial"}`,
-      occurredAt: attendance.date,
-    });
-  }
-
-  for (const attendance of occurrenceAttendances) {
-    events.push({
-      eventKey: `attendance:occurrence:${attendance.id}`,
-      eventType: "ATTENDANCE",
-      sourceType: "CLASS_OCCURRENCE_ATTENDANCE",
-      sourceId: attendance.id,
-      points: POINT_RULES.ATTENDANCE,
-      description: `Asistencia cumplida a ${attendance.occurrence.classNameSnapshot}`,
-      occurredAt:
-        attendance.checkedInAt ??
-        dateAtNoon(attendance.occurrence.date),
-    });
-  }
-
-  for (const log of quickLogs) {
+  const quickLogEvents = quickLogs.map((log) => {
     const detail =
       log.exerciseName &&
       log.sets !== null &&
@@ -195,60 +120,32 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
             : log.type === "NOTE"
               ? "nota personal"
               : "progreso personal";
-    events.push({
-      eventKey: `record:quick-log:${log.id}`,
-      eventType: "RECORD",
-      sourceType: "QUICK_LOG",
-      sourceId: log.id,
-      points: POINT_RULES.RECORD,
+    return {
+      id: log.id,
+      date: log.date,
       description: `Registro cargado: ${detail}`,
-      occurredAt: log.createdAt,
-    });
-  }
-
-  for (const session of completedRoutineSessions) {
-    events.push({
-      eventKey: `record:workout-session:${session.id}`,
-      eventType: "RECORD",
-      sourceType: "WORKOUT_SESSION",
-      sourceId: session.id,
-      points: POINT_RULES.ROUTINE_COMPLETED,
+    };
+  });
+  return buildValidPointEvents({
+    legacyAttendances: legacyAttendances
+      .filter((attendance) => !firstOccurrenceDate || attendance.date.toISOString().slice(0, 10) < firstOccurrenceDate)
+      .map((attendance) => ({
+        id: attendance.id,
+        date: attendance.date,
+        description: `Asistencia cumplida a ${attendance.scheduleLabel || "clase presencial"}`,
+      })),
+    occurrenceAttendances: occurrenceAttendances.map((attendance) => ({
+      id: attendance.id,
+      date: attendance.occurrence.date,
+      description: `Asistencia cumplida a ${attendance.occurrence.classNameSnapshot}`,
+    })),
+    quickLogs: quickLogEvents,
+    completedRoutineSessions: completedRoutineSessions.map((session) => ({
+      id: session.id,
+      date: session.date,
       description: `Rutina completada: ${session.routineNameSnapshot || "entrenamiento personalizado"}`,
-      occurredAt: dateAtNoon(session.date),
-    });
-  }
-
-  for (const achievement of achievements) {
-    if (isIndividualRoutineAchievement(achievement.id)) continue;
-    const important = isImportantMilestone(
-      achievement.id,
-      achievement.level,
-    );
-    events.push({
-      eventKey: `achievement:${achievement.id}`,
-      eventType: important ? "MILESTONE" : "ACHIEVEMENT",
-      sourceType: "ACHIEVEMENT",
-      sourceId: achievement.id,
-      points: important
-        ? POINT_RULES.MILESTONE
-        : POINT_RULES.ACHIEVEMENT,
-      description: `Logro desbloqueado: ${achievement.name}`,
-      occurredAt: dateAtNoon(achievement.unlockedAt),
-    });
-    if (isPersonalRecord(achievement.id)) {
-      events.push({
-        eventKey: `personal-record:${achievement.id}`,
-        eventType: "PERSONAL_RECORD",
-        sourceType: "ACHIEVEMENT",
-        sourceId: achievement.id,
-        points: POINT_RULES.PERSONAL_RECORD,
-        description: `Nueva marca${achievement.exercise ? ` en ${achievement.exercise}` : ""}`,
-        occurredAt: dateAtNoon(achievement.unlockedAt),
-      });
-    }
-  }
-
-  return events;
+    })),
+  });
 }
 
 function movement(item: {
@@ -299,12 +196,7 @@ async function notifyPointGain(
     console.error("No se pudo enviar el puntaje por push", error);
   });
 
-  const relevant = gained.filter(
-    (item) =>
-      item.eventType === "PERSONAL_RECORD" ||
-      item.eventType === "ACHIEVEMENT" ||
-      item.eventType === "MILESTONE",
-  );
+  const relevant: PointEvent[] = [];
   if (!relevant.length) return;
   const student = await prisma.studentRecord.findUnique({
     where: { id: studentId },
@@ -359,7 +251,6 @@ export async function syncStudentPoints(
   options: { notify?: boolean; cleanupHistoricalMarks?: boolean } = {},
 ) {
   const desired = await desiredPointEvents(studentId);
-  const desiredByKey = new Map(desired.map((item) => [item.eventKey, item]));
   const previous = await prisma.studentPointTransaction.findMany({
     where: { studentId },
     select: { eventKey: true, active: true, sourceType: true, sourceId: true },
@@ -370,6 +261,7 @@ export async function syncStudentPoints(
   const gained = desired.filter((item) => !previouslyActive.has(item.eventKey));
   const now = new Date();
   let individualExerciseEventsRemoved = 0;
+  let eventsInvalidated = 0;
 
   await prisma.$transaction(
     async (transaction) => {
@@ -394,18 +286,16 @@ export async function syncStudentPoints(
           },
         });
       }
+      const invalidCandidates = pointEventKeysToInvalidate(previous, desired);
       const obsoleteKeys = previous
-        .filter(
-          (item) =>
-            item.active &&
-            !desiredByKey.has(item.eventKey) &&
-            ((options.cleanupHistoricalMarks === true &&
-              isIndividualExercisePointEvent(item)) ||
-              (!isIndividualExercisePointEvent(item) &&
-                item.sourceType !== "CLASS_WORKOUT_LOG" &&
-                item.sourceType !== "WORKOUT_SESSION" &&
-                item.sourceId !== "first-strength-log" &&
-                !item.sourceId?.includes(":class:"))),
+        .filter((item) => invalidCandidates.includes(item.eventKey))
+        .filter((item) =>
+          item.sourceType === "ACHIEVEMENT" ||
+          (options.cleanupHistoricalMarks === true && isIndividualExercisePointEvent(item)) ||
+          (!isIndividualExercisePointEvent(item) &&
+            item.sourceType !== "CLASS_WORKOUT_LOG" &&
+            item.sourceId !== "first-strength-log" &&
+            !item.sourceId?.includes(":class:")),
         )
         .map((item) => item.eventKey);
       individualExerciseEventsRemoved = previous.filter(
@@ -413,6 +303,7 @@ export async function syncStudentPoints(
           obsoleteKeys.includes(item.eventKey) &&
           isIndividualExercisePointEvent(item),
       ).length;
+      eventsInvalidated = obsoleteKeys.length;
       if (obsoleteKeys.length) {
         await transaction.studentPointTransaction.updateMany({
           where: { studentId, eventKey: { in: obsoleteKeys } },
@@ -455,7 +346,7 @@ export async function syncStudentPoints(
     quickLogs: desired.filter((event) => event.eventKey.startsWith("record:quick-log:")).length,
     routineSessions: desired.filter((event) => event.sourceType === "WORKOUT_SESSION").length,
     attendances: desired.filter((event) => event.eventType === "ATTENDANCE").length,
-    achievements: desired.filter((event) => event.eventType === "ACHIEVEMENT" || event.eventType === "MILESTONE").length,
+    achievements: 0,
   };
   return {
     total,
@@ -463,6 +354,7 @@ export async function syncStudentPoints(
     desiredCount: desired.length,
     sourceCounts,
     individualExerciseEventsRemoved,
+    eventsInvalidated,
     activityEventCount: sourceCounts.quickLogs + sourceCounts.routineSessions + sourceCounts.attendances + sourceCounts.achievements,
   };
 }

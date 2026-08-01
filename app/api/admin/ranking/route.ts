@@ -33,7 +33,6 @@ export async function GET(request: Request) {
       : period === "30d"
         ? new Date(argentinaDateTimeBoundary(todayKey).getTime() - 29 * 86400000)
         : argentinaDateTimeBoundary(argentinaMonthStart);
-  const monthStart = argentinaDateTimeBoundary(argentinaMonthStart);
   const periodWhere = {
     active: true,
     ...(from ? { occurredAt: { gte: from } } : {}),
@@ -47,7 +46,7 @@ export async function GET(request: Request) {
     return data.status !== "inactivo";
   });
   const studentIds = students.map((student) => student.id);
-  const [totals, historicalTotals, details] = await Promise.all([
+  const [totals, historicalTotals, details, movements] = await Promise.all([
     prisma.studentPointTransaction.groupBy({
       by: ["studentId"],
       where: { ...periodWhere, studentId: { in: studentIds } },
@@ -61,15 +60,22 @@ export async function GET(request: Request) {
     prisma.studentPointTransaction.groupBy({
       by: ["studentId", "eventType"],
       where: {
-        active: true,
+        ...periodWhere,
         studentId: { in: studentIds },
-        OR: [
-          { eventType: { in: ["ACHIEVEMENT", "MILESTONE"] } },
-          { eventType: "RECORD" },
-          { eventType: "ATTENDANCE", occurredAt: { gte: monthStart } },
-        ],
       },
       _count: { _all: true },
+    }),
+    prisma.studentPointTransaction.findMany({
+      where: { ...periodWhere, studentId: { in: studentIds } },
+      select: {
+        id: true,
+        studentId: true,
+        eventType: true,
+        points: true,
+        description: true,
+        occurredAt: true,
+      },
+      orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
     }),
   ]);
   const totalByStudent = new Map(totals.map((item) => [item.studentId, item._sum.points ?? 0]));
@@ -79,6 +85,18 @@ export async function GET(request: Request) {
     const values = detail.get(item.studentId) ?? new Map<string, number>();
     values.set(item.eventType, item._count._all);
     detail.set(item.studentId, values);
+  }
+  const movementsByStudent = new Map<string, StudentRankingEntry["movements"]>();
+  for (const item of movements) {
+    const values = movementsByStudent.get(item.studentId) ?? [];
+    values.push({
+      id: item.id,
+      eventType: item.eventType,
+      points: item.points,
+      description: item.description,
+      occurredAt: item.occurredAt.toISOString(),
+    });
+    movementsByStudent.set(item.studentId, values);
   }
   const ranking: StudentRankingEntry[] = students.map((record) => {
     const data = record.data as unknown as Student;
@@ -95,6 +113,7 @@ export async function GET(request: Request) {
       achievementCount: (counts.get("ACHIEVEMENT") ?? 0) + (counts.get("MILESTONE") ?? 0),
       attendanceThisMonth: counts.get("ATTENDANCE") ?? 0,
       recordCount: counts.get("RECORD") ?? 0,
+      movements: movementsByStudent.get(record.id) ?? [],
     };
   }).sort((left, right) =>
     right.total - left.total ||
@@ -124,6 +143,7 @@ export async function POST(request: Request) {
   let routineSessionsProcessed = 0;
   let attendancesProcessed = 0;
   let achievementsProcessed = 0;
+  let eventsCorrected = 0;
   let individualExerciseEventsRemoved = 0;
   let studentsWithoutActivity = 0;
   const errors: Array<{ studentId: string; studentName: string; error: string }> = [];
@@ -141,6 +161,7 @@ export async function POST(request: Request) {
       attendancesProcessed += result.sourceCounts.attendances;
       achievementsProcessed += result.sourceCounts.achievements;
       individualExerciseEventsRemoved += result.individualExerciseEventsRemoved;
+      eventsCorrected += result.eventsInvalidated;
       if (result.activityEventCount === 0) studentsWithoutActivity += 1;
     } catch (error) {
       errors.push({
@@ -162,6 +183,7 @@ export async function POST(request: Request) {
     routineSessionsProcessed,
     attendancesProcessed,
     achievementsProcessed,
+    eventsCorrected,
     individualExerciseEventsRemoved,
     historicalClassExercisesIgnored,
     studentsWithoutActivity,

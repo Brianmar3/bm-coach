@@ -22,6 +22,7 @@ export function PointsRanking() {
   const [notice, setNotice] = useState("");
   const [loadError, setLoadError] = useState("");
   const [openedFromAnchor, setOpenedFromAnchor] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const topFiveNavigationLock = useRef(false);
 
   useEffect(() => {
@@ -61,7 +62,8 @@ export function PointsRanking() {
   }, [expanded]);
 
   async function rebuild() {
-    if (!window.confirm("¿Recalcular los puntos de todos los alumnos activos? El proceso puede demorar unos segundos.")) return;
+    if (rebuilding) return;
+    if (!window.confirm("Esto volverá a validar los eventos puntuables sin duplicar movimientos. No modificará asistencias, rutinas ni evaluaciones.")) return;
     setRebuilding(true);
     setNotice("");
     try {
@@ -74,6 +76,8 @@ export function PointsRanking() {
         routineSessionsProcessed?: number;
         attendancesProcessed?: number;
         achievementsProcessed?: number;
+        eventsCorrected?: number;
+        processed?: number;
         individualExerciseEventsRemoved?: number;
         historicalClassExercisesIgnored?: number;
         studentsWithoutActivity?: number;
@@ -84,7 +88,10 @@ export function PointsRanking() {
         setNotice(body.error ?? "No se pudo recalcular el ranking.");
         return;
       }
-      setNotice(`${body.message ?? "Ranking recalculado."} ${body.quickLogsProcessed ?? 0} registros rápidos · ${body.routineSessionsProcessed ?? 0} rutinas completadas · ${body.attendancesProcessed ?? 0} asistencias · ${body.achievementsProcessed ?? 0} logros e hitos · ${body.individualExerciseEventsRemoved ?? 0} eventos individuales retirados · ${body.historicalClassExercisesIgnored ?? 0} ejercicios presenciales históricos conservados sin reprocesar · ${body.eventsCreated ?? 0} eventos reconstruidos · ${body.eventsOmitted ?? 0} ya existentes · ${body.studentsWithoutActivity ?? 0} alumnos sin actividad · ${body.errors?.length ?? 0} errores.`);
+      const changes = (body.eventsCreated ?? 0) + (body.eventsCorrected ?? 0);
+      setNotice(changes === 0
+        ? `Sin cambios. ${body.processed ?? 0} alumnos validados y ${body.errors?.length ?? 0} errores.`
+        : `${body.eventsCreated ?? 0} movimientos creados y ${body.eventsCorrected ?? 0} movimientos corregidos. ${body.errors?.length ?? 0} errores.`);
       setLoading(true);
       setLoadError("");
       setRevision((value) => value + 1);
@@ -127,7 +134,7 @@ export function PointsRanking() {
             </button>
           ))}
           <button type="button" disabled={rebuilding} onClick={rebuild} className="rounded-lg border border-zinc-800 px-2.5 py-2 text-xs font-semibold text-zinc-400 disabled:opacity-50">
-            {rebuilding ? "Recalculando…" : "Recalcular"}
+            {rebuilding ? "Recalculando…" : "Recalcular puntos"}
           </button>
         </div>
       </div>
@@ -139,24 +146,39 @@ export function PointsRanking() {
       ) : ranking.length ? (
         <ol className="mt-4 space-y-2">
           {visibleRanking.map((student, index) => {
-            const participation = student.serviceType === "PERSONALIZED"
-              ? "Personalizado"
-              : student.serviceType === "MIXED"
-                ? `Mixto · ${student.attendanceThisMonth} asistencias`
-                : `${student.attendanceThisMonth} asistencias este mes`;
+            const open = selectedStudentId === student.studentId;
             return (
-              <li key={student.studentId} className="grid min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-zinc-800/80 bg-black/35 p-3 sm:gap-3">
-                <span className="w-5 text-center text-sm font-black text-yellow-300">{index + 1}</span>
-                {/* eslint-disable-next-line @next/next/no-img-element -- validated profile URL or bundled avatar */}
-                <img src={student.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" className="h-9 w-9 rounded-full border border-yellow-400/20 object-cover" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">{student.studentName}</p>
-                  <p className="truncate text-[10px] text-zinc-500">{student.level} · {student.achievementCount} logros · {participation} · {student.recordCount} registros</p>
-                </div>
-                <span className="text-right">
-                  <strong className="block whitespace-nowrap text-sm text-yellow-300">{student.total.toLocaleString("es-AR")} pts</strong>
-                  <small className="block whitespace-nowrap text-[9px] text-zinc-600">{student.historicalTotal.toLocaleString("es-AR")} históricos</small>
-                </span>
+              <li key={student.studentId} className="min-w-0 rounded-xl border border-zinc-800/80 bg-black/35">
+                <button type="button" aria-expanded={open} onClick={() => setSelectedStudentId(open ? null : student.studentId)} className="grid w-full min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2 p-3 text-left sm:gap-3">
+                  <span className="w-5 text-center text-sm font-black text-yellow-300">{index + 1}</span>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- validated profile URL or bundled avatar */}
+                  <img src={student.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" className="h-9 w-9 rounded-full border border-yellow-400/20 object-cover" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold">{student.studentName}</span>
+                    <span className="block truncate text-[10px] text-zinc-500">{student.level} · {student.movements.length} movimientos en el período</span>
+                  </span>
+                  <span className="text-right">
+                    <strong className="block whitespace-nowrap text-sm text-yellow-300">{student.total.toLocaleString("es-AR")} pts</strong>
+                    <small className="block whitespace-nowrap text-[9px] text-zinc-600">{open ? "Ocultar detalle" : "Ver detalle"}</small>
+                  </span>
+                </button>
+                {open && (
+                  <div className="border-t border-zinc-800 px-3 py-3">
+                    {student.movements.length ? (
+                      <ul className="space-y-2">
+                        {student.movements.map((movement) => (
+                          <li key={movement.id} className="flex items-start justify-between gap-3 rounded-lg bg-zinc-950/70 px-3 py-2">
+                            <span className="min-w-0">
+                              <span className="block text-xs text-zinc-200">{movement.description}</span>
+                              <time className="mt-0.5 block text-[10px] text-zinc-500">{new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(movement.occurredAt))}</time>
+                            </span>
+                            <strong className="whitespace-nowrap text-xs text-yellow-300">+{movement.points} pts</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="text-xs text-zinc-500">Sin movimientos puntuables en este período.</p>}
+                  </div>
+                )}
               </li>
             );
           })}
