@@ -48,6 +48,12 @@ export function occurrenceHasStarted(date: Date, startTime: string) {
   return key < now.date || (key === now.date && startTime <= now.time);
 }
 
+export function occurrenceHasEnded(date: Date, endTime: string) {
+  const now = argentinaClock();
+  const key = databaseDateKey(date);
+  return key < now.date || (key === now.date && endTime <= now.time);
+}
+
 export function occurrenceClassName(occurrence: OccurrenceClassSource) {
   const scheduleName = occurrence.schedule?.classType.trim() ?? "";
   const snapshotName = occurrence.classNameSnapshot.trim();
@@ -117,8 +123,9 @@ export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = 
   return { from: today, to: end };
 }
 
-export function occurrenceStatusLabel(status: string, started: boolean) {
+export function occurrenceStatusLabel(status: string, started: boolean, ended = started) {
   if (status === "CANCELLED") return "Cancelada";
-  if (status === "COMPLETED" || started) return "Finalizada";
+  if (status === "COMPLETED" || ended) return "Finalizada";
+  if (started) return "En curso";
   return "Programada";
 }

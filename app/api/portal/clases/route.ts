@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { after } from "next/server";
-import { argentinaClock, ensureClassOccurrences, occurrenceClassName, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
+import { argentinaClock, ensureClassOccurrences, occurrenceClassName, occurrenceHasEnded, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
 import { databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +11,12 @@ import {
 } from "@/lib/trainer-notifications";
 import type { Student } from "@/types/gestion";
 import { hasGroupClasses } from "@/lib/student-service";
+import {
+  occurrenceBelongsToStudent,
+  PORTAL_CLASS_SEARCH_DAYS,
+  selectRelevantClassDay,
+  studentIsActiveForClasses,
+} from "@/lib/portal-class-schedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +29,7 @@ const occurrenceInclude = (studentId: string) => ({
 
 function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ include: ReturnType<typeof occurrenceInclude> }>) {
   const started = occurrenceHasStarted(occurrence.date, occurrence.startTime);
+  const ended = occurrenceHasEnded(occurrence.date, occurrence.endTime);
   return {
     id: occurrence.id,
     scheduleId: occurrence.scheduleId,
@@ -32,7 +39,7 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
     name: occurrenceClassName(occurrence),
     category: occurrenceClassName(occurrence),
     status: occurrence.status,
-    statusLabel: occurrenceStatusLabel(occurrence.status, started),
+    statusLabel: occurrenceStatusLabel(occurrence.status, started, ended),
     capacity: occurrence.capacityOverride,
     confirmedCount: occurrence._count.responses,
     response: occurrence.responses[0]?.response ?? null,
@@ -49,23 +56,45 @@ export async function GET() {
   if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Las clases grupales no están disponibles para tu servicio." }, { status: 403 });
   if (session.credential.mustChangePassword) return Response.json({ error: "Primero cambiá tu contraseña.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   try {
-    const range = await ensureClassOccurrences(35);
-    const schedules = await prisma.weeklyClassAssignment.findMany({ where: { studentId: session.studentId, active: true }, include: { schedule: true } });
+    const student = session.credential.student.data as unknown as Student;
+    if (!studentIsActiveForClasses(student.status, student.lifecycleStatus)) {
+      return Response.json({
+        scheduleLabels: [],
+        flexibleSchedule: student.flexibleSchedule ?? "",
+        occurrences: [],
+        focus: selectRelevantClassDay([]),
+      });
+    }
+    const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS);
+    const schedules = await prisma.weeklyClassAssignment.findMany({
+      where: { studentId: session.studentId, active: true, schedule: { active: true } },
+      include: { schedule: true },
+      orderBy: [{ schedule: { dayOfWeek: "asc" } }, { schedule: { startTime: "asc" } }],
+    });
+    const assignedScheduleIds = new Set(schedules.map((item) => item.scheduleId));
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
         date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) },
+        status: { not: "CANCELLED" },
         OR: [
-          { schedule: { active: true } },
+          { scheduleId: { in: [...assignedScheduleIds] } },
           { responses: { some: { studentId: session.studentId } } },
         ],
       },
       include: occurrenceInclude(session.studentId),
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     });
+    const explicitOccurrenceIds = new Set(
+      occurrences.filter((item) => item.responses.length > 0).map((item) => item.id),
+    );
+    const serialized = occurrences
+      .filter((item) => occurrenceBelongsToStudent(item, assignedScheduleIds, explicitOccurrenceIds))
+      .map(serializeOccurrence);
     return Response.json({
       scheduleLabels: schedules.map((item) => weeklyScheduleLabel(item.schedule)),
-      flexibleSchedule: (session.credential.student.data as unknown as Student).flexibleSchedule ?? "",
-      occurrences: occurrences.map(serializeOccurrence),
+      flexibleSchedule: student.flexibleSchedule ?? "",
+      occurrences: serialized,
+      focus: selectRelevantClassDay(serialized),
     });
   } catch (error) {
     console.error("No se pudieron cargar las clases del portal", error);
@@ -78,6 +107,8 @@ export async function POST(request: Request) {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
   if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Las clases grupales no están disponibles para tu servicio." }, { status: 403 });
+  const student = session.credential.student.data as unknown as Student;
+  if (!studentIsActiveForClasses(student.status, student.lifecycleStatus)) return Response.json({ error: "Tu cuenta no tiene clases activas." }, { status: 403 });
   try {
     const input = await request.json() as { occurrenceId?: unknown; response?: unknown };
     if (typeof input.occurrenceId !== "string" || !["GOING", "NOT_GOING"].includes(String(input.response))) {
@@ -89,12 +120,18 @@ export async function POST(request: Request) {
       const occurrence = await transaction.classOccurrence.findUnique({
         where: { id: occurrenceId },
         include: {
-          schedule: { select: { classType: true } },
+          schedule: {
+            select: {
+              classType: true,
+              assignments: { where: { studentId: session.studentId, active: true }, select: { studentId: true } },
+            },
+          },
           _count: { select: { responses: { where: { response: "GOING" } } } },
           responses: { where: { studentId: session.studentId } },
         },
       });
       if (!occurrence) throw new Error("NOT_FOUND");
+      if (!occurrence.responses.length && !occurrence.schedule?.assignments.length) throw new Error("NOT_FOUND");
       if (occurrence.status !== "SCHEDULED" || occurrenceHasStarted(occurrence.date, occurrence.startTime)) throw new Error("CLOSED");
       const previousResponse = occurrence.responses[0]?.response ?? null;
       const alreadyGoing = previousResponse === "GOING";
@@ -112,7 +149,6 @@ export async function POST(request: Request) {
     const occurrence = result.occurrence;
     const className = occurrenceClassName(occurrence);
     if (result.changed && result.responseUpdatedAt) {
-      const student = session.credential.student.data as unknown as Student;
       const notificationInput = {
         eventKey: `class-response:${occurrence.id}:${session.studentId}:${requestedResponse}:${result.responseUpdatedAt.toISOString()}`,
         studentId: session.studentId,

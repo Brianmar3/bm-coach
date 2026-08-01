@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PortalClassOccurrence } from "@/types/classes";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
   scheduleLabels: string[];
   flexibleSchedule: string;
+  focus: {
+    date: string | null;
+    title: string;
+    subtitle: string;
+    occurrenceIds: string[];
+    refreshAfterMs: number | null;
+  };
 };
 
 const dateLabel = (value: string) =>
@@ -38,8 +45,8 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [showWeek, setShowWeek] = useState(false);
   const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
-  async function load() {
-    const response = await fetch(endpoint, { cache: "no-store" });
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch(endpoint, { cache: "no-store", signal });
     const body = (await response.json()) as ClassData & { error?: string };
     if (response.status === 401) {
       window.location.href = "/portal/login";
@@ -48,30 +55,35 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     if (!response.ok)
       throw new Error(body.error ?? "No se pudieron cargar las clases.");
     setData(body);
-  }
+    setError("");
+  }, [endpoint]);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(endpoint, { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        const body = (await response.json()) as ClassData & { error?: string };
-        if (response.status === 401) {
-          window.location.href = "/portal/login";
-          return null;
-        }
-        if (!response.ok)
-          throw new Error(body.error ?? "No se pudieron cargar las clases.");
-        return body;
-      })
-      .then((body) => {
-        if (body) setData(body);
-      })
-      .catch((value: unknown) => {
-        if (value instanceof Error && value.name !== "AbortError")
-          setError(value.message);
+    const timer = window.setTimeout(() => {
+      void load(controller.signal).catch((value: unknown) => {
+        if (value instanceof Error && value.name !== "AbortError") setError(value.message);
       });
-    return () => controller.abort();
-  }, [endpoint]);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [load]);
+
+  useEffect(() => {
+    const refresh = () => { void load().catch((value: unknown) => setError(value instanceof Error ? value.message : "No se pudieron cargar las clases.")); };
+    const visibilityRefresh = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", visibilityRefresh);
+    const delay = data?.focus.refreshAfterMs;
+    const timer = typeof delay === "number" ? window.setTimeout(refresh, delay) : null;
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", visibilityRefresh);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [data?.focus.refreshAfterMs, load]);
 
   async function respond(
     item: PortalClassOccurrence,
@@ -104,37 +116,33 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   }
 
   const today = argentinaToday();
-  const todayItems = useMemo(
-    () =>
-      (data?.occurrences ?? [])
-        .filter((item) => item.date === today)
-        .sort((left, right) => {
-          const leftUpcoming =
-            left.status === "SCHEDULED" && left.canRespond;
-          const rightUpcoming =
-            right.status === "SCHEDULED" && right.canRespond;
-          return (
-            Number(rightUpcoming) - Number(leftUpcoming) ||
-            left.startTime.localeCompare(right.startTime)
-          );
-        }),
-    [data, today],
-  );
-  const weekEnd = addDays(today, 6);
+  const focusItems = useMemo(() => {
+    const ids = new Set(data?.focus.occurrenceIds ?? []);
+    return (data?.occurrences ?? []).filter((item) => ids.has(item.id)).sort((left, right) => left.startTime.localeCompare(right.startTime));
+  }, [data]);
+  const weekStart = data?.focus.date ?? today;
+  const weekEnd = addDays(weekStart, 6);
   const grouped = useMemo(() => {
     const map = new Map<string, PortalClassOccurrence[]>();
     const visible = showWeek
       ? (data?.occurrences ?? []).filter(
-          (item) => item.date >= today && item.date <= weekEnd,
+          (item) => item.status === "SCHEDULED" && item.date >= weekStart && item.date <= weekEnd,
         )
-      : todayItems;
+      : focusItems;
     for (const item of visible)
       map.set(item.date, [...(map.get(item.date) ?? []), item]);
     return [...map.entries()];
-  }, [data, showWeek, today, todayItems, weekEnd]);
+  }, [data, focusItems, showWeek, weekEnd, weekStart]);
 
-  if (!data && !error)
-    return <div className="h-44 animate-pulse rounded-2xl bg-zinc-900" />;
+  if (!data) {
+    if (!error) return <div className="h-44 animate-pulse rounded-2xl bg-zinc-900" />;
+    return (
+      <section className="rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
+        <p role="alert" className="text-sm text-red-200">{error}</p>
+        <button type="button" onClick={() => void load().catch((value: unknown) => setError(value instanceof Error ? value.message : "No se pudieron cargar las clases."))} className="mt-3 min-h-11 rounded-xl bg-red-200 px-4 text-xs font-black text-zinc-950">Reintentar</button>
+      </section>
+    );
+  }
 
   if (compact)
     return (
@@ -142,13 +150,14 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">
-              <span aria-hidden="true">▣</span>Clases de hoy
+              <span aria-hidden="true">▣</span>{data.focus.title}
             </p>
             <h2 className="mt-2 text-xl font-black">
-              {todayItems.length
-                ? `${todayItems.length} ${todayItems.length === 1 ? "clase disponible" : "clases disponibles"}`
-                : "Sin clases hoy"}
+              {focusItems.length
+                ? `${focusItems.length} ${focusItems.length === 1 ? "clase disponible" : "clases disponibles"}`
+                : "Sin próximas clases"}
             </h2>
+            <p className="mt-1 text-xs text-zinc-500">{data.focus.subtitle}</p>
           </div>
           <Link
             href="/portal/clases"
@@ -157,9 +166,9 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
             Ver horarios
           </Link>
         </div>
-        {todayItems.length ? (
+        {focusItems.length ? (
           <div className="mt-4 space-y-3">
-            {todayItems.slice(0, 2).map((item) => (
+            {focusItems.slice(0, 2).map((item) => (
               <ClassCard
                 key={item.id}
                 item={item}
@@ -171,10 +180,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         ) : (
           <div className="mt-4 rounded-xl border border-dashed border-zinc-800 bg-black/25 p-5">
             <p className="text-sm text-zinc-400">
-              Hoy no hay clases programadas.
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">
-              Podés consultar tus horarios semanales.
+              No encontramos próximas clases asignadas. Consultá con tu entrenador.
             </p>
           </div>
         )}
@@ -188,17 +194,17 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         <div>
           <p className="text-sm text-yellow-400">Agenda presencial</p>
           <h1 className="mt-1 text-2xl font-bold">
-            {showWeek ? "Semana completa" : "Clases de hoy"}
+            {showWeek ? "Próximos 7 días con agenda" : data?.focus.title}
           </h1>
           <p className="mt-2 text-sm text-zinc-500">
-            Consultá tus horarios y confirmá tu asistencia.
+            {showWeek ? "Consultá tus horarios y confirmá tu asistencia." : data?.focus.subtitle}
           </p>
         </div>
         <button
           onClick={() => setShowWeek((value) => !value)}
           className="self-start rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:border-yellow-400/50 hover:text-yellow-300 sm:self-auto"
         >
-          {showWeek ? "Ver solo hoy" : "Ver semana completa"}
+          {showWeek ? "Ver próximo día" : "Ver próximos 7 días"}
         </button>
       </header>
       <details className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
@@ -228,9 +234,9 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         )}
       </details>
       <Feedback error={error} notice={notice} />
-      {!showWeek && todayItems.length === 0 && (
+      {!showWeek && focusItems.length === 0 && (
         <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">
-          Hoy no hay clases programadas.
+          No encontramos próximas clases asignadas. Consultá con tu entrenador.
         </p>
       )}
       <div className="mt-6 space-y-5">

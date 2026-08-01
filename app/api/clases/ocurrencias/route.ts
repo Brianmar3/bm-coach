@@ -1,5 +1,5 @@
 import { databaseDateKey, dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
-import { ensureClassOccurrences, occurrenceClassName, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
+import { ensureClassOccurrences, occurrenceClassName, occurrenceHasEnded, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -37,6 +37,7 @@ export async function GET(request: Request) {
         return { id: student.id, name: studentName(student.data), response: attendance?.response ?? null, actualAttendance: attendance?.actualAttendance ?? "UNKNOWN" };
       });
       const started = occurrenceHasStarted(occurrence.date, occurrence.startTime);
+      const ended = occurrenceHasEnded(occurrence.date, occurrence.endTime);
       return {
         id: occurrence.id,
         scheduleId: occurrence.scheduleId,
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
         name: occurrenceClassName(occurrence),
         category: occurrenceClassName(occurrence),
         status: occurrence.status,
-        statusLabel: occurrenceStatusLabel(occurrence.status, started),
+        statusLabel: occurrenceStatusLabel(occurrence.status, started, ended),
         capacity: occurrence.capacityOverride,
         confirmedCount: occurrence.responses.filter((item) => item.response === "GOING").length,
         response: null,
