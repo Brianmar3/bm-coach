@@ -1,8 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { WeeklyAttendanceHistory } from "@/componentes/weekly-attendance-history";
 import type { AttendanceGeneralSummary, AttendanceRoster, AttendanceRosterStudent, AttendanceStatus, Student, WeeklyClassDay, WeeklyClassSchedule } from "@/types/gestion";
 
 const DAY_FROM_JS: Partial<Record<number, WeeklyClassDay>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
@@ -30,6 +32,7 @@ function AttendancePageContent() {
   const targetStudentId = searchParams.get("studentId") ?? "";
   const calendarMode = Boolean(entryScheduleId);
   const historyMode = searchParams.get("view") === "history";
+  const weeklyHistoryMode = historyMode && searchParams.get("mode") !== "day";
   const [date, setDate] = useState(searchParams.get("date") || todayKey());
   const [schedules, setSchedules] = useState<WeeklyClassSchedule[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -47,13 +50,14 @@ function AttendancePageContent() {
   const savingLock = useRef(false);
 
   useEffect(() => {
+    if (historyMode) return;
     const controller = new AbortController();
     Promise.all([
       fetch("/api/clases", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los horarios.")); return response.json() as Promise<WeeklyClassSchedule[]>; }),
       fetch("/api/alumnos", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los alumnos.")); return response.json() as Promise<Student[]>; }),
     ]).then(([weeklySchedules, realStudents]) => { setSchedules(weeklySchedules); setStudents(realStudents); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
     return () => controller.abort();
-  }, []);
+  }, [historyMode]);
 
   const dateSchedules = useMemo(() => {
     const day = dateDay(date);
@@ -63,12 +67,13 @@ function AttendancePageContent() {
   const selectedSchedule = schedules.find((schedule) => schedule.id === effectiveScheduleId) ?? null;
 
   useEffect(() => {
+    if (weeklyHistoryMode) return;
     const controller = new AbortController();
     fetch(`/api/asistencias/resumen?date=${date}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudo cargar el resumen.")); return response.json() as Promise<AttendanceGeneralSummary>; })
       .then(setSummary).catch((summaryError: unknown) => { if (summaryError instanceof Error && summaryError.name !== "AbortError") setError(summaryError.message); });
     return () => controller.abort();
-  }, [date]);
+  }, [date, weeklyHistoryMode]);
 
   const loadRoster = useCallback((targetScheduleId: string, targetDate = date) => {
     const controller = new AbortController();
@@ -89,9 +94,10 @@ function AttendancePageContent() {
   }, [date]);
 
   useEffect(() => {
+    if (historyMode) return;
     const controller = loadRoster(effectiveScheduleId || "", date);
     return () => controller.abort();
-  }, [date, effectiveScheduleId, loadRoster]);
+  }, [date, effectiveScheduleId, historyMode, loadRoster]);
 
   const rosterStudents = useMemo(() => {
     const normalized = studentQuery.trim().toLocaleLowerCase("es");
@@ -186,7 +192,11 @@ function AttendancePageContent() {
         {!ready ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : loadingRoster ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : rosterStudents.length === 0 ? <p className="p-12 text-center text-zinc-500">No hay alumnos para esta fecha. Podés agregarlos con “+ Agregar alumno”.</p> : <div className="grid gap-3 p-3 sm:p-4">{rosterStudents.map((student) => <AttendanceStudentCard key={student.id} student={student} highlighted={student.id === targetStudentId} saving={saving} setStatus={(status) => setStatus(student.id, status)} />)}</div>}
       </section>
       <div className={historyMode ? "" : "hidden"}>
-      <AttendanceHistory summary={summary} />
+        <div className="mb-5 flex w-fit rounded-xl border border-zinc-800 bg-zinc-900 p-1" role="tablist" aria-label="Período del historial">
+          <Link href="/asistencias?view=history&mode=day" role="tab" aria-selected={!weeklyHistoryMode} className={`rounded-lg px-4 py-2 text-sm font-bold ${!weeklyHistoryMode ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Día</Link>
+          <Link href="/asistencias?view=history&mode=week" role="tab" aria-selected={weeklyHistoryMode} className={`rounded-lg px-4 py-2 text-sm font-bold ${weeklyHistoryMode ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Semana</Link>
+        </div>
+        {weeklyHistoryMode ? <WeeklyAttendanceHistory /> : <AttendanceHistory summary={summary} />}
       </div>
     </ModuleShell>
   );

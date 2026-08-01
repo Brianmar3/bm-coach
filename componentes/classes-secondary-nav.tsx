@@ -19,7 +19,7 @@ export function ClassesSecondaryNav() {
     <nav aria-label="Navegación de Clases" className="flex gap-1 overflow-x-auto py-1">
       <Link href="/clases" className={style("calendar")}>Calendario semanal</Link>
       <Link href="/asistencias" className={style("attendance")}>Asistencias</Link>
-      <Link href="/asistencias?view=history" className={style("history")}>Historial y estadísticas</Link>
+      <Link href="/asistencias?view=history&mode=week" className={style("history")}>Historial y estadísticas</Link>
     </nav>
   );
 }

@@ -80,6 +80,11 @@ export default function AlumnosPage() {
                 setStatus("activo");
             if (params.get("buscar"))
                 setQuery(params.get("buscar") ?? "");
+            if (params.get("studentId")) {
+                const selectedStudent = students.find((student) => student.id === params.get("studentId"));
+                if (selectedStudent)
+                    setViewing(selectedStudent);
+            }
             if (params.get("accion") === "nuevo") {
                 setForm(blank(enrollmentOptions));
                 setOpen(true);
