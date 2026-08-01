@@ -142,6 +142,16 @@ export function weekDays(start: string) {
   });
 }
 
+export function isWeeklyAttendanceDisplayDate(value: string) {
+  if (!isDateKey(value)) return false;
+  const weekday = new Date(`${value}T12:00:00.000Z`).getUTCDay();
+  return weekday >= 1 && weekday <= 5;
+}
+
+export function weeklyAttendanceDisplayDays<T extends { date: string }>(days: T[]) {
+  return days.filter((day) => isWeeklyAttendanceDisplayDate(day.date));
+}
+
 export function attendancePercentage(present: number, absent: number) {
   const denominator = present + absent;
   return denominator ? Math.round((present / denominator) * 1000) / 10 : null;

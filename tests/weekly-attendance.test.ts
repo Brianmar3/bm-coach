@@ -7,6 +7,7 @@ import {
   assignmentCoversDateKeys,
   attendancePercentage,
   filterWeeklyStudents,
+  isWeeklyAttendanceDisplayDate,
   mondayForArgentinaDate,
   studentIsActiveOnDate,
   summarizeStudent,
@@ -14,6 +15,7 @@ import {
   weekLabel,
   weekRange,
   weeklyAttendanceCsv,
+  weeklyAttendanceDisplayDays,
   type WeeklyAttendanceEntry,
   type WeeklyAttendanceResponse,
 } from "../lib/weekly-attendance.ts";
@@ -41,6 +43,16 @@ test("la semana va de lunes a domingo con fin exclusivo", () => {
   assert.equal(weekDays("2026-07-27").length, 7);
   assert.equal(weekDays("2026-07-27")[6].shortLabel, "Dom 2");
   assert.equal(weekLabel("2026-07-27"), "Semana del 27 de julio al 2 de agosto de 2026");
+});
+
+test("la presentación semanal muestra lunes a viernes y oculta sábado y domingo", () => {
+  const displayed = weeklyAttendanceDisplayDays(weekDays("2026-07-27"));
+  assert.equal(displayed.length, 5);
+  assert.deepEqual(displayed.map((day) => day.shortLabel.slice(0, 3)), ["Lun", "Mar", "Mié", "Jue", "Vie"]);
+  assert.equal(displayed.some((day) => day.shortLabel.startsWith("Sáb") || day.shortLabel.startsWith("Dom")), false);
+  assert.equal(isWeeklyAttendanceDisplayDate("2026-08-01"), false);
+  assert.equal(isWeeklyAttendanceDisplayDate("2026-08-02"), false);
+  assert.equal(isWeeklyAttendanceDisplayDate("2026-08-03"), true);
 });
 
 test("semana anterior y siguiente conservan lunes", () => {
@@ -142,4 +154,25 @@ test("la vista semanal prioriza la revisión rápida en escritorio y móvil", ()
   assert.match(source, /filter\(\(day\) => day\.entries\.length > 0\)/);
   assert.match(source, /Sin registro/);
   assert.match(source, /Sin clase/);
+  assert.match(source, /weeklyAttendanceDisplayDays\(data\.days\)/);
+  assert.match(source, />Totales</);
+  assert.match(source, /min-w-\[860px\]/);
+  assert.match(source, /sticky left-0/);
+  assert.match(source, /relevantDays.*filter\(\(day\) => day\.entries\.length > 0\)/s);
+});
+
+test("el detalle semanal es compacto y omite metadatos vacíos", () => {
+  const source = readFileSync(new URL("../componentes/weekly-attendance-history.tsx", import.meta.url), "utf8");
+  const detail = source.slice(source.indexOf("function AttendanceDetail("), source.indexOf("function Empty("));
+  assert.match(detail, /Detalle semanal/);
+  assert.match(detail, /aria-label="Cerrar detalle semanal"/);
+  assert.match(detail, /Ir a la ficha general/);
+  assert.match(detail, /entry\.observation &&/);
+  assert.match(detail, /entry\.recordedBy &&/);
+  assert.match(detail, /entry\.method &&/);
+  assert.match(detail, /entry\.recordedAt &&/);
+  assert.doesNotMatch(detail, /No disponible/);
+  assert.match(detail, /space-y-2/);
+  assert.match(detail, /overflow-y-auto/);
+  assert.match(detail, /isWeeklyAttendanceDisplayDate\(entry\.date\)/);
 });
