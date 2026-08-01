@@ -58,23 +58,63 @@ export async function GET(request: Request) {
     return Response.json({ reference: match ? serializeReference(match) : null });
   }
 
+  const routineExercises = await prisma.trainingRoutineExercise.findMany({
+    where: {
+      active: true,
+      archivedAt: null,
+      day: {
+        active: true,
+        archivedAt: null,
+        routine: {
+          assignments: {
+            some: {
+              studentId: session.studentId,
+              active: true,
+              archivedAt: null,
+            },
+          },
+        },
+      },
+    },
+    select: { name: true, muscleGroup: true },
+  });
+
   const grouped = new Map<
     string,
     {
       name: string;
+      muscleGroup: string | null;
+      recent: boolean;
       count: number;
       lastUsedAt: string;
-      reference: ReturnType<typeof serializeReference>;
+      reference: ReturnType<typeof serializeReference> | null;
     }
   >();
+  for (const exercise of routineExercises) {
+    const key = normalizeExerciseName(exercise.name);
+    if (!key || grouped.has(key)) continue;
+    grouped.set(key, {
+      name: exercise.name,
+      muscleGroup: exercise.muscleGroup || null,
+      recent: false,
+      count: 0,
+      lastUsedAt: "",
+      reference: null,
+    });
+  }
   for (const log of logs) {
     const key = normalizeExerciseName(log.exerciseName);
     const existing = grouped.get(key);
     if (existing) {
       existing.count += 1;
+      existing.recent = true;
+      existing.lastUsedAt = existing.lastUsedAt > log.createdAt.toISOString() ? existing.lastUsedAt : log.createdAt.toISOString();
+      existing.reference ??= serializeReference(log);
     } else {
       grouped.set(key, {
         name: log.exerciseName,
+        muscleGroup: null,
+        recent: true,
         count: 1,
         lastUsedAt: log.createdAt.toISOString(),
         reference: serializeReference(log),
@@ -85,10 +125,10 @@ export async function GET(request: Request) {
   const options = [...grouped.values()]
     .sort(
       (left, right) =>
-        right.count - left.count ||
+        Number(right.recent) - Number(left.recent) ||
         right.lastUsedAt.localeCompare(left.lastUsedAt),
     )
-    .slice(0, 20);
+    .slice(0, 200);
 
   return Response.json({
     options,

@@ -5,6 +5,17 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import type { QuickLog, QuickLogType } from "@/types/quick-log";
 import { normalizeExerciseName } from "@/lib/exercise-name";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
+import {
+  EMPTY_QUICK_LOG_DRAFT,
+  exerciseSuggestions,
+  normalizeExerciseSearch,
+  quickLogPayload,
+  quickLogSummary,
+  validateQuickLogDraft,
+  type ExerciseSuggestion,
+  type QuickLogDraft,
+  type QuickLogKind,
+} from "@/lib/quick-log-flow";
 
 const labels: Record<QuickLogType, { title: string; icon: string }> = {
   WORKOUT: { title: "Entrenamiento", icon: "✓" },
@@ -15,152 +26,121 @@ const labels: Record<QuickLogType, { title: string; icon: string }> = {
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
 
 export function QuickLogLauncher() {
-  const [type, setType] = useState<QuickLogType | null>(null);
-  return <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</h2><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{(Object.keys(labels) as QuickLogType[]).map((value) => <button key={value} onClick={() => setType(value)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-zinc-200"><span className="text-yellow-400">{labels[value].icon}</span>{labels[value].title}</button>)}</div>{type && <QuickLogForm type={type} close={() => setType(null)} saved={() => setType(null)} />}</section>;
+  const [open, setOpen] = useState(false);
+  return <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</h2><button type="button" onClick={() => setOpen(true)} className="mt-3 min-h-11 w-full rounded-xl bg-yellow-400 px-4 text-sm font-bold text-zinc-950">¿Qué querés anotar?</button>{open && <GuidedQuickLogForm close={() => setOpen(false)} saved={(keepOpen) => { if (!keepOpen) setOpen(false); }} />}</section>;
 }
 
 export function QuickNoteButton() {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
-  return <>{<button onClick={() => setOpen(true)} aria-label="Registrar ejercicio" className="fixed bottom-[var(--portal-quick-note-bottom)] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-yellow-400 text-xl font-black text-zinc-950 shadow-[0_10px_30px_rgba(0,0,0,.58),0_0_18px_rgba(250,204,21,.18)] transition hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-200 md:right-6 md:h-auto md:w-auto md:grid-flow-col md:gap-2 md:px-4 md:py-2.5 md:text-sm"><span aria-hidden="true">＋</span><span className="hidden md:inline">Registrar ejercicio</span></button>}{open && <QuickExerciseForm close={() => setOpen(false)} saved={() => { setOpen(false); setNotice("Registro guardado correctamente."); window.dispatchEvent(new Event("bm:achievement-check")); window.setTimeout(() => setNotice(""), 3000); }} />}{notice && <p role="status" className="fixed bottom-[calc(var(--portal-quick-note-bottom)+3.5rem)] right-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border border-emerald-400/25 bg-zinc-950 px-4 py-3 text-sm text-emerald-300 shadow-2xl md:bottom-[calc(var(--portal-quick-note-bottom)+3.75rem)]">{notice}</p>}</>;
+  return <>{<button onClick={() => setOpen(true)} aria-label="Abrir registro rápido" className="fixed bottom-[var(--portal-quick-note-bottom)] right-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-yellow-400 text-xl font-black text-zinc-950 shadow-[0_10px_30px_rgba(0,0,0,.58),0_0_18px_rgba(250,204,21,.18)] transition hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-200 md:right-6 md:h-auto md:w-auto md:grid-flow-col md:gap-2 md:px-4 md:py-2.5 md:text-sm"><span aria-hidden="true">＋</span><span className="hidden md:inline">Registro rápido</span></button>}{open && <GuidedQuickLogForm close={() => setOpen(false)} saved={(keepOpen) => { if (!keepOpen) setOpen(false); setNotice("Registro guardado correctamente."); window.dispatchEvent(new Event("bm:achievement-check")); window.setTimeout(() => setNotice(""), 3000); }} />}{notice && <p role="status" className="fixed bottom-[calc(var(--portal-quick-note-bottom)+3.5rem)] right-4 z-40 max-w-[calc(100vw-2rem)] rounded-xl border border-emerald-400/25 bg-zinc-950 px-4 py-3 text-sm text-emerald-300 shadow-2xl md:bottom-[calc(var(--portal-quick-note-bottom)+3.75rem)]">{notice}</p>}</>;
 }
 
-type ExerciseReference = {
-  exerciseName: string;
-  sets: number | null;
-  repetitions: number | null;
-  load: number | null;
-  unit: string;
-  createdAt: string;
-};
+type QuickCategory = "strength" | "circuit" | "other";
 
-type ExerciseOption = {
-  name: string;
-  count: number;
-  lastUsedAt: string;
-  reference: ExerciseReference;
-};
+const CATEGORY_LABEL: Record<QuickCategory, string> = { strength: "Ejercicio de fuerza", circuit: "Circuito o desafío", other: "Otro registro" };
+const KIND_LABEL: Record<QuickLogKind, string> = { strength: "Ejercicio de fuerza", time: "Tiempo", rounds: "Vueltas", amrap: "AMRAP", emom: "EMOM", cardio: "Cardio", intervals: "Intervalos", note: "Nota libre" };
 
-function QuickExerciseForm({ close, saved }: { close: () => void; saved: () => void }) {
-  const [exercise, setExercise] = useState("");
-  const [sets, setSets] = useState("");
-  const [repetitions, setRepetitions] = useState("");
-  const [load, setLoad] = useState("");
-  const [note, setNote] = useState("");
-  const [options, setOptions] = useState<ExerciseOption[]>([]);
-  const [lastRecord, setLastRecord] = useState<ExerciseReference | null>(null);
-  const [remoteReference, setRemoteReference] = useState<{
-    key: string;
-    value: ExerciseReference | null;
-  }>({ key: "", value: null });
-  const [saving, setSaving] = useState(false);
+function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepOpen: boolean) => void | Promise<void> }) {
+  const [category, setCategory] = useState<QuickCategory | null>(null);
+  const [draft, setDraft] = useState<QuickLogDraft>({ ...EMPTY_QUICK_LOG_DRAFT });
+  const [options, setOptions] = useState<ExerciseSuggestion[]>([]);
+  const [advanced, setAdvanced] = useState(false);
+  const [circuitDetails, setCircuitDetails] = useState(false);
+  const [choosingIntervalFormat, setChoosingIntervalFormat] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<keyof QuickLogDraft, string>>>({});
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savingLock = useRef(false);
   const requestKey = useRef("");
-  const exerciseKey = normalizeExerciseName(exercise);
-  const localReference =
-    options.find((option) => normalizeExerciseName(option.name) === exerciseKey)
-      ?.reference ?? null;
-  const reference =
-    localReference ??
-    (remoteReference.key === exerciseKey ? remoteReference.value : null);
-  const loadingReference =
-    Boolean(exerciseKey) &&
-    !localReference &&
-    remoteReference.key !== exerciseKey;
+  const suggestions = useMemo(() => draft.exercise.trim() ? exerciseSuggestions(options, draft.exercise) : [], [draft.exercise, options]);
+  const exactSuggestion = suggestions.some((option) => normalizeExerciseSearch(option.name) === normalizeExerciseSearch(draft.exercise));
+  const set = <K extends keyof QuickLogDraft>(key: K, value: QuickLogDraft[K]) => { setDraft((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: undefined })); };
 
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/portal/quick-logs/exercises", { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json() as { options?: ExerciseOption[]; lastRecord?: ExerciseReference | null; error?: string };
-        if (!response.ok) throw new Error(body.error ?? "No se pudieron cargar tus ejercicios.");
-        setOptions(body.options ?? []);
-        setLastRecord(body.lastRecord ?? null);
-      })
-      .catch((reason: unknown) => {
-        if (!(reason instanceof Error && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : "No se pudieron cargar tus ejercicios.");
-      });
+      .then(async (response) => { const body = await response.json() as { options?: ExerciseSuggestion[] }; if (response.ok) setOptions(body.options ?? []); })
+      .catch(() => undefined);
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    const trimmed = exercise.trim();
-    if (!trimmed || localReference) return;
-    const controller = new AbortController();
-    const requestedKey = normalizeExerciseName(trimmed);
-    const timeout = window.setTimeout(() => {
-      fetch(`/api/portal/quick-logs/exercises?exercise=${encodeURIComponent(trimmed)}`, { cache: "no-store", signal: controller.signal })
-        .then(async (response) => {
-          const body = await response.json() as { reference?: ExerciseReference | null };
-          setRemoteReference({
-            key: requestedKey,
-            value: response.ok ? body.reference ?? null : null,
-          });
-        })
-        .catch((reason: unknown) => {
-          if (!(reason instanceof Error && reason.name === "AbortError")) {
-            setRemoteReference({ key: requestedKey, value: null });
-          }
-        });
-    }, 300);
-    return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [exercise, localReference]);
-
-  function chooseOption(option: ExerciseOption) {
-    setExercise(option.name);
+  function chooseCategory(value: QuickCategory) {
+    setCategory(value);
+    if (value === "strength") set("kind", "strength");
+    else if (draft.kind === "strength") set("kind", null);
   }
 
-  function repeatLast() {
-    if (!lastRecord) return;
-    setExercise(lastRecord.exerciseName);
-    setSets(lastRecord.sets?.toString() ?? "");
-    setRepetitions(lastRecord.repetitions?.toString() ?? "");
-    setLoad(lastRecord.load?.toString() ?? "");
+  function back() {
+    if (choosingIntervalFormat && !draft.kind) { setChoosingIntervalFormat(false); return; }
+    if (category && draft.kind && draft.kind !== "strength") { set("kind", null); return; }
+    if (draft.kind === "strength") set("kind", null);
+    setCategory(null);
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function save(addAnother: boolean) {
+    if (savingLock.current) return;
+    const validation = validateQuickLogDraft(draft);
+    if (Object.keys(validation).length) { setErrors(validation); return; }
+    savingLock.current = true;
     setSaving(true);
     setError("");
     try {
       const form = new FormData();
-      form.set("type", "PROGRESS");
-      form.set("title", exercise.trim());
-      form.set("content", note.trim());
-      form.set("category", "registro rápido");
-      form.set("date", today());
-      form.set("exerciseName", exercise.trim());
-      form.set("sets", sets);
-      form.set("repetitions", repetitions);
-      form.set("metricType", "carga");
-      form.set("previousValue", reference?.load?.toString() ?? "");
-      form.set("currentValue", load);
-      form.set("unit", "kg");
+      for (const [key, value] of Object.entries(quickLogPayload(draft, today()))) form.set(key, value);
       if (!requestKey.current) requestKey.current = window.crypto.randomUUID();
       form.set("idempotencyKey", requestKey.current);
       const response = await fetch("/api/portal/quick-logs", { method: "POST", body: form });
       const body = await response.json() as { error?: string; newAchievements?: CelebrationAchievement[] };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar el registro.");
       announceNewAchievements(body.newAchievements);
-      saved();
+      await saved(addAnother);
+      if (addAnother) {
+        setCategory(null);
+        setDraft({ ...EMPTY_QUICK_LOG_DRAFT });
+        setAdvanced(false);
+        setCircuitDetails(false);
+        setChoosingIntervalFormat(false);
+        setErrors({});
+        requestKey.current = "";
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo guardar el registro.");
     } finally {
+      savingLock.current = false;
       setSaving(false);
     }
   }
 
-  return <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/85 p-2 backdrop-blur-sm sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && close()}><form onSubmit={submit} className="mx-auto my-2 w-full max-w-lg rounded-3xl border border-yellow-400/15 bg-[#111] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-2xl sm:my-8 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</p><h2 className="mt-1 text-xl font-bold">Registrar ejercicio</h2><p className="mt-1 text-xs text-zinc-500">Carga solamente lo que hiciste hoy.</p></div><button type="button" onClick={close} disabled={saving} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-xl text-zinc-400" aria-label="Cerrar registro">×</button></div>
-    {error && <p role="alert" className="mt-3 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
-    {lastRecord && <button type="button" onClick={repeatLast} className="mt-4 min-h-11 w-full rounded-xl border border-yellow-400/25 bg-yellow-400/[.05] px-3 text-sm font-bold text-yellow-300">Repetir último registro</button>}
-    <div className="mt-2 space-y-4"><Field label="Ejercicio"><input required autoFocus list="quick-exercise-options" value={exercise} onChange={(event) => setExercise(event.target.value)} maxLength={120} placeholder="Ej: Sentadilla goblet" autoComplete="off" className="input min-h-12" /><datalist id="quick-exercise-options">{options.map((option) => <option key={normalizeExerciseName(option.name)} value={option.name} />)}</datalist></Field>
-      {options.length > 0 && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Ejercicios recientes">{options.slice(0, 6).map((option) => <button key={normalizeExerciseName(option.name)} type="button" onClick={() => chooseOption(option)} className="min-h-9 shrink-0 rounded-full border border-zinc-700 bg-zinc-950 px-3 text-xs text-zinc-300">{option.name}</button>)}</div>}
-      <div className="rounded-xl border border-zinc-800 bg-black/60 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Carga anterior</p>{loadingReference ? <p className="mt-1 text-sm text-zinc-500">Buscando…</p> : reference ? <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><strong className="text-lg text-yellow-300">{reference.load === null ? "Sin carga" : `${reference.load.toLocaleString("es-AR")} ${reference.unit}`}</strong>{reference.sets !== null && reference.repetitions !== null && <span className="text-xs text-zinc-500">{reference.sets} series × {reference.repetitions} repeticiones</span>}</div> : <p className="mt-1 text-sm text-zinc-500">{exercise.trim() ? "No hay un registro anterior de este ejercicio." : "Elegí un ejercicio para consultar tu última carga."}</p>}</div>
-      <div className="grid grid-cols-2 gap-3"><Field label="Series"><input required type="number" min="1" max="100" inputMode="numeric" value={sets} onChange={(event) => setSets(event.target.value)} placeholder="3" className="input min-h-12" /></Field><Field label="Repeticiones"><input required type="number" min="1" max="10000" inputMode="numeric" value={repetitions} onChange={(event) => setRepetitions(event.target.value)} placeholder="12" className="input min-h-12" /></Field></div>
-      <Field label="Carga de hoy (kg)"><input required type="number" min="0" step="0.01" inputMode="decimal" value={load} onChange={(event) => setLoad(event.target.value)} placeholder="14" className="input min-h-12" /></Field>
-      <Field label="Nota opcional"><textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} rows={2} placeholder="Observación breve" className="input resize-none" /></Field>
-    </div><button disabled={saving} className="mt-5 min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar registro"}</button></form></div>;
+  const fieldError = (key: keyof QuickLogDraft) => errors[key] ? <span className="mt-1 block text-xs text-red-300">{errors[key]}</span> : null;
+  const numberInput = (key: keyof QuickLogDraft, placeholder: string, optional = false) => <><input type="number" min="0" inputMode="numeric" value={String(draft[key] ?? "")} onChange={(event) => set(key, event.target.value as never)} placeholder={placeholder} className="input min-h-12" />{optional ? null : fieldError(key)}</>;
+
+  return <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/85 p-2 backdrop-blur-sm sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && close()}><form onSubmit={(event) => { event.preventDefault(); void save(false); }} className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-yellow-400/15 bg-[#111] shadow-2xl sm:my-5 sm:min-h-0">
+    <header className="flex items-center gap-3 border-b border-zinc-800 p-4"><button type="button" onClick={category ? back : close} disabled={saving} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-lg text-zinc-300" aria-label="Volver">←</button><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</p><h2 className="truncate text-lg font-bold">{draft.kind ? KIND_LABEL[draft.kind] : category ? CATEGORY_LABEL[category] : "¿Qué querés anotar?"}</h2></div></header>
+    <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-36">
+      {error && <p role="alert" className="rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
+      {!category && <div className="grid gap-3">{(["strength", "circuit", "other"] as QuickCategory[]).map((value) => <button key={value} type="button" onClick={() => chooseCategory(value)} className="min-h-20 rounded-2xl border border-zinc-800 bg-zinc-950 px-5 text-left text-base font-bold transition hover:border-yellow-400/40 hover:text-yellow-300">{CATEGORY_LABEL[value]}</button>)}</div>}
+      {category === "circuit" && !draft.kind && !choosingIntervalFormat && <Choice title="¿Qué resultado querés registrar?" options={[{ value: "time", label: "Tiempo" }, { value: "rounds", label: "Vueltas" }, { value: "interval", label: "AMRAP / EMOM" }]} choose={(value) => value === "interval" ? setChoosingIntervalFormat(true) : set("kind", value as QuickLogKind)} />}
+      {category === "other" && !draft.kind && <Choice title="¿Qué querés registrar?" options={[{ value: "cardio", label: "Cardio" }, { value: "intervals", label: "Intervalos" }, { value: "note", label: "Nota libre" }]} choose={(value) => set("kind", value as QuickLogKind)} />}
+      {category === "circuit" && !draft.kind && choosingIntervalFormat && <Choice title="Elegí el formato" options={[{ value: "amrap", label: "AMRAP" }, { value: "emom", label: "EMOM" }]} choose={(value) => set("kind", value as QuickLogKind)} compact />}
+      {draft.kind === "strength" && <div className="space-y-4"><Field label="¿Qué ejercicio hiciste?"><div className="relative"><input autoFocus value={draft.exercise} onFocus={() => setSuggestionsOpen(true)} onChange={(event) => { set("exercise", event.target.value); setSuggestionsOpen(true); }} maxLength={120} autoComplete="off" placeholder="Empezá a escribir" className="input min-h-12" />{fieldError("exercise")}{draft.exercise.trim() && suggestionsOpen && <div className="mt-2 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">{suggestions.map((option) => <button key={normalizeExerciseName(option.name)} type="button" onClick={() => { set("exercise", option.name); setSuggestionsOpen(false); }} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-zinc-800 px-3 text-left text-sm last:border-0"><strong>{option.name}</strong>{option.muscleGroup && <span className="text-xs text-zinc-500">{option.muscleGroup}</span>}</button>)}{!exactSuggestion && <button type="button" onClick={() => { set("exercise", draft.exercise.trim()); setSuggestionsOpen(false); }} className="min-h-11 w-full px-3 text-left text-sm font-semibold text-yellow-300">Usar “{draft.exercise.trim()}”</button>}</div>}</div></Field><div className="grid grid-cols-3 gap-2"><Field label="Peso (kg)"><input type="number" min="0" step="0.01" inputMode="decimal" value={draft.weight} onChange={(event) => set("weight", event.target.value)} placeholder="Opcional" className="input min-h-12" />{fieldError("weight")}</Field><Field label="Repeticiones">{numberInput("repetitions", "8")}</Field><Field label="Series">{numberInput("sets", "4")}</Field></div><button type="button" onClick={() => setAdvanced((value) => !value)} className="text-sm font-bold text-yellow-300">{advanced ? "Ocultar detalles" : "Agregar más detalles"}</button>{advanced && <div className="grid gap-3 rounded-xl border border-zinc-800 p-3 sm:grid-cols-2"><Field label="Esfuerzo"><div className="flex gap-2"><select value={draft.effortType} onChange={(event) => set("effortType", event.target.value as "RIR" | "RPE")} className="input w-24"><option>RPE</option><option>RIR</option></select><input type="number" min="0" max="10" step="0.5" value={draft.effort} onChange={(event) => set("effort", event.target.value)} className="input min-w-0 flex-1" /></div></Field><Field label="Descanso (segundos)">{numberInput("restSeconds", "90", true)}</Field><Field label="Observación" wide><textarea value={draft.note} onChange={(event) => set("note", event.target.value)} rows={2} className="input resize-none" /></Field></div>}</div>}
+      {draft.kind === "time" && <div className="space-y-4"><TextField label="Nombre del circuito o desafío" value={draft.title} setValue={(value) => set("title", value)} error={errors.title} /><TextField label="Tiempo final" value={draft.finalTime} setValue={(value) => set("finalTime", value)} error={errors.finalTime} placeholder="12:45" inputMode="numeric" /><TextArea label="Observación opcional" value={draft.note} setValue={(value) => set("note", value)} /></div>}
+      {draft.kind === "rounds" && <div className="space-y-4"><TextField label="Nombre del circuito" value={draft.title} setValue={(value) => set("title", value)} error={errors.title} /><div className="grid grid-cols-2 gap-3"><Field label="Vueltas completadas">{numberInput("rounds", "5")}</Field><Field label="Repeticiones adicionales">{numberInput("extraRepetitions", "8", true)}</Field></div><Field label="Duración opcional (min)">{numberInput("durationMinutes", "15", true)}</Field></div>}
+      {draft.kind === "amrap" && <div className="space-y-4"><TextField label="Nombre del circuito" value={draft.title} setValue={(value) => set("title", value)} error={errors.title} /><div className="grid grid-cols-3 gap-2"><Field label="Duración">{numberInput("durationMinutes", "12")}</Field><Field label="Vueltas">{numberInput("rounds", "5")}</Field><Field label="Reps. extra">{numberInput("extraRepetitions", "8", true)}</Field></div></div>}
+      {draft.kind === "emom" && <div className="space-y-4"><TextField label="Nombre del circuito" value={draft.title} setValue={(value) => set("title", value)} /><div className="grid grid-cols-2 gap-3"><Field label="Duración total (min)">{numberInput("durationMinutes", "10")}</Field><Field label="Minutos completados">{numberInput("completedMinutes", "10")}</Field></div></div>}
+      {["time", "rounds", "amrap", "emom"].includes(draft.kind ?? "") && <div><button type="button" onClick={() => setCircuitDetails((value) => !value)} className="text-sm font-bold text-yellow-300">{circuitDetails ? "Ocultar ejercicios" : "Agregar ejercicios del circuito"}</button>{circuitDetails && <TextArea label="Ejercicios del circuito" value={draft.circuitExercises} setValue={(value) => set("circuitExercises", value)} />}</div>}
+      {draft.kind === "cardio" && <div className="space-y-4"><TextField label="Actividad" value={draft.activity} setValue={(value) => set("activity", value)} error={errors.activity} placeholder="Caminata" /><div className="grid grid-cols-2 gap-3"><Field label="Duración (min)">{numberInput("durationMinutes", "35")}</Field><Field label="Distancia opcional (km)"><input type="number" min="0" step="0.01" inputMode="decimal" value={draft.distance} onChange={(event) => set("distance", event.target.value)} className="input min-h-12" /></Field></div></div>}
+      {draft.kind === "intervals" && <div className="space-y-4"><TextField label="Actividad" value={draft.activity} setValue={(value) => set("activity", value)} error={errors.activity} /><div className="grid grid-cols-3 gap-2"><Field label="Rondas">{numberInput("rounds", "8")}</Field><Field label="Trabajo (s)">{numberInput("workSeconds", "30")}</Field><Field label="Descanso (s)">{numberInput("restSeconds", "30")}</Field></div></div>}
+      {draft.kind === "note" && <TextArea label="¿Qué querés anotar?" value={draft.note} setValue={(value) => set("note", value)} error={errors.note} />}
+    </div>
+    {draft.kind && <footer className="sticky bottom-0 z-10 mt-auto border-t border-zinc-800 bg-[#111]/95 p-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] backdrop-blur"><button type="submit" disabled={saving} className="min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar"}</button><div className="mt-2 flex items-center justify-between gap-3"><button type="button" disabled={saving} onClick={() => void save(true)} className="min-h-10 text-sm font-semibold text-yellow-300 disabled:opacity-50">Guardar y agregar otro</button><button type="button" disabled={saving} onClick={close} className="min-h-10 text-sm text-zinc-500 disabled:opacity-50">Cancelar</button></div></footer>}
+  </form></div>;
 }
+
+function Choice({ title, options, choose, compact = false }: { title: string; options: Array<{ value: string; label: string }>; choose: (value: string) => void; compact?: boolean }) { return <section><h3 className="font-bold">{title}</h3><div className={`mt-3 grid gap-3 ${compact ? "grid-cols-2" : ""}`}>{options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className="min-h-16 rounded-xl border border-zinc-800 bg-zinc-950 px-4 text-left font-bold hover:border-yellow-400/40 hover:text-yellow-300">{option.label}</button>)}</div></section>; }
+function TextField({ label, value, setValue, error, placeholder, inputMode }: { label: string; value: string; setValue: (value: string) => void; error?: string; placeholder?: string; inputMode?: "text" | "numeric" }) { return <Field label={label}><input value={value} onChange={(event) => setValue(event.target.value)} placeholder={placeholder} inputMode={inputMode} className="input min-h-12" />{error && <span className="mt-1 block text-xs text-red-300">{error}</span>}</Field>; }
+function TextArea({ label, value, setValue, error }: { label: string; value: string; setValue: (value: string) => void; error?: string }) { return <Field label={label}><textarea value={value} onChange={(event) => setValue(event.target.value)} rows={3} maxLength={1000} className="input resize-none" />{error && <span className="mt-1 block text-xs text-red-300">{error}</span>}</Field>; }
 
 export function QuickLogHistory() {
   const [logs, setLogs] = useState<QuickLog[]>([]);
@@ -171,7 +151,7 @@ export function QuickLogHistory() {
   const [query, setQuery] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [creating, setCreating] = useState<QuickLogType | null>(null);
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<QuickLog | null>(null);
   const [view, setView] = useState<"chronological" | "exercises">("chronological");
   const [selectedExercise, setSelectedExercise] = useState("");
@@ -214,12 +194,12 @@ export function QuickLogHistory() {
     const body = await response.json() as { error?: string; message?: string }; if (!response.ok) { setError(body.error ?? "No se pudo eliminar la foto."); return; }
     setNotice(body.message ?? "Foto eliminada correctamente."); await load();
   }
-  return <div><header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro personal</p><h1 className="mt-1 text-2xl font-bold">Mis registros</h1><p className="mt-1 text-sm text-zinc-500">Consultá tu historial cronológico o la evolución de cada ejercicio.</p></div><button onClick={() => setCreating("NOTE")} className="rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950">+ Nueva nota</button></header>
+  return <div><header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro personal</p><h1 className="mt-1 text-2xl font-bold">Mis registros</h1><p className="mt-1 text-sm text-zinc-500">Consultá tu historial cronológico o la evolución de cada ejercicio.</p></div><button onClick={() => setCreating(true)} className="rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950">+ Nuevo registro</button></header>
     {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}{notice && <p role="status" className="mt-4 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
     <div className="mt-4 inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1" role="tablist" aria-label="Vista de registros"><button type="button" role="tab" aria-selected={view === "chronological"} onClick={() => setView("chronological")} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${view === "chronological" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Cronológico</button><button type="button" role="tab" aria-selected={view === "exercises"} onClick={() => setView("exercises")} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${view === "exercises" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Por ejercicio</button></div>
     <section className="mt-4 grid gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3 sm:grid-cols-2 lg:grid-cols-4"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en mis registros" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-yellow-400" /><select value={type} onChange={(event) => setType(event.target.value as QuickLogType | "")} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">Todos</option>{(Object.keys(labels) as QuickLogType[]).map((value) => <option key={value} value={value}>{labels[value].title}</option>)}</select><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Desde" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" /><input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="Hasta" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" /></section>
     <div className="mt-4 space-y-3">{loading ? <p className="rounded-xl bg-zinc-900 p-8 text-center text-zinc-500">Cargando registros…</p> : view === "chronological" ? logs.length ? logs.map((log) => <QuickLogCard key={log.id} log={log} edit={() => setEditing(log)} remove={() => remove(log)} removePhoto={(photoId) => removePhoto(log, photoId)} />) : <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Todavía no hay registros personales.</p> : exerciseGroups.length ? exerciseGroups.map((group) => <section key={group.key} className="rounded-2xl border border-yellow-400/10 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold text-zinc-100">{group.name}</h2><p className="mt-1 text-xs text-zinc-500">{group.logs.length} registro{group.logs.length === 1 ? "" : "s"} · Último: {new Date(`${group.latest.date}T12:00:00`).toLocaleDateString("es-AR")}</p></div><button type="button" onClick={() => setSelectedExercise((value) => value === group.key ? "" : group.key)} className="min-h-10 rounded-lg border border-yellow-400/20 px-3 text-xs font-bold text-yellow-300">{selectedExercise === group.key ? "Ocultar historial" : "Ver historial"}</button></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label="Última carga" value={group.latest.currentValue === null ? "Sin carga" : `${group.latest.currentValue.toLocaleString("es-AR")} ${group.latest.unit || "kg"}`} /><Metric label="Máxima histórica" value={`${group.maximum.toLocaleString("es-AR")} ${group.latest.unit || "kg"}`} /><Metric label="Último trabajo" value={group.latest.sets !== null && group.latest.repetitions !== null ? `${group.latest.sets} × ${group.latest.repetitions}` : "Sin datos"} /><Metric label="Última fecha" value={new Date(`${group.latest.date}T12:00:00`).toLocaleDateString("es-AR")} /></div>{selectedExercise === group.key && <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">{group.logs.map((log) => <QuickLogCard key={log.id} log={log} edit={() => setEditing(log)} remove={() => remove(log)} removePhoto={(photoId) => removePhoto(log, photoId)} />)}</div>}</section>) : <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Todavía no hay ejercicios registrados.</p>}</div>
-    {creating && <QuickLogForm type={creating} close={() => setCreating(null)} saved={async () => { setCreating(null); setNotice("Registro guardado correctamente."); await load(); }} />}
+    {creating && <GuidedQuickLogForm close={() => setCreating(false)} saved={async (keepOpen) => { if (!keepOpen) setCreating(false); setNotice("Registro guardado correctamente."); await load(); }} />}
     {editing && <QuickLogForm type={editing.type} initial={editing} close={() => setEditing(null)} saved={async () => { setEditing(null); setNotice("Registro actualizado correctamente."); await load(); }} />}
   </div>;
 }
@@ -231,12 +211,12 @@ function Metric({ label, value }: { label: string; value: string }) {
 function QuickLogCard({ log, edit, remove, removePhoto }: { log: QuickLog; edit: () => void; remove: () => void; removePhoto: (photoId: string) => void }) {
   const strength = log.type === "PROGRESS" && log.metricType === "carga" && log.sets !== null && log.repetitions !== null;
   const difference = strength && log.previousValue !== null && log.currentValue !== null ? log.currentValue - log.previousValue : null;
-  const summary = strength ? log.content : log.content || (log.type === "PROGRESS" ? `${log.exerciseName}: ${log.previousValue ?? "Sin valor anterior"} → ${log.currentValue} ${log.unit}` : log.category);
+  const summary = quickLogSummary(log);
   const createdAt = new Date(log.createdAt);
   const time = Number.isNaN(createdAt.getTime()) ? "" : createdAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-  return <article id={`registro-${log.id}`} className="min-w-0 scroll-mt-24 overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-[0_10px_28px_rgba(0,0,0,.2)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{labels[log.type].icon} {strength ? "Ejercicio" : labels[log.type].title}</p><h2 className="mt-1 break-words font-bold">{log.title || log.exerciseName || labels[log.type].title}</h2><p className="mt-1 text-xs text-zinc-500">{new Date(`${log.date}T12:00:00`).toLocaleDateString("es-AR")}{time ? ` · ${time}` : ""}{!strength && log.category ? ` · ${log.category}` : ""}</p></div><div className="flex shrink-0 gap-3 text-xs"><button onClick={edit} className="text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-300">Editar</button><button onClick={remove} className="text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button></div></div>
-    {strength && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Trabajo actual</p><p className="mt-1 font-bold">{log.sets} × {log.repetitions}</p></div><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Carga actual</p><p className="mt-1 font-bold text-yellow-300">{log.currentValue?.toLocaleString("es-AR")} {log.unit || "kg"}</p></div><div className="col-span-2 rounded-xl bg-black/55 p-3 sm:col-span-1"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Registro anterior</p><p className="mt-1 text-sm">{log.previousValue === null ? "Primera marca registrada" : `${log.previousSets ?? "—"} × ${log.previousRepetitions ?? "—"} · ${log.previousValue.toLocaleString("es-AR")} ${log.unit || "kg"}`}{difference !== null && <span className="ml-2 text-zinc-500">{difference === 0 ? "Sin cambios" : `${difference > 0 ? "+" : ""}${difference.toLocaleString("es-AR")} ${log.unit || "kg"}`}</span>}</p></div></div>}
-    {log.achievements.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.achievements.map((achievement) => <span key={achievement.id} className="rounded-full border border-yellow-400/20 bg-yellow-400/[.06] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-yellow-200">{achievement.type === "FIRST_MARK" ? "Primera marca" : achievement.type === "MAX_LOAD" ? "Nueva carga máxima" : achievement.type === "REPETITION_PR" ? "Récord de repeticiones" : `${achievement.recordCount} registros`}</span>)}</div>}{summary && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-zinc-300">{summary}</p>}{log.feedback && <div className="mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400">Devolución de {log.feedback.trainerName}</p><p className="mt-1 text-sm text-zinc-200">{log.feedback.text}</p><p className="mt-2 text-[10px] text-zinc-500">{new Date(log.feedback.updatedAt).toLocaleString("es-AR")}</p></div>}{log.mood && <p className="mt-2 text-xs text-zinc-500">Sensación: {log.mood}</p>}{log.hasPain && <p className="mt-2 rounded-lg bg-red-400/10 p-2 text-xs text-red-200">Molestia: {log.painDetails || "Sin detalle"}</p>}{log.photos.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{log.photos.map((photo) => <div key={photo.id} className="relative min-w-0 overflow-hidden rounded-xl bg-black"><a href={photo.blobUrl} target="_blank" rel="noreferrer" aria-label="Abrir fotografía en tamaño completo" className="group block focus:outline-none focus:ring-2 focus:ring-yellow-300"><img src={photo.blobUrl} alt="Foto adjunta al registro" loading="lazy" className="aspect-square w-full object-cover transition group-hover:opacity-80" /><span className="absolute inset-x-1 bottom-1 rounded bg-black/75 px-2 py-1 text-center text-[10px] text-zinc-200">Ver completa</span></a><button onClick={() => removePhoto(photo.id)} aria-label="Eliminar foto" className="absolute right-1 top-1 rounded-full bg-black/85 px-2 py-1 text-xs text-red-200 focus:outline-none focus:ring-2 focus:ring-red-300">×</button></div>)}</div>}</article>;
+  return <article id={`registro-${log.id}`} className="min-w-0 scroll-mt-24 overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0c0c0c] p-4 shadow-[0_10px_28px_rgba(0,0,0,.2)]"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">{labels[log.type].icon} {strength ? "Ejercicio" : labels[log.type].title}</p><h2 className="mt-1 break-words font-bold">{summary}</h2><p className="mt-1 text-xs text-zinc-500">{new Date(`${log.date}T12:00:00`).toLocaleDateString("es-AR")}{time ? ` · ${time}` : ""}</p></div><div className="flex shrink-0 gap-3 text-xs"><button onClick={edit} className="text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-300">Editar</button><button onClick={remove} className="text-red-300 focus:outline-none focus:ring-2 focus:ring-red-300">Eliminar</button></div></div>
+    {strength && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Trabajo actual</p><p className="mt-1 font-bold">{log.sets} × {log.repetitions}</p></div><div className="rounded-xl bg-black/55 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Carga actual</p><p className="mt-1 font-bold text-yellow-300">{log.currentValue === null ? "Peso corporal" : `${log.currentValue.toLocaleString("es-AR")} ${log.unit || "kg"}`}</p></div><div className="col-span-2 rounded-xl bg-black/55 p-3 sm:col-span-1"><p className="text-[10px] uppercase tracking-wide text-zinc-500">Registro anterior</p><p className="mt-1 text-sm">{log.previousValue === null ? "Sin carga anterior" : `${log.previousSets ?? "—"} × ${log.previousRepetitions ?? "—"} · ${log.previousValue.toLocaleString("es-AR")} ${log.unit || "kg"}`}{difference !== null && <span className="ml-2 text-zinc-500">{difference === 0 ? "Sin cambios" : `${difference > 0 ? "+" : ""}${difference.toLocaleString("es-AR")} ${log.unit || "kg"}`}</span>}</p></div></div>}
+    {log.achievements.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.achievements.map((achievement) => <span key={achievement.id} className="rounded-full border border-yellow-400/20 bg-yellow-400/[.06] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-yellow-200">{achievement.type === "FIRST_MARK" ? "Primera marca" : achievement.type === "MAX_LOAD" ? "Nueva carga máxima" : achievement.type === "REPETITION_PR" ? "Récord de repeticiones" : `${achievement.recordCount} registros`}</span>)}</div>}{log.content && log.content !== summary && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-zinc-300">{log.content}</p>}{log.feedback && <div className="mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400">Devolución de {log.feedback.trainerName}</p><p className="mt-1 text-sm text-zinc-200">{log.feedback.text}</p><p className="mt-2 text-[10px] text-zinc-500">{new Date(log.feedback.updatedAt).toLocaleString("es-AR")}</p></div>}{log.mood && <p className="mt-2 text-xs text-zinc-500">Sensación: {log.mood}</p>}{log.hasPain && <p className="mt-2 rounded-lg bg-red-400/10 p-2 text-xs text-red-200">Molestia: {log.painDetails || "Sin detalle"}</p>}{log.photos.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{log.photos.map((photo) => <div key={photo.id} className="relative min-w-0 overflow-hidden rounded-xl bg-black"><a href={photo.blobUrl} target="_blank" rel="noreferrer" aria-label="Abrir fotografía en tamaño completo" className="group block focus:outline-none focus:ring-2 focus:ring-yellow-300"><img src={photo.blobUrl} alt="Foto adjunta al registro" loading="lazy" className="aspect-square w-full object-cover transition group-hover:opacity-80" /><span className="absolute inset-x-1 bottom-1 rounded bg-black/75 px-2 py-1 text-center text-[10px] text-zinc-200">Ver completa</span></a><button onClick={() => removePhoto(photo.id)} aria-label="Eliminar foto" className="absolute right-1 top-1 rounded-full bg-black/85 px-2 py-1 text-xs text-red-200 focus:outline-none focus:ring-2 focus:ring-red-300">×</button></div>)}</div>}</article>;
 }
 
 function QuickLogForm({ type, initial, close, saved }: { type: QuickLogType; initial?: QuickLog; close: () => void; saved: () => void | Promise<void> }) {
@@ -255,7 +235,7 @@ function QuickLogForm({ type, initial, close, saved }: { type: QuickLogType; ini
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-2 sm:p-5" onMouseDown={(event) => event.target === event.currentTarget && close()}><form onSubmit={submit} className="mx-auto my-2 w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:my-8 sm:p-5"><div className="flex justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro rápido</p><h2 className="mt-1 text-xl font-bold">{initial ? "Editar" : "Nuevo"} {labels[type].title.toLowerCase()}</h2></div><button type="button" onClick={close} disabled={saving} className="text-sm text-zinc-400">Cerrar</button></div>{error && <p role="alert" className="mt-3 rounded-lg bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}<div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label="Título opcional"><input value={form.title} onChange={(event) => set("title", event.target.value)} maxLength={120} className="input" /></Field><Field label="Fecha"><input required type="date" value={form.date} onChange={(event) => set("date", event.target.value)} className="input" /></Field>
       {type === "WORKOUT" && <><Field label="Tipo de entrenamiento"><input value={form.category} onChange={(event) => set("category", event.target.value)} placeholder="Fuerza, movilidad…" className="input" /></Field><Field label="Duración (min)"><input type="number" min="1" max="1440" inputMode="numeric" value={form.durationMinutes} onChange={(event) => set("durationMinutes", event.target.value)} className="input" /></Field></>}
       {type === "NOTE" && <Field label="Categoría"><select value={form.category} onChange={(event) => set("category", event.target.value)} className="input"><option value="">Sin categoría</option>{["técnica", "energía", "molestia", "alimentación", "descanso", "recordatorio", "general"].map((item) => <option key={item}>{item}</option>)}</select></Field>}
-      {type === "PROGRESS" && <><Field label="Ejercicio"><input required value={form.exerciseName} onChange={(event) => set("exerciseName", event.target.value)} className="input" /></Field><Field label="Tipo de progreso"><select value={form.metricType} onChange={(event) => set("metricType", event.target.value)} className="input">{["peso", "repeticiones", "series", "tiempo", "distancia", "técnica", "percepción personal"].map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="Valor anterior opcional"><input type="number" min="0" step="any" inputMode="decimal" value={form.previousValue} onChange={(event) => set("previousValue", event.target.value)} className="input" /></Field><Field label="Nuevo valor"><input required type="number" min="0" step="any" inputMode="decimal" value={form.currentValue} onChange={(event) => set("currentValue", event.target.value)} className="input" /></Field><Field label="Unidad"><input value={form.unit} onChange={(event) => set("unit", event.target.value)} className="input" /></Field></>}
+      {type === "PROGRESS" && <><Field label="Ejercicio"><input required value={form.exerciseName} onChange={(event) => set("exerciseName", event.target.value)} className="input" /></Field><Field label="Tipo de progreso"><select value={form.metricType} onChange={(event) => set("metricType", event.target.value)} className="input">{["carga", "peso", "repeticiones", "series", "tiempo", "distancia", "técnica", "percepción personal"].map((item) => <option key={item}>{item === "carga" ? "Carga" : item}</option>)}</select></Field><Field label="Valor anterior opcional"><input type="number" min="0" step="any" inputMode="decimal" value={form.previousValue} onChange={(event) => set("previousValue", event.target.value)} className="input" /></Field><Field label={form.metricType === "carga" ? "Carga opcional" : "Nuevo valor"}><input required={form.metricType !== "carga"} type="number" min="0" step="any" inputMode="decimal" value={form.currentValue} onChange={(event) => set("currentValue", event.target.value)} className="input" /></Field><Field label="Unidad"><input value={form.unit} onChange={(event) => set("unit", event.target.value)} className="input" /></Field></>}
       {type === "PHOTO" && <Field label="Categoría"><select value={form.category} onChange={(event) => set("category", event.target.value)} className="input">{["progreso físico", "técnica", "ejercicio", "clase", "postura", "otra"].map((item) => <option key={item}>{item}</option>)}</select></Field>}
       <Field label={type === "WORKOUT" ? "Ejercicios y comentario" : "Comentario"} wide><textarea required={type === "NOTE"} value={form.content} onChange={(event) => set("content", event.target.value)} maxLength={5000} rows={4} className="input resize-y" /></Field><Field label="Sensación general"><select value={form.mood} onChange={(event) => set("mood", event.target.value)} className="input"><option value="">Sin indicar</option>{["Muy buena", "Buena", "Normal", "Difícil", "Muy difícil"].map((item) => <option key={item}>{item}</option>)}</select></Field><label className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm"><input type="checkbox" checked={form.hasPain} onChange={(event) => set("hasPain", event.target.checked)} className="accent-yellow-400" /> Dolor o molestias</label>{form.hasPain && <Field label="Detalle de la molestia" wide><textarea value={form.painDetails} onChange={(event) => set("painDetails", event.target.value)} maxLength={1000} rows={2} className="input" /></Field>}
       {!initial && <div className="sm:col-span-2"><input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []).slice(0, 4))} className="sr-only" /><button type="button" onClick={() => fileInput.current?.click()} className={`rounded-lg px-3 py-2 text-sm text-yellow-300 ${type === "PHOTO" ? "border border-dashed border-yellow-400/40" : "border border-zinc-700"}`}>{type === "PHOTO" ? "Tomar o elegir hasta 4 fotos" : "Adjuntar foto opcional"}</button>{previews.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{previews.map((preview) => <img key={preview} src={preview} alt="Vista previa" className="aspect-square rounded-xl object-cover" />)}</div>}</div>}

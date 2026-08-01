@@ -33,7 +33,8 @@ export async function PATCH(request: Request, context: RouteContext<"/api/portal
   if ((durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440)) || [previousValue, currentValue].some((value) => value !== null && (!Number.isFinite(value) || value < 0))) return Response.json({ error: "Revisá los valores numéricos." }, { status: 400 });
   const date = typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? new Date(`${input.date}T00:00:00Z`) : existing.date;
   const exerciseName = text("exerciseName", existing.exerciseName, 120);
-  if (type === "PROGRESS" && (!exerciseName || currentValue === null)) return Response.json({ error: "Ejercicio y nuevo valor son obligatorios." }, { status: 400 });
+  if (type === "PROGRESS" && !exerciseName) return Response.json({ error: "Elegí o escribí un ejercicio." }, { status: 400 });
+  if (type === "PROGRESS" && metricType !== "carga" && currentValue === null) return Response.json({ error: "Ingresá el nuevo valor." }, { status: 400 });
   if (type === "PROGRESS" && metricType === "carga" && (sets === null || repetitions === null)) return Response.json({ error: "Series y repeticiones son obligatorias." }, { status: 400 });
   const updated = await prisma.$transaction(async (transaction) => {
     await transaction.quickLog.update({

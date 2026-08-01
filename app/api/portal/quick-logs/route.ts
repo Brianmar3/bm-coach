@@ -63,7 +63,8 @@ export async function POST(request: Request) {
     (repetitions !== null && (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 10000))
   ) return Response.json({ error: "Revisá las series y repeticiones." }, { status: 400 });
   if ((durationMinutes !== null && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440)) || [previousValue, currentValue].some((value) => value !== null && (!Number.isFinite(value) || value < 0))) return Response.json({ error: "Revisá los valores numéricos." }, { status: 400 });
-  if (type === "PROGRESS" && (!exerciseName || currentValue === null)) return Response.json({ error: "Ejercicio y nuevo valor son obligatorios." }, { status: 400 });
+  if (type === "PROGRESS" && !exerciseName) return Response.json({ error: "Elegí o escribí un ejercicio." }, { status: 400 });
+  if (type === "PROGRESS" && metricType !== "carga" && currentValue === null) return Response.json({ error: "Ingresá el nuevo valor." }, { status: 400 });
   if (type === "PROGRESS" && metricType === "carga" && (sets === null || repetitions === null)) return Response.json({ error: "Series y repeticiones son obligatorias." }, { status: 400 });
   const files = form.getAll("photos").filter((item): item is File => item instanceof File && item.size > 0);
   if (files.length > 4) return Response.json({ error: "Podés adjuntar hasta 4 fotos por registro." }, { status: 400 });
