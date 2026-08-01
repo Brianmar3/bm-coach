@@ -24,6 +24,15 @@ const CLINICAL_PATTERNS = [
   /bajar .*r[aá]pid/i,
   /alergia grave/i,
   /emergencia/i,
+  /dolor (?:de pecho|fuerte)/i,
+  /desmay/i,
+  /dificultad para respirar/i,
+  /sangr/i,
+  /s[ií]ntoma/i,
+  /enfermedad/i,
+  /insuficiencia/i,
+  /dosis/i,
+  /quemador/i,
   /suplemento.*dosis/i,
 ];
 

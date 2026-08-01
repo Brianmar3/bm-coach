@@ -8,19 +8,19 @@ datasource db {
 }
 
 model StudentRecord {
-  id                       String                       @id
-  phoneNormalized          String?                      @unique
+  id                       String                          @id
+  phoneNormalized          String?                         @unique
   primaryScheduleId        String?
-  serviceType              StudentServiceType           @default(CLASSES)
+  serviceType              StudentServiceType              @default(CLASSES)
   data                     Json
-  createdAt                DateTime                     @default(now())
-  updatedAt                DateTime                     @updatedAt
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
   payments                 StudentPayment[]
   physicalEvaluations      PhysicalEvaluation[]
   routineAssignments       TrainingRoutineAssignment[]
   weeklyClasses            WeeklyClassAssignment[]
   attendances              ClassAttendance[]
-  primarySchedule          WeeklyClassSchedule?         @relation("StudentPrimarySchedule", fields: [primaryScheduleId], references: [id], onDelete: SetNull)
+  primarySchedule          WeeklyClassSchedule?            @relation("StudentPrimarySchedule", fields: [primaryScheduleId], references: [id], onDelete: SetNull)
   portalCredential         StudentPortalCredential?
   workoutSessions          WorkoutSession[]
   followUpComments         FollowUpComment[]
@@ -47,6 +47,9 @@ model StudentRecord {
   nutritionAIInteractions  NutritionAIInteraction[]
   nutritionEducation       NutritionEducationProgress[]
   nutritionAnalytics       NutritionAnalyticsEvent[]
+  nutritionAIUsage         NutritionAIUsage[]
+  nutritionAIRequests      NutritionAIRequest[]
+  nutritionQuizAttempts    NutritionEducationQuizAttempt[]
   membershipHistory        StudentMembershipHistory[]
   monthlyObligations       MonthlyStudentObligation[]
   statusEvents             StudentStatusEvent[]
@@ -377,6 +380,7 @@ model NutritionEducationProgress {
   viewedAt    DateTime?
   completedAt DateTime?
   favorite    Boolean       @default(false)
+  lastSection String        @default("")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   student     StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -384,6 +388,55 @@ model NutritionEducationProgress {
   @@unique([studentId, contentId])
   @@index([studentId, updatedAt(sort: Desc)])
   @@map("nutrition_education_progress")
+}
+
+model NutritionEducationQuizAttempt {
+  id             String        @id @default(cuid())
+  studentId      String
+  contentId      String
+  questionId     String
+  selectedAnswer Int
+  correct        Boolean
+  answeredAt     DateTime      @default(now())
+  student        StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, contentId, answeredAt(sort: Desc)])
+  @@map("nutrition_education_quiz_attempts")
+}
+
+model NutritionAIUsage {
+  id            String        @id @default(cuid())
+  studentId     String
+  dateKey       String
+  feature       String
+  usedCount     Int           @default(0)
+  reservedCount Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  student       StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, dateKey, feature])
+  @@index([dateKey, feature])
+  @@map("nutrition_ai_usage")
+}
+
+model NutritionAIRequest {
+  id             String        @id @default(cuid())
+  studentId      String
+  requestKey     String        @unique
+  dateKey        String
+  feature        String
+  status         String        @default("PENDING")
+  conversationId String?
+  expiresAt      DateTime
+  errorCode      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  student        StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, dateKey, feature, status])
+  @@index([status, expiresAt])
+  @@map("nutrition_ai_requests")
 }
 
 model NutritionAnalyticsEvent {

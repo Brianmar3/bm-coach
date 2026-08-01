@@ -2,12 +2,12 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
-import { generateNutrition } from "@/lib/nutrition-ai";
+import { finalizeNutritionAIReservation, generateNutrition, nutritionAIUsageStatus, releaseNutritionAIReservation, resolveMaxContextMessages } from "@/lib/nutrition-ai";
 import {
   buildNutritionContext,
   serializeNutritionProfile,
 } from "@/lib/nutrition-context";
-import { NUTRITION_EDUCATION } from "@/lib/nutrition-education";
+import { educationPriority, NUTRITION_EDUCATION, NUTRITION_EDUCATION_CATEGORIES, quizResult } from "@/lib/nutrition-education";
 import {
   safeInteger,
   safeText,
@@ -57,6 +57,13 @@ function parseJsonObject(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function updatedConversationSummary(previous: string, messages: Array<{ role: string; content: string }>) {
+  const compact = messages.slice(-10).map((message) =>
+    `${message.role === "ASSISTANT" ? "Asistente" : "Alumno"}: ${safeText(message.content, 220)}`,
+  ).join("\n");
+  return `${previous.trim()}${previous.trim() ? "\n" : ""}${compact}`.slice(-1400);
 }
 
 function parsePlanMeals(value: unknown): NutritionPlanMeal[] {
@@ -186,17 +193,53 @@ export async function GET(
     return Response.json({ favorites });
   }
   if (feature === "education") {
-    const progress = await prisma.nutritionEducationProgress.findMany({
-      where: { studentId },
-    });
+    const [progress, attempts, nutritionContext] = await Promise.all([
+      prisma.nutritionEducationProgress.findMany({ where: { studentId } }),
+      prisma.nutritionEducationQuizAttempt.findMany({
+        where: { studentId },
+        orderBy: { answeredAt: "desc" },
+      }),
+      buildNutritionContext(studentId),
+    ]);
     const byId = new Map(progress.map((item) => [item.contentId, item]));
+    const latestAttempt = new Map<string, (typeof attempts)[number]>();
+    for (const attempt of attempts) if (!latestAttempt.has(attempt.contentId)) latestAttempt.set(attempt.contentId, attempt);
+    const completedCount = progress.filter((item) => item.completedAt).length;
+    const continueItem = [...progress]
+      .filter((item) => item.viewedAt && !item.completedAt)
+      .sort((left, right) => (right.updatedAt?.getTime() ?? 0) - (left.updatedAt?.getTime() ?? 0))[0];
+    const recommendationScore = (item: (typeof NUTRITION_EDUCATION)[number]) => {
+      const activityBoost = nutritionContext.training.recentAttendances > 0
+        && (item.category === "Alimentación antes de entrenar" || item.category === "Alimentación después de entrenar" || item.category === "Alimentación y rendimiento") ? 4 : 0;
+      const habitBoost = (nutritionContext.habits.habitToImprove ?? "").toLocaleLowerCase("es").includes("hidrat")
+        && item.category === "Hidratación" ? 6 : 0;
+      return educationPriority(item, nutritionContext.student.objective, Boolean(byId.get(item.id)?.completedAt)) + activityBoost + habitBoost;
+    };
+    const recommendedIds = [...NUTRITION_EDUCATION]
+      .sort((left, right) => recommendationScore(right) - recommendationScore(left))
+      .slice(0, 6)
+      .map((item) => item.id);
     return Response.json({
       content: NUTRITION_EDUCATION.map((item) => ({
         ...item,
         viewedAt: byId.get(item.id)?.viewedAt?.toISOString() ?? null,
         completedAt: byId.get(item.id)?.completedAt?.toISOString() ?? null,
         favorite: byId.get(item.id)?.favorite ?? false,
+        lastSection: byId.get(item.id)?.lastSection ?? "",
+        quizAttempt: latestAttempt.get(item.id) ? {
+          selectedAnswer: latestAttempt.get(item.id)!.selectedAnswer,
+          correct: latestAttempt.get(item.id)!.correct,
+          answeredAt: latestAttempt.get(item.id)!.answeredAt.toISOString(),
+        } : null,
       })),
+      categories: NUTRITION_EDUCATION_CATEGORIES,
+      progress: {
+        completed: completedCount,
+        total: NUTRITION_EDUCATION.length,
+        percentage: Math.round((completedCount / NUTRITION_EDUCATION.length) * 100),
+        continueContentId: continueItem?.contentId ?? null,
+        recommendedIds,
+      },
     });
   }
   if (feature === "assistant") {
@@ -207,7 +250,7 @@ export async function GET(
       orderBy: { updatedAt: "desc" },
       take: conversationId ? 1 : 20,
     });
-    return Response.json({ conversations });
+    return Response.json({ conversations, usage: await nutritionAIUsageStatus(studentId) });
   }
   if (feature === "history") {
     const [recipes, plans, lists, conversations, interactions] = await Promise.all([
@@ -418,50 +461,111 @@ export async function POST(
     if (feature === "assistant") {
       const question = safeText(input.question, 800);
       if (!question) return Response.json({ error: "Escribí una pregunta." }, { status: 400 });
+      const requestKey = safeText(input.requestKey, 100);
+      if (!requestKey) return Response.json({ error: "Falta identificar el envío." }, { status: 400 });
       const conversationId = safeText(input.conversationId, 100);
       const ownedConversation = conversationId
-        ? await prisma.nutritionConversation.findFirst({ where: { id: conversationId, studentId } })
+        ? await prisma.nutritionConversation.findFirst({
+            where: { id: conversationId, studentId },
+            include: {
+              messages: {
+                orderBy: { createdAt: "desc" },
+                take: resolveMaxContextMessages(),
+              },
+            },
+          })
         : null;
       if (conversationId && !ownedConversation) return Response.json({ error: "La conversación no existe." }, { status: 404 });
-      const result = await generateNutrition(studentId, "assistant", { question, intention: "question" });
+      const recentMessages = [...(ownedConversation?.messages ?? [])].reverse().map((message) => ({
+        role: message.role === "ASSISTANT" ? "assistant" as const : "user" as const,
+        content: message.content,
+      }));
+      const result = await generateNutrition(
+        studentId,
+        "assistant",
+        { question, intention: "question" },
+        {
+          requestKey,
+          conversationSummary: ownedConversation?.contextSummary ?? "",
+          recentMessages,
+        },
+      );
       const answer = safeText((result.data as { answer?: unknown }).answer, 1200);
-      const conversation = await prisma.$transaction(async (transaction) => {
-        const current = ownedConversation ?? await transaction.nutritionConversation.create({
-          data: {
-            studentId,
-            title: question.slice(0, 80),
-            contextSummary: `${result.context.student.objective} · ${result.context.evaluation?.date ?? "sin evaluación"}`,
-          },
-        });
-        await transaction.nutritionMessage.createMany({
-          data: [
-            { conversationId: current.id, role: "USER", content: question },
-            {
-              conversationId: current.id,
-              role: "ASSISTANT",
-              content: answer,
-              structuredData: jsonValue({ actions: (result.data as { actions?: unknown }).actions ?? [] }),
-              safetyCategory: result.safetyCategory,
-              modelVersion: result.modelVersion,
+      let conversation;
+      let remainingAfterResponse: number | null = null;
+      try {
+        const saved = await prisma.$transaction(async (transaction) => {
+          const current = ownedConversation ?? await transaction.nutritionConversation.create({
+            data: {
+              studentId,
+              title: question.slice(0, 80),
+              contextSummary: `${result.context.student.objective} · ${result.context.evaluation?.date ?? "sin evaluación"}`,
             },
-          ],
+          });
+          const newMessages = [
+            { role: "USER", content: question },
+            { role: "ASSISTANT", content: answer },
+          ];
+          await transaction.nutritionMessage.createMany({
+            data: [
+              { conversationId: current.id, role: "USER", content: question },
+              {
+                conversationId: current.id,
+                role: "ASSISTANT",
+                content: answer,
+                structuredData: jsonValue({ actions: (result.data as { actions?: unknown }).actions ?? [] }),
+                safetyCategory: result.safetyCategory,
+                modelVersion: result.modelVersion,
+              },
+            ],
+          });
+          const remaining = result.quotaReservation
+            ? await finalizeNutritionAIReservation(transaction, result.quotaReservation, current.id)
+            : null;
+          const updated = await transaction.nutritionConversation.update({
+            where: { id: current.id },
+            data: {
+              updatedAt: new Date(),
+              contextSummary: updatedConversationSummary(
+                current.contextSummary,
+                [...recentMessages.map((message) => ({ role: message.role.toUpperCase(), content: message.content })), ...newMessages],
+              ),
+            },
+            include: { messages: { orderBy: { createdAt: "asc" } } },
+          });
+          return { conversation: updated, remaining };
         });
-        return transaction.nutritionConversation.update({
-          where: { id: current.id },
-          data: { updatedAt: new Date() },
-          include: { messages: { orderBy: { createdAt: "asc" } } },
-        });
+        conversation = saved.conversation;
+        remainingAfterResponse = saved.remaining;
+      } catch (error) {
+        if (result.quotaReservation) {
+          await releaseNutritionAIReservation(result.quotaReservation, "PERSISTENCE_FAILED");
+        }
+        throw error;
+      }
+      await analytics(studentId, result.safetyCategory ? "safety_redirect" : "assistant_message_sent").catch((error) => {
+        console.error("No se pudo registrar la analítica del asistente", { studentId, error });
       });
-      await analytics(studentId, result.safetyCategory ? "safety_redirect" : "assistant_message_sent");
-      return Response.json({ conversation });
+      const usage = await nutritionAIUsageStatus(studentId);
+      return Response.json({
+        conversation,
+        usage: { ...usage, remaining: remainingAfterResponse ?? usage.remaining },
+        source: result.source,
+        fallbackNotice: result.source === "local_fallback"
+          ? "No pudimos conectar con el asistente en este momento. Te mostramos una orientación general."
+          : null,
+      });
     }
     return Response.json({ error: "Acción no disponible." }, { status: 405 });
   } catch (error) {
     if (error instanceof Error && error.message === "DAILY_LIMIT") {
       return Response.json(
-        { error: "Alcanzaste el límite de generaciones por hoy. Podés seguir usando tus recetas, planes y favoritos guardados." },
+        { error: "Alcanzaste tus consultas de IA por hoy. Mañana vas a poder volver a conversar. Mientras tanto, podés seguir usando tus recetas, planes, listas y contenidos educativos." },
         { status: 429 },
       );
+    }
+    if (error instanceof Error && error.message === "DUPLICATE_REQUEST") {
+      return Response.json({ error: "Este mensaje ya se está procesando." }, { status: 409 });
     }
     if (error instanceof Error && error.message === "PROFILE_REQUIRED") {
       return Response.json(
@@ -640,7 +744,11 @@ export async function PUT(
     const contentId = safeText(input.contentId, 100);
     if (!NUTRITION_EDUCATION.some((item) => item.id === contentId)) return Response.json({ error: "El contenido no existe." }, { status: 404 });
     const content = NUTRITION_EDUCATION.find((item) => item.id === contentId)!;
-    const progress = await prisma.$transaction(async (transaction) => {
+    const questionId = safeText(input.questionId, 100);
+    const selectedAnswer = Number(input.selectedAnswer);
+    const answer = questionId ? quizResult(contentId, questionId, selectedAnswer) : null;
+    if (questionId && !answer) return Response.json({ error: "La respuesta del cuestionario no es válida." }, { status: 400 });
+    const saved = await prisma.$transaction(async (transaction) => {
       const updated = await transaction.nutritionEducationProgress.upsert({
         where: { studentId_contentId: { studentId, contentId } },
         create: {
@@ -649,13 +757,18 @@ export async function PUT(
           viewedAt: new Date(),
           completedAt: input.completed === true ? new Date() : null,
           favorite: input.favorite === true,
+          lastSection: safeText(input.lastSection, 100),
         },
         update: {
           viewedAt: new Date(),
           ...(typeof input.completed === "boolean" ? { completedAt: input.completed ? new Date() : null } : {}),
           ...(typeof input.favorite === "boolean" ? { favorite: input.favorite } : {}),
+          ...(typeof input.lastSection === "string" ? { lastSection: safeText(input.lastSection, 100) } : {}),
         },
       });
+      const attempt = answer ? await transaction.nutritionEducationQuizAttempt.create({
+        data: { studentId, contentId, questionId, selectedAnswer, correct: answer.correct },
+      }) : null;
       if (input.favorite === true) {
         await transaction.nutritionFavorite.upsert({
           where: {
@@ -678,10 +791,10 @@ export async function PUT(
           where: { studentId, contentType: "education", contentId },
         });
       }
-      return updated;
+      return { progress: updated, attempt };
     });
-    await analytics(studentId, "education_opened", { contentId });
-    return Response.json({ progress });
+    await analytics(studentId, answer ? "education_quiz_answered" : input.completed === true ? "education_completed" : "education_opened", { contentId });
+    return Response.json({ ...saved, quizResult: answer });
   }
   return Response.json({ error: "Acción no disponible." }, { status: 405 });
 }

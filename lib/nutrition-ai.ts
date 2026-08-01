@@ -2,7 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { argentinaDateKey, argentinaDateTimeBoundary } from "@/lib/payment-dates";
+import { argentinaDateKey } from "@/lib/payment-dates";
 import { buildNutritionContext } from "@/lib/nutrition-context";
 import {
   fallbackMealPlan,
@@ -21,6 +21,17 @@ import type {
   NutritionContextSnapshot,
   NutritionRecipeResult,
 } from "@/types/nutrition-intelligence";
+import {
+  buildAssistantPromptPayload,
+  parseAssistantProviderResponse,
+  requestCompatibleChat,
+  resolveDailyLimit,
+  resolveMaxOutputTokens,
+  type ConversationMessage,
+} from "@/lib/nutrition-ai-core";
+
+export { buildAssistantPromptPayload, resolveDailyLimit, resolveMaxContextMessages, resolveMaxOutputTokens } from "@/lib/nutrition-ai-core";
+export type { ConversationMessage } from "@/lib/nutrition-ai-core";
 
 type GenerateFeature = "ideas" | "recipe" | "pantry" | "plan" | "assistant";
 
@@ -31,27 +42,58 @@ type ProviderResult = {
   usage?: Record<string, unknown>;
 };
 
-function configuredProvider() {
+export type AssistantGenerationOptions = {
+  conversationSummary?: string;
+  recentMessages?: ConversationMessage[];
+  requestKey?: string;
+};
+
+export type NutritionQuotaReservation = {
+  requestId: string;
+  requestKey: string;
+  studentId: string;
+  dateKey: string;
+  feature: "assistant";
+  limit: number;
+};
+
+function providerConfiguration() {
+  if (process.env.NUTRITION_AI_ENABLED?.trim().toLowerCase() === "false") return { provider: null, reason: "disabled" as const };
   const endpoint = process.env.NUTRITION_AI_BASE_URL?.trim();
   const apiKey = process.env.NUTRITION_AI_API_KEY?.trim();
   const model = process.env.NUTRITION_AI_MODEL?.trim();
-  return endpoint && apiKey && model ? { endpoint, apiKey, model } : null;
+  return endpoint && apiKey && model
+    ? { provider: { endpoint, apiKey, model }, reason: null }
+    : { provider: null, reason: "missing_api_key" as const };
+}
+
+function configuredProvider() {
+  return providerConfiguration().provider;
 }
 
 export function nutritionAIStatus() {
-  const provider = configuredProvider();
+  const configuration = providerConfiguration();
+  const provider = configuration.provider;
   return {
     configured: Boolean(provider),
     provider: provider ? "external" as const : "local_fallback" as const,
-    fallbackReason: provider ? null : "missing_api_key" as const,
-    dailyLimit: Math.max(
-      1,
-      Math.min(Number(process.env.NUTRITION_AI_DAILY_LIMIT) || 20, 100),
-    ),
+    fallbackReason: configuration.reason,
+    dailyLimit: resolveDailyLimit(),
   };
 }
 
 function systemInstruction(feature: GenerateFeature) {
+  if (feature === "assistant") {
+    return [
+      "Sos el asistente de nutrición de BM Training.",
+      "Respondé en español rioplatense, breve primero, claro y práctico.",
+      "Usá únicamente el contexto autorizado del alumno y no inventes datos clínicos.",
+      "No diagnosticás ni prescribís tratamientos; derivá a evaluación profesional si hay riesgo clínico.",
+      "Priorizá alimentos argentinos habituales, accesibles y realistas.",
+      "Mantené continuidad con la conversación anterior y respondé al mensaje concreto.",
+      "Si faltan datos, hacé una sola pregunta breve y útil.",
+    ].join(" ");
+  }
   return [
     "Sos la capa de orientación nutricional de BM Training.",
     "Respondé únicamente con JSON válido, sin markdown.",
@@ -72,6 +114,7 @@ async function callProvider(
   feature: GenerateFeature,
   input: Record<string, unknown>,
   context: NutritionContextSnapshot,
+  options?: AssistantGenerationOptions,
 ): Promise<ProviderResult> {
   const provider = configuredProvider();
   if (!provider) throw new Error("AI_NOT_CONFIGURED");
@@ -79,53 +122,55 @@ async function callProvider(
     3000,
     Math.min(Number(process.env.NUTRITION_AI_TIMEOUT_MS) || 12000, 30000),
   );
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(provider.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${provider.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: provider.model,
-        temperature: 0.35,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemInstruction(feature) },
-          {
-            role: "user",
-            content: JSON.stringify({
+  const bodyPayload = feature === "assistant"
+      ? {
+          model: provider.model,
+          temperature: 0.3,
+          max_tokens: resolveMaxOutputTokens(),
+          messages: (() => {
+            const prompt = buildAssistantPromptPayload({
               context,
-              request: input,
-              expected:
-                feature === "assistant"
-                  ? { answer: "string", actions: ["string"] }
-                  : { recipes: ["RecipeResult estructurado"], summary: "string" },
-            }),
-          },
-        ],
-      }),
-    });
-    const body = (await response.json().catch(() => null)) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      usage?: Record<string, unknown>;
-      error?: { message?: string };
-    } | null;
-    if (!response.ok) throw new Error(`AI_HTTP_${response.status}`);
-    const content = body?.choices?.[0]?.message?.content;
-    if (!content) throw new Error("AI_EMPTY");
-    return {
-      data: JSON.parse(content),
-      provider: "external",
-      modelVersion: provider.model,
-      usage: body?.usage,
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+              currentQuestion: safeText(input.question, 800),
+              conversationSummary: typeof options?.conversationSummary === "string" ? options.conversationSummary : undefined,
+              recentMessages: Array.isArray(options?.recentMessages)
+                ? options.recentMessages.filter((message): message is ConversationMessage => Boolean(message?.content))
+                : [],
+            });
+            const recent = prompt.conversation.recentMessages.map((message) => ({
+              role: message.role.toUpperCase() === "ASSISTANT" ? "assistant" : "user",
+              content: message.content,
+            }));
+            return [
+              { role: "system", content: prompt.system },
+              { role: "user", content: `Contexto autorizado y resumen previo:\n${JSON.stringify({ context: prompt.context, summary: prompt.conversation.summary, instructions: prompt.request.instructions })}` },
+              ...recent,
+              { role: "user", content: prompt.request.question },
+            ];
+          })(),
+        }
+      : {
+          model: provider.model,
+          temperature: 0.35,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: systemInstruction(feature) },
+            {
+              role: "user",
+              content: JSON.stringify({
+                context,
+                request: input,
+                expected: { recipes: ["RecipeResult estructurado"], summary: "string" },
+              }),
+            },
+          ],
+        };
+  const response = await requestCompatibleChat({ endpoint: provider.endpoint, apiKey: provider.apiKey, body: bodyPayload, timeoutMs: timeout });
+  return {
+    data: feature === "assistant" ? parseAssistantProviderResponse(response.content) : JSON.parse(response.content),
+    provider: "external",
+    modelVersion: provider.model,
+    usage: response.usage,
+  };
 }
 
 function providerRecipes(value: unknown) {
@@ -138,10 +183,105 @@ function providerRecipes(value: unknown) {
   }).slice(0, 20);
 }
 
+export async function nutritionAIUsageStatus(studentId: string) {
+  const dateKey = argentinaDateKey();
+  const limit = resolveDailyLimit();
+  const usage = await prisma.nutritionAIUsage.findUnique({
+    where: { studentId_dateKey_feature: { studentId, dateKey, feature: "assistant" } },
+  });
+  const used = usage?.usedCount ?? 0;
+  return { dateKey, limit, used, remaining: Math.max(0, limit - used) };
+}
+
+async function reserveDailyExternalUsage(studentId: string, requestKey: string, limit: number): Promise<NutritionQuotaReservation | null> {
+  const dateKey = argentinaDateKey();
+  const now = new Date();
+  try {
+    return await prisma.$transaction(async (transaction) => {
+      const request = await transaction.nutritionAIRequest.create({
+        data: {
+          studentId,
+          requestKey,
+          dateKey,
+          feature: "assistant",
+          expiresAt: new Date(now.getTime() + 2 * 60 * 1000),
+        },
+      });
+      await transaction.nutritionAIUsage.upsert({
+        where: { studentId_dateKey_feature: { studentId, dateKey, feature: "assistant" } },
+        create: { studentId, dateKey, feature: "assistant" },
+        update: {},
+      });
+      const rows = await transaction.$queryRaw<Array<{ usedCount: number }>>`
+        SELECT "usedCount"
+        FROM "nutrition_ai_usage"
+        WHERE "studentId" = ${studentId}
+          AND "dateKey" = ${dateKey}
+          AND "feature" = 'assistant'
+        FOR UPDATE
+      `;
+      const activeReservations = await transaction.nutritionAIRequest.count({
+        where: { studentId, dateKey, feature: "assistant", status: "PENDING", expiresAt: { gt: now } },
+      });
+      const used = rows[0]?.usedCount ?? 0;
+      if (used + activeReservations > limit) {
+        await transaction.nutritionAIRequest.update({ where: { id: request.id }, data: { status: "BLOCKED", errorCode: "DAILY_LIMIT" } });
+        await transaction.nutritionAIUsage.update({
+          where: { studentId_dateKey_feature: { studentId, dateKey, feature: "assistant" } },
+          data: { reservedCount: Math.max(0, activeReservations - 1) },
+        });
+        return null;
+      }
+      await transaction.nutritionAIUsage.update({
+        where: { studentId_dateKey_feature: { studentId, dateKey, feature: "assistant" } },
+        data: { reservedCount: activeReservations },
+      });
+      return { requestId: request.id, requestKey, studentId, dateKey, feature: "assistant", limit };
+    }, { isolationLevel: "Serializable" });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") throw new Error("DUPLICATE_REQUEST");
+    throw error;
+  }
+}
+
+export async function releaseNutritionAIReservation(reservation: NutritionQuotaReservation, errorCode: string) {
+  await prisma.$transaction(async (transaction) => {
+    await transaction.nutritionAIRequest.updateMany({
+      where: { id: reservation.requestId, status: "PENDING" },
+      data: { status: "FAILED", errorCode },
+    });
+    const active = await transaction.nutritionAIRequest.count({
+      where: { studentId: reservation.studentId, dateKey: reservation.dateKey, feature: reservation.feature, status: "PENDING", expiresAt: { gt: new Date() } },
+    });
+    await transaction.nutritionAIUsage.update({
+      where: { studentId_dateKey_feature: { studentId: reservation.studentId, dateKey: reservation.dateKey, feature: reservation.feature } },
+      data: { reservedCount: active },
+    });
+  });
+}
+
+export async function finalizeNutritionAIReservation(
+  transaction: Prisma.TransactionClient,
+  reservation: NutritionQuotaReservation,
+  conversationId: string,
+) {
+  const claimed = await transaction.nutritionAIRequest.updateMany({
+    where: { id: reservation.requestId, studentId: reservation.studentId, status: "PENDING" },
+    data: { status: "COMPLETED", conversationId, errorCode: null },
+  });
+  if (claimed.count !== 1) throw new Error("QUOTA_RESERVATION_INVALID");
+  const usage = await transaction.nutritionAIUsage.update({
+    where: { studentId_dateKey_feature: { studentId: reservation.studentId, dateKey: reservation.dateKey, feature: reservation.feature } },
+    data: { usedCount: { increment: 1 }, reservedCount: { decrement: 1 } },
+  });
+  return Math.max(0, reservation.limit - usage.usedCount);
+}
+
 function localResult(
   feature: GenerateFeature,
   input: Record<string, unknown>,
   context: NutritionContextSnapshot,
+  options?: AssistantGenerationOptions,
 ) {
   if (feature === "pantry") {
     return fallbackPantry(
@@ -166,13 +306,26 @@ function localResult(
   }
   if (feature === "assistant") {
     const question = safeText(input.question, 800);
+    const recentContext = (options?.recentMessages ?? []).slice(-4).map((message) => message.content).join(" ");
+    const normalized = `${recentContext} ${question}`.toLocaleLowerCase("es");
+    const mentioned = normalizeIngredientInput(`${recentContext}, ${question}`).slice(0, 6);
+    const restricted = [...context.profile.allergies, ...context.profile.intolerances, ...context.profile.restrictions]
+      .map((item) => item.toLocaleLowerCase("es"));
+    const safeMentioned = mentioned.filter((item) => !restricted.some((blocked) => item.toLocaleLowerCase("es").includes(blocked) || blocked.includes(item.toLocaleLowerCase("es"))));
+    const availableText = safeMentioned.length ? ` Con lo que mencionaste (${safeMentioned.join(", ")}), priorizá una combinación simple que ya toleres.` : "";
+    const answer = mentioned.length > safeMentioned.length
+      ? "Evitá los alimentos que figuran entre tus alergias, intolerancias o restricciones. Para reemplazarlos de forma segura, usá otra opción que ya sepas que tolerás."
+      : normalized.includes("hidrat")
+      ? "Para sostener la hidratación, dejá agua visible y tomá unos sorbos antes y después del entrenamiento. Si te cuesta, usá una botella y asocia el hábito a tus comidas."
+      : normalized.includes("prote")
+        ? `Una buena base suele ser combinar una proteína simple con una fuente de energía.${availableText}`
+        : normalized.includes("antes de entrenar")
+          ? `Si falta menos de una hora, elegí algo conocido, simple y fácil de digerir, evitando mucha grasa o una porción muy grande.${availableText}`
+          : normalized.includes("cena")
+            ? `Una cena práctica suele combinar una fuente de proteína, alguna verdura y un carbohidrato fácil de preparar.${availableText}`
+            : `Como orientación general, armá una opción simple con energía, proteína y líquidos según tu tolerancia.${availableText}`;
     return {
-      answer:
-        question.toLocaleLowerCase("es").includes("hidrat")
-          ? "Podés facilitar la hidratación teniendo agua visible, tomando con las comidas y llevando una botella al entrenamiento."
-          : question.toLocaleLowerCase("es").includes("prote")
-            ? "Incluí una fuente de proteína en las comidas principales usando opciones que ya consumís, como huevos, carnes, lácteos, legumbres o tofu."
-            : "Podés empezar organizando una comida simple y repetible. Elegí una fuente de proteína, vegetales y una opción de energía compatible con tus preferencias.",
+      answer,
       actions: ["Ver ideas de comidas", "Abrir hábitos"],
     };
   }
@@ -312,6 +465,7 @@ export async function generateNutrition(
   studentId: string,
   feature: GenerateFeature,
   input: Record<string, unknown>,
+  options?: AssistantGenerationOptions,
 ) {
   const context = await buildNutritionContext(studentId);
   if (feature !== "assistant" && !context.profile.updatedAt) {
@@ -338,34 +492,37 @@ export async function generateNutrition(
       source: "safety",
       modelVersion: null,
       safetyCategory,
+      quotaReservation: null,
     };
   }
 
   const status = nutritionAIStatus();
-  const start = argentinaDateTimeBoundary(argentinaDateKey());
-  const usedToday = await prisma.nutritionAIInteraction.count({
-    where: {
-      studentId,
-      provider: "configured",
-      createdAt: { gte: start },
-    },
-  });
-
   const startedAt = Date.now();
   let providerResult: ProviderResult | null = null;
   let providerError = "";
+  let quotaReservation: NutritionQuotaReservation | null = null;
   const providerEligible =
     status.configured &&
     context.profile.personalizationEnabled &&
     context.profile.consentAt;
-  if (providerEligible && usedToday < status.dailyLimit) {
+
+  if (providerEligible) {
     try {
-      providerResult = await callProvider(feature, enrichedInput, context);
+      if (feature === "assistant") {
+        const requestKey = safeText(options?.requestKey, 100);
+        if (!requestKey) throw new Error("REQUEST_KEY_REQUIRED");
+        quotaReservation = await reserveDailyExternalUsage(studentId, requestKey, resolveDailyLimit());
+        if (!quotaReservation) throw new Error("DAILY_LIMIT");
+      }
+      providerResult = await callProvider(feature, enrichedInput, context, options);
     } catch (error) {
       providerError = error instanceof Error ? error.message : "AI_FAILED";
+      if (quotaReservation) {
+        await releaseNutritionAIReservation(quotaReservation, providerError);
+        quotaReservation = null;
+      }
+      if (providerError === "DAILY_LIMIT" || providerError === "DUPLICATE_REQUEST") throw error;
     }
-  } else if (providerEligible) {
-    providerError = "DAILY_LIMIT";
   } else if (!status.configured) {
     providerError = "MISSING_API_KEY";
   } else {
@@ -375,6 +532,10 @@ export async function generateNutrition(
   const providerData = providerResult
     ? validateGenerated(feature, providerResult.data, context)
     : null;
+  if (providerResult && !providerData && quotaReservation) {
+    await releaseNutritionAIReservation(quotaReservation, "INVALID_RESPONSE");
+    quotaReservation = null;
+  }
   let data: unknown = providerData;
   if (providerData && feature === "pantry") {
     data = classifyPantryRecipes(
@@ -395,7 +556,7 @@ export async function generateNutrition(
   }
   let source = "external";
   if (!data) {
-    data = localResult(feature, enrichedInput, context);
+    data = localResult(feature, enrichedInput, context, options);
     source = "local_fallback";
     if (providerResult && !providerError) providerError = "INVALID_RESPONSE";
   }
@@ -403,28 +564,33 @@ export async function generateNutrition(
     feature === "assistant"
       ? safeText((data as { answer?: unknown }).answer, 160)
       : `${feature} generado y validado`;
-  await recordInteraction(studentId, {
-    feature,
-    intention: safeText(input.intention, 80) || feature,
-    context,
-    inputSummary: Object.keys(input).slice(0, 12).join(", "),
-    outputSummary,
-    provider: providerResult && source === "external" ? "external" : "local_fallback",
-    modelVersion: providerResult?.modelVersion,
-    usage: providerResult?.usage,
-    latencyMs: Date.now() - startedAt,
-    success: true,
-    errorCode: providerError || undefined,
-  });
-  const exposed = [...new Set(exposedRecipeIds(feature, data))];
-  if (exposed.length) {
-    await prisma.nutritionAnalyticsEvent.create({
-      data: {
-        studentId,
-        event: "recipe_exposed",
-        metadata: { feature, recipeIds: exposed, source },
-      },
+  try {
+    await recordInteraction(studentId, {
+      feature,
+      intention: safeText(input.intention, 80) || feature,
+      context,
+      inputSummary: Object.keys(input).slice(0, 12).join(", "),
+      outputSummary,
+      provider: providerResult && source === "external" ? "external" : "local_fallback",
+      modelVersion: providerResult?.modelVersion,
+      usage: providerResult?.usage,
+      latencyMs: Date.now() - startedAt,
+      success: true,
+      errorCode: providerError || undefined,
     });
+    const exposed = [...new Set(exposedRecipeIds(feature, data))];
+    if (exposed.length) {
+      await prisma.nutritionAnalyticsEvent.create({
+        data: {
+          studentId,
+          event: "recipe_exposed",
+          metadata: { feature, recipeIds: exposed, source },
+        },
+      });
+    }
+  } catch (error) {
+    if (quotaReservation) await releaseNutritionAIReservation(quotaReservation, "AUDIT_PERSISTENCE_FAILED");
+    throw error;
   }
   return {
     data,
@@ -433,5 +599,6 @@ export async function generateNutrition(
     fallbackReason: source === "local_fallback" ? providerError.toLocaleLowerCase() : null,
     modelVersion: providerResult?.modelVersion ?? null,
     safetyCategory: null,
+    quotaReservation,
   };
 }

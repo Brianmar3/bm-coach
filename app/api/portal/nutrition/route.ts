@@ -1,11 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
-import {
-  argentinaDateKey,
-  argentinaDateTimeBoundary,
-} from "@/lib/payment-dates";
+import { argentinaDateKey } from "@/lib/payment-dates";
 import { buildNutritionContext, nutritionRecommendation } from "@/lib/nutrition-context";
-import { nutritionAIStatus } from "@/lib/nutrition-ai";
+import { nutritionAIStatus, nutritionAIUsageStatus } from "@/lib/nutrition-ai";
 import {
   addDateKeyDays,
   nutritionSummary,
@@ -102,15 +99,7 @@ export async function GET() {
     !Array.isArray(savedContext.evaluation)
       ? savedContext.evaluation
       : null;
-  const interactionsToday = await prisma.nutritionAIInteraction.count({
-    where: {
-      studentId: session.studentId,
-      provider: { in: ["external", "configured"] },
-      createdAt: {
-        gte: argentinaDateTimeBoundary(today),
-      },
-    },
-  });
+  const aiUsage = await nutritionAIUsageStatus(session.studentId);
   return Response.json({
     today,
     studentName: student.firstName ?? "",
@@ -151,7 +140,8 @@ export async function GET() {
       enabled:
         context.profile.personalizationEnabled &&
         Boolean(context.profile.consentAt),
-      remainingToday: Math.max(0, aiStatus.dailyLimit - interactionsToday),
+      dailyLimit: aiUsage.limit,
+      remainingToday: aiUsage.remaining,
     },
     evaluationUpdated: Boolean(
       evaluation &&

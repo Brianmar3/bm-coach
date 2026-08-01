@@ -12,7 +12,7 @@
     "prisma:push": "prisma db push",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --experimental-strip-types tests/nutrition-rules.test.ts tests/monthly-summary.test.ts"
+    "test": "node --test --experimental-strip-types tests/nutrition-rules.test.ts tests/nutrition-ai.test.ts tests/nutrition-persistence.test.ts tests/nutrition-education.test.ts tests/monthly-summary.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   NutritionContextSnapshot,
   NutritionPlanMeal,
@@ -94,7 +94,7 @@ export function NutritionWorkspace({ slug }: { slug: string[] }) {
   if (view === "despensa") return <PantryView />;
   if (view === "plan") return <PlansView id={id} />;
   if (view === "compras") return <ShoppingView id={id} />;
-  if (view === "aprender") return <EducationView />;
+  if (view === "aprender") return <EducationView contentId={id} />;
   if (view === "favoritos") return <FavoritesView />;
   if (view === "historial") return <HistoryView />;
   if (view === "asistente") return <AssistantView conversationId={id} />;
@@ -676,33 +676,99 @@ function ShoppingView({ id }: { id: string }) {
   );
 }
 
-type EducationItem = { id: string; category: string; title: string; summary: string; body: string; durationMinutes: number; viewedAt: string | null; completedAt: string | null; favorite: boolean };
-function EducationView() {
+type EducationQuiz = { id: string; question: string; options: string[]; explanation: string };
+type EducationItem = {
+  id: string; category: string; title: string; summary: string; format: string; durationMinutes: number; level: string;
+  tags: string[]; explanation: string[]; whyItMatters: string; examples: string[]; mistakes: string[]; application: string;
+  challenge: string; keyPoints: string[]; professionalWarning?: string; quiz?: EducationQuiz;
+  viewedAt: string | null; completedAt: string | null; favorite: boolean; lastSection: string;
+  quizAttempt: { selectedAnswer: number; correct: boolean; answeredAt: string } | null;
+};
+type EducationSummary = { completed: number; total: number; percentage: number; continueContentId: string | null; recommendedIds: string[] };
+function EducationView({ contentId }: { contentId: string }) {
   const [content, setContent] = useState<EducationItem[]>([]);
-  const [open, setOpen] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<EducationSummary>({ completed: 0, total: 0, percentage: 0, continueContentId: null, recommendedIds: [] });
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [status, setStatus] = useState("");
+  const [quizChoice, setQuizChoice] = useState<number | null>(null);
+  const [quizFeedback, setQuizFeedback] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const load = useCallback(async () => {
     const response = await fetch("/api/portal/nutrition/education", { cache: "no-store" });
     const body = await apiBody(response);
     if (!response.ok) throw new Error(String(body.error ?? "No se pudo cargar."));
-    setContent(asArray<EducationItem>(body.content));
-  }, []);
+    const loadedContent = asArray<EducationItem>(body.content);
+    setContent(loadedContent);
+    if (body.progress && typeof body.progress === "object") setSummary(body.progress as EducationSummary);
+    setLoading(false);
+    const opened = contentId ? loadedContent.find((item) => item.id === contentId) : null;
+    if (opened && !opened.viewedAt) {
+      void fetch("/api/portal/nutrition/education", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contentId: opened.id, lastSection: "inicio" }) });
+    }
+  }, [contentId]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void load().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudo cargar."));
+      void load().catch((reason: unknown) => { setLoading(false); setError(reason instanceof Error ? reason.message : "No se pudo cargar."); });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
   async function update(item: EducationItem, payload: JsonRecord) {
+    setError("");
     const response = await fetch("/api/portal/nutrition/education", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contentId: item.id, ...payload }) });
-    if (!response.ok) return setError(String((await apiBody(response)).error ?? "No se pudo actualizar."));
+    const body = await apiBody(response);
+    if (!response.ok) return setError(String(body.error ?? "No se pudo actualizar."));
+    if (body.quizResult && typeof body.quizResult === "object") {
+      const result = body.quizResult as { correct: boolean; explanation: string };
+      setQuizFeedback(`${result.correct ? "¡Correcto!" : "Todavía no."} ${result.explanation}`);
+    } else if (payload.completed === true) setMessage("Contenido marcado como completado.");
     await load();
   }
+  const selected = content.find((item) => item.id === contentId);
+  const categories = useMemo(() => [...new Set(content.map((item) => item.category))], [content]);
+  const filtered = useMemo(() => content.filter((item) => {
+    const needle = query.trim().toLocaleLowerCase("es");
+    const matchesText = !needle || `${item.title} ${item.summary} ${item.tags.join(" ")}`.toLocaleLowerCase("es").includes(needle);
+    const matchesCategory = !category || item.category === category;
+    const matchesStatus = !status || (status === "favorites" ? item.favorite : status === "completed" ? Boolean(item.completedAt) : status === "pending" ? !item.completedAt : true);
+    return matchesText && matchesCategory && matchesStatus;
+  }), [category, content, query, status]);
+
+  if (loading) return <Loading />;
+  if (contentId && content.length && !selected) return <div className="space-y-4"><PageHeader title="Contenido no encontrado" description="La lectura solicitada no está disponible." back="/portal/nutricion/aprender" /><Empty text="Podés seguir explorando la biblioteca." action="Volver a Aprendizaje" href="/portal/nutricion/aprender" /></div>;
+  if (selected) return (
+    <div className="space-y-4 pb-8">
+      <PageHeader title={selected.title} description={`${selected.format} · ${selected.durationMinutes} minutos · Nivel ${selected.level}`} back="/portal/nutricion/aprender" />
+      <Notice error={error} message={message} />
+      <div className="sticky top-2 z-10 rounded-xl border border-yellow-400/20 bg-black/95 p-3"><div className="flex items-center justify-between text-xs"><span className="font-bold text-yellow-300">Tu progreso general</span><span>{summary.percentage}%</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-yellow-400" style={{ width: `${summary.percentage}%` }} /></div></div>
+      <article className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-5 sm:p-8">
+        <p className="text-base leading-7 text-zinc-300">{selected.summary}</p>
+        <nav className="mt-6 rounded-2xl bg-black/40 p-4" aria-label="Índice"><p className="text-xs font-black uppercase text-yellow-400">En esta lectura</p><ol className="mt-2 grid gap-1 text-sm text-zinc-400 sm:grid-cols-2"><li>1. Explicación</li><li>2. Por qué importa</li><li>3. Ejemplos argentinos</li><li>4. Aplicación práctica</li></ol></nav>
+        <section id="explicacion" className="mt-8"><h2 className="text-xl font-black">Explicación principal</h2>{selected.explanation.map((paragraph) => <p key={paragraph} className="mt-3 text-sm leading-7 text-zinc-300">{paragraph}</p>)}</section>
+        <section className="mt-8"><h2 className="text-xl font-black">Por qué importa</h2><p className="mt-3 text-sm leading-7 text-zinc-300">{selected.whyItMatters}</p></section>
+        <section className="mt-8"><h2 className="text-xl font-black">Ejemplos argentinos</h2><ul className="mt-3 space-y-2">{selected.examples.map((value) => <li key={value} className="rounded-xl bg-black/35 p-3 text-sm text-zinc-300">{value}</li>)}</ul></section>
+        <section className="mt-8 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-red-400/10 bg-red-400/5 p-4"><h2 className="font-black text-red-200">Errores frecuentes</h2><ul className="mt-3 space-y-2 text-sm text-zinc-400">{selected.mistakes.map((value) => <li key={value}>• {value}</li>)}</ul></div><div className="rounded-2xl border border-yellow-400/10 bg-yellow-400/5 p-4"><h2 className="font-black text-yellow-200">Aplicación práctica</h2><p className="mt-3 text-sm leading-6 text-zinc-300">{selected.application}</p></div></section>
+        <section className="mt-6 rounded-2xl bg-yellow-400 p-5 text-black"><p className="text-xs font-black uppercase">Mini desafío</p><p className="mt-2 font-bold">{selected.challenge}</p></section>
+        <section className="mt-8"><h2 className="text-xl font-black">Puntos clave</h2><ul className="mt-3 space-y-2 text-sm text-zinc-300">{selected.keyPoints.map((value) => <li key={value}>✓ {value}</li>)}</ul></section>
+        {selected.professionalWarning && <p className="mt-6 rounded-xl border border-zinc-700 p-4 text-xs leading-6 text-zinc-400">{selected.professionalWarning}</p>}
+        {selected.quiz && <section className="mt-8 rounded-2xl border border-yellow-400/20 p-5"><p className="text-xs font-black uppercase text-yellow-400">Mini cuestionario</p><h2 className="mt-2 font-bold">{selected.quiz.question}</h2>{selected.quizAttempt && <p className={`mt-2 text-xs ${selected.quizAttempt.correct ? "text-emerald-300" : "text-yellow-200"}`}>Último intento guardado: {selected.quizAttempt.correct ? "correcto" : "para revisar"}</p>}<div className="mt-4 space-y-2">{selected.quiz.options.map((option, index) => <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl bg-black/40 p-3 text-sm"><input type="radio" name={selected.quiz!.id} checked={quizChoice === index} onChange={() => setQuizChoice(index)} className="accent-yellow-400" />{option}</label>)}</div><button type="button" disabled={quizChoice === null} onClick={() => quizChoice !== null && update(selected, { questionId: selected.quiz!.id, selectedAnswer: quizChoice })} className="mt-4 min-h-11 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black disabled:opacity-50">Responder</button>{quizFeedback && <p role="status" className="mt-3 rounded-xl bg-black/40 p-3 text-sm text-zinc-300">{quizFeedback}</p>}</section>}
+        <div className="mt-8 grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => update(selected, { completed: !selected.completedAt })} className="min-h-12 rounded-xl bg-yellow-400 px-4 text-sm font-black text-black">{selected.completedAt ? "Marcar como pendiente" : "Marcar como completado"}</button><button type="button" onClick={() => update(selected, { favorite: !selected.favorite })} className="min-h-12 rounded-xl border border-yellow-400/30 px-4 text-sm font-bold text-yellow-200">{selected.favorite ? "★ Guardado" : "☆ Guardar"}</button></div>
+      </article>
+      <Link href="/portal/nutricion/aprender" className="inline-flex min-h-11 items-center font-bold text-yellow-300">← Siguiente contenido desde la biblioteca</Link>
+    </div>
+  );
   return (
     <div className="space-y-4">
-      <PageHeader title="Aprender" description="Lecciones breves sobre organización, entrenamiento y hábitos. Sin cursos extensos ni lenguaje clínico." />
-      <Notice error={error} message="" />
-      <div className="grid gap-3 lg:grid-cols-2">{content.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5"><p className="text-[10px] font-bold uppercase text-yellow-400">{item.category} · {item.durationMinutes} min</p><h2 className="mt-2 font-bold">{item.title}</h2><p className="mt-2 text-sm leading-6 text-zinc-500">{item.summary}</p>{open === item.id && <p className="mt-3 rounded-xl bg-black/35 p-3 text-sm leading-6 text-zinc-300">{item.body}</p>}<div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => { setOpen(open === item.id ? "" : item.id); if (!item.viewedAt) void update(item, {}); }} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black">{open === item.id ? "Cerrar" : "Leer"}</button><button type="button" onClick={() => update(item, { completed: !item.completedAt })} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-xs font-bold">{item.completedAt ? "Completada ✓" : "Marcar completa"}</button><button type="button" onClick={() => update(item, { favorite: !item.favorite })} className="min-h-11 rounded-xl border border-yellow-400/20 px-4 text-xs font-bold text-yellow-200">{item.favorite ? "★ Favorita" : "☆ Favorito"}</button></div></article>)}</div>
+      <PageHeader title="Aprendizaje nutricional" description="Una biblioteca práctica para entender decisiones cotidianas, entrenar con energía y construir hábitos sostenibles." />
+      <Notice error={error} message={message} />
+      <section className="rounded-2xl border border-yellow-400/15 bg-zinc-900/80 p-5"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-bold text-yellow-300">Tu progreso</p><p className="mt-1 text-2xl font-black">{summary.percentage}%</p><p className="text-xs text-zinc-500">{summary.completed} de {summary.total} completados</p></div>{summary.continueContentId && <Link href={`/portal/nutricion/aprender/${summary.continueContentId}`} className="min-h-11 rounded-xl bg-yellow-400 px-4 py-3 text-xs font-black text-black">Continuar aprendiendo</Link>}</div><div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-yellow-400" style={{ width: `${summary.percentage}%` }} /></div></section>
+      <section className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-zinc-900 p-4"><p className="text-xs text-zinc-500">Guardados</p><p className="mt-1 text-xl font-black">{content.filter((item) => item.favorite).length}</p></div><div className="rounded-xl bg-zinc-900 p-4"><p className="text-xs text-zinc-500">Completados</p><p className="mt-1 text-xl font-black">{summary.completed}</p></div><div className="rounded-xl bg-zinc-900 p-4"><p className="text-xs text-zinc-500">Temas pendientes</p><p className="mt-1 text-xl font-black">{summary.total - summary.completed}</p></div></section>
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4"><h2 className="font-black">Recomendado para tu objetivo</h2><div className="mt-3 flex gap-3 overflow-x-auto pb-2">{summary.recommendedIds.map((id) => content.find((item) => item.id === id)).filter((item): item is EducationItem => Boolean(item)).map((item) => <Link key={item.id} href={`/portal/nutricion/aprender/${item.id}`} className="min-w-[240px] rounded-xl border border-yellow-400/15 bg-black/40 p-4"><p className="text-[10px] uppercase text-yellow-400">{item.category}</p><p className="mt-2 font-bold">{item.title}</p><p className="mt-2 text-xs text-zinc-500">{item.format} · {item.durationMinutes} min</p></Link>)}</div></section>
+      <section><h2 className="font-black">Categorías</h2><div className="mt-3 flex flex-wrap gap-2">{categories.map((value) => <button key={value} type="button" onClick={() => setCategory(category === value ? "" : value)} className={`min-h-10 rounded-full border px-3 text-xs font-bold ${category === value ? "border-yellow-400 bg-yellow-400 text-black" : "border-zinc-700 text-zinc-300"}`}>{value}</button>)}</div></section>
+      <section className="sticky top-2 z-10 grid gap-2 rounded-2xl border border-zinc-800 bg-black/95 p-3 sm:grid-cols-3"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar tema o alimento" className="min-h-11 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm" /><select value={category} onChange={(event) => setCategory(event.target.value)} className="min-h-11 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm"><option value="">Todas las categorías</option>{categories.map((value) => <option key={value}>{value}</option>)}</select><select value={status} onChange={(event) => setStatus(event.target.value)} className="min-h-11 rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-sm"><option value="">Todos</option><option value="pending">Pendientes</option><option value="favorites">Guardados</option><option value="completed">Completados</option></select></section>
+      {!filtered.length ? <Empty text="No encontramos contenidos con esos filtros." action="Ver todos" href="/portal/nutricion/aprender" /> : <div className="grid gap-3 lg:grid-cols-2">{filtered.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5"><div className="flex items-center justify-between gap-2"><p className="text-[10px] font-bold uppercase text-yellow-400">{item.category}</p>{item.completedAt && <span className="text-xs text-emerald-300">Completado ✓</span>}</div><h2 className="mt-2 text-lg font-black">{item.title}</h2><p className="mt-2 text-sm leading-6 text-zinc-500">{item.summary}</p><div className="mt-3 flex flex-wrap gap-2 text-[10px] text-zinc-400"><span className="rounded-full bg-black/40 px-2 py-1">{item.format}</span><span className="rounded-full bg-black/40 px-2 py-1">{item.durationMinutes} min</span><span className="rounded-full bg-black/40 px-2 py-1">Nivel {item.level}</span></div><div className="mt-4 flex gap-2"><Link href={`/portal/nutricion/aprender/${item.id}`} onClick={() => { if (!item.viewedAt) void update(item, { lastSection: "inicio" }); }} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-yellow-400 px-4 text-xs font-black text-black">{item.viewedAt && !item.completedAt ? "Continuar" : "Leer"}</Link><button type="button" aria-label={item.favorite ? "Quitar guardado" : "Guardar"} onClick={() => update(item, { favorite: !item.favorite })} className="min-h-11 min-w-11 rounded-xl border border-yellow-400/20 text-yellow-200">{item.favorite ? "★" : "☆"}</button></div></article>)}</div>}
     </div>
   );
 }
@@ -732,7 +798,7 @@ function FavoritesView() {
     if (item.contentType === "recipe") return `/portal/nutricion/recetas/${item.contentId}`;
     if (item.contentType === "plan") return `/portal/nutricion/plan/${item.contentId}`;
     if (item.contentType === "shopping") return `/portal/nutricion/compras/${item.contentId}`;
-    if (item.contentType === "education") return "/portal/nutricion/aprender";
+    if (item.contentType === "education") return `/portal/nutricion/aprender/${item.contentId}`;
     return "/portal/nutricion";
   }
   return <div className="space-y-4"><PageHeader title="Favoritos" description="Tus recetas, planes, listas y contenidos elegidos en un solo lugar." /><Notice error={error} message="" />{!favorites.length ? <Empty text="Todavía no guardaste favoritos." action="Explorar recetas" href="/portal/nutricion/ideas" /> : <div className="space-y-2">{favorites.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4"><Link href={favoriteHref(item)} className="min-w-0 flex-1 rounded-lg focus-visible:outline-2 focus-visible:outline-yellow-300"><p className="truncate font-bold">{item.label}</p><p className="text-[10px] uppercase text-zinc-500">{item.contentType}</p></Link><button type="button" onClick={() => remove(item.id)} className="min-h-11 rounded-xl border border-red-400/20 px-4 text-xs font-bold text-red-300">Quitar</button></div>)}</div>}</div>;
@@ -783,13 +849,16 @@ function AssistantView({ conversationId }: { conversationId: string }) {
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [fallbackNotice, setFallbackNotice] = useState("");
+  const [usage, setUsage] = useState<{ limit: number; remaining: number } | null>(null);
   const suggestions = ["¿Qué puedo comer antes de entrenar?", "Dame una cena económica.", "¿Qué preparo con lo que tengo?", "¿Cómo mejoro mi hidratación?", "Explicame para qué sirve la proteína."];
   useEffect(() => {
-    if (!conversationId) return;
-    fetch(`/api/portal/nutrition/assistant?conversationId=${encodeURIComponent(conversationId)}`, { cache: "no-store" }).then(async (response) => {
+    const query = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : "";
+    fetch(`/api/portal/nutrition/assistant${query}`, { cache: "no-store" }).then(async (response) => {
       const body = await apiBody(response);
       if (!response.ok) throw new Error(String(body.error ?? "No se pudo cargar."));
-      setConversation(asArray<Conversation>(body.conversations)[0] ?? null);
+      if (conversationId) setConversation(asArray<Conversation>(body.conversations)[0] ?? null);
+      if (body.usage && typeof body.usage === "object") setUsage(body.usage as { limit: number; remaining: number });
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudo cargar."));
   }, [conversationId]);
   async function send(value = question) {
@@ -797,12 +866,15 @@ function AssistantView({ conversationId }: { conversationId: string }) {
     if (!clean || sending) return;
     setSending(true);
     setError("");
+    setFallbackNotice("");
     try {
-      const response = await fetch("/api/portal/nutrition/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: clean, conversationId: conversation?.id || conversationId || undefined }) });
+      const response = await fetch("/api/portal/nutrition/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: clean, conversationId: conversation?.id || conversationId || undefined, requestKey: crypto.randomUUID() }) });
       const body = await apiBody(response);
       if (!response.ok) throw new Error(String(body.error ?? "No pudimos responder en este momento."));
       const next = body.conversation as Conversation;
       setConversation(next);
+      if (body.usage && typeof body.usage === "object") setUsage(body.usage as { limit: number; remaining: number });
+      setFallbackNotice(typeof body.fallbackNotice === "string" ? body.fallbackNotice : "");
       setQuestion("");
       if (!conversationId) window.history.replaceState(null, "", `/portal/nutricion/asistente/${next.id}`);
     } catch (reason) {
@@ -815,9 +887,11 @@ function AssistantView({ conversationId }: { conversationId: string }) {
       <Notice error={error} message="" />
       <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
         <p className="text-xs text-zinc-500">Usando tu objetivo, preferencias y evaluación actual. <Link href="/portal/nutricion/preferencias#datos-utilizados" className="font-bold text-yellow-300">Ver datos utilizados</Link></p>
+        {usage && <p className={`mt-3 rounded-xl p-3 text-xs font-bold ${usage.remaining <= 2 ? "bg-yellow-400/10 text-yellow-200" : "bg-black/40 text-zinc-300"}`}>{usage.remaining === 0 ? "Alcanzaste tus consultas de IA por hoy. Mañana vas a poder volver a conversar. Mientras tanto, podés seguir usando tus recetas, planes, listas y contenidos educativos." : usage.remaining <= 2 ? `Te quedan ${usage.remaining} consultas de IA hoy` : `${usage.remaining} consultas de IA disponibles hoy`}</p>}
+        {fallbackNotice && <p role="status" className="mt-3 rounded-xl border border-yellow-400/15 bg-yellow-400/5 p-3 text-xs leading-5 text-yellow-100">{fallbackNotice}</p>}
         {!conversation?.messages.length && <div className="mt-4 flex flex-wrap gap-2">{suggestions.map((item) => <button key={item} type="button" onClick={() => send(item)} className="min-h-11 rounded-full border border-yellow-400/20 px-3 text-left text-xs font-bold text-yellow-100">{item}</button>)}</div>}
         <div className="mt-4 max-h-[55vh] space-y-3 overflow-y-auto pr-1">{conversation?.messages.map((item) => <div key={item.id} className={`max-w-[90%] rounded-2xl p-3 text-sm leading-6 ${item.role === "USER" ? "ml-auto bg-yellow-400 text-black" : "bg-black/50 text-zinc-200"}`}>{item.content}</div>)}</div>
-        <div className="mt-4 flex items-end gap-2"><label className="min-w-0 flex-1 text-xs text-zinc-400">Tu pregunta<textarea value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={800} rows={2} className="mt-1 w-full resize-none rounded-xl border border-zinc-700 bg-black/50 p-3 text-sm text-white outline-none focus:border-yellow-400" placeholder="Contame qué necesitás organizar…" /></label><button type="button" onClick={() => send()} disabled={sending || !question.trim()} className="min-h-12 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black disabled:opacity-50">{sending ? "Enviando…" : "Enviar"}</button></div>
+        <div className="mt-4 flex items-end gap-2"><label className="min-w-0 flex-1 text-xs text-zinc-400">Tu pregunta<textarea value={question} onChange={(event) => setQuestion(event.target.value)} disabled={usage?.remaining === 0} maxLength={800} rows={2} className="mt-1 w-full resize-none rounded-xl border border-zinc-700 bg-black/50 p-3 text-sm text-white outline-none focus:border-yellow-400 disabled:opacity-50" placeholder="Contame qué necesitás organizar…" /></label><button type="button" onClick={() => send()} disabled={sending || !question.trim() || usage?.remaining === 0} className="min-h-12 rounded-xl bg-yellow-400 px-4 text-xs font-black text-black disabled:opacity-50">{sending ? "Enviando…" : "Enviar"}</button></div>
       </section>
       <p className="rounded-xl border border-zinc-800 p-3 text-xs leading-5 text-zinc-500">Esta orientación no diagnostica ni reemplaza una consulta profesional. Las consultas clínicas se derivan de forma segura.</p>
     </div>
