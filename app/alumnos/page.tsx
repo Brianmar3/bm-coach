@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { StudentAccessControls } from "@/componentes/student-access-controls";
-import { StudentAttendanceSummaryCard } from "@/componentes/student-attendance-summary";
+import { StudentQuickPanels } from "@/componentes/student-quick-panels";
 import { AdminQuickLogSummary } from "@/componentes/admin-quick-log-summary";
 import { AdminNutritionSummary } from "@/componentes/admin-nutrition-summary";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
@@ -316,17 +316,13 @@ function StudentDetail({ item, focus, close, edit }: {
             </dl>
             <p className="mt-5 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-300">{item.notes || "Sin observaciones."}</p>
             {focus?.section === "achievements" && <section id="student-section-achievements" className="mt-5 scroll-mt-24 rounded-xl border border-yellow-300/50 bg-yellow-400/10 p-4 shadow-[0_0_24px_rgba(250,204,21,.08)]"><p className="text-xs font-bold uppercase tracking-wide text-yellow-300">Logros</p><h3 className="mt-1 font-bold">Logro relacionado con la notificación</h3><p className="mt-1 text-sm text-zinc-300">La ficha corresponde a {item.firstName} {item.lastName}. {focus.entityId ? "El logro relacionado fue localizado desde su identificador histórico." : "La notificación no conserva un identificador de logro específico."}</p></section>}
-            <div id="student-section-attendance" className={focus?.section === "attendance" ? "scroll-mt-24 rounded-xl ring-2 ring-yellow-300/50" : ""}><StudentAttendanceSummaryCard studentId={item.id}/></div>
+            <div id="student-section-attendance"><StudentQuickPanels student={item} initialPanel={focus?.section === "attendance" ? "attendance" : null}/></div>
             <AdminQuickLogSummary studentId={item.id} focusSection={focus?.section === "records" || focus?.section === "routines" ? focus.section : null} focusEntityId={focus?.entityId ?? null}/>
             <AdminNutritionSummary studentId={item.id}/>
             <StudentAccessControls studentId={item.id}/>
             <div className="mt-5 flex flex-wrap gap-3">
                 <button onClick={edit} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">Completar o editar ficha</button>
-                <Link href="/asistencias" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver asistencias</Link>
-                <Link href="/pagos" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Registrar pago</Link>
-                <Link href={`/rutinas?studentId=${encodeURIComponent(item.id)}&view=active`} className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver rutina</Link>
                 <Link href="/evaluaciones" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver evaluaciones</Link>
-                <Link href="/clases" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver clases</Link>
             </div>
         </section>
     </div>;
