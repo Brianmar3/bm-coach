@@ -1,7 +1,7 @@
 export type PaymentStatus = "pagado" | "pendiente" | "vencido" | "proximo_a_vencer" | "anulado";
 export type PaymentAccountStatus = "VENCIDA" | "VENCE_PRONTO" | "AL_DIA" | "SIN_PAGOS" | "SIN_CONFIGURAR";
 
-export type StudentStatus = "activo" | "inactivo";
+export type StudentStatus = "activo" | "inactivo" | "suspendido";
 export type StudentServiceType = "CLASSES" | "PERSONALIZED" | "MIXED";
 export const STUDENT_TYPES = ["Adulto", "Kids"] as const;
 export type StudentType = (typeof STUDENT_TYPES)[number];
@@ -25,6 +25,7 @@ export type Student = {
   joinedAt: string;
   dueDate: string;
   status: StudentStatus;
+  lifecycleStatus?: StudentStatus;
   serviceType: StudentServiceType;
   notes: string;
   studentType: StudentType;

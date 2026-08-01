@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInput, serializeStudent, studentInclude, studentJsonData } from "@/lib/student-enrollment";
+import { recordInitialStudentHistory } from "@/lib/student-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
       const created = await transaction.studentRecord.create({
         data: { id: randomUUID(), phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: studentJsonData(input) },
       });
+      await recordInitialStudentHistory(transaction, created.id, input);
       if (schedules.length) await transaction.weeklyClassAssignment.createMany({ data: schedules.map((schedule) => ({ scheduleId: schedule.id, studentId: created.id })) });
       return transaction.studentRecord.findUniqueOrThrow({ where: { id: created.id }, include: studentInclude });
     });

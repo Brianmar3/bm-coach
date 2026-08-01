@@ -76,7 +76,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     monthlyFee: Number(stored.monthlyFee ?? 0),
     joinedAt: stored.joinedAt ?? "",
     dueDate: stored.dueDate ?? "",
-    status: stored.status === "inactivo" ? "inactivo" : "activo",
+    status: stored.lifecycleStatus === "suspendido" ? "suspendido" : stored.status === "inactivo" ? "inactivo" : "activo",
     serviceType: record.serviceType,
     notes: stored.notes ?? "",
     studentType: studentTypeValue(stored.studentType),
@@ -123,7 +123,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   if (!selectedPlan) return { data: null, error: "Seleccioná un plan mensual de 2, 3, 4 o 5 días por semana." };
   if (!isDateKey(joinedAt)) return { data: null, error: "Ingresá una fecha de ingreso válida." };
   if (dueDate && !isDateKey(dueDate)) return { data: null, error: "Ingresá un próximo vencimiento válido." };
-  if (!(status === "activo" || status === "inactivo")) return { data: null, error: "Seleccioná un estado válido." };
+  if (!(status === "activo" || status === "inactivo" || status === "suspendido")) return { data: null, error: "Seleccioná un estado válido." };
   if (!serviceType) return { data: null, error: "Seleccioná un tipo de servicio válido." };
 
   const weight = input.weight === "" || input.weight === undefined ? 0 : Number(input.weight);
@@ -176,7 +176,8 @@ export function studentJsonData(input: ParsedStudentInput): Prisma.InputJsonObje
     monthlyFee: input.monthlyFee,
     joinedAt: input.joinedAt,
     dueDate: input.dueDate,
-    status: input.status,
+    status: input.status === "suspendido" ? "inactivo" : input.status,
+    lifecycleStatus: input.status,
     serviceType: input.serviceType,
     notes: input.notes,
     studentType: input.studentType,

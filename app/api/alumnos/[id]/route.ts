@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInput, serializeStudent, studentInclude, studentJsonData } from "@/lib/student-enrollment";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { recordStudentHistoryChange } from "@/lib/student-history";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
     const input = parsed.data;
     const normalizedPhone = normalizePhone(input.phone);
     const record = await prisma.$transaction(async (transaction) => {
-      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, data: true } });
+      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, data: true, serviceType: true } });
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
       if (normalizedPhone && await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
       const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
@@ -40,6 +41,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("Uno de los horarios seleccionados ya no existe.");
       if (schedules.some((schedule) => !schedule.active && !schedule.assignments.some((assignment) => assignment.active))) throw new EnrollmentError("No podés agregar un horario inactivo.");
       if (schedules.some((schedule) => !schedule.assignments.some((assignment) => assignment.active) && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
+      await recordStudentHistoryChange(transaction, id, current.data, current.serviceType, input);
       await transaction.studentRecord.update({
         where: { id },
         data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: { ...(current.data as Prisma.JsonObject), ...studentJsonData(input) } },

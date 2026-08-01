@@ -179,7 +179,11 @@ function StudentFormSections({ form, setForm, schedules }: { form: StudentFormVa
     }, []);
     if (!target)
         return null;
-    return createPortal(<section className="mt-5 border-t border-zinc-800 pt-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Secciones de la ficha</p><div className="grid grid-cols-2 gap-2 sm:flex"><EnrollmentDatesEditor form={form} setForm={setForm}/><ScheduleMultiPicker form={form} setForm={setForm} schedules={schedules}/></div></section>, target);
+    return createPortal(<section className="mt-5 border-t border-zinc-800 pt-4"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Secciones de la ficha</p><div className="grid grid-cols-2 gap-2 sm:flex"><EnrollmentDatesEditor form={form} setForm={setForm}/><StudentStatusEditor form={form} setForm={setForm}/><ScheduleMultiPicker form={form} setForm={setForm} schedules={schedules}/></div></section>, target);
+}
+
+function StudentStatusEditor({ form, setForm }: { form: StudentFormValue; setForm: (form: StudentFormValue) => void }) {
+    return <label className="text-xs text-zinc-500">Estado histórico<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as StudentStatus })} className={`${inputClass} mt-1`}><option value="activo">Activo</option><option value="suspendido">Suspendido</option><option value="inactivo">Baja</option></select></label>;
 }
 
 function EnrollmentDatesEditor({ form, setForm }: { form: StudentFormValue; setForm: (form: StudentFormValue) => void }) {

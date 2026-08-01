@@ -12,6 +12,7 @@ const links = [
   ["Rutinas", "/rutinas", "routine"],
   ["Evaluaciones", "/evaluaciones", "chart"],
   ["Pagos", "/pagos", "wallet"],
+  ["Resumen mensual", "/resumen-mensual", "monthly"],
   ["Configuración", "/configuracion", "settings"],
 ] as const;
 
@@ -92,6 +93,7 @@ function NavIcon({ name }: { name: string }) {
     routine: <path d="M7 8v8M17 8v8M4 10v4M20 10v4M7 12h10" />,
     chart: <path d="M4 19V5M4 19h16M7 16l4-5 3 2 5-7" />,
     wallet: <path d="M4 6.5h14a2 2 0 0 1 2 2V18H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12M15 11h5v4h-5a2 2 0 0 1 0-4Z" />,
+    monthly: <><path d="M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2ZM7 2v4M17 2v4M3 9h18" /><path d="M7 13h4M7 16h7M16 13h2" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
     logout: <path d="M10 5H6.8A1.8 1.8 0 0 0 5 6.8v10.4A1.8 1.8 0 0 0 6.8 19H10M14 8l4 4-4 4M9 12h9" />,
   };

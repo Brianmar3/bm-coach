@@ -218,7 +218,7 @@ export default function PagosPage() {
   }
 
   const summary = data.summary;
-  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." action={<button onClick={() => begin()} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">+ Agregar pago</button>}>
+  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." action={<div className="flex flex-wrap gap-2"><Link href="/resumen-mensual" className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm font-bold text-yellow-300">Resumen mensual</Link><button onClick={() => begin()} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">+ Agregar pago</button></div>}>
     {(error || notice) && !form && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
 
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
