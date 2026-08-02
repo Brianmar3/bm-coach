@@ -4,6 +4,7 @@ import test from "node:test";
 import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName, workoutAreaFromText } from "../lib/workout-presentation.ts";
 
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
+const finalModal = source.slice(source.indexOf("{finalOpen &&"), source.indexOf("function WorkoutHistoryView"));
 
 test("el tren inferior usa un icono claro y conserva el fallback general", () => {
   assert.match(source, /data-area-icon="lower"/);
@@ -85,11 +86,36 @@ test("la tabla compacta conserva Kg, Reps, esfuerzo, valores y checkbox accesibl
   assert.match(source, /Serie \$\{set\.setNumber\} completada/);
 });
 
-test("técnica y video aparecen únicamente cuando existe contenido", () => {
-  assert.match(source, /programmed\?\.observations \|\| programmed\?\.videoUrl/);
+test("las instrucciones estructurales quedan visibles y no se duplican en técnica", () => {
+  assert.match(source, /separateWorkoutInstructions\(programmed\?\.observations\)/);
+  assert.match(source, /data-structural-instructions/);
+  assert.match(source, /instructions\.structural\.map/);
+  assert.match(source, /instructions\.technicalText \|\| programmed\?\.videoUrl/);
   assert.match(source, /Ver técnica/);
+  assert.match(source, /instructions\.technicalText/);
   assert.match(source, /Abrir video técnico/);
+  assert.doesNotMatch(source, /programmed\.observations && <p/);
   assert.doesNotMatch(source, /autoPlay/);
+});
+
+test("el cierre nuevo pide solo sensación, duración y dolor cuando corresponde", () => {
+  assert.doesNotMatch(finalModal, /Rating label="Energía antes/);
+  assert.doesNotMatch(finalModal, /Rating label="Energía después/);
+  assert.doesNotMatch(finalModal, /Rating label="Dificultad percibida/);
+  assert.doesNotMatch(finalModal, /draft\.energyAfter === null/);
+  assert.doesNotMatch(finalModal, /draft\.difficulty === null/);
+  assert.match(finalModal, /Sensación general/);
+  assert.match(finalModal, /Duración calculada \(min\)/);
+  assert.match(finalModal, /checked=\{draft\.hasPain\}/);
+  assert.match(finalModal, /Comentario final \(opcional\)/);
+  assert.match(finalModal, /onClick=\{\(\) => save\(true\)\}/);
+});
+
+test("el historial conserva la lectura de energía y dificultad de sesiones anteriores", () => {
+  const history = source.slice(source.indexOf("function WorkoutHistoryView"));
+  assert.match(history, /session\.energyBefore/);
+  assert.match(history, /session\.difficulty/);
+  assert.match(history, /session\.energyAfter/);
 });
 
 test("las acciones mantienen handlers y aparecen después de los ejercicios", () => {

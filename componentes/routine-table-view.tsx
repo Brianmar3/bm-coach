@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { routineSeriesMetrics } from "@/lib/routine-metrics";
 import type { TrainingExercise, TrainingRoutine } from "@/types/gestion";
 
 type RoutineTableViewProps = {
@@ -33,6 +34,7 @@ export function RoutineTableView({
 }: RoutineTableViewProps) {
   const firstDay = routine.days[0]?.id ?? "";
   const [openDayId, setOpenDayId] = useState(firstDay);
+  const metrics = useMemo(() => routineSeriesMetrics(routine), [routine]);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-2 backdrop-blur-sm sm:p-5">
@@ -83,6 +85,28 @@ export function RoutineTableView({
         </header>
 
         <div className="space-y-4 p-3 sm:p-5">
+          <section aria-label="Resumen de la rutina" className="rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-yellow-400/[.055] to-zinc-950 p-4 sm:p-5">
+            <div className="grid grid-cols-3 gap-2">
+              <RoutineMetric label="Series totales" value={metrics.totalSeries} />
+              <RoutineMetric label="Días" value={metrics.totalDays} />
+              <RoutineMetric label="Ejercicios" value={metrics.totalExercises} />
+            </div>
+            <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.14em] text-yellow-300">Distribución semanal</p>
+                    <p className="mt-1 text-xs text-zinc-500">Series configuradas por grupo muscular.</p>
+                  </div>
+                </div>
+                {metrics.weeklyDistribution.length ? <div className="mt-4 space-y-3">{metrics.weeklyDistribution.map((item) => <div key={item.muscleGroup}><div className="mb-1.5 flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-zinc-200">{item.muscleGroup}</span><span className="shrink-0 text-zinc-400">{item.series} series · {Math.round(item.percentage)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${item.percentage}%` }} /></div></div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">No hay series configuradas.</p>}
+              </div>
+              <details className="self-start rounded-xl border border-zinc-800 bg-black/30">
+                <summary className="cursor-pointer list-none px-3 py-3 text-sm font-bold text-yellow-300">Ver desglose por día</summary>
+                <div className="divide-y divide-zinc-800 border-t border-zinc-800">{metrics.perDay.map((day) => <div key={day.id} className="px-3 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">Día {day.dayNumber} · {day.name}</p><p className="mt-1 text-xs text-zinc-500">{day.totalExercises} ejercicios</p></div><span className="shrink-0 rounded-lg bg-yellow-400/10 px-2 py-1 text-xs font-bold text-yellow-300">{day.totalSeries} series</span></div>{day.distribution.length > 0 && <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">{day.distribution.map((item) => `${item.muscleGroup}: ${item.series}`).join(" · ")}</p>}</div>)}</div>
+              </details>
+            </div>
+          </section>
           {routine.days.map((day) => {
             const open = openDayId === day.id;
             return (
@@ -225,4 +249,8 @@ export function RoutineTableView({
       </section>
     </div>
   );
+}
+
+function RoutineMetric({ label: title, value }: { label: string; value: number }) {
+  return <div className="rounded-xl border border-zinc-800 bg-black/35 px-2 py-3 text-center sm:px-4"><p className="text-[10px] leading-tight text-zinc-500">{title}</p><p className="mt-1 text-xl font-black text-yellow-300 sm:text-2xl">{value}</p></div>;
 }
