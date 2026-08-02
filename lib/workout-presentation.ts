@@ -30,3 +30,18 @@ export function initialOpenExerciseId(exercises: WorkoutExerciseProgress[]) {
     ?? null;
 }
 
+export type WorkoutArea = "lower" | "chest" | "back" | "shoulders" | "arms" | "core" | "general";
+
+export function workoutAreaFromText(value: string): WorkoutArea {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es");
+  if (/glute|pierna|cuadriceps|femoral|isqui|pantorrilla|tren inferior/.test(normalized)) return "lower";
+  if (/pecho|pectoral/.test(normalized)) return "chest";
+  if (/espalda|dorsal|lumbar/.test(normalized)) return "back";
+  if (/hombro|deltoid/.test(normalized)) return "shoulders";
+  if (/brazo|biceps|triceps|antebrazo/.test(normalized)) return "arms";
+  if (/core|abdomen|abdominal/.test(normalized)) return "core";
+  return "general";
+}

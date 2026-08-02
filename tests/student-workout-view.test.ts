@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName } from "../lib/workout-presentation.ts";
+import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName, workoutAreaFromText } from "../lib/workout-presentation.ts";
 
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 
@@ -11,7 +11,7 @@ test("el encabezado limpia copias y evita repetir el nombre del día", () => {
   assert.equal(usefulDayName(1, "Día 1"), "");
   assert.equal(usefulDayName(1, "Glúteos"), "Glúteos");
   assert.match(source, /routineDisplayName/);
-  assert.match(source, /Día \{selectedDay\.dayNumber\}/);
+  assert.doesNotMatch(source, /<h1[^>]*>Día \{selectedDay\.dayNumber\}/);
 });
 
 test("el selector horizontal funciona con cualquier cantidad de días", () => {
@@ -26,6 +26,17 @@ test("el resumen usa ejercicios reales, duración, estado y progreso", () => {
   assert.match(source, /conic-gradient\(#facc15/);
   assert.match(source, /completados<\/small>/);
   assert.match(source, /min duración/);
+});
+
+test("el hero elige un contexto visual según la zona muscular", () => {
+  assert.equal(workoutAreaFromText("Glúteos y cuádriceps"), "lower");
+  assert.equal(workoutAreaFromText("Pecho"), "chest");
+  assert.equal(workoutAreaFromText("Espalda y dorsales"), "back");
+  assert.equal(workoutAreaFromText("Hombros"), "shoulders");
+  assert.equal(workoutAreaFromText("Bíceps y tríceps"), "arms");
+  assert.equal(workoutAreaFromText("Core abdominal"), "core");
+  assert.equal(workoutAreaFromText("Movilidad general"), "general");
+  assert.match(source, /<WorkoutAreaIcon area=\{workoutArea\}/);
 });
 
 test("abre el primer ejercicio incompleto y mantiene un único acordeón controlado", () => {
@@ -60,12 +71,12 @@ test("técnica y video aparecen únicamente cuando existe contenido", () => {
   assert.doesNotMatch(source, /autoPlay/);
 });
 
-test("las acciones mantienen handlers, estados de carga y separación móvil", () => {
+test("las acciones mantienen handlers y aparecen después de los ejercicios", () => {
   assert.match(source, /onClick=\{\(\) => save\(false\)\}/);
   assert.match(source, /onClick=\{openFinalSummary\}/);
   assert.match(source, /disabled=\{saving \|\| !started\}/);
-  assert.match(source, /bottom-\[calc\(env\(safe-area-inset-bottom\)\+6rem\)\]/);
-  assert.match(source, /pb-20 md:pb-0/);
+  assert.doesNotMatch(source, /fixed inset-x-3 bottom-/);
+  assert.match(source, /mt-5 grid grid-cols-2/);
   assert.match(source, /max-\[340px\]:grid-cols-1/);
 });
 
