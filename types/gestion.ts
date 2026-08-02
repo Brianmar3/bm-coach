@@ -21,6 +21,7 @@ export type Student = {
   height: number;
   goal: string;
   plan: string;
+  planId?: string;
   monthlyFee: number;
   joinedAt: string;
   dueDate: string;
@@ -41,10 +42,18 @@ export type Student = {
 };
 
 export type StudentPlanOption = {
-  days: 2 | 3 | 4 | 5;
+  id: string;
+  /** Alias estable conservado para la clave del selector existente. */
+  days: string;
   name: string;
   price: number;
-  configured: boolean;
+  configured: true;
+};
+
+export type CoachPlan = {
+  id?: string;
+  name: string;
+  price: number;
 };
 
 export type WeeklyClassDay = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY";
@@ -129,7 +138,7 @@ export type CoachSettings = {
   currency: string;
   dueDay: number;
   paymentMethods: string[];
-  plans: { name: string; price: number }[];
+  plans: CoachPlan[];
   primaryColor: string;
   accentColor: string;
   compactMode: boolean;

@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { useBrowserStore } from "@/lib/browser-store";
+import { planId, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings } from "@/types/gestion";
 
 const defaults: CoachSettings = {
@@ -18,10 +19,10 @@ const defaults: CoachSettings = {
   dueDay: 10,
   paymentMethods: ["Transferencia", "Efectivo"],
   plans: [
-    { name: "2 días por semana", price: 0 },
-    { name: "3 días por semana", price: 0 },
-    { name: "4 días por semana", price: 0 },
-    { name: "5 días por semana", price: 0 },
+    { id: "default-plan-2", name: "2 días por semana", price: 0 },
+    { id: "default-plan-3", name: "3 días por semana", price: 0 },
+    { id: "default-plan-4", name: "4 días por semana", price: 0 },
+    { id: "default-plan-5", name: "5 días por semana", price: 0 },
   ],
   primaryColor: "#000000",
   accentColor: "#facc15",
@@ -35,6 +36,9 @@ export default function ConfiguracionPage() {
   );
   const [settings, setSettings] = useState<CoachSettings | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [methodKeys, setMethodKeys] = useState(() => Array.from({ length: 64 }, () => crypto.randomUUID()));
   const stored = items[0];
   const value =
     settings ??
@@ -42,30 +46,46 @@ export default function ConfiguracionPage() {
       ? {
           ...stored,
           id: stored.id ?? "main",
-          plans: stored.plans.length ? stored.plans : defaults.plans,
+          plans: stored.plans.length ? stored.plans.map((plan, index) => ({ ...plan, id: planId(plan, index) })) : defaults.plans,
         }
       : defaults);
-
   function update<K extends keyof CoachSettings>(
     key: K,
     next: CoachSettings[K],
   ) {
     setSettings({ ...value, [key]: next });
     setSaved(false);
+    setError("");
   }
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    save([value]);
-    setSettings(value);
-    setSaved(true);
+    const validationError = validateCoachPlans(value.plans) ?? validatePaymentMethods(value.paymentMethods);
+    if (validationError) {
+      setError(validationError);
+      setSaved(false);
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await save([value]);
+      setSettings(value);
+      setSaved(true);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "No se pudieron guardar los cambios.");
+      setSaved(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function addPlan() {
-    update("plans", [...value.plans, { name: "Nuevo plan", price: 0 }]);
+    update("plans", [...value.plans, { id: crypto.randomUUID(), name: "Nuevo plan", price: 0 }]);
   }
 
   function addMethod() {
+    setMethodKeys((current) => current.map((key, index) => index === value.paymentMethods.length ? crypto.randomUUID() : key));
     update("paymentMethods", [...value.paymentMethods, "Nuevo método"]);
   }
 
@@ -76,9 +96,10 @@ export default function ConfiguracionPage() {
       action={
         <button
           form="settings-form"
+          disabled={saving}
           className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950"
         >
-          Guardar cambios
+          {saving ? "Guardando…" : "Guardar cambios"}
         </button>
       }
     >
@@ -88,6 +109,7 @@ export default function ConfiguracionPage() {
             Configuración guardada correctamente.
           </p>
         )}
+        {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
 
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
           <h2 className="font-semibold">Datos del sistema</h2>
@@ -159,7 +181,7 @@ export default function ConfiguracionPage() {
               <p className="text-sm">Métodos de pago disponibles</p>
               <div className="mt-2 space-y-2">
                 {value.paymentMethods.map((method, index) => (
-                  <div key={`${method}-${index}`} className="flex gap-2">
+                  <div key={methodKeys[index] ?? `pending-method-${index}`} className="flex gap-2">
                     <input
                       value={method}
                       onChange={(event) =>
@@ -174,14 +196,15 @@ export default function ConfiguracionPage() {
                     />
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        setMethodKeys((current) => current.filter((_, currentIndex) => currentIndex !== index));
                         update(
                           "paymentMethods",
                           value.paymentMethods.filter(
                             (_, currentIndex) => currentIndex !== index,
                           ),
-                        )
-                      }
+                        );
+                      }}
                       className="text-red-300"
                     >
                       Quitar
@@ -203,7 +226,7 @@ export default function ConfiguracionPage() {
             <div className="mt-2 space-y-2">
               {value.plans.map((plan, index) => (
                 <div
-                  key={`${plan.name}-${index}`}
+                  key={planId(plan, index)}
                   className="grid gap-2 sm:grid-cols-[1fr_180px_auto]"
                 >
                   <input

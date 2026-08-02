@@ -6,8 +6,8 @@ import { isDateKey } from "@/lib/payment-dates";
 import { isStudentType } from "@/types/gestion";
 import type { CoachSettings, Student, StudentPlanOption, StudentStatus, StudentType } from "@/types/gestion";
 import { isStudentServiceType } from "@/lib/student-service";
+import { studentPlanOptions } from "@/lib/coach-plans";
 
-const PLAN_DAYS = [2, 3, 4, 5] as const;
 const DAY_LABELS = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" } as const;
 
 export const studentInclude = {
@@ -46,19 +46,9 @@ export function weeklyScheduleLabel(schedule: { dayOfWeek: keyof typeof DAY_LABE
 }
 
 export async function getStudentPlanOptions(): Promise<StudentPlanOption[]> {
-  const [settingsRecord, studentRecords] = await Promise.all([
-    prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" }, select: { data: true } }),
-    prisma.studentRecord.findMany({ orderBy: { updatedAt: "desc" }, select: { data: true } }),
-  ]);
+  const settingsRecord = await prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" }, select: { data: true } });
   const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
-  return PLAN_DAYS.map((days) => {
-    const configuredPlan = settings?.plans?.find((item) => planDays(item.name) === days && Number.isFinite(item.price) && item.price >= 0);
-    const existingStudent = studentRecords
-      .map((record) => record.data as unknown as Student)
-      .find((student) => planDays(student.plan ?? "") === days && Number.isFinite(student.monthlyFee) && student.monthlyFee > 0);
-    const price = configuredPlan?.price ?? existingStudent?.monthlyFee ?? 0;
-    return { days, name: `${days} días por semana`, price, configured: Boolean(configuredPlan || existingStudent) };
-  });
+  return studentPlanOptions(settings);
 }
 
 export function serializeStudent(record: StudentWithSchedule): Student {
@@ -73,6 +63,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     height: Number(stored.height ?? 0),
     goal: stored.goal ?? "",
     plan: stored.plan ?? "",
+    planId: typeof stored.planId === "string" ? stored.planId : "",
     monthlyFee: Number(stored.monthlyFee ?? 0),
     joinedAt: stored.joinedAt ?? "",
     dueDate: stored.dueDate ?? "",
@@ -114,13 +105,15 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const flexibleSchedule = typeof input.flexibleSchedule === "string" ? input.flexibleSchedule.trim().slice(0, 80) : "";
   const status = input.status as StudentStatus;
   const serviceType = isStudentServiceType(input.serviceType) ? input.serviceType : null;
-  const requestedDays = typeof input.planDays === "number" ? input.planDays : planDays(typeof input.plan === "string" ? input.plan : "");
-  const selectedPlan = plans.find((plan) => plan.days === requestedDays);
+  const requestedPlanId = typeof input.planId === "string" ? input.planId : "";
+  const requestedPlanName = typeof input.plan === "string" ? input.plan.trim() : "";
+  const selectedPlan = plans.find((plan) => plan.id === requestedPlanId)
+    ?? plans.find((plan) => plan.name === requestedPlanName);
 
   if (!firstName || !lastName) return { data: null, error: "Ingresá nombre y apellido." };
   if (studentType === "Adulto" && (!phone || normalizePhone(phone).length < 6)) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (studentType === "Kids" && phone && normalizePhone(phone).length < 6) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
-  if (!selectedPlan) return { data: null, error: "Seleccioná un plan mensual de 2, 3, 4 o 5 días por semana." };
+  if (!selectedPlan) return { data: null, error: "Seleccioná uno de los planes mensuales configurados." };
   if (!isDateKey(joinedAt)) return { data: null, error: "Ingresá una fecha de ingreso válida." };
   if (dueDate && !isDateKey(dueDate)) return { data: null, error: "Ingresá un próximo vencimiento válido." };
   if (!(status === "activo" || status === "inactivo" || status === "suspendido")) return { data: null, error: "Seleccioná un estado válido." };
@@ -144,6 +137,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       height,
       goal: typeof input.goal === "string" ? input.goal.trim() : "",
       plan: selectedPlan.name,
+      planId: selectedPlan.id,
       monthlyFee: selectedPlan.price,
       joinedAt,
       dueDate,
@@ -173,6 +167,7 @@ export function studentJsonData(input: ParsedStudentInput): Prisma.InputJsonObje
     height: input.height,
     goal: input.goal,
     plan: input.plan,
+    planId: input.planId ?? "",
     monthlyFee: input.monthlyFee,
     joinedAt: input.joinedAt,
     dueDate: input.dueDate,
