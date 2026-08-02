@@ -12,11 +12,10 @@ import {
 import type { Student } from "@/types/gestion";
 import { hasGroupClasses } from "@/lib/student-service";
 import {
-  occurrenceBelongsToStudent,
+  classIsEligibleForStudent,
   PORTAL_CLASS_SEARCH_DAYS,
   selectActivePortalSchedules,
-  selectRelevantClassDay,
-  selectUpcomingClassWindow,
+  selectPortalClassAgenda,
   studentClassAvailability,
 } from "@/lib/portal-class-schedule";
 
@@ -32,6 +31,8 @@ const occurrenceInclude = (studentId: string) => ({
 function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ include: ReturnType<typeof occurrenceInclude> }>) {
   const started = occurrenceHasStarted(occurrence.date, occurrence.startTime);
   const ended = occurrenceHasEnded(occurrence.date, occurrence.endTime);
+  const response = occurrence.responses[0]?.response ?? null;
+  const full = occurrence.capacityOverride !== null && occurrence._count.responses >= occurrence.capacityOverride;
   return {
     id: occurrence.id,
     scheduleId: occurrence.scheduleId,
@@ -41,11 +42,11 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
     name: occurrenceClassName(occurrence),
     category: occurrenceClassName(occurrence),
     status: occurrence.status,
-    statusLabel: occurrenceStatusLabel(occurrence.status, started, ended),
+    statusLabel: full && response !== "GOING" ? "Cupo completo" : occurrenceStatusLabel(occurrence.status, started, ended),
     capacity: occurrence.capacityOverride,
     confirmedCount: occurrence._count.responses,
-    response: occurrence.responses[0]?.response ?? null,
-    canRespond: occurrence.status === "SCHEDULED" && !started,
+    response,
+    canRespond: occurrence.status === "SCHEDULED" && !started && (!full || response === "GOING"),
     strengthAvailable: false,
     strengthBlock: null,
     workoutLog: null,
@@ -67,43 +68,34 @@ export async function GET() {
     const scheduleLabels = schedules.map((item) => `${weeklyScheduleLabel(item.schedule)} · Vigente`);
     const availability = studentClassAvailability(student.status, student.lifecycleStatus);
     if (!availability.eligible) {
-      const focus = selectRelevantClassDay([]);
+      const agenda = selectPortalClassAgenda([], student.studentType);
       return Response.json({
         availability,
         scheduleLabels,
         flexibleSchedule: student.flexibleSchedule ?? "",
         occurrences: [],
-        focus: { ...focus, subtitle: availability.message ?? focus.subtitle },
-        upcoming: selectUpcomingClassWindow([]),
+        focus: { ...agenda.focus, subtitle: availability.message ?? agenda.focus.subtitle },
+        upcoming: agenda.upcoming,
       });
     }
     const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS);
-    const assignedScheduleIds = new Set(schedules.map((item) => item.scheduleId));
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
         date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) },
         status: { not: "CANCELLED" },
-        OR: [
-          { scheduleId: { in: [...assignedScheduleIds] } },
-          { responses: { some: { studentId: session.studentId } } },
-        ],
+        schedule: { active: true },
       },
       include: occurrenceInclude(session.studentId),
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     });
-    const explicitOccurrenceIds = new Set(
-      occurrences.filter((item) => item.responses.length > 0).map((item) => item.id),
-    );
-    const serialized = occurrences
-      .filter((item) => occurrenceBelongsToStudent(item, assignedScheduleIds, explicitOccurrenceIds))
-      .map(serializeOccurrence);
+    const agenda = selectPortalClassAgenda(occurrences.map(serializeOccurrence), student.studentType);
     return Response.json({
       availability,
       scheduleLabels,
       flexibleSchedule: student.flexibleSchedule ?? "",
-      occurrences: serialized,
-      focus: selectRelevantClassDay(serialized),
-      upcoming: selectUpcomingClassWindow(serialized),
+      occurrences: agenda.occurrences,
+      focus: agenda.focus,
+      upcoming: agenda.upcoming,
     });
   } catch (error) {
     console.error("No se pudieron cargar las clases del portal", error);
@@ -132,7 +124,7 @@ export async function POST(request: Request) {
           schedule: {
             select: {
               classType: true,
-              assignments: { where: { studentId: session.studentId, active: true }, select: { studentId: true } },
+              active: true,
             },
           },
           _count: { select: { responses: { where: { response: "GOING" } } } },
@@ -140,7 +132,7 @@ export async function POST(request: Request) {
         },
       });
       if (!occurrence) throw new Error("NOT_FOUND");
-      if (!occurrence.responses.length && !occurrence.schedule?.assignments.length) throw new Error("NOT_FOUND");
+      if (!occurrence.schedule?.active || !classIsEligibleForStudent(occurrence.schedule.classType, student.studentType)) throw new Error("NOT_FOUND");
       if (occurrence.status !== "SCHEDULED" || occurrenceHasStarted(occurrence.date, occurrence.startTime)) throw new Error("CLOSED");
       const previousResponse = occurrence.responses[0]?.response ?? null;
       const alreadyGoing = previousResponse === "GOING";

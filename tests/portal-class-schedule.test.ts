@@ -4,9 +4,10 @@ import test from "node:test";
 import {
   argentinaLocalClock,
   classHasEnded,
+  classIsEligibleForStudent,
   classIsInProgress,
-  occurrenceBelongsToStudent,
   selectActivePortalSchedules,
+  selectPortalClassAgenda,
   selectRelevantClassDay,
   selectUpcomingClassWindow,
   studentClassAvailability,
@@ -130,13 +131,42 @@ test("ignora una clase cancelada y busca la siguiente válida", () => {
   assert.deepEqual(result.occurrenceIds, ["valid"]);
 });
 
-test("solo acepta disciplinas y ocurrencias asignadas o explícitas al alumno", () => {
-  const assigned = new Set(["functional-schedule"]);
-  const explicit = new Set(["explicit-gap"]);
-  assert.equal(occurrenceBelongsToStudent(occurrence("functional", "2026-08-04", "07:00", "08:00", "SCHEDULED", "functional-schedule"), assigned, explicit), true);
-  assert.equal(occurrenceBelongsToStudent(occurrence("gap", "2026-08-04", "08:00", "09:00", "SCHEDULED", "gap-schedule"), assigned, explicit), false);
-  assert.equal(occurrenceBelongsToStudent(occurrence("kids", "2026-08-04", "09:00", "10:00", "SCHEDULED", "kids-schedule"), assigned, explicit), false);
-  assert.equal(occurrenceBelongsToStudent(occurrence("explicit-gap", "2026-08-04", "10:00", "11:00", "SCHEDULED", "gap-schedule"), assigned, explicit), true);
+test("la agenda general separa clases de adultos y Kids sin depender de asignaciones", () => {
+  const classes = [
+    { ...occurrence("functional", "2026-08-04", "07:00", "08:00"), category: "Entrenamiento funcional" },
+    { ...occurrence("gap", "2026-08-04", "08:00", "09:00"), category: "GAP" },
+    { ...occurrence("kids", "2026-08-04", "09:00", "10:00"), category: "Funcional Kids" },
+  ];
+  const now = new Date("2026-08-04T01:00:00.000Z");
+  const adultAgenda = selectPortalClassAgenda(classes, "Adulto", now);
+  const kidsAgenda = selectPortalClassAgenda(classes, "Kids", now);
+
+  assert.deepEqual(adultAgenda.occurrences.map((item) => item.id), ["functional", "gap"]);
+  assert.deepEqual(adultAgenda.focus.occurrenceIds, ["functional", "gap"]);
+  assert.deepEqual(kidsAgenda.occurrences.map((item) => item.id), ["kids"]);
+  assert.equal(classIsEligibleForStudent("Funcional Kids", "Adulto"), false);
+  assert.equal(classIsEligibleForStudent("Entrenamiento funcional", "Kids"), false);
+});
+
+test("los horarios fijos y la agenda general conservan fuentes independientes", () => {
+  const fixedGap = selectActivePortalSchedules([
+    {
+      ...assignment("fixed-gap", "MONDAY", "17:00"),
+      schedule: {
+        ...assignment("fixed-gap", "MONDAY", "17:00").schedule,
+        classType: "GAP",
+      },
+    },
+  ]);
+  const agenda = selectPortalClassAgenda([
+    { ...occurrence("functional", "2026-08-03", "18:00", "19:00"), category: "Entrenamiento funcional" },
+    { ...occurrence("gap", "2026-08-03", "20:00", "21:00"), category: "GAP" },
+  ], "Adulto", new Date("2026-08-03T19:00:00.000Z"));
+
+  assert.deepEqual(fixedGap.map((item) => item.schedule.classType), ["GAP"]);
+  assert.deepEqual(agenda.focus.occurrenceIds, ["functional", "gap"]);
+  assert.deepEqual(selectActivePortalSchedules([]), []);
+  assert.deepEqual(agenda.occurrences.map((item) => item.id), ["functional", "gap"]);
 });
 
 test("alumno inactivo o suspendido no tiene clases disponibles", () => {
@@ -154,17 +184,19 @@ test("devuelve estado vacío cuando no hay próximas clases dentro del rango", (
   assert.equal(result.subtitle, "No encontramos próximas clases asignadas. Consultá con tu entrenador.");
 });
 
-test("la API deriva el alumno desde sesión y no acepta studentId del navegador", () => {
+test("la API deriva el alumno desde sesión y consulta la agenda general activa", () => {
   const source = readFileSync(new URL("../app/api/portal/clases/route.ts", import.meta.url), "utf8");
   assert.match(source, /session\.studentId/);
   assert.doesNotMatch(source, /input\.studentId/);
-  assert.match(source, /scheduleId: \{ in: \[\.\.\.assignedScheduleIds\] \}/);
+  assert.match(source, /schedule: \{ active: true \}/);
+  assert.doesNotMatch(source, /assignedScheduleIds/);
+  assert.doesNotMatch(source, /occurrenceBelongsToStudent/);
 });
 
-test("la API materializa recurrencias y devuelve una unica ventana calculada en servidor", () => {
+test("la API materializa recurrencias y devuelve una única agenda elegible calculada en servidor", () => {
   const source = readFileSync(new URL("../app/api/portal/clases/route.ts", import.meta.url), "utf8");
   assert.ok(source.indexOf("ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS)") < source.indexOf("prisma.classOccurrence.findMany"));
-  assert.match(source, /upcoming: selectUpcomingClassWindow\(serialized\)/);
+  assert.match(source, /selectPortalClassAgenda\(occurrences\.map\(serializeOccurrence\), student\.studentType\)/);
   assert.match(source, /selectActivePortalSchedules\(assignments\)/);
   assert.match(source, /status: \{ not: "CANCELLED" \}/);
 });
@@ -173,16 +205,17 @@ test("la vista consume la ventana del servidor y muestra un unico estado vacio",
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
   assert.match(source, /data\?\.upcoming\.occurrenceIds/);
   assert.doesNotMatch(source, /const weekStart =/);
-  assert.equal(source.match(/No tenés clases asignadas para los próximos 7 días\./g)?.length, 1);
+  assert.equal(source.match(/No hay clases disponibles durante los próximos 7 días\./g)?.length, 1);
   assert.match(source, /data\.availability\.message/);
 });
 
 test("la vista de clases usa jerarquia premium y selector segmentado", () => {
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
-  for (const text of ["Agenda presencial", "Tus próximas clases", "Consultá tus horarios y confirmá tu asistencia.", "Próximo día", "Próximos 7 días"]) {
+  for (const text of ["Agenda presencial", "Tus próximas clases", "Consultá tus horarios y confirmá tu asistencia.", "Clases de hoy", "Próximos 7 días"]) {
     assert.match(source, new RegExp(text));
   }
   assert.match(source, /aria-label="Vista de clases"/);
+  assert.match(source, /focusSectionLabel\(data\)/);
   assert.match(source, /aria-pressed=\{!showWeek\}/);
   assert.match(source, /onClick=\{\(\) => setShowWeek\(false\)\}/);
   assert.match(source, /onClick=\{\(\) => setShowWeek\(true\)\}/);
@@ -196,22 +229,37 @@ test("las disciplinas mantienen iconos claros sin inventar ubicacion", () => {
   assert.doesNotMatch(source, /ubicaci[oó]n/i);
 });
 
-test("horarios semanales y registros conservan acceso y presentacion movil", () => {
+test("horarios semanales y registros conservan acceso y presentación móvil compacta", () => {
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
   assert.match(source, /Mis horarios semanales/);
-  assert.match(source, /Ver semana completa/);
+  assert.match(source, /Ver semana/);
   assert.match(source, /data\.scheduleLabels/);
   assert.match(source, /href="\/portal\/registro"/);
   assert.match(source, /Ver mis registros/);
   assert.match(source, /grid-cols-2/);
   assert.match(source, /min-w-0/);
+  assert.match(source, /min-h-12/);
+  assert.match(source, /rounded-2xl/);
   assert.doesNotMatch(source, /overflow-x-auto/);
 });
 
-test("confirmar asistencia conserva endpoint payload y handlers", () => {
+test("confirmar asistencia conserva endpoint, payload y protección de doble toque", () => {
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
   assert.match(source, /fetch\("\/api\/portal\/clases"/);
   assert.match(source, /body: JSON\.stringify\(\{ occurrenceId: item\.id, response: value \}\)/);
   assert.match(source, /onClick=\{\(\) => respond\(item, "GOING"\)\}/);
   assert.match(source, /onClick=\{\(\) => respond\(item, "NOT_GOING"\)\}/);
+  assert.match(source, /if \(responseInFlight\.current\) return/);
+  assert.match(source, /responseInFlight\.current = true/);
+  assert.match(source, /responseInFlight\.current = false/);
+  assert.equal(source.match(/disabled=\{saving\}/g)?.length, 2);
+});
+
+test("la confirmación del servidor admite clases generales elegibles y conserva cupo atómico", () => {
+  const source = readFileSync(new URL("../app/api/portal/clases/route.ts", import.meta.url), "utf8");
+  assert.match(source, /prisma\.\$transaction/);
+  assert.match(source, /classIsEligibleForStudent\(occurrence\.schedule\.classType, student\.studentType\)/);
+  assert.match(source, /occurrence\._count\.responses >= occurrence\.capacityOverride/);
+  assert.match(source, /classOccurrenceAttendance\.upsert/);
+  assert.doesNotMatch(source, /occurrence\.schedule\?\.assignments\.length/);
 });

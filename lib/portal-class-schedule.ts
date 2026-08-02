@@ -11,6 +11,10 @@ export type PortalClassCandidate = {
   status: "SCHEDULED" | "CANCELLED" | "COMPLETED";
 };
 
+export type PortalAgendaCandidate = PortalClassCandidate & {
+  category: string;
+};
+
 export type ArgentinaClock = { date: string; time: string };
 
 export type RelevantClassDay = {
@@ -38,6 +42,12 @@ export type UpcomingClassWindow = {
   from: string;
   to: string;
   occurrenceIds: string[];
+};
+
+export type PortalClassAgenda<T extends PortalAgendaCandidate> = {
+  occurrences: T[];
+  focus: RelevantClassDay;
+  upcoming: UpcomingClassWindow;
 };
 
 export type StudentClassAvailability = {
@@ -96,12 +106,9 @@ export function classIsInProgress(item: Pick<PortalClassCandidate, "date" | "sta
     && item.endTime.slice(0, 5) > clock.time.slice(0, 5);
 }
 
-export function occurrenceBelongsToStudent(
-  item: Pick<PortalClassCandidate, "id" | "scheduleId">,
-  assignedScheduleIds: ReadonlySet<string>,
-  explicitOccurrenceIds: ReadonlySet<string>,
-) {
-  return explicitOccurrenceIds.has(item.id) || Boolean(item.scheduleId && assignedScheduleIds.has(item.scheduleId));
+export function classIsEligibleForStudent(classType: string, studentType: string) {
+  const isKidsClass = classType.toLocaleLowerCase("es").includes("kids");
+  return studentType === "Kids" ? isKidsClass : !isKidsClass;
 }
 
 export function selectActivePortalSchedules<T extends PortalWeeklyScheduleCandidate>(assignments: T[]) {
@@ -147,6 +154,19 @@ export function selectUpcomingClassWindow(
     .sort((left, right) => left.date.localeCompare(right.date) || left.startTime.localeCompare(right.startTime))
     .map((item) => item.id);
   return { from: clock.date, to, occurrenceIds };
+}
+
+export function selectPortalClassAgenda<T extends PortalAgendaCandidate>(
+  occurrences: T[],
+  studentType: string,
+  now = new Date(),
+): PortalClassAgenda<T> {
+  const eligible = occurrences.filter((item) => classIsEligibleForStudent(item.category, studentType));
+  return {
+    occurrences: eligible,
+    focus: selectRelevantClassDay(eligible, now),
+    upcoming: selectUpcomingClassWindow(eligible, now),
+  };
 }
 
 function dateTitle(date: string, today: string) {

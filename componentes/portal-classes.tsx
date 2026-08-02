@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalClassOccurrence } from "@/types/classes";
 
 type ClassData = {
@@ -46,11 +46,15 @@ function disciplinePresentation(value: string, fallbackLabel = value) {
 }
 
 function focusDateHeading(data: ClassData) {
-  if (!data.focus.date) return "Próximo día";
+  if (!data.focus.date) return "Clases de hoy";
   const label = capitalize(dateLabel(data.focus.date));
   if (data.focus.title.toLocaleLowerCase("es").includes("mañana")) return `Mañana · ${label}`;
   if (data.focus.title.toLocaleLowerCase("es").includes("hoy")) return `Hoy · ${label}`;
   return label;
+}
+
+function focusSectionLabel(data: ClassData) {
+  return data.focus.title === "Clases de hoy" ? "Clases de hoy" : "Próximas clases";
 }
 
 function weeklyScheduleDisplay(label: string) {
@@ -77,6 +81,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState("");
+  const responseInFlight = useRef(false);
   const [showWeek, setShowWeek] = useState(false);
   const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
@@ -124,6 +129,8 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     item: PortalClassOccurrence,
     value: "GOING" | "NOT_GOING",
   ) {
+    if (responseInFlight.current) return;
+    responseInFlight.current = true;
     setSavingId(item.id);
     setError("");
     setNotice("");
@@ -146,6 +153,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         value instanceof Error ? value.message : "No se pudo guardar.",
       );
     } finally {
+      responseInFlight.current = false;
       setSavingId("");
     }
   }
@@ -232,24 +240,24 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     <div className="mx-auto w-full max-w-5xl pb-4">
       <header className="px-1">
         <p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Agenda presencial</p>
-        <h1 className="mt-2 text-[2rem] font-black leading-tight tracking-[-.035em] text-zinc-50 sm:text-4xl">Tus próximas clases</h1>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p>
+        <h1 className="mt-1.5 text-2xl font-black leading-tight tracking-[-.03em] text-zinc-50 sm:text-4xl">Tus próximas clases</h1>
+        <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p>
       </header>
 
-      <nav aria-label="Vista de clases" className="mt-6 grid grid-cols-2 gap-1 rounded-2xl border border-white/[.07] bg-zinc-950/80 p-1.5 shadow-[inset_0_1px_rgba(255,255,255,.03)]">
+      <nav aria-label="Vista de clases" className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-white/[.07] bg-zinc-950/80 p-1 shadow-[inset_0_1px_rgba(255,255,255,.03)]">
         <button
           type="button"
           aria-pressed={!showWeek}
           onClick={() => setShowWeek(false)}
-          className={`min-h-11 rounded-xl px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 ${!showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
+          className={`min-h-10 rounded-lg px-2 py-2 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:text-sm ${!showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
         >
-          Próximo día
+          Clases de hoy
         </button>
         <button
           type="button"
           aria-pressed={showWeek}
           onClick={() => setShowWeek(true)}
-          className={`min-h-11 rounded-xl px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 ${showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
+          className={`min-h-10 rounded-lg px-2 py-2 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:text-sm ${showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
         >
           Próximos 7 días
         </button>
@@ -258,27 +266,27 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
       <Feedback error={error} notice={notice} />
 
       {grouped.length === 0 ? (
-        <section className="mt-5 overflow-hidden rounded-3xl border border-white/[.07] bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#181818,#0b0b0b)] p-6 text-center shadow-[0_20px_60px_rgba(0,0,0,.28)]">
-          <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[.07] text-yellow-300"><CalendarIcon /></span>
-          <h2 className="mt-4 text-lg font-black text-zinc-100">Sin clases próximas</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-zinc-400">
-            {data.availability.message ?? (showWeek ? "No tenés clases asignadas para los próximos 7 días." : data.focus.subtitle)}
+        <section className="mt-4 overflow-hidden rounded-2xl border border-white/[.07] bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#181818,#0b0b0b)] p-4 text-center shadow-[0_16px_45px_rgba(0,0,0,.25)]">
+          <span className="mx-auto grid size-10 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.07] text-yellow-300"><CalendarIcon /></span>
+          <h2 className="mt-3 text-base font-black text-zinc-100">Sin clases próximas</h2>
+          <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-zinc-400">
+            {data.availability.message ?? "No hay clases disponibles durante los próximos 7 días."}
           </p>
         </section>
       ) : showWeek ? (
-        <section className="mt-5 rounded-3xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0b0b0b)] p-4 shadow-[0_20px_60px_rgba(0,0,0,.28)] sm:p-6">
-          <div className="flex items-center gap-3 border-b border-white/[.07] pb-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300"><CalendarIcon /></span>
+        <section className="mt-4 rounded-2xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0b0b0b)] p-3 shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl sm:p-6">
+          <div className="flex items-center gap-2.5 border-b border-white/[.07] pb-3 sm:gap-3 sm:pb-4">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300 sm:size-10"><CalendarIcon /></span>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Agenda completa</p>
-              <h2 className="mt-1 text-lg font-black text-zinc-100">Próximos 7 días</h2>
+              <h2 className="mt-0.5 text-base font-black text-zinc-100 sm:text-lg">Próximos 7 días</h2>
             </div>
           </div>
-          <div className="mt-5 space-y-6">
+          <div className="mt-3 space-y-4 sm:mt-5 sm:space-y-6">
             {grouped.map(([date, items]) => (
               <section key={date}>
-                <h3 className="mb-3 text-sm font-black capitalize text-zinc-200">{dateLabel(date)}</h3>
-                <div className="grid gap-3 md:grid-cols-2">
+                <h3 className="mb-2 text-xs font-black capitalize text-zinc-200 sm:mb-3 sm:text-sm">{dateLabel(date)}</h3>
+                <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
                   {items.map((item) => <ClassCard key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
                 </div>
               </section>
@@ -286,42 +294,38 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
           </div>
         </section>
       ) : (
-        <section id="clases-del-dia" className="mt-5 overflow-hidden rounded-3xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_22px_65px_rgba(0,0,0,.32)]">
-          <div className="flex items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-yellow-400/25 bg-yellow-400/[.09] text-yellow-300"><CalendarIcon /></span>
+        <section id="clases-del-dia" className="mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_18px_50px_rgba(0,0,0,.28)] sm:rounded-3xl">
+          <div className="flex items-center justify-between gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
+            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.09] text-yellow-300 sm:size-11 sm:rounded-2xl"><CalendarIcon /></span>
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Próximo entrenamiento</p>
-                <h2 className="mt-1 truncate text-base font-black text-zinc-100 sm:text-lg">{focusDateHeading(data)}</h2>
+                <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">{focusSectionLabel(data)}</p>
+                <h2 className="mt-0.5 truncate text-sm font-black text-zinc-100 sm:mt-1 sm:text-lg">{focusDateHeading(data)}</h2>
               </div>
             </div>
             <span className="shrink-0 rounded-full border border-yellow-400/20 bg-yellow-400/[.08] px-2.5 py-1 text-[10px] font-black text-yellow-300">
               {focusItems.length} {focusItems.length === 1 ? "clase" : "clases"}
             </span>
           </div>
-          <div className="grid gap-3 p-4 sm:p-6 md:grid-cols-2">
+          <div className="grid gap-2.5 p-3 sm:gap-3 sm:p-6 md:grid-cols-2">
             {focusItems.map((item) => <ClassCard key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
-          </div>
-          <div className="flex items-center justify-between gap-3 border-t border-white/[.06] bg-black/20 px-4 py-3 text-xs sm:px-6">
-            <span className="text-zinc-500">Todas las clases asignadas para este día</span>
-            <button type="button" onClick={() => setShowWeek(true)} className="shrink-0 font-black text-yellow-300 transition hover:text-yellow-200">Ver semana →</button>
           </div>
         </section>
       )}
 
-      <details className="group mt-5 overflow-hidden rounded-3xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0c0c0c)] shadow-[0_18px_45px_rgba(0,0,0,.22)]">
-        <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:px-6">
+      <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0c0c0c)] shadow-[0_14px_36px_rgba(0,0,0,.2)] sm:mt-5 sm:rounded-3xl">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2.5 px-3 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:min-h-16 sm:px-6 sm:py-4">
           <div className="min-w-0">
             <h2 className="font-black text-zinc-100">Mis horarios semanales</h2>
-            <p className="mt-1 text-xs text-zinc-500">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
+            <p className="mt-0.5 text-[11px] text-zinc-500 sm:mt-1 sm:text-xs">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
           </div>
-          <span className="flex shrink-0 items-center gap-2 text-xs font-black text-yellow-300">Ver semana completa <span aria-hidden="true" className="text-lg transition group-open:rotate-90">›</span></span>
+          <span className="flex shrink-0 items-center gap-1 text-[11px] font-black text-yellow-300 sm:gap-2 sm:text-xs">Ver semana <span aria-hidden="true" className="text-lg transition group-open:rotate-90">›</span></span>
         </summary>
-        <div className="border-t border-white/[.07] px-4 py-2 sm:px-6">
+        <div className="border-t border-white/[.07] px-3 py-1 sm:px-6 sm:py-2">
           {weeklySchedules.length ? (
             <ul>
               {weeklySchedules.map(([day, schedules]) => (
-                <li key={day} className="grid grid-cols-[minmax(5.25rem,.7fr)_minmax(0,1.5fr)_auto] items-center gap-3 border-b border-white/[.06] py-4 last:border-0">
+                <li key={day} className="grid grid-cols-[minmax(4.5rem,.7fr)_minmax(0,1.5fr)_auto] items-center gap-2.5 border-b border-white/[.06] py-3 last:border-0 sm:grid-cols-[minmax(5.25rem,.7fr)_minmax(0,1.5fr)_auto] sm:gap-3 sm:py-4">
                   <strong className="text-sm text-zinc-200">{day}</strong>
                   <div className="min-w-0 space-y-2">
                     {schedules.map((schedule, index) => (
@@ -343,18 +347,18 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         </div>
       </details>
 
-      <section className="relative mt-5 overflow-hidden rounded-3xl border border-yellow-400/15 bg-[linear-gradient(135deg,#181818,#090909)] p-5 shadow-[0_20px_55px_rgba(0,0,0,.25)] sm:p-6">
+      <section className="relative mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[linear-gradient(135deg,#181818,#090909)] p-4 shadow-[0_16px_42px_rgba(0,0,0,.22)] sm:mt-5 sm:rounded-3xl sm:p-6">
         <span aria-hidden="true" className="absolute -right-10 -top-12 size-36 rounded-full border border-yellow-400/10 bg-yellow-400/[.035]" />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-2xl border border-yellow-400/25 bg-yellow-400/[.08] text-lg text-yellow-300">↗</span>
+        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.08] text-base text-yellow-300 sm:size-11 sm:rounded-2xl sm:text-lg">↗</span>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Mis registros</p>
-              <h2 className="mt-1 text-lg font-black text-zinc-100">Ejercicios, cargas y marcas</h2>
-              <p className="mt-1 text-sm leading-relaxed text-zinc-400">Consultá tus ejercicios, cargas y marcas registradas.</p>
+              <h2 className="mt-0.5 text-base font-black text-zinc-100 sm:mt-1 sm:text-lg">Ejercicios, cargas y marcas</h2>
+              <p className="mt-0.5 text-xs leading-relaxed text-zinc-400 sm:mt-1 sm:text-sm">Consultá tus ejercicios, cargas y marcas registradas.</p>
             </div>
           </div>
-          <Link href="/portal/registro" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-yellow-400/30 bg-yellow-400/[.07] px-4 py-2 text-sm font-black text-yellow-300 transition hover:bg-yellow-400/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300">Ver mis registros</Link>
+          <Link href="/portal/registro" className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-yellow-400/30 bg-yellow-400/[.07] px-4 py-2 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:min-h-11 sm:text-sm">Ver mis registros</Link>
         </div>
       </section>
     </div>
@@ -376,13 +380,13 @@ function ClassCard({
   const discipline = disciplinePresentation(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className={`min-w-0 rounded-2xl border border-white/[.07] border-l-2 ${discipline.accent} bg-zinc-950/75 p-4 shadow-[0_12px_30px_rgba(0,0,0,.18)]`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.035] text-lg">{discipline.icon}</span>
+    <article className={`min-w-0 rounded-xl border border-white/[.07] border-l-2 ${discipline.accent} bg-zinc-950/75 p-3 shadow-[0_10px_24px_rgba(0,0,0,.16)] sm:rounded-2xl sm:p-4`}>
+      <div className="flex items-start justify-between gap-2.5 sm:gap-3">
+        <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+          <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-lg border border-white/[.07] bg-white/[.035] text-base sm:size-10 sm:rounded-xl sm:text-lg">{discipline.icon}</span>
           <div className="min-w-0">
             <h3 className="break-words text-sm font-black text-zinc-100">{discipline.label}</h3>
-            <p className="mt-1 text-base font-black tabular-nums text-yellow-300">{item.startTime}–{item.endTime}</p>
+            <p className="mt-0.5 text-sm font-black tabular-nums text-yellow-300 sm:mt-1 sm:text-base">{item.startTime}–{item.endTime}</p>
             {item.name !== item.category && <p className="mt-1 truncate text-xs text-zinc-500">{item.name}</p>}
           </div>
         </div>
@@ -390,7 +394,7 @@ function ClassCard({
           {responseLabel}
         </span>
       </div>
-      <p className="mt-3 border-t border-white/[.06] pt-3 text-[11px] text-zinc-500">
+      <p className="mt-2 border-t border-white/[.06] pt-2 text-[10px] text-zinc-500 sm:mt-3 sm:pt-3 sm:text-[11px]">
         {item.confirmedCount} confirmados
         {item.capacity === null ? "" : ` · cupo ${item.capacity}`}
       </p>
@@ -425,12 +429,12 @@ function ResponseButtons({
   ) => void;
 }) {
   return (
-    <div className="mt-3 grid grid-cols-2 gap-2">
+    <div className="mt-2.5 grid grid-cols-2 gap-2 sm:mt-3">
       <button
         type="button"
         disabled={saving}
         onClick={() => respond(item, "GOING")}
-        className={`min-h-10 rounded-xl px-3 py-2 text-xs font-black transition disabled:opacity-50 ${item.response === "GOING" ? "bg-emerald-400 text-zinc-950" : "bg-yellow-400 text-zinc-950 hover:bg-yellow-300"}`}
+        className={`min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] font-black transition disabled:opacity-50 sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs ${item.response === "GOING" ? "bg-emerald-400 text-zinc-950" : "bg-yellow-400 text-zinc-950 hover:bg-yellow-300"}`}
       >
         Asistiré
       </button>
@@ -438,7 +442,7 @@ function ResponseButtons({
         type="button"
         disabled={saving}
         onClick={() => respond(item, "NOT_GOING")}
-        className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-red-300/50 bg-red-400/10 text-red-200" : "border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
+        className={`min-h-9 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition disabled:opacity-50 sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs ${item.response === "NOT_GOING" ? "border-red-300/50 bg-red-400/10 text-red-200" : "border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
       >
         No asistiré
       </button>
