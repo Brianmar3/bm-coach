@@ -1,92 +1,94 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
-import { dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
+import { databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import type { PortalWorkoutSession } from "@/types/portal";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
 import type { Student } from "@/types/gestion";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { validateWorkoutSessionInput } from "@/lib/workout-session-validation";
+import { getWeekKey, getWorkoutWeekRange, weeklySessionLockKey } from "@/lib/workout-week";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function rating(value: number | null) {
-  return value === null || (Number.isInteger(value) && value >= 1 && value <= 5);
-}
-
-function validate(input: PortalWorkoutSession) {
-  if (!input.routineId || !input.dayId || !isDateKey(input.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.startTime)) return "Completá rutina, día, fecha y hora.";
-  if (input.durationMinutes !== null && (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 1 || input.durationMinutes > 1440)) return "La duración debe estar entre 1 y 1440 minutos.";
-  if (![input.energyBefore, input.difficulty, input.energyAfter].every(rating)) return "Las escalas de energía y dificultad deben estar entre 1 y 5.";
-  if (input.hasPain && !input.painDetails.trim()) return "Contanos dónde sentís dolor o molestia.";
-  if (input.status === "finalizado" && (input.durationMinutes === null || input.difficulty === null || input.energyAfter === null)) return "Para finalizar, completá duración, dificultad y energía después.";
-  if (input.status === "finalizado" && !input.exercises.some((exercise) => exercise.sets.some((set) => set.completed))) return "Marcá al menos una serie como completada antes de finalizar.";
-  if (input.finalComment.length > 2000 || input.painDetails.length > 1000) return "El comentario es demasiado extenso.";
-  if (!["pendiente", "en_progreso", "finalizado"].includes(input.status)) return "El estado no es válido.";
-  for (const exercise of input.exercises) {
-    if (!exercise.exerciseId || exercise.observation.length > 1000) return "Los datos del ejercicio no son válidos.";
-    for (const set of exercise.sets) {
-      if (!Number.isInteger(set.setNumber) || set.setNumber < 1 || set.setNumber > 100) return "El número de serie no es válido.";
-      if (set.weight !== null && (!Number.isFinite(set.weight) || set.weight < 0 || set.weight > 1000)) return "El peso debe estar entre 0 y 1000 kg.";
-      if (set.repetitions !== null && (!Number.isInteger(set.repetitions) || set.repetitions < 0 || set.repetitions > 1000)) return "Las repeticiones no son válidas.";
-      if (set.effort !== null && (!Number.isFinite(set.effort) || set.effort < 0 || set.effort > 10)) return "El esfuerzo debe estar entre 0 y 10.";
-      if (set.observation.length > 500) return "La observación de una serie es demasiado extensa.";
-    }
-  }
-  return null;
-}
+const workoutSessionSelect = {
+  id: true,
+  routineId: true,
+  dayId: true,
+  date: true,
+  routineNameSnapshot: true,
+  routineDayNumberSnapshot: true,
+  routineDayNameSnapshot: true,
+  routineDayEstimatedMinutesSnapshot: true,
+  status: true,
+  exercises: {
+    select: {
+      exerciseId: true,
+      exerciseReferenceId: true,
+      snapshotVersion: true,
+      exerciseName: true,
+      targetSets: true,
+      targetRepetitions: true,
+      suggestedWeight: true,
+      targetEffortType: true,
+      targetEffortValue: true,
+      targetRestSeconds: true,
+      coachInstructions: true,
+      exerciseOrder: true,
+      routineName: true,
+      routineDayNumber: true,
+    },
+  },
+} satisfies Prisma.WorkoutSessionSelect;
 
 export async function POST(request: Request) {
+  let parsedInput: PortalWorkoutSession | null = null;
   try {
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const session = await getPortalSession();
     if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
     if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal." }, { status: 403 });
     const input = await request.json() as PortalWorkoutSession;
-    const validationError = validate(input);
+    parsedInput = input;
+    const validationError = validateWorkoutSessionInput(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
+    const weekRange = getWorkoutWeekRange(input.date);
+    if (weekRange.weekKey !== getWeekKey()) return Response.json({ error: "Esta sesión pertenece a una semana anterior y quedó preservada en el historial." }, { status: 409 });
 
-    const existingSession = input.id
+    let existingSession = input.id
       ? await prisma.workoutSession.findFirst({
         where: { id: input.id, studentId: session.studentId },
-        select: {
-          id: true,
-          routineId: true,
-          dayId: true,
-          routineNameSnapshot: true,
-          routineDayNumberSnapshot: true,
-          routineDayNameSnapshot: true,
-          routineDayEstimatedMinutesSnapshot: true,
-          status: true,
-          exercises: {
-            select: {
-              exerciseId: true,
-              exerciseReferenceId: true,
-              snapshotVersion: true,
-              exerciseName: true,
-              targetSets: true,
-              targetRepetitions: true,
-              suggestedWeight: true,
-              targetEffortType: true,
-              targetEffortValue: true,
-              targetRestSeconds: true,
-              coachInstructions: true,
-              exerciseOrder: true,
-              routineName: true,
-              routineDayNumber: true,
-            },
-          },
-        },
+        select: workoutSessionSelect,
       })
       : null;
+    if (!input.id) {
+      existingSession = await prisma.workoutSession.findFirst({
+        where: { studentId: session.studentId, routineId: input.routineId, dayId: input.dayId, status: "IN_PROGRESS", date: { gte: weekRange.startDate, lt: weekRange.endExclusiveDate } },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        select: workoutSessionSelect,
+      }) ?? await prisma.workoutSession.findFirst({
+        where: { studentId: session.studentId, routineId: input.routineId, dayId: input.dayId, status: "COMPLETED", date: { gte: weekRange.startDate, lt: weekRange.endExclusiveDate } },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        select: workoutSessionSelect,
+      });
+    }
     if (input.id && !existingSession) {
       return Response.json({ error: "El entrenamiento ya no existe o no te pertenece." }, { status: 404 });
+    }
+    if (existingSession?.status === "COMPLETED") {
+      if (!input.id && input.status === "finalizado") return Response.json({ id: existingSession.id, status: "finalizado", reused: true });
+      return Response.json({ error: "Una sesión finalizada no puede modificarse ni reabrirse." }, { status: 409 });
     }
     if (existingSession && (existingSession.routineId !== input.routineId || existingSession.dayId !== input.dayId)) {
       return Response.json({ error: "No se puede cambiar la rutina o el día de una sesión existente." }, { status: 400 });
     }
+    if (input.id && existingSession && databaseDateKey(existingSession.date) !== input.date) {
+      return Response.json({ error: "No se puede cambiar la fecha de una sesión existente." }, { status: 400 });
+    }
+    const resolvedSessionId = existingSession?.id ?? null;
 
     const assignment = await prisma.trainingRoutineAssignment.findUnique({
       where: { routineId_studentId: { routineId: input.routineId, studentId: session.studentId } },
@@ -108,10 +110,6 @@ export async function POST(request: Request) {
     }
     const validExerciseIds = new Set(day.exercises.filter((exercise) => existingSession || exercise.active).map((exercise) => exercise.id));
     if (input.exercises.some((exercise) => !validExerciseIds.has(exercise.exerciseId))) return Response.json({ error: "Uno de los ejercicios no pertenece a tu rutina." }, { status: 403 });
-    const sameDaySession = await prisma.workoutSession.findFirst({ where: { studentId: session.studentId, dayId: input.dayId, date: dateKeyToDatabase(input.date) }, select: { id: true, status: true } });
-    if (!input.id && sameDaySession) return Response.json({ error: "Ya existe una sesión para este día y fecha. Volvé a cargar Mi rutina para continuarla." }, { status: 409 });
-    if (input.id && sameDaySession?.id === input.id && sameDaySession.status === "COMPLETED") return Response.json({ id: sameDaySession.id, status: "finalizado" });
-
     const inputRoutineName = input.routineNameSnapshot?.trim() ?? "";
     const storedRoutineName = existingSession?.routineNameSnapshot.trim() ?? "";
     const assignedRoutineName = assignment.routine.name.trim();
@@ -164,16 +162,20 @@ export async function POST(request: Request) {
     }
 
     const saved = await prisma.$transaction(async (transaction) => {
-      if (!input.id) {
+      const lockKey = weeklySessionLockKey(session.studentId, input.routineId, input.dayId, weekRange.weekKey);
+      await transaction.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`);
+      if (!resolvedSessionId) {
         const duplicate = await transaction.workoutSession.findFirst({
-          where: { studentId: session.studentId, dayId: input.dayId, date: dateKeyToDatabase(input.date) },
-          select: { id: true },
+          where: { studentId: session.studentId, routineId: input.routineId, dayId: input.dayId, date: { gte: weekRange.startDate, lt: weekRange.endExclusiveDate } },
+          orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+          select: { id: true, status: true },
         });
-        if (duplicate) throw new Error("DUPLICATE_SESSION");
+        if (duplicate) throw new Error(`WEEKLY_SESSION:${duplicate.status}:${duplicate.id}`);
       }
-      if (input.id) {
-        const existing = await transaction.workoutSession.findFirst({ where: { id: input.id, studentId: session.studentId }, select: { id: true } });
+      if (resolvedSessionId) {
+        const existing = await transaction.workoutSession.findFirst({ where: { id: resolvedSessionId, studentId: session.studentId }, select: { id: true, status: true } });
         if (!existing) throw new Error("NOT_FOUND");
+        if (existing.status === "COMPLETED") throw new Error("COMPLETED_SESSION");
         await transaction.workoutExerciseLog.deleteMany({ where: { sessionId: existing.id } });
       }
       const data = {
@@ -184,12 +186,12 @@ export async function POST(request: Request) {
         routineDayNumberSnapshot,
         routineDayNameSnapshot,
         routineDayEstimatedMinutesSnapshot,
-        date: dateKeyToDatabase(input.date),
+        date: existingSession?.date ?? dateKeyToDatabase(input.date),
         startTime: input.startTime,
         durationMinutes: input.durationMinutes,
-        energyBefore: input.energyBefore,
-        difficulty: input.difficulty,
-        energyAfter: input.energyAfter,
+        energyBefore: input.energyBefore ?? null,
+        difficulty: input.difficulty ?? null,
+        energyAfter: input.energyAfter ?? null,
         finalComment: input.finalComment.trim(),
         hasPain: input.hasPain,
         painDetails: input.painDetails.trim(),
@@ -198,8 +200,8 @@ export async function POST(request: Request) {
           create: exerciseCreates,
         },
       };
-      return input.id
-        ? transaction.workoutSession.update({ where: { id: input.id }, data })
+      return resolvedSessionId
+        ? transaction.workoutSession.update({ where: { id: resolvedSessionId }, data })
         : transaction.workoutSession.create({ data });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     const student = session.credential.student.data as unknown as Student;
@@ -220,7 +222,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof Error && error.message === "NOT_FOUND") return Response.json({ error: "El entrenamiento ya no existe o no te pertenece." }, { status: 404 });
-    if (error instanceof Error && error.message === "DUPLICATE_SESSION") return Response.json({ error: "Ya existe una sesión para este día y fecha. Volvé a cargar Mi rutina para continuarla." }, { status: 409 });
+    if (error instanceof Error && error.message === "COMPLETED_SESSION") return Response.json({ error: "Una sesión finalizada no puede modificarse ni reabrirse." }, { status: 409 });
+    if (error instanceof Error && error.message.startsWith("WEEKLY_SESSION:")) {
+      const [, status, id] = error.message.split(":");
+      if (status === "COMPLETED" && parsedInput?.status === "finalizado") return Response.json({ id, status: "finalizado", reused: true });
+      if (status === "IN_PROGRESS" && parsedInput?.status === "en_progreso") return Response.json({ id, status: "en_progreso", reused: true });
+      return Response.json({ error: status === "COMPLETED" ? "Este día ya fue finalizado durante la semana actual." : "La sesión se creó al mismo tiempo. Reintentá para continuarla sin duplicar datos." }, { status: 409 });
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La sesión cambió mientras la guardabas. Recargá Mi rutina antes de volver a intentar." }, { status: 409 });
     console.error("Error al guardar entrenamiento del portal", error);
     return Response.json({ error: "No se pudo guardar el entrenamiento." }, { status: 500 });

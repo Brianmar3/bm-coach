@@ -53,9 +53,10 @@ export type PortalWorkoutSession = {
   date: string;
   startTime: string;
   durationMinutes: number | null;
-  energyBefore: number | null;
-  difficulty: number | null;
-  energyAfter: number | null;
+  energyBefore?: number | null;
+  difficulty?: number | null;
+  energyAfter?: number | null;
+  generalFeeling?: "Muy buena" | "Buena" | "Normal" | "Difícil" | "Muy difícil";
   finalComment: string;
   hasPain: boolean;
   painDetails: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { PaymentAccountStatus, PhysicalEvaluation } from "@/types/gestion";
 import type { PortalData, PortalWorkoutSession } from "@/types/portal";
@@ -15,6 +15,8 @@ import { hasGroupClasses } from "@/lib/student-service";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
 import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName, workoutAreaFromText, type WorkoutArea } from "@/lib/workout-presentation";
 import { separateWorkoutInstructions } from "@/lib/workout-instructions";
+import { argentinaDateKey } from "@/lib/payment-dates";
+import { createFreshWorkoutSets, findCurrentWeekSession, getLocalWeekEnd, getWeekKey, legacyWorkoutDraftStorageKey, sessionBelongsToWeek, workoutDraftStorageKey } from "@/lib/workout-week";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -361,6 +363,7 @@ function WorkoutAreaIcon({ area }: { area: WorkoutArea }) {
 
 function WorkoutView({ data }: { data: PortalData }) {
   const routine = data.routine;
+  const weekKey = getWeekKey();
   const trainingDays = useMemo(() => routine?.days.filter((day) => day.exercises.length) ?? [], [routine]);
   const suggestedDayId = useMemo(() => {
     if (!routine || !trainingDays.length) return "";
@@ -369,7 +372,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     const lastIndex = trainingDays.findIndex((day) => day.id === lastCompleted.dayId);
     return trainingDays[(lastIndex + 1) % trainingDays.length]?.id ?? trainingDays[0].id;
   }, [data.workoutSessions, routine, trainingDays]);
-  const inProgress = useMemo(() => data.workoutSessions.find((session) => session.status === "en_progreso" && session.routineId === routine?.id && trainingDays.some((day) => day.id === session.dayId)) ?? null, [data.workoutSessions, routine?.id, trainingDays]);
+  const inProgress = useMemo(() => data.workoutSessions.find((session) => session.status === "en_progreso" && session.routineId === routine?.id && sessionBelongsToWeek(session, weekKey) && trainingDays.some((day) => day.id === session.dayId)) ?? null, [data.workoutSessions, routine?.id, trainingDays, weekKey]);
   const [selectedDayId, setSelectedDayId] = useState(inProgress?.dayId ?? suggestedDayId);
   const [draft, setDraft] = useState<PortalWorkoutSession | null>(inProgress);
   const [saving, setSaving] = useState(false);
@@ -387,15 +390,31 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
 
+  useEffect(() => {
+    const delay = Math.max(1_000, getLocalWeekEnd().getTime() - Date.now() + 1_001);
+    const timer = window.setTimeout(() => window.location.reload(), delay);
+    return () => window.clearTimeout(timer);
+  }, [weekKey]);
+
+  const storageKey = useCallback((dayId: string) => {
+    return routine ? workoutDraftStorageKey(data.profile.id, routine.id, dayId, weekKey) : "";
+  }, [data.profile.id, routine, weekKey]);
+
   function freshDraft(dayId: string): PortalWorkoutSession | null {
     const day = trainingDays.find((item) => item.id === dayId);
     if (!routine || !day) return null;
-    const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
-    const databaseSession = data.workoutSessions.find((item) => item.dayId === dayId && item.date === todayKey);
+    const todayKey = argentinaDateKey();
+    const databaseSession = findCurrentWeekSession(data.workoutSessions, { routineId: routine.id, dayId, weekKey });
     if (databaseSession) return databaseSession;
-    const saved = typeof window === "undefined" ? null : window.localStorage.getItem(`bm-workout-${data.profile.id}-${dayId}`);
+    const currentStorageKey = storageKey(dayId);
+    const saved = typeof window === "undefined" ? null : window.localStorage.getItem(currentStorageKey);
+    if (typeof window !== "undefined") window.localStorage.removeItem(legacyWorkoutDraftStorageKey(data.profile.id, dayId));
     if (saved) {
-      try { return JSON.parse(saved) as PortalWorkoutSession; } catch { /* use a new draft */ }
+      try {
+        const parsed = JSON.parse(saved) as PortalWorkoutSession;
+        if (parsed.routineId === routine.id && parsed.dayId === dayId && parsed.status === "en_progreso" && sessionBelongsToWeek(parsed, weekKey)) return parsed;
+        window.localStorage.removeItem(currentStorageKey);
+      } catch { window.localStorage.removeItem(currentStorageKey); }
     }
     const now = new Date();
     const dateKey = todayKey;
@@ -403,7 +422,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     return { routineId: routine.id, routineName: routine.name, dayId: day.id, dayNumber: day.dayNumber, dayName: day.name, dayEstimatedMinutes: day.estimatedMinutes, date: dateKey, startTime, durationMinutes: null, energyBefore: null, difficulty: null, energyAfter: null, finalComment: "", hasPain: false, painDetails: "", status: "en_progreso" as const, exercises: day.exercises.map((exercise) => {
       const previousLogs = data.workoutSessions.flatMap((session) => session.exercises.filter((item) => item.exerciseId === exercise.id).map((item) => ({ session, item })));
       const previous = previousLogs[0];
-      return { exerciseId: exercise.id, exerciseName: exercise.name, observation: "", previous: previous?.item.sets[0] ? { date: previous.session.date, weight: previous.item.sets[0].weight, repetitions: previous.item.sets[0].repetitions, effort: previous.item.sets[0].effort } : null, history: previousLogs.slice(0, 8).flatMap(({ session, item }) => item.sets[0] ? [{ date: session.date, weight: item.sets[0].weight, repetitions: item.sets[0].repetitions, effort: item.sets[0].effort }] : []), sets: Array.from({ length: exercise.sets }, (_, index) => ({ setNumber: index + 1, weight: previous?.item.sets[index]?.weight ?? exercise.weight, repetitions: previous?.item.sets[index]?.repetitions ?? null, effort: previous?.item.sets[index]?.effort ?? exercise.effortValue, completed: false, observation: "" })) };
+      return { exerciseId: exercise.id, exerciseName: exercise.name, observation: "", previous: previous?.item.sets[0] ? { date: previous.session.date, weight: previous.item.sets[0].weight, repetitions: previous.item.sets[0].repetitions, effort: previous.item.sets[0].effort } : null, history: previousLogs.slice(0, 8).flatMap(({ session, item }) => item.sets[0] ? [{ date: session.date, weight: item.sets[0].weight, repetitions: item.sets[0].repetitions, effort: item.sets[0].effort }] : []), sets: createFreshWorkoutSets(exercise.sets, exercise.weight, previous?.item.sets ?? []) };
     }) };
   }
 
@@ -413,8 +432,8 @@ function WorkoutView({ data }: { data: PortalData }) {
       const next = freshDraft(selectedDayId);
       setDraft(next);
       setOpenExerciseId(initialOpenExerciseId(next?.exercises ?? []));
-      const saved = window.localStorage.getItem(`bm-workout-${data.profile.id}-${selectedDayId}`);
-      setStarted(Boolean(next?.id || saved));
+      const saved = window.localStorage.getItem(storageKey(selectedDayId));
+      setStarted(next?.status === "en_progreso" && Boolean(next.id || saved));
     }, 0);
     return () => window.clearTimeout(timer);
     // freshDraft reads the current server payload; this initialization only runs while draft is empty.
@@ -427,7 +446,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     setSelectedDayId(dayId);
     setDraft(next);
     setOpenExerciseId(initialOpenExerciseId(next?.exercises ?? []));
-    setStarted(Boolean(next?.id || window.localStorage.getItem(`bm-workout-${data.profile.id}-${dayId}`)));
+    setStarted(next?.status === "en_progreso" && Boolean(next.id || window.localStorage.getItem(storageKey(dayId))));
     setMessage("");
     setError("");
     setFinalOpen(false);
@@ -436,7 +455,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   function beginWith(next: PortalWorkoutSession) {
     if (started) return next;
     const now = new Date();
-    const dateValue = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(now);
+    const dateValue = argentinaDateKey(now);
     const timeValue = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
     setStarted(true);
     return { ...next, date: dateValue, startTime: timeValue, status: "en_progreso" as const };
@@ -450,12 +469,12 @@ function WorkoutView({ data }: { data: PortalData }) {
     sets[setIndex] = { ...sets[setIndex], ...changes };
     const next = beginWith({ ...draft, exercises: exercises.map((item, index) => index === exerciseIndex ? { ...exercise, sets } : item) });
     setDraft(next);
-    window.localStorage.setItem(`bm-workout-${data.profile.id}-${next.dayId}`, JSON.stringify(next));
+    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
   }
 
   useEffect(() => {
     if (!started || !draft || draft.status === "finalizado") return;
-    window.localStorage.setItem(`bm-workout-${data.profile.id}-${draft.dayId}`, JSON.stringify(draft));
+    window.localStorage.setItem(storageKey(draft.dayId), JSON.stringify(draft));
     const signature = JSON.stringify(draft);
     if (signature === autosaveSignature.current) return;
     const timer = window.setTimeout(async () => {
@@ -470,7 +489,7 @@ function WorkoutView({ data }: { data: PortalData }) {
       }
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [data.profile.id, draft, started]);
+  }, [data.profile.id, draft, started, storageKey]);
   async function save(finalize = false) {
     if (!draft) return;
     setSaving(true); setSavingAction(finalize ? "final" : "draft"); setError(""); setMessage("");
@@ -480,14 +499,14 @@ function WorkoutView({ data }: { data: PortalData }) {
       const painDetails = finalize && draft.hasPain
         ? [`Zona: ${painLocation.trim() || "sin especificar"}`, painIntensity ? `Intensidad: ${painIntensity}/10` : "", draft.painDetails.trim()].filter(Boolean).join(" · ")
         : draft.painDetails;
-      const payload = { ...draft, durationMinutes: duration, finalComment, painDetails, status: finalize ? "finalizado" as const : "en_progreso" as const };
+      const payload = { ...draft, durationMinutes: duration, generalFeeling: finalize ? sensation as PortalWorkoutSession["generalFeeling"] : draft.generalFeeling, finalComment, painDetails, status: finalize ? "finalizado" as const : "en_progreso" as const };
       const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const body = await response.json() as { id?: string; error?: string; achievements?: PortalAchievement[]; newAchievements?: CelebrationAchievement[] };
       if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
       announceNewAchievements(body.newAchievements);
       const updated = { ...payload, id: body.id };
       if (finalize) {
-        window.localStorage.removeItem(`bm-workout-${data.profile.id}-${draft.dayId}`);
+        window.localStorage.removeItem(storageKey(draft.dayId));
         autosaveSignature.current = "";
         setStarted(false);
         setFinalOpen(false);

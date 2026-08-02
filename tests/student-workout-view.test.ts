@@ -24,7 +24,7 @@ test("dolor o molestias es un bloque visual propio sin cambiar su comportamiento
 test("el modal sigue adaptado a movil y conserva el payload de finalizacion", () => {
   assert.match(source, /max-h-\[92dvh\] w-full overflow-y-auto/);
   assert.match(source, /flex min-w-0 items-start/);
-  assert.match(source, /const payload = \{ \.\.\.draft, durationMinutes: duration, finalComment, painDetails, status:/);
+  assert.match(source, /const payload = \{ \.\.\.draft, durationMinutes: duration, generalFeeling:.*finalComment, painDetails, status:/);
 });
 
 test("el encabezado limpia copias y evita repetir el nombre del día", () => {
