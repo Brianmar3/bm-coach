@@ -11,6 +11,7 @@ test("el encabezado limpia copias y evita repetir el nombre del día", () => {
   assert.equal(usefulDayName(1, "Día 1"), "");
   assert.equal(usefulDayName(1, "Glúteos"), "Glúteos");
   assert.match(source, /routineDisplayName/);
+  assert.match(source, /Día \{selectedDay\.dayNumber\}/);
 });
 
 test("el selector horizontal funciona con cualquier cantidad de días", () => {
@@ -22,6 +23,9 @@ test("el selector horizontal funciona con cualquier cantidad de días", () => {
 test("el resumen usa ejercicios reales, duración, estado y progreso", () => {
   assert.equal(completedExerciseCount([{ exerciseId: "a", sets: [{ completed: true }] }, { exerciseId: "b", sets: [{ completed: false }] }]), 1);
   for (const value of ["ejercicios completados", "Día sugerido", "Sin comenzar", "En curso", "Completado"]) assert.match(source, new RegExp(value));
+  assert.match(source, /conic-gradient\(#facc15/);
+  assert.match(source, /completados<\/small>/);
+  assert.match(source, /min duración/);
 });
 
 test("abre el primer ejercicio incompleto y mantiene un único acordeón controlado", () => {
@@ -62,6 +66,7 @@ test("las acciones mantienen handlers, estados de carga y separación móvil", (
   assert.match(source, /disabled=\{saving \|\| !started\}/);
   assert.match(source, /bottom-\[calc\(env\(safe-area-inset-bottom\)\+6rem\)\]/);
   assert.match(source, /pb-20 md:pb-0/);
+  assert.match(source, /max-\[340px\]:grid-cols-1/);
 });
 
 test("el historial vacío muestra un único mensaje", () => {
