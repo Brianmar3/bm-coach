@@ -63,7 +63,8 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         },
       });
       if (!existing) throw new Prisma.PrismaClientKnownRequestError("Rutina no encontrada", { code: "P2025", clientVersion: Prisma.prismaVersion.client });
-      if ((existing.kind === "TEMPLATE" ? "template" : "assigned") !== input.kind) throw new Error("ROUTINE_KIND_IMMUTABLE");
+      const updateInput = existing.status === "ACTIVA" ? { ...input, status: "activa" as const } : input;
+      if ((existing.kind === "TEMPLATE" ? "template" : "assigned") !== updateInput.kind) throw new Error("ROUTINE_KIND_IMMUTABLE");
       const currentInput: RoutineInput = {
         name: existing.name,
         kind: existing.kind === "TEMPLATE" ? "template" : "assigned",
@@ -106,11 +107,11 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         })),
       };
       const currentFingerprint = routineFingerprint(currentInput);
-      const nextFingerprint = routineFingerprint(input);
+      const nextFingerprint = routineFingerprint(updateInput);
       if (currentFingerprint === nextFingerprint) return transaction.trainingRoutine.findUniqueOrThrow({ where: { id }, include: routineInclude });
-      if (input.kind === "assigned" && input.status === "activa") {
-        const conflicts = await transaction.trainingRoutineAssignment.findMany({ where: { routineId: { not: id }, studentId: { in: input.studentIds }, active: true, routine: { status: "ACTIVA", kind: "ASSIGNED" } }, select: { routineId: true, studentId: true } });
-        if (conflicts.length && !input.replaceActive) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
+      if (updateInput.kind === "assigned" && updateInput.status === "activa") {
+        const conflicts = await transaction.trainingRoutineAssignment.findMany({ where: { routineId: { not: id }, studentId: { in: updateInput.studentIds }, active: true, routine: { status: "ACTIVA", kind: "ASSIGNED" } }, select: { routineId: true, studentId: true } });
+        if (conflicts.length && !updateInput.replaceActive) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
         if (conflicts.length) {
           await transaction.trainingRoutineAssignment.updateMany({ where: { OR: conflicts.map((conflict) => ({ routineId: conflict.routineId, studentId: conflict.studentId })) }, data: { active: false, archivedAt: new Date() } });
           for (const conflictRoutineId of new Set(conflicts.map((conflict) => conflict.routineId))) {
@@ -120,13 +121,13 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         }
       }
 
-      const transitionAt = input.status === "archivada" ? existing.archivedAt ?? new Date() : null;
-      await transaction.trainingRoutine.update({ where: { id }, data: { ...routineData(input), archivedAt: transitionAt } });
+      const transitionAt = updateInput.status === "archivada" ? existing.archivedAt ?? new Date() : null;
+      await transaction.trainingRoutine.update({ where: { id }, data: { ...routineData(updateInput), archivedAt: transitionAt } });
       const retainedDayIds = new Set<string>();
-      const hasStableDayIds = input.days.some((day) => Boolean(day.id));
+      const hasStableDayIds = updateInput.days.some((day) => Boolean(day.id));
       await transaction.trainingRoutineDay.updateMany({ where: { routineId: id, active: true }, data: { active: false } });
 
-      for (const dayInput of input.days) {
+      for (const dayInput of updateInput.days) {
         const existingDay = existing.days.find((day) => day.id === dayInput.id)
           ?? (!hasStableDayIds ? existing.days.find((day) => day.dayNumber === dayInput.dayNumber) : undefined);
         const day = existingDay
@@ -165,20 +166,20 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         }
       }
 
-      const selectedStudentIds = new Set(input.kind === "assigned" ? input.studentIds : []);
+      const selectedStudentIds = new Set(updateInput.kind === "assigned" ? updateInput.studentIds : []);
       for (const assignment of existing.assignments) {
-        const shouldBeActive = input.status !== "archivada" && input.status !== "finalizada" && selectedStudentIds.has(assignment.studentId);
+        const shouldBeActive = updateInput.status !== "archivada" && updateInput.status !== "finalizada" && selectedStudentIds.has(assignment.studentId);
         await transaction.trainingRoutineAssignment.update({
           where: { routineId_studentId: { routineId: id, studentId: assignment.studentId } },
           data: {
             active: shouldBeActive,
-            archivedAt: shouldBeActive ? null : input.status === "archivada" && assignment.active ? transitionAt : assignment.archivedAt ?? new Date(),
+            archivedAt: shouldBeActive ? null : updateInput.status === "archivada" && assignment.active ? transitionAt : assignment.archivedAt ?? new Date(),
           },
         });
       }
-      if (input.kind === "assigned" && (input.status === "activa" || input.status === "borrador")) {
+      if (updateInput.kind === "assigned" && (updateInput.status === "activa" || updateInput.status === "borrador")) {
         const existingStudentIds = new Set(existing.assignments.map((assignment) => assignment.studentId));
-        const newStudentIds = input.studentIds.filter((studentId) => !existingStudentIds.has(studentId));
+        const newStudentIds = updateInput.studentIds.filter((studentId) => !existingStudentIds.has(studentId));
         if (newStudentIds.length) await transaction.trainingRoutineAssignment.createMany({ data: newStudentIds.map((studentId) => ({ routineId: id, studentId })) });
       }
       const latestVersion = await transaction.trainingRoutineVersion.aggregate({ where: { routineId: id }, _max: { version: true } });
@@ -193,9 +194,9 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         data: {
           routineId: id,
           version: version + 1,
-          summary: changeSummary(currentInput, input),
+          summary: changeSummary(currentInput, updateInput),
           fingerprint: nextFingerprint,
-          snapshot: routineVersionSnapshot(input) as unknown as Prisma.InputJsonValue,
+          snapshot: routineVersionSnapshot(updateInput) as unknown as Prisma.InputJsonValue,
         },
       });
       return transaction.trainingRoutine.findUniqueOrThrow({ where: { id }, include: routineInclude });
