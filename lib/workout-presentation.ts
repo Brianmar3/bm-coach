@@ -30,18 +30,24 @@ export function initialOpenExerciseId(exercises: WorkoutExerciseProgress[]) {
     ?? null;
 }
 
-export type WorkoutArea = "lower" | "chest" | "back" | "shoulders" | "arms" | "core" | "general";
-
-export function workoutAreaFromText(value: string): WorkoutArea {
-  const normalized = value
+function normalizeMuscleGroupName(value: string) {
+  return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("es");
-  if (/glute|pierna|cuadriceps|femoral|isqui|pantorrilla|tren inferior/.test(normalized)) return "lower";
-  if (/pecho|pectoral/.test(normalized)) return "chest";
-  if (/espalda|dorsal|lumbar/.test(normalized)) return "back";
-  if (/hombro|deltoid/.test(normalized)) return "shoulders";
-  if (/brazo|biceps|triceps|antebrazo/.test(normalized)) return "arms";
-  if (/core|abdomen|abdominal/.test(normalized)) return "core";
-  return "general";
+    .toLocaleLowerCase("es")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function getMuscleGroupEmoji(groupName: string) {
+  const normalized = normalizeMuscleGroupName(groupName);
+  if (/glute/.test(normalized)) return "🍑";
+  if (/pierna|cuadriceps|isquio|femoral|gemelo|pantorrilla|aductor|abductor|tren inferior/.test(normalized)) return "🦵🏽";
+  if (/pecho|pectoral|full body|cuerpo completo/.test(normalized)) return "🏋🏽";
+  if (/espalda|dorsal|lumbar/.test(normalized)) return "💪🏽";
+  if (/hombro|deltoid|brazo|biceps|triceps|antebrazo|tren superior/.test(normalized)) return "💪🏽";
+  if (/core|abdomen|abdominal/.test(normalized)) return "🔥";
+  if (/cardio|condicionamiento|resistencia/.test(normalized)) return "⚡";
+  if (/movilidad|movility|flexibilidad/.test(normalized)) return "🤸🏽";
+  return "🏋🏽";
 }

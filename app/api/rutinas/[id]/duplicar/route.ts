@@ -34,6 +34,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       dayNumber: day.dayNumber,
       name: day.name.trim() || `Día ${day.dayNumber}`,
       objective: day.objective,
+      warmup: day.warmup,
       observations: day.observations,
       estimatedMinutes: day.estimatedMinutes,
       exercises: day.exercises.map((exercise): ExerciseInput => ({

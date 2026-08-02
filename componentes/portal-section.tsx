@@ -13,7 +13,7 @@ import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
 import { hasGroupClasses } from "@/lib/student-service";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
-import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName, workoutAreaFromText, type WorkoutArea } from "@/lib/workout-presentation";
+import { cleanRoutineDisplayName, completedExerciseCount, getMuscleGroupEmoji, initialOpenExerciseId, usefulDayName } from "@/lib/workout-presentation";
 import { separateWorkoutInstructions } from "@/lib/workout-instructions";
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { createFreshWorkoutSets, findCurrentWeekSession, getLocalWeekEnd, getWeekKey, legacyWorkoutDraftStorageKey, sessionBelongsToWeek, workoutDraftStorageKey } from "@/lib/workout-week";
@@ -350,17 +350,6 @@ function PortalSchedules({ data }: { data: PortalData }) {
   </section>;
 }
 
-function WorkoutAreaIcon({ area }: { area: WorkoutArea }) {
-  const common = "h-7 w-7";
-  if (area === "lower") return <svg data-area-icon="lower" viewBox="0 0 32 32" className={common} fill="none"><path d="M9 6h14l-1 9h-5l-1-5-1 5h-5L9 6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="m12 15-1 12m9-12 1 12" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>;
-  if (area === "chest") return <svg viewBox="0 0 32 32" className={common} fill="none"><path d="M10 7c2 2 4 3 6 3s4-1 6-3l3 5-2 14H9L7 12l3-5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="M10 14c2-2 4-2 6 0 2-2 4-2 6 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
-  if (area === "back") return <svg viewBox="0 0 32 32" className={common} fill="none"><path d="M10 7c2 2 4 3 6 3s4-1 6-3l3 5-3 14H10L7 12l3-5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="M16 10v13m-4-8 4 3 4-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
-  if (area === "shoulders") return <svg viewBox="0 0 32 32" className={common} fill="none"><path d="M5 23c1-7 5-11 11-11s10 4 11 11M9 15l-3-4m17 4 3-4M16 12V6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /><path d="M11 24h10" stroke="currentColor" strokeWidth="2" /></svg>;
-  if (area === "arms") return <svg viewBox="0 0 32 32" className={common} fill="none"><path d="M8 23c3-7 5-10 8-10 2 0 3 2 4 4l3-3 3 4c-3 6-7 8-12 8H8v-3Zm5-10-1-5 4-2 2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-  if (area === "core") return <svg viewBox="0 0 32 32" className={common} fill="none"><path d="M11 5h10l2 22H9l2-22Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="M16 8v16M11 13h10m-10 6h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>;
-  return <svg data-area-icon="general" viewBox="0 0 32 32" className={common} fill="none"><circle cx="16" cy="16" r="10" stroke="currentColor" strokeWidth="2" /><circle cx="16" cy="16" r="4" stroke="currentColor" strokeWidth="2" /><path d="M16 3v4m0 18v4M3 16h4m18 0h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
-}
-
 function WorkoutView({ data }: { data: PortalData }) {
   const routine = data.routine;
   const weekKey = getWeekKey();
@@ -384,11 +373,24 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [painLocation, setPainLocation] = useState("");
   const [painIntensity, setPainIntensity] = useState<number | null>(null);
   const [completionSuccess, setCompletionSuccess] = useState(false);
+  const [warmupOpen, setWarmupOpen] = useState(false);
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(() => initialOpenExerciseId(inProgress?.exercises ?? []));
   const autosaveSignature = useRef("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
+
+  useEffect(() => {
+    if (!warmupOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setWarmupOpen(false); };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [warmupOpen]);
 
   useEffect(() => {
     const delay = Math.max(1_000, getLocalWeekEnd().getTime() - Date.now() + 1_001);
@@ -533,7 +535,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   const routineDisplayName = cleanRoutineDisplayName(routine.name) || routine.name;
   const selectedDayName = usefulDayName(selectedDay.dayNumber, selectedDay.name);
   const dayFocus = selectedDay.objective || selectedDayName || routine.objective || `Día ${selectedDay.dayNumber}`;
-  const workoutArea = workoutAreaFromText([selectedDay.name, selectedDay.objective, ...selectedDay.exercises.map((exercise) => exercise.muscleGroup)].join(" "));
+  const muscleGroupEmoji = getMuscleGroupEmoji([selectedDay.name, selectedDay.objective, ...selectedDay.exercises.map((exercise) => exercise.muscleGroup)].join(" "));
   const dayProgress = selectedDay.exercises.length ? completedExercises / selectedDay.exercises.length * 100 : 0;
   const dayStateLabel = completedTotal === totalSets && totalSets ? "Completado" : started ? "En curso" : "Sin comenzar";
   const incomplete = completedTotal < totalSets;
@@ -546,15 +548,17 @@ function WorkoutView({ data }: { data: PortalData }) {
     <section className="relative mb-5 overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_10%_10%,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#1b1b1b,#0a0a0a)] p-4 shadow-[0_18px_42px_rgba(0,0,0,.34)]">
       <span className={`absolute right-3 top-3 rounded-full border px-2.5 py-1 text-[10px] font-bold ${dayStateLabel === "Completado" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : dayStateLabel === "En curso" ? "border-yellow-400/25 bg-yellow-400/10 text-yellow-300" : "border-zinc-700 bg-zinc-800/90 text-zinc-400"}`}>{dayStateLabel}</span>
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 pt-7">
-        <span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[.07] text-yellow-300 shadow-[inset_0_0_0_1px_rgba(250,204,21,.03)]"><WorkoutAreaIcon area={workoutArea} /></span>
+        <span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[.07] text-2xl leading-none shadow-[inset_0_0_0_1px_rgba(250,204,21,.03)]">{muscleGroupEmoji}</span>
         <div className="min-w-0"><p className="truncate text-lg font-black text-white">{dayFocus}</p><div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-zinc-400"><span>{selectedDay.exercises.length} ejercicios</span>{selectedDay.estimatedMinutes && <span>· {selectedDay.estimatedMinutes} min duración</span>}{selectedDay.id === suggestedDayId && <span className="text-yellow-300">· Día sugerido</span>}</div></div>
         <div aria-label={`${completedExercises} de ${selectedDay.exercises.length} ejercicios completados`} className="grid h-16 w-16 shrink-0 place-items-center rounded-full p-[4px]" style={{ background: `conic-gradient(#facc15 ${dayProgress * 3.6}deg,#27272a 0deg)` }}><span className="grid h-full w-full place-items-center rounded-full bg-zinc-950 text-center"><span><strong className="block text-sm font-black text-white">{completedExercises}/{selectedDay.exercises.length}</strong><small className="block text-[7px] uppercase tracking-wide text-zinc-500">completados</small></span></span></div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 text-[10px] text-zinc-500"><span>Progreso del día</span><span>{Math.round(dayProgress)}%</span></div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-[width]" style={{ width: `${dayProgress}%` }} /></div>
     </section>
+    {selectedDay.warmup.trim() && <button type="button" onClick={() => setWarmupOpen(true)} className="mb-4 flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-yellow-400/20 bg-zinc-900 px-3.5 py-2.5 text-left text-sm font-bold text-yellow-200 outline-none transition hover:border-yellow-400/40 focus-visible:ring-2 focus-visible:ring-yellow-300"><span>🔥 Ver entrada en calor</span><span aria-hidden="true" className="text-zinc-500">›</span></button>}
     {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento cargado correctamente</div>}
     {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-zinc-500">Preparando ejercicios…</p>}
+    {warmupOpen && <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWarmupOpen(false); }} className="fixed inset-0 z-[120] grid place-items-center overflow-y-auto bg-black/80 px-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] pt-[calc(env(safe-area-inset-top)+.75rem)] backdrop-blur-sm"><section role="dialog" aria-modal="true" aria-labelledby="warmup-title" className="max-h-[82dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-yellow-400/25 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5"><header className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 id="warmup-title" className="text-lg font-black">Entrada en calor</h2><p className="mt-1 text-sm text-yellow-300">Día {selectedDay.dayNumber} · {selectedDay.objective || selectedDay.name}</p></div><button type="button" onClick={() => setWarmupOpen(false)} aria-label="Cerrar entrada en calor" className="grid size-9 shrink-0 place-items-center rounded-lg text-xl text-zinc-400 hover:bg-zinc-800 hover:text-white">×</button></header><p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">{selectedDay.warmup}</p><button type="button" onClick={() => setWarmupOpen(false)} className="mt-5 min-h-11 w-full rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-200">Cerrar</button></section></div>}
     {draft && <>
       <div className="mt-5 space-y-3">{draft.exercises.map((exercise, exerciseIndex) => {
         const programmed = selectedDay.exercises.find((item) => item.id === exercise.exerciseId);

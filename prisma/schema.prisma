@@ -913,6 +913,7 @@ model TrainingRoutineDay {
   dayNumber        Int
   name             String                    @default("")
   objective        String                    @default("")
+  warmup           String                    @default("")
   observations     String                    @default("")
   estimatedMinutes Int?
   routine          TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)

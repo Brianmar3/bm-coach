@@ -8,6 +8,7 @@ export type RoutineDayInput = {
   dayNumber: number;
   name: string;
   objective: string;
+  warmup?: string;
   observations: string;
   estimatedMinutes: number | null;
   exercises: ExerciseInput[];
@@ -98,7 +99,7 @@ export function validateRoutine(input: RoutineInput) {
     return "Los días deben tener un orden consecutivo.";
   }
   for (const day of input.days) {
-    if ((day.objective?.length ?? 0) > 200 || (day.observations?.length ?? 0) > 1000) return `Los datos del día ${day.dayNumber} son demasiado extensos.`;
+    if ((day.objective?.length ?? 0) > 200 || (day.warmup?.length ?? 0) > 2000 || (day.observations?.length ?? 0) > 1000) return `Los datos del día ${day.dayNumber} son demasiado extensos.`;
     if (!day.name?.trim() || day.name.trim().length > 100) return `Ingresá un nombre válido para el día ${day.dayNumber}.`;
     if (day.estimatedMinutes !== null && (!Number.isInteger(day.estimatedMinutes) || day.estimatedMinutes < 1 || day.estimatedMinutes > 1440)) {
       return `La duración estimada del día ${day.dayNumber} no es válida.`;
@@ -155,6 +156,7 @@ export function nestedDays(days: RoutineDayInput[]) {
     dayNumber: day.dayNumber,
     name: day.name.trim(),
     objective: day.objective?.trim() ?? "",
+    warmup: day.warmup?.trim() ?? "",
     observations: day.observations?.trim() ?? "",
     estimatedMinutes: day.estimatedMinutes,
     exercises: { create: [...day.exercises].sort((a, b) => a.order - b.order).map(exerciseData) },
@@ -181,6 +183,7 @@ export function routineVersionSnapshot(input: RoutineInput) {
       dayNumber: day.dayNumber,
       name: day.name.trim(),
       objective: day.objective?.trim() ?? "",
+      warmup: day.warmup?.trim() ?? "",
       observations: day.observations?.trim() ?? "",
       estimatedMinutes: day.estimatedMinutes,
       exercises: [...day.exercises].sort((left, right) => left.order - right.order).map((exercise) => ({
@@ -251,6 +254,7 @@ export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine 
       dayNumber: day.dayNumber,
       name: day.name.trim() || `Día ${day.dayNumber}`,
       objective: day.objective,
+      warmup: day.warmup,
       observations: day.observations,
       estimatedMinutes: day.estimatedMinutes,
       exercises: day.exercises.map(serializeExercise),

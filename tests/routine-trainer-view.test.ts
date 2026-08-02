@@ -5,6 +5,9 @@ import test from "node:test";
 const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
 const table = readFileSync(new URL("../componentes/routine-table-view.tsx", import.meta.url), "utf8");
 const api = readFileSync(new URL("../app/api/rutinas/[id]/route.ts", import.meta.url), "utf8");
+const routinesLib = readFileSync(new URL("../lib/rutinas.ts", import.meta.url), "utf8");
+const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../prisma/migrations/20260802120000_add_routine_day_warmup/migration.sql", import.meta.url), "utf8");
 const card = page.slice(page.indexOf("function RoutineCard"), page.indexOf("function Info"));
 const editor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("function ExerciseEditor"));
 const submitFlow = page.slice(page.indexOf("async function submit"), page.indexOf("async function duplicate"));
@@ -158,4 +161,39 @@ test("las acciones del día quedan compactas y ordenadas sin cambiar handlers", 
   assert.match(editor, /onClick=\{addExercise\}/);
   assert.match(editor, /onClick=\{removeDay\}/);
   assert.match(editor, /col-span-2 min-h-10/);
+});
+
+test("el entrenador edita una entrada en calor independiente por cada día", () => {
+  assert.match(editor, />Entrada en calor<textarea/);
+  assert.match(editor, /value=\{currentDay\.warmup\}/);
+  assert.match(editor, /warmup: event\.target\.value/);
+  assert.match(editor, /Ej\.: movilidad, activación y ejercicios preparatorios\.\.\./);
+  assert.ok(editor.indexOf("Objetivo del día") < editor.indexOf("Entrada en calor"));
+  assert.ok(editor.indexOf("Entrada en calor") < editor.indexOf(">Observaciones<textarea"));
+  assert.match(page, /warmup: day\.warmup/);
+  assert.match(page, /warmup: source\.warmup/);
+});
+
+test("la entrada en calor se persiste con compatibilidad para rutinas antiguas", () => {
+  assert.match(schema, /warmup\s+String\s+@default\(""\)/);
+  assert.match(migration, /ADD COLUMN "warmup" TEXT NOT NULL DEFAULT ''/);
+  assert.match(routinesLib, /warmup: day\.warmup\?\.trim\(\) \?\? ""/);
+  assert.match(routinesLib, /warmup: day\.warmup/);
+  assert.match(api, /warmup: dayInput\.warmup\?\.trim\(\) \?\? ""/);
+  assert.match(api, /warmup: day\.warmup \?\? ""/);
+});
+
+test("Ver contenido muestra la entrada en calor antes de los ejercicios y conserva líneas", () => {
+  assert.match(table, /day\.warmup\.trim\(\)/);
+  assert.match(table, /Entrada en calor/);
+  assert.match(table, /whitespace-pre-wrap/);
+  assert.ok(table.indexOf("day.warmup.trim()") < table.indexOf("day.exercises.length === 0"));
+});
+
+test("actualizar una rutina activa incluye warmup sin duplicar rutina ni tocar sesiones", () => {
+  assert.match(submitFlow, /warmup: day\.warmup/);
+  assert.match(api, /trainingRoutineDay\.update/);
+  assert.match(api, /routineVersionSnapshot\(updateInput\)/);
+  assert.doesNotMatch(api, /transaction\.workoutSession\.(?:update|delete|deleteMany)/);
+  assert.doesNotMatch(api, /transaction\.trainingRoutine\.create\(/);
 });

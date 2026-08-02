@@ -84,6 +84,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
           dayNumber: day.dayNumber,
           name: day.name.trim() || `Día ${day.dayNumber}`,
           objective: day.objective,
+          warmup: day.warmup,
           observations: day.observations,
           estimatedMinutes: day.estimatedMinutes,
           exercises: day.exercises.filter((exercise) => exercise.active).sort((left, right) => left.order - right.order).map((exercise) => ({
@@ -133,10 +134,10 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         const day = existingDay
           ? await transaction.trainingRoutineDay.update({
             where: { id: existingDay.id },
-            data: { dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), objective: dayInput.objective.trim(), observations: dayInput.observations.trim(), estimatedMinutes: dayInput.estimatedMinutes, active: true, archivedAt: null },
+            data: { dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), objective: dayInput.objective.trim(), warmup: dayInput.warmup?.trim() ?? "", observations: dayInput.observations.trim(), estimatedMinutes: dayInput.estimatedMinutes, active: true, archivedAt: null },
           })
           : await transaction.trainingRoutineDay.create({
-            data: { routineId: id, dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), objective: dayInput.objective.trim(), observations: dayInput.observations.trim(), estimatedMinutes: dayInput.estimatedMinutes },
+            data: { routineId: id, dayNumber: dayInput.dayNumber, name: dayInput.name.trim(), objective: dayInput.objective.trim(), warmup: dayInput.warmup?.trim() ?? "", observations: dayInput.observations.trim(), estimatedMinutes: dayInput.estimatedMinutes },
           });
         retainedDayIds.add(day.id);
 
@@ -247,6 +248,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
           ...day,
           name: day.name?.trim() || `Día ${day.dayNumber}`,
           objective: day.objective ?? "",
+          warmup: day.warmup ?? "",
           observations: day.observations ?? "",
           estimatedMinutes: day.estimatedMinutes ?? null,
         })),

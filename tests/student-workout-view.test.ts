@@ -1,15 +1,24 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName, workoutAreaFromText } from "../lib/workout-presentation.ts";
+import { cleanRoutineDisplayName, completedExerciseCount, getMuscleGroupEmoji, initialOpenExerciseId, usefulDayName } from "../lib/workout-presentation.ts";
 
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const finalModal = source.slice(source.indexOf("{finalOpen &&"), source.indexOf("function WorkoutHistoryView"));
 
-test("el tren inferior usa un icono claro y conserva el fallback general", () => {
-  assert.match(source, /data-area-icon="lower"/);
-  assert.match(source, /d="M9 6h14l-1 9h-5l-1-5-1 5h-5L9 6Z"/);
-  assert.match(source, /data-area-icon="general"/);
+test("las zonas musculares usan emojis centralizados, claros y normalizados", () => {
+  for (const value of ["gluteo", "glúteo", "glúteos", "GLUTEOS"]) assert.equal(getMuscleGroupEmoji(value), "🍑");
+  for (const value of ["Cuádriceps", "cuadriceps", "isquios", "isquiotibiales", "gemelo", "gemelos", "piernas", "Aductores", "Tren inferior"]) assert.equal(getMuscleGroupEmoji(value), "🦵🏽");
+  assert.equal(getMuscleGroupEmoji("Pecho"), "🏋🏽");
+  assert.equal(getMuscleGroupEmoji("Espalda"), "💪🏽");
+  assert.equal(getMuscleGroupEmoji("Hombros y brazos"), "💪🏽");
+  assert.equal(getMuscleGroupEmoji("Core abdominal"), "🔥");
+  assert.equal(getMuscleGroupEmoji("Full body"), "🏋🏽");
+  assert.equal(getMuscleGroupEmoji("Cardio y condicionamiento"), "⚡");
+  assert.equal(getMuscleGroupEmoji("Movilidad"), "🤸🏽");
+  assert.equal(getMuscleGroupEmoji("Zona desconocida"), "🏋🏽");
+  assert.match(source, /getMuscleGroupEmoji/);
+  assert.doesNotMatch(source, /function WorkoutAreaIcon/);
 });
 
 test("dolor o molestias es un bloque visual propio sin cambiar su comportamiento", () => {
@@ -51,14 +60,32 @@ test("el resumen usa ejercicios reales, duración, estado y progreso", () => {
 });
 
 test("el hero elige un contexto visual según la zona muscular", () => {
-  assert.equal(workoutAreaFromText("Glúteos y cuádriceps"), "lower");
-  assert.equal(workoutAreaFromText("Pecho"), "chest");
-  assert.equal(workoutAreaFromText("Espalda y dorsales"), "back");
-  assert.equal(workoutAreaFromText("Hombros"), "shoulders");
-  assert.equal(workoutAreaFromText("Bíceps y tríceps"), "arms");
-  assert.equal(workoutAreaFromText("Core abdominal"), "core");
-  assert.equal(workoutAreaFromText("Movilidad general"), "general");
-  assert.match(source, /<WorkoutAreaIcon area=\{workoutArea\}/);
+  assert.equal(getMuscleGroupEmoji("Glúteos y cuádriceps"), "🍑");
+  assert.equal(getMuscleGroupEmoji("Espalda y dorsales"), "💪🏽");
+  assert.equal(getMuscleGroupEmoji("Movilidad general"), "🤸🏽");
+  assert.match(source, /\{muscleGroupEmoji\}/);
+});
+
+test("la entrada en calor aparece solo cuando existe y abre un modal accesible", () => {
+  assert.match(source, /selectedDay\.warmup\.trim\(\) && <button/);
+  assert.match(source, /🔥 Ver entrada en calor/);
+  assert.match(source, /setWarmupOpen\(true\)/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /Entrada en calor/);
+  assert.match(source, /\{selectedDay\.warmup\}/);
+  assert.match(source, /whitespace-pre-wrap/);
+});
+
+test("el modal se cierra de forma segura y queda sobre la navegación móvil", () => {
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(source, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(source, /document\.body\.style\.overflow = previousOverflow/);
+  assert.match(source, /aria-label="Cerrar entrada en calor"/);
+  assert.match(source, /event\.target === event\.currentTarget/);
+  assert.match(source, /z-\[120\]/);
+  assert.match(source, /safe-area-inset-bottom/);
+  assert.match(source, /max-h-\[82dvh\]/);
 });
 
 test("abre el primer ejercicio incompleto y mantiene un único acordeón controlado", () => {

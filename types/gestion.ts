@@ -263,6 +263,7 @@ export type TrainingRoutineDay = {
   dayNumber: number;
   name: string;
   objective: string;
+  warmup: string;
   observations: string;
   estimatedMinutes: number | null;
   exercises: TrainingExercise[];

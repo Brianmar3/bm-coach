@@ -112,6 +112,12 @@ export function RoutineTableView({
                 </button>
 
                 <div className={`${open ? "block" : "hidden"} md:block`}>
+                  {day.warmup.trim() && (
+                    <section className="border-b border-zinc-800 bg-yellow-400/[.04] px-4 py-3">
+                      <h3 className="text-xs font-black uppercase tracking-wide text-yellow-300">Entrada en calor</h3>
+                      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-300">{day.warmup}</p>
+                    </section>
+                  )}
                   {day.exercises.length === 0 ? (
                     <p className="p-5 text-sm text-zinc-500">
                       Descanso o sin ejercicios planificados.
