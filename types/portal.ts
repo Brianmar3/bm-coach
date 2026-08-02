@@ -1,5 +1,6 @@
 import type { CoachEvent, Payment, PhysicalEvaluation, PortalPaymentAccount, StudentServiceType, TrainingRoutine } from "@/types/gestion";
 import type { PortalAchievement } from "@/lib/portal-achievements";
+import type { TrainingBlockType } from "@/types/gestion";
 import type { StudentPointSummary } from "@/types/points";
 
 export type PortalProfile = {
@@ -40,6 +41,29 @@ export type PortalWorkoutExercise = {
   history: Array<{ date: string; weight: number | null; repetitions: number | null; effort: number | null }>;
 };
 
+export type PortalWorkoutBlockResult = {
+  completed: boolean;
+  roundsCompleted: number | null;
+  minutesCompleted: number | null;
+  extraRepetitions: number | null;
+  durationSeconds: number | null;
+  pendingWork: string;
+  resultText: string;
+  observation: string;
+  completedExerciseIds: string[];
+};
+
+export type PortalWorkoutBlock = {
+  id?: string;
+  blockId: string;
+  blockName: string;
+  blockType: TrainingBlockType;
+  blockOrder: number;
+  configuration: Record<string, number | string | null>;
+  exercises: Array<{ exerciseId: string; name: string; targetType: string; targetLabel: string; order: number }>;
+  result: PortalWorkoutBlockResult;
+};
+
 export type PortalWorkoutSession = {
   id?: string;
   routineId: string;
@@ -61,6 +85,7 @@ export type PortalWorkoutSession = {
   hasPain: boolean;
   painDetails: string;
   status: "pendiente" | "en_progreso" | "finalizado";
+  blocks?: PortalWorkoutBlock[];
   exercises: PortalWorkoutExercise[];
 };
 

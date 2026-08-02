@@ -8,6 +8,7 @@ type RoutineMetricDay = {
   dayNumber: number;
   name?: string | null;
   exercises: RoutineMetricExercise[];
+  blocks?: Array<{ type?: string | null; durationSeconds?: number | null; rounds?: number | null; workSeconds?: number | null; restSeconds?: number | null; exercises: RoutineMetricExercise[] }>;
 };
 
 type RoutineMetricInput = {
@@ -86,20 +87,28 @@ function distributionFor(exercises: RoutineMetricExercise[]) {
 }
 
 export function routineSeriesMetrics(routine: RoutineMetricInput) {
-  const exercises = routine.days.flatMap((day) => day.exercises);
+  const strengthExercisesForDay = (day: RoutineMetricDay) => day.blocks?.length
+    ? day.blocks.filter((block) => block.type === "STRENGTH").flatMap((block) => block.exercises)
+    : day.exercises;
+  const exercises = routine.days.flatMap(strengthExercisesForDay);
+  const blocks = routine.days.flatMap((day) => day.blocks ?? [{ type: "STRENGTH", durationSeconds: null, exercises: day.exercises }]);
   return {
     totalDays: routine.days.length,
-    activeDays: routine.days.filter((day) => day.exercises.length > 0).length,
-    totalExercises: exercises.length,
+    activeDays: routine.days.filter((day) => (day.blocks?.length ? day.blocks.some((block) => block.exercises.length > 0) : day.exercises.length > 0)).length,
+    totalExercises: routine.days.reduce((sum, day) => sum + (day.blocks?.length ? day.blocks.reduce((count, block) => count + block.exercises.length, 0) : day.exercises.length), 0),
     totalSeries: exercises.reduce((sum, exercise) => sum + configuredSeries(exercise.sets), 0),
+    totalBlocks: blocks.length,
+    conditioningBlocks: blocks.filter((block) => block.type !== "STRENGTH").length,
+    circuits: blocks.filter((block) => block.type === "ROUNDS").length,
+    programmedMinutes: Math.round(blocks.reduce((sum, block) => sum + (block.durationSeconds ?? (block.type === "INTERVAL" ? (block.rounds ?? 0) * ((block.workSeconds ?? 0) + (block.restSeconds ?? 0)) : 0)), 0) / 60),
     weeklyDistribution: distributionFor(exercises),
     perDay: routine.days.map((day) => ({
       id: day.id ?? String(day.dayNumber),
       dayNumber: day.dayNumber,
       name: day.name?.trim() || `Día ${day.dayNumber}`,
-      totalExercises: day.exercises.length,
-      totalSeries: day.exercises.reduce((sum, exercise) => sum + configuredSeries(exercise.sets), 0),
-      distribution: distributionFor(day.exercises),
+      totalExercises: day.blocks?.length ? day.blocks.reduce((sum, block) => sum + block.exercises.length, 0) : day.exercises.length,
+      totalSeries: strengthExercisesForDay(day).reduce((sum, exercise) => sum + configuredSeries(exercise.sets), 0),
+      distribution: distributionFor(strengthExercisesForDay(day)),
     })),
   };
 }

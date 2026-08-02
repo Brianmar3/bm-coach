@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { databaseUnavailable, exerciseData, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
+import { blockData, databaseUnavailable, exerciseData, normalizedBlocks, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -52,6 +52,14 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
           days: {
             include: {
               workoutSessions: { select: { id: true }, take: 1 },
+              blocks: {
+                include: {
+                  workoutLogs: { select: { id: true }, take: 1 },
+                  exercises: {
+                    include: { workoutLogs: { select: { id: true }, take: 1 }, followUpComments: { select: { id: true }, take: 1 } },
+                  },
+                },
+              },
               exercises: {
                 include: {
                   workoutLogs: { select: { id: true }, take: 1 },
@@ -87,6 +95,42 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
           warmup: day.warmup,
           observations: day.observations,
           estimatedMinutes: day.estimatedMinutes,
+          blocks: day.blocks.filter((block) => block.active).sort((left, right) => left.order - right.order).map((block) => ({
+            id: block.id,
+            type: block.type,
+            name: block.name,
+            order: block.order,
+            rounds: block.rounds,
+            durationSeconds: block.durationSeconds,
+            workSeconds: block.workSeconds,
+            restSeconds: block.restSeconds,
+            restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+            targetRounds: block.targetRounds,
+            instructions: block.instructions,
+            exercises: block.exercises.filter((exercise) => exercise.active).sort((left, right) => left.order - right.order).map((exercise) => ({
+              id: exercise.id,
+              name: exercise.name,
+              muscleGroup: exercise.muscleGroup,
+              sets: exercise.sets,
+              repetitions: exercise.repetitions,
+              weight: exercise.weight === null ? null : Number(exercise.weight),
+              effortType: exercise.effortType,
+              effortValue: exercise.effortValue === null ? null : Number(exercise.effortValue),
+              restSeconds: exercise.restSeconds,
+              observations: exercise.observations,
+              videoUrl: exercise.videoUrl ?? "",
+              tempo: exercise.tempo ?? "",
+              alternativeExercise: exercise.alternativeExercise ?? "",
+              equipment: exercise.equipment ?? "",
+              optional: exercise.optional,
+              targetType: exercise.targetType,
+              targetSeconds: exercise.targetSeconds,
+              targetRepetitions: exercise.targetRepetitions ?? "",
+              targetDistance: exercise.targetDistance ?? "",
+              targetSide: exercise.targetSide ?? "",
+              order: exercise.order,
+            })),
+          })),
           exercises: day.exercises.filter((exercise) => exercise.active).sort((left, right) => left.order - right.order).map((exercise) => ({
             id: exercise.id,
             name: exercise.name,
@@ -103,6 +147,11 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
             alternativeExercise: exercise.alternativeExercise ?? "",
             equipment: exercise.equipment ?? "",
             optional: exercise.optional,
+            targetType: exercise.targetType,
+            targetSeconds: exercise.targetSeconds,
+            targetRepetitions: exercise.targetRepetitions ?? "",
+            targetDistance: exercise.targetDistance ?? "",
+            targetSide: exercise.targetSide ?? "",
             order: exercise.order,
           })),
         })),
@@ -141,13 +190,22 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
           });
         retainedDayIds.add(day.id);
 
+        const retainedBlockIds = new Set<string>();
         const retainedExerciseIds = new Set<string>();
-        for (const exerciseInput of [...dayInput.exercises].sort((left, right) => left.order - right.order)) {
-          const existingExercise = existingDay?.exercises.find((exercise) => exercise.id === exerciseInput.id);
-          const exercise = existingExercise
-            ? await transaction.trainingRoutineExercise.update({ where: { id: existingExercise.id }, data: { ...exerciseData(exerciseInput), active: true, archivedAt: null } })
-            : await transaction.trainingRoutineExercise.create({ data: { dayId: day.id, ...exerciseData(exerciseInput) } });
-          retainedExerciseIds.add(exercise.id);
+        if (existingDay) await transaction.trainingRoutineBlock.updateMany({ where: { routineDayId: existingDay.id, active: true }, data: { active: false } });
+        for (const blockInput of normalizedBlocks(dayInput)) {
+          const existingBlock = existingDay?.blocks.find((block) => block.id === blockInput.id);
+          const block = existingBlock
+            ? await transaction.trainingRoutineBlock.update({ where: { id: existingBlock.id }, data: { ...blockData(blockInput), active: true, archivedAt: null } })
+            : await transaction.trainingRoutineBlock.create({ data: { routineDayId: day.id, ...blockData(blockInput) } });
+          retainedBlockIds.add(block.id);
+          for (const exerciseInput of [...blockInput.exercises].sort((left, right) => left.order - right.order)) {
+            const existingExercise = existingDay?.exercises.find((exercise) => exercise.id === exerciseInput.id);
+            const exercise = existingExercise
+              ? await transaction.trainingRoutineExercise.update({ where: { id: existingExercise.id }, data: { blockId: block.id, ...exerciseData(exerciseInput), active: true, archivedAt: null } })
+              : await transaction.trainingRoutineExercise.create({ data: { dayId: day.id, blockId: block.id, ...exerciseData(exerciseInput) } });
+            retainedExerciseIds.add(exercise.id);
+          }
         }
 
         for (const removed of existingDay?.exercises.filter((exercise) => exercise.active && !retainedExerciseIds.has(exercise.id)) ?? []) {
@@ -155,12 +213,18 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
           if (hasHistory) await transaction.trainingRoutineExercise.update({ where: { id: removed.id }, data: { active: false, archivedAt: new Date() } });
           else await transaction.trainingRoutineExercise.delete({ where: { id: removed.id } });
         }
+        for (const removed of existingDay?.blocks.filter((block) => block.active && !retainedBlockIds.has(block.id)) ?? []) {
+          const hasHistory = removed.workoutLogs.length > 0 || removed.exercises.some((exercise) => exercise.workoutLogs.length > 0 || exercise.followUpComments.length > 0);
+          if (hasHistory) await transaction.trainingRoutineBlock.update({ where: { id: removed.id }, data: { active: false, archivedAt: new Date() } });
+          else await transaction.trainingRoutineBlock.delete({ where: { id: removed.id } });
+        }
       }
 
       for (const removedDay of existing.days.filter((day) => day.active && !retainedDayIds.has(day.id))) {
         const hasHistory = removedDay.workoutSessions.length > 0 || removedDay.exercises.some((exercise) => exercise.workoutLogs.length > 0 || exercise.followUpComments.length > 0);
         if (hasHistory) {
           await transaction.trainingRoutineDay.update({ where: { id: removedDay.id }, data: { active: false, archivedAt: new Date() } });
+          await transaction.trainingRoutineBlock.updateMany({ where: { routineDayId: removedDay.id, active: true }, data: { active: false, archivedAt: new Date() } });
           await transaction.trainingRoutineExercise.updateMany({ where: { dayId: removedDay.id, active: true }, data: { active: false, archivedAt: new Date() } });
         } else {
           await transaction.trainingRoutineDay.delete({ where: { id: removedDay.id } });

@@ -42,6 +42,9 @@ const workoutSessionSelect = {
       routineDayNumber: true,
     },
   },
+  blocks: {
+    select: { blockId: true, blockReferenceId: true, snapshotVersion: true, blockName: true, blockType: true, blockOrder: true, blockConfiguration: true, exercisesSnapshot: true },
+  },
 } satisfies Prisma.WorkoutSessionSelect;
 
 export async function POST(request: Request) {
@@ -92,7 +95,7 @@ export async function POST(request: Request) {
 
     const assignment = await prisma.trainingRoutineAssignment.findUnique({
       where: { routineId_studentId: { routineId: input.routineId, studentId: session.studentId } },
-      include: { routine: { include: { days: { include: { exercises: true } } } } },
+      include: { routine: { include: { days: { include: { exercises: true, blocks: { include: { exercises: true } } } } } } },
     });
     const day = assignment?.routine.days.find((item) => item.id === input.dayId);
     if (!assignment || !day) return Response.json({ error: "La rutina o el día ya no están asignados a tu perfil." }, { status: 403 });
@@ -104,12 +107,14 @@ export async function POST(request: Request) {
       assignment.routine.archivedAt === null &&
       day.active &&
       day.archivedAt === null &&
-      day.exercises.some((exercise) => exercise.active && exercise.archivedAt === null);
+      day.blocks.some((block) => block.active && block.archivedAt === null);
     if (!existingSession && !canStartSession) {
       return Response.json({ error: "Esta rutina está archivada o ya no se encuentra activa en tu perfil." }, { status: 403 });
     }
     const validExerciseIds = new Set(day.exercises.filter((exercise) => existingSession || exercise.active).map((exercise) => exercise.id));
     if (input.exercises.some((exercise) => !validExerciseIds.has(exercise.exerciseId))) return Response.json({ error: "Uno de los ejercicios no pertenece a tu rutina." }, { status: 403 });
+    const validBlockIds = new Set(day.blocks.filter((block) => existingSession || block.active).map((block) => block.id));
+    if ((input.blocks ?? []).some((block) => !validBlockIds.has(block.blockId))) return Response.json({ error: "Uno de los bloques no pertenece a tu rutina." }, { status: 403 });
     const inputRoutineName = input.routineNameSnapshot?.trim() ?? "";
     const storedRoutineName = existingSession?.routineNameSnapshot.trim() ?? "";
     const assignedRoutineName = assignment.routine.name.trim();
@@ -160,6 +165,25 @@ export async function POST(request: Request) {
         sets: { create: exercise.sets.map((set) => ({ setNumber: set.setNumber, weight: set.weight, repetitions: set.repetitions, effort: set.effort, completed: set.completed, observation: set.observation.trim() })) },
       });
     }
+    const programmedBlocks = new Map(day.blocks.map((block) => [block.id, block]));
+    const blockCreates: Prisma.WorkoutBlockLogUncheckedCreateWithoutSessionInput[] = [];
+    for (const block of input.blocks ?? []) {
+      const programmed = programmedBlocks.get(block.blockId);
+      if (!programmed) return Response.json({ error: "Uno de los bloques no pertenece al día seleccionado." }, { status: 400 });
+      const previousSnapshot = existingSession?.blocks.find((item) => item.blockId === block.blockId);
+      blockCreates.push({
+        blockId: block.blockId,
+        blockReferenceId: previousSnapshot?.blockReferenceId ?? block.blockId,
+        snapshotVersion: previousSnapshot?.snapshotVersion ?? 1,
+        blockName: previousSnapshot?.blockName ?? programmed.name,
+        blockType: previousSnapshot?.blockType ?? programmed.type,
+        blockOrder: previousSnapshot?.blockOrder ?? programmed.order,
+        blockConfiguration: (previousSnapshot?.blockConfiguration ?? block.configuration) as Prisma.InputJsonValue,
+        exercisesSnapshot: (previousSnapshot?.exercisesSnapshot ?? block.exercises) as Prisma.InputJsonValue,
+        result: block.result as unknown as Prisma.InputJsonValue,
+        completed: block.result.completed,
+      });
+    }
 
     const saved = await prisma.$transaction(async (transaction) => {
       const lockKey = weeklySessionLockKey(session.studentId, input.routineId, input.dayId, weekRange.weekKey);
@@ -177,6 +201,7 @@ export async function POST(request: Request) {
         if (!existing) throw new Error("NOT_FOUND");
         if (existing.status === "COMPLETED") throw new Error("COMPLETED_SESSION");
         await transaction.workoutExerciseLog.deleteMany({ where: { sessionId: existing.id } });
+        await transaction.workoutBlockLog.deleteMany({ where: { sessionId: existing.id } });
       }
       const data = {
         studentId: session.studentId,
@@ -198,6 +223,9 @@ export async function POST(request: Request) {
         status: input.status === "finalizado" ? "COMPLETED" as const : input.status === "en_progreso" ? "IN_PROGRESS" as const : "PENDING" as const,
         exercises: {
           create: exerciseCreates,
+        },
+        blocks: {
+          create: blockCreates,
         },
       };
       return resolvedSessionId

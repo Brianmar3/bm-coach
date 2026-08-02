@@ -2,8 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { PaymentAccountStatus, PhysicalEvaluation } from "@/types/gestion";
-import type { PortalData, PortalWorkoutSession } from "@/types/portal";
+import type { PaymentAccountStatus, PhysicalEvaluation, TrainingRoutineBlock } from "@/types/gestion";
+import type { PortalData, PortalWorkoutBlock, PortalWorkoutSession } from "@/types/portal";
 import { PortalClasses } from "@/componentes/portal-classes";
 import { dailyFocusForInstant } from "@/lib/daily-focus";
 import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/body-evolution-card";
@@ -17,6 +17,9 @@ import { cleanRoutineDisplayName, completedExerciseCount, getMuscleGroupEmoji, i
 import { separateWorkoutInstructions } from "@/lib/workout-instructions";
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { createFreshWorkoutSets, findCurrentWeekSession, getLocalWeekEnd, getWeekKey, legacyWorkoutDraftStorageKey, sessionBelongsToWeek, workoutDraftStorageKey } from "@/lib/workout-week";
+import { freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS } from "@/lib/training-blocks";
+import { isTimedBlockType } from "@/lib/block-timer";
+import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -354,7 +357,7 @@ function PortalSchedules({ data }: { data: PortalData }) {
 function WorkoutView({ data }: { data: PortalData }) {
   const routine = data.routine;
   const weekKey = getWeekKey();
-  const trainingDays = useMemo(() => routine?.days.filter((day) => day.exercises.length) ?? [], [routine]);
+  const trainingDays = useMemo(() => routine?.days.filter((day) => day.blocks.length) ?? [], [routine]);
   const suggestedDayId = useMemo(() => {
     if (!routine || !trainingDays.length) return "";
     const lastCompleted = data.workoutSessions.find((session) => session.routineId === routine.id && session.status === "finalizado" && trainingDays.some((day) => day.id === session.dayId));
@@ -376,6 +379,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [completionSuccess, setCompletionSuccess] = useState(false);
   const [warmupOpen, setWarmupOpen] = useState(false);
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(() => initialOpenExerciseId(inProgress?.exercises ?? []));
+  const [openBlockId, setOpenBlockId] = useState<string | null>(null);
   const autosaveSignature = useRef("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -422,7 +426,8 @@ function WorkoutView({ data }: { data: PortalData }) {
     const now = new Date();
     const dateKey = todayKey;
     const startTime = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
-    return { routineId: routine.id, routineName: routine.name, dayId: day.id, dayNumber: day.dayNumber, dayName: day.name, dayEstimatedMinutes: day.estimatedMinutes, date: dateKey, startTime, durationMinutes: null, energyBefore: null, difficulty: null, energyAfter: null, finalComment: "", hasPain: false, painDetails: "", status: "en_progreso" as const, exercises: day.exercises.map((exercise) => {
+    const strengthExercises = day.blocks.filter((block) => block.type === "STRENGTH").flatMap((block) => block.exercises);
+    return { routineId: routine.id, routineName: routine.name, dayId: day.id, dayNumber: day.dayNumber, dayName: day.name, dayEstimatedMinutes: day.estimatedMinutes, date: dateKey, startTime, durationMinutes: null, energyBefore: null, difficulty: null, energyAfter: null, finalComment: "", hasPain: false, painDetails: "", status: "en_progreso" as const, blocks: day.blocks.map(freshWorkoutBlock), exercises: strengthExercises.map((exercise) => {
       const previousLogs = data.workoutSessions.flatMap((session) => session.exercises.filter((item) => item.exerciseId === exercise.id).map((item) => ({ session, item })));
       const previous = previousLogs[0];
       return { exerciseId: exercise.id, exerciseName: exercise.name, observation: "", previous: previous?.item.sets[0] ? { date: previous.session.date, weight: previous.item.sets[0].weight, repetitions: previous.item.sets[0].repetitions, effort: previous.item.sets[0].effort } : null, history: previousLogs.slice(0, 8).flatMap(({ session, item }) => item.sets[0] ? [{ date: session.date, weight: item.sets[0].weight, repetitions: item.sets[0].repetitions, effort: item.sets[0].effort }] : []), sets: createFreshWorkoutSets(exercise.sets, exercise.weight, previous?.item.sets ?? []) };
@@ -471,6 +476,13 @@ function WorkoutView({ data }: { data: PortalData }) {
     const sets = [...exercise.sets];
     sets[setIndex] = { ...sets[setIndex], ...changes };
     const next = beginWith({ ...draft, exercises: exercises.map((item, index) => index === exerciseIndex ? { ...exercise, sets } : item) });
+    setDraft(next);
+    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
+  }
+
+  function updateBlockResult(blockId: string, changes: Partial<NonNullable<PortalWorkoutSession["blocks"]>[number]["result"]>) {
+    if (!draft) return;
+    const next = beginWith({ ...draft, blocks: (draft.blocks ?? []).map((block) => block.blockId === blockId ? { ...block, result: { ...block.result, ...changes } } : block) });
     setDraft(next);
     window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
   }
@@ -533,13 +545,17 @@ function WorkoutView({ data }: { data: PortalData }) {
   const totalSets = draft?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
   const completedTotal = draft?.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).length, 0) ?? 0;
   const completedExercises = completedExerciseCount(draft?.exercises ?? []);
+  const conditioningBlocks = selectedDay.blocks.filter((block) => block.type !== "STRENGTH");
+  const completedConditioningBlocks = (draft?.blocks ?? []).filter((block) => block.blockType !== "STRENGTH" && hasBlockActivity(block)).length;
+  const totalActivities = selectedDay.blocks.filter((block) => block.type === "STRENGTH").reduce((sum, block) => sum + block.exercises.length, 0) + conditioningBlocks.length;
+  const completedActivities = completedExercises + completedConditioningBlocks;
   const routineDisplayName = cleanRoutineDisplayName(routine.name) || routine.name;
   const selectedDayName = usefulDayName(selectedDay.dayNumber, selectedDay.name);
   const dayFocus = selectedDay.objective || selectedDayName || routine.objective || `Día ${selectedDay.dayNumber}`;
   const muscleGroupEmoji = getMuscleGroupEmoji([selectedDay.name, selectedDay.objective, ...selectedDay.exercises.map((exercise) => exercise.muscleGroup)].join(" "));
-  const dayProgress = selectedDay.exercises.length ? completedExercises / selectedDay.exercises.length * 100 : 0;
-  const dayStateLabel = completedTotal === totalSets && totalSets ? "Completado" : started ? "En curso" : "Sin comenzar";
-  const incomplete = completedTotal < totalSets;
+  const dayProgress = totalActivities ? completedActivities / totalActivities * 100 : 0;
+  const dayStateLabel = completedActivities === totalActivities && totalActivities ? "Completado" : started ? "En curso" : "Sin comenzar";
+  const incomplete = completedActivities < totalActivities;
   return <>
     <header className="mb-3"><p className="text-sm font-semibold text-zinc-400">{routineDisplayName}</p></header>
     <div aria-label="Días de la rutina" className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">{trainingDays.map((day) => {
@@ -550,8 +566,8 @@ function WorkoutView({ data }: { data: PortalData }) {
       <span className={`absolute right-3 top-3 rounded-full border px-2.5 py-1 text-[10px] font-bold ${dayStateLabel === "Completado" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" : dayStateLabel === "En curso" ? "border-yellow-400/25 bg-yellow-400/10 text-yellow-300" : "border-zinc-700 bg-zinc-800/90 text-zinc-400"}`}>{dayStateLabel}</span>
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 pt-7">
         <span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[.07] text-2xl leading-none shadow-[inset_0_0_0_1px_rgba(250,204,21,.03)]">{muscleGroupEmoji}</span>
-        <div className="min-w-0"><p className="truncate text-lg font-black text-white">{dayFocus}</p><div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-zinc-400"><span>{selectedDay.exercises.length} ejercicios</span>{selectedDay.estimatedMinutes && <span>· {selectedDay.estimatedMinutes} min duración</span>}{selectedDay.id === suggestedDayId && <span className="text-yellow-300">· Día sugerido</span>}</div></div>
-        <div aria-label={`${completedExercises} de ${selectedDay.exercises.length} ejercicios completados`} className="grid h-16 w-16 shrink-0 place-items-center rounded-full p-[4px]" style={{ background: `conic-gradient(#facc15 ${dayProgress * 3.6}deg,#27272a 0deg)` }}><span className="grid h-full w-full place-items-center rounded-full bg-zinc-950 text-center"><span><strong className="block text-sm font-black text-white">{completedExercises}/{selectedDay.exercises.length}</strong><small className="block text-[7px] uppercase tracking-wide text-zinc-500">completados</small></span></span></div>
+        <div className="min-w-0"><p className="truncate text-lg font-black text-white">{dayFocus}</p><div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-zinc-400"><span>{selectedDay.blocks.length} bloques · {selectedDay.exercises.length} ejercicios</span>{selectedDay.estimatedMinutes && <span>· {selectedDay.estimatedMinutes} min duración</span>}{selectedDay.id === suggestedDayId && <span className="text-yellow-300">· Día sugerido</span>}</div></div>
+        <div aria-label={`${completedActivities} de ${totalActivities} actividades completadas`} className="grid h-16 w-16 shrink-0 place-items-center rounded-full p-[4px]" style={{ background: `conic-gradient(#facc15 ${dayProgress * 3.6}deg,#27272a 0deg)` }}><span className="grid h-full w-full place-items-center rounded-full bg-zinc-950 text-center"><span><strong className="block text-sm font-black text-white">{completedActivities}/{totalActivities}</strong><small className="block text-[7px] uppercase tracking-wide text-zinc-500">completados</small></span></span></div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3 text-[10px] text-zinc-500"><span>Progreso del día</span><span>{Math.round(dayProgress)}%</span></div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-[width]" style={{ width: `${dayProgress}%` }} /></div>
@@ -560,6 +576,10 @@ function WorkoutView({ data }: { data: PortalData }) {
     {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento cargado correctamente</div>}
     {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-zinc-500">Preparando ejercicios…</p>}
     {warmupOpen && <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWarmupOpen(false); }} className="fixed inset-0 z-[120] grid place-items-center overflow-y-auto bg-black/80 px-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] pt-[calc(env(safe-area-inset-top)+.75rem)] backdrop-blur-sm"><section role="dialog" aria-modal="true" aria-labelledby="warmup-title" className="max-h-[82dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-yellow-400/25 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5"><header className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 id="warmup-title" className="text-lg font-black">Entrada en calor</h2><p className="mt-1 text-sm text-yellow-300">Día {selectedDay.dayNumber} · {selectedDay.objective || selectedDay.name}</p></div><button type="button" onClick={() => setWarmupOpen(false)} aria-label="Cerrar entrada en calor" className="grid size-9 shrink-0 place-items-center rounded-lg text-xl text-zinc-400 hover:bg-zinc-800 hover:text-white">×</button></header><p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">{selectedDay.warmup}</p><button type="button" onClick={() => setWarmupOpen(false)} className="mt-5 min-h-11 w-full rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-200">Cerrar</button></section></div>}
+    {draft && conditioningBlocks.map((programmed) => {
+      const block = (draft.blocks ?? []).find((item) => item.blockId === programmed.id);
+      return block ? <WorkoutBlockCard key={block.blockId} block={block} programmed={programmed} timerPersistenceKey={`${storageKey(selectedDay.id)}:timer:${block.blockId}`} open={openBlockId === block.blockId} toggle={() => setOpenBlockId(openBlockId === block.blockId ? null : block.blockId)} update={(changes) => updateBlockResult(block.blockId, changes)} /> : null;
+    })}
     {draft && <>
       <div className="mt-5 space-y-3">{draft.exercises.map((exercise, exerciseIndex) => {
         const programmed = selectedDay.exercises.find((item) => item.id === exercise.exerciseId);
@@ -591,6 +611,30 @@ function WorkoutView({ data }: { data: PortalData }) {
   </>;
 }
 
+function WorkoutBlockCard({ block, programmed, timerPersistenceKey, open, toggle, update }: { block: PortalWorkoutBlock; programmed: TrainingRoutineBlock; timerPersistenceKey: string; open: boolean; toggle: () => void; update: (changes: Partial<PortalWorkoutBlock["result"]>) => void }) {
+  const configuration = [programmed.rounds ? `${programmed.rounds} rondas` : null, programmed.durationSeconds ? `${Math.round(programmed.durationSeconds / 60)} min` : null, programmed.workSeconds ? `${programmed.workSeconds} s trabajo` : null, programmed.restSeconds !== null ? `${programmed.restSeconds} s pausa` : null].filter(Boolean).join(" · ");
+  const active = hasBlockActivity(block);
+  const timed = isTimedBlockType(block.blockType);
+  const numeric = (value: string) => value === "" ? null : Number(value);
+  function toggleExercise(id: string) { update({ completedExerciseIds: block.result.completedExerciseIds.includes(id) ? block.result.completedExerciseIds.filter((item) => item !== id) : [...block.result.completedExerciseIds, id] }); }
+  return <article className={`mb-3 overflow-hidden rounded-2xl border bg-zinc-900/90 ${open ? "border-yellow-400/30" : "border-zinc-800"}`}><button type="button" onClick={toggle} aria-expanded={open} className="flex min-h-16 w-full items-center gap-3 p-3.5 text-left"><span className={`grid size-9 shrink-0 place-items-center rounded-xl text-sm font-black ${active ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{active ? "✓" : programmed.order}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm uppercase tracking-wide text-zinc-100">{programmed.name}</strong><span className="mt-1 block text-[10px] text-zinc-500">{TRAINING_BLOCK_LABELS[programmed.type]}{configuration ? ` · ${configuration}` : ""}</span></span><span className="shrink-0 rounded-lg border border-yellow-400/25 px-2 py-1 text-[10px] font-bold text-yellow-300">{open ? "Cerrar" : "Comenzar bloque"}</span></button>{open && <div className="border-t border-zinc-800 p-3.5">{programmed.instructions && <p className="mb-3 whitespace-pre-wrap rounded-xl bg-zinc-950 p-3 text-xs leading-relaxed text-zinc-300">{programmed.instructions}</p>}{timed && <WorkoutBlockTimer block={block} programmed={programmed} persistenceKey={timerPersistenceKey} update={update} />}<ol className="mt-3 space-y-2">{block.exercises.map((exercise) => <li key={exercise.exerciseId} className="flex items-center gap-3 rounded-xl bg-zinc-950 px-3 py-2.5">{!timed && <input aria-label={`${exercise.name} completado`} type="checkbox" checked={block.result.completedExerciseIds.includes(exercise.exerciseId)} onChange={() => toggleExercise(exercise.exerciseId)} className="size-5 shrink-0 accent-yellow-400" />}<span className="min-w-0"><strong className="block text-sm">{exercise.order}. {exercise.name}</strong><span className="text-xs text-zinc-500">{exercise.targetLabel}</span></span></li>)}</ol><div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {block.blockType === "ROUNDS" && <Field label="Rondas completadas"><input type="number" min="0" value={block.result.roundsCompleted ?? ""} onChange={(event) => update({ roundsCompleted: numeric(event.target.value) })} className={`${portalInput} mt-1`} /></Field>}
+      {block.blockType === "ROUNDS" && <Field label="Duración realizada (seg.)"><input type="number" min="0" value={block.result.durationSeconds ?? ""} onChange={(event) => update({ durationSeconds: numeric(event.target.value) })} className={`${portalInput} mt-1`} /></Field>}
+      {block.blockType === "FOR_TIME" && <Field label="Trabajo pendiente"><input value={block.result.pendingWork} onChange={(event) => update({ pendingWork: event.target.value })} className={`${portalInput} mt-1`} /></Field>}
+      {block.blockType === "FREE" && <Field label="Resultado"><textarea rows={2} value={block.result.resultText} onChange={(event) => update({ resultText: event.target.value })} className={`${portalInput} mt-1`} /></Field>}
+      <Field label="Observación"><textarea rows={2} value={block.result.observation} onChange={(event) => update({ observation: event.target.value })} className={`${portalInput} mt-1`} /></Field>
+    </div>{!timed && <label className="mt-3 flex min-h-11 items-center gap-3 rounded-xl border border-zinc-700 px-3 text-sm font-semibold"><input type="checkbox" checked={block.result.completed} onChange={(event) => update({ completed: event.target.checked })} className="size-5 accent-yellow-400" /> Bloque completado</label>}</div>}</article>;
+}
+
+function workoutBlockResultSummary(block: PortalWorkoutBlock) {
+  const result = block.result;
+  if (block.blockType === "AMRAP") return `${result.roundsCompleted ?? 0} vueltas${result.extraRepetitions ? ` + ${result.extraRepetitions} reps` : ""}`;
+  if (block.blockType === "EMOM") return `${result.minutesCompleted ?? 0} min${result.roundsCompleted ? ` · ${result.roundsCompleted} ciclos` : ""}`;
+  if (block.blockType === "FOR_TIME") return result.completed ? `${result.durationSeconds ?? 0} s · completado` : `${result.roundsCompleted ?? 0} rondas${result.pendingWork ? ` · pendiente: ${result.pendingWork}` : ""}`;
+  if (block.blockType === "FREE") return result.resultText || (result.completed ? "Completado" : "Sin resultado");
+  return `${result.roundsCompleted ?? 0} rondas${result.durationSeconds ? ` · ${result.durationSeconds} s` : ""}`;
+}
+
 function WorkoutHistoryView({ data }: { data: PortalData }) {
   const sessions = data.workoutSessions;
   return <section>
@@ -598,7 +642,7 @@ function WorkoutHistoryView({ data }: { data: PortalData }) {
       {sessions.length ? <div className="space-y-3">{sessions.map((session) => {
         const completedExercises = session.exercises.filter((exercise) => exercise.sets.some((set) => set.completed)).length;
         const completedSets = session.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).length, 0);
-        return <details key={session.id ?? `${session.date}-${session.dayId}`} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer list-none"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{session.routineNameSnapshot || session.routineName || "Rutina eliminada"}</p><p className="mt-1 text-sm text-zinc-400">Día {session.routineDayNumberSnapshot ?? session.dayNumber}{session.dayName ? ` — ${session.dayName}` : ""}</p><p className="mt-2 text-xs text-zinc-500">{date(session.date)}{session.durationMinutes ? ` · ${session.durationMinutes} min` : ""} · {completedExercises} ejercicios · {completedSets} series</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${session.status === "finalizado" ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{session.status === "finalizado" ? "Completado" : "En progreso"}</span></div><span className="mt-3 inline-block text-sm font-bold text-yellow-400">Ver detalle</span></summary><div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">{(session.energyBefore !== null || session.difficulty !== null || session.energyAfter !== null) && <div className="grid grid-cols-3 gap-2"><SmallMetric title="Energía antes" value={session.energyBefore?.toString() ?? "Sin dato"} /><SmallMetric title="Dificultad" value={session.difficulty?.toString() ?? "Sin dato"} /><SmallMetric title="Energía después" value={session.energyAfter?.toString() ?? "Sin dato"} /></div>}{session.exercises.map((exercise) => <article key={exercise.id ?? exercise.exerciseId} className="rounded-xl bg-zinc-950 p-3"><p className="font-semibold">{exercise.exerciseName}</p><div className="mt-2 space-y-1">{exercise.sets.map((set) => <p key={set.id ?? set.setNumber} className="text-xs text-zinc-400">Serie {set.setNumber}: {set.weight ?? "—"} kg · {set.repetitions ?? "—"} reps · RIR/RPE {set.effort ?? "—"}{set.completed ? " · completada" : ""}{set.observation ? ` · ${set.observation}` : ""}</p>)}</div>{exercise.observation && <p className="mt-2 text-xs text-zinc-500">{exercise.observation}</p>}</article>)}{session.finalComment && <p className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{session.finalComment}</p>}{session.hasPain && <p className="rounded-xl bg-red-400/10 p-3 text-sm text-red-200">Dolor o molestia registrada: {session.painDetails || "sin detalle"}</p>}</div></details>;
+        return <details key={session.id ?? `${session.date}-${session.dayId}`} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><summary className="cursor-pointer list-none"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{session.routineNameSnapshot || session.routineName || "Rutina eliminada"}</p><p className="mt-1 text-sm text-zinc-400">Día {session.routineDayNumberSnapshot ?? session.dayNumber}{session.dayName ? ` — ${session.dayName}` : ""}</p><p className="mt-2 text-xs text-zinc-500">{date(session.date)}{session.durationMinutes ? ` · ${session.durationMinutes} min` : ""} · {completedExercises} ejercicios · {completedSets} series · {(session.blocks ?? []).filter(hasBlockActivity).length} bloques</p></div><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${session.status === "finalizado" ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{session.status === "finalizado" ? "Completado" : "En progreso"}</span></div><span className="mt-3 inline-block text-sm font-bold text-yellow-400">Ver detalle</span></summary><div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">{(session.energyBefore !== null || session.difficulty !== null || session.energyAfter !== null) && <div className="grid grid-cols-3 gap-2"><SmallMetric title="Energía antes" value={session.energyBefore?.toString() ?? "Sin dato"} /><SmallMetric title="Dificultad" value={session.difficulty?.toString() ?? "Sin dato"} /><SmallMetric title="Energía después" value={session.energyAfter?.toString() ?? "Sin dato"} /></div>}{(session.blocks ?? []).filter((block) => block.blockType !== "STRENGTH").sort((left, right) => left.blockOrder - right.blockOrder).map((block) => <article key={block.id ?? block.blockId} className="rounded-xl border border-yellow-400/15 bg-zinc-950 p-3"><div className="flex items-start justify-between gap-3"><p className="font-semibold">{block.blockName}</p><span className="text-[10px] font-bold uppercase text-yellow-300">{TRAINING_BLOCK_LABELS[block.blockType]}</span></div><p className="mt-2 whitespace-pre-wrap text-xs text-zinc-300">{workoutBlockResultSummary(block)}</p>{block.result.observation && <p className="mt-2 whitespace-pre-wrap text-xs text-zinc-500">{block.result.observation}</p>}</article>)}{session.exercises.map((exercise) => <article key={exercise.id ?? exercise.exerciseId} className="rounded-xl bg-zinc-950 p-3"><p className="font-semibold">{exercise.exerciseName}</p><div className="mt-2 space-y-1">{exercise.sets.map((set) => <p key={set.id ?? set.setNumber} className="text-xs text-zinc-400">Serie {set.setNumber}: {set.weight ?? "—"} kg · {set.repetitions ?? "—"} reps · RIR/RPE {set.effort ?? "—"}{set.completed ? " · completada" : ""}{set.observation ? ` · ${set.observation}` : ""}</p>)}</div>{exercise.observation && <p className="mt-2 text-xs text-zinc-500">{exercise.observation}</p>}</article>)}{session.finalComment && <p className="rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{session.finalComment}</p>}{session.hasPain && <p className="rounded-xl bg-red-400/10 p-3 text-sm text-red-200">Dolor o molestia registrada: {session.painDetails || "sin detalle"}</p>}</div></details>;
       })}</div> : <Notice>Todavía no hay entrenamientos registrados.</Notice>}
   </section>;
 }

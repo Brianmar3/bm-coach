@@ -39,7 +39,9 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
       return Response.json({ error: "No se puede mover de día un ejercicio con historial. Duplicalo en el nuevo día y archivá el anterior." }, { status: 409 });
     }
     const exercise = await prisma.$transaction(async (transaction) => {
-      const updated = await transaction.trainingRoutineExercise.update({ where: { id: exerciseId }, data: { dayId: day.id, ...exerciseData(input) } });
+      const block = await transaction.trainingRoutineBlock.findFirst({ where: { routineDayId: day.id, type: "STRENGTH", active: true }, orderBy: { order: "asc" } })
+        ?? await transaction.trainingRoutineBlock.create({ data: { routineDayId: day.id, type: "STRENGTH", name: "Bloque de fuerza", order: 1 } });
+      const updated = await transaction.trainingRoutineExercise.update({ where: { id: exerciseId }, data: { dayId: day.id, blockId: block.id, ...exerciseData({ ...input, targetType: input.targetType ?? "REPS", targetSeconds: input.targetSeconds ?? null, targetRepetitions: input.targetRepetitions ?? "", targetDistance: input.targetDistance ?? "", targetSide: input.targetSide ?? "" }) } });
       await transaction.trainingRoutine.update({ where: { id }, data: { updatedAt: new Date() } });
       return updated;
     });

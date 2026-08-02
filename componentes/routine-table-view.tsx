@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { routineSeriesMetrics } from "@/lib/routine-metrics";
-import type { TrainingExercise, TrainingRoutine } from "@/types/gestion";
+import type { TrainingExercise, TrainingRoutine, TrainingRoutineBlock } from "@/types/gestion";
 
 type RoutineTableViewProps = {
   routine: TrainingRoutine;
@@ -25,6 +25,18 @@ function exerciseSummary(exercise: TrainingExercise) {
     exercise.weight === null ? null : `${exercise.weight} kg`,
     exercise.restSeconds === null ? null : `${exercise.restSeconds} s`,
   ].filter(Boolean).join(" · ");
+}
+
+function targetSummary(exercise: TrainingExercise) {
+  if (exercise.targetType === "TIME" || exercise.targetType === "REST") return `${exercise.targetSeconds ?? 0} segundos`;
+  if (exercise.targetType === "REPS") return `${exercise.targetRepetitions || exercise.repetitions} repeticiones`;
+  if (exercise.targetType === "DISTANCE") return exercise.targetDistance || "Distancia libre";
+  return exercise.targetSide || "Objetivo libre";
+}
+
+function ConditioningBlockContent({ block }: { block: TrainingRoutineBlock }) {
+  const configuration = [block.rounds ? `${block.rounds} rondas` : null, block.durationSeconds ? `${Math.round(block.durationSeconds / 60)} min` : null, block.workSeconds ? `${block.workSeconds} s trabajo` : null, block.restSeconds !== null ? `${block.restSeconds} s pausa` : null].filter(Boolean).join(" · ");
+  return <section className="border-b border-zinc-800 bg-zinc-900/55 px-4 py-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black uppercase tracking-wide text-yellow-300">{block.name}</p><p className="mt-1 text-xs text-zinc-500">{block.type.replace("_", " ")}{configuration ? ` · ${configuration}` : ""}</p></div><span className="rounded-lg bg-yellow-400/10 px-2 py-1 text-xs font-bold text-yellow-300">{block.exercises.length} ejercicios</span></div>{block.instructions && <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-300">{block.instructions}</p>}<ol className="mt-3 space-y-2">{block.exercises.map((exercise) => <li key={exercise.id} className="rounded-lg bg-zinc-950 px-3 py-2 text-sm"><span className="font-semibold">{exercise.order}. {exercise.name}</span><span className="ml-2 text-xs text-zinc-500">{targetSummary(exercise)}{exercise.targetSide ? ` · ${exercise.targetSide}` : ""}</span></li>)}</ol></section>;
 }
 
 export function RoutineTableView({
@@ -87,6 +99,8 @@ export function RoutineTableView({
         <div className="space-y-4 p-3 sm:p-5">
           {routine.days.map((day) => {
             const open = openDayId === day.id;
+            const strengthExercises = day.blocks.filter((block) => block.type === "STRENGTH").flatMap((block) => block.exercises);
+            const conditioningBlocks = day.blocks.filter((block) => block.type !== "STRENGTH");
             return (
               <article
                 key={day.id}
@@ -118,14 +132,15 @@ export function RoutineTableView({
                       <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-300">{day.warmup}</p>
                     </section>
                   )}
-                  {day.exercises.length === 0 ? (
+                  {conditioningBlocks.map((block) => <ConditioningBlockContent key={block.id} block={block} />)}
+                  {strengthExercises.length === 0 && conditioningBlocks.length === 0 ? (
                     <p className="p-5 text-sm text-zinc-500">
                       Descanso o sin ejercicios planificados.
                     </p>
                   ) : (
                     <>
                       <div className="divide-y divide-zinc-800 md:hidden">
-                        {day.exercises.map((exercise) => (
+                        {strengthExercises.map((exercise) => (
                           <div key={exercise.id} className="px-4 py-3">
                             <div className="flex items-start gap-3">
                               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-yellow-400/10 text-xs font-black text-yellow-300">
@@ -174,7 +189,7 @@ export function RoutineTableView({
                             </tr>
                           </thead>
                           <tbody>
-                            {day.exercises.map((exercise, index) => (
+                            {strengthExercises.map((exercise, index) => (
                               <tr
                                 key={exercise.id}
                                 className={`border-t border-zinc-800 ${
@@ -230,10 +245,13 @@ export function RoutineTableView({
             );
           })}
           <section aria-label="Métricas y distribución de la rutina" className="rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-yellow-400/[.055] to-zinc-950 p-4 sm:p-5">
-            <div className="grid grid-cols-3 gap-2">
-              <RoutineMetric label="Series totales" value={metrics.totalSeries} />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <RoutineMetric label="Series de fuerza" value={metrics.totalSeries} />
               <RoutineMetric label="Días" value={metrics.totalDays} />
               <RoutineMetric label="Ejercicios" value={metrics.totalExercises} />
+              <RoutineMetric label="Bloques" value={metrics.totalBlocks} />
+              <RoutineMetric label="Circuitos" value={metrics.circuits} />
+              <RoutineMetric label="Min. programados" value={metrics.programmedMinutes} />
             </div>
             <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
               <div>

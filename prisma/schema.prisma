@@ -864,6 +864,24 @@ enum TrainingEffortType {
   RIR
 }
 
+enum TrainingBlockType {
+  STRENGTH
+  ROUNDS
+  INTERVAL
+  EMOM
+  AMRAP
+  FOR_TIME
+  FREE
+}
+
+enum TrainingExerciseTargetType {
+  TIME
+  REPS
+  DISTANCE
+  REST
+  FREE
+}
+
 model TrainingRoutine {
   id              String                      @id @default(cuid())
   name            String
@@ -917,6 +935,7 @@ model TrainingRoutineDay {
   observations     String                    @default("")
   estimatedMinutes Int?
   routine          TrainingRoutine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  blocks           TrainingRoutineBlock[]
   exercises        TrainingRoutineExercise[]
   workoutSessions  WorkoutSession[]
   active           Boolean                   @default(true)
@@ -927,9 +946,36 @@ model TrainingRoutineDay {
   @@map("training_routine_days")
 }
 
+model TrainingRoutineBlock {
+  id                       String                    @id @default(cuid())
+  routineDayId             String
+  type                     TrainingBlockType
+  name                     String                    @default("")
+  order                    Int
+  rounds                   Int?
+  durationSeconds          Int?
+  workSeconds              Int?
+  restSeconds              Int?
+  restBetweenRoundsSeconds Int?
+  targetRounds             Int?
+  instructions             String                    @default("")
+  active                   Boolean                   @default(true)
+  archivedAt               DateTime?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  day                      TrainingRoutineDay        @relation(fields: [routineDayId], references: [id], onDelete: Cascade)
+  exercises                TrainingRoutineExercise[]
+  workoutLogs              WorkoutBlockLog[]
+
+  @@index([routineDayId, order])
+  @@index([routineDayId, active])
+  @@map("training_routine_blocks")
+}
+
 model TrainingRoutineExercise {
   id                  String               @id @default(cuid())
   dayId               String
+  blockId             String
   name                String
   muscleGroup         String
   sets                Int
@@ -944,10 +990,16 @@ model TrainingRoutineExercise {
   alternativeExercise String?
   equipment           String?
   optional            Boolean              @default(false)
+  targetType          TrainingExerciseTargetType @default(REPS)
+  targetSeconds       Int?
+  targetRepetitions   String?
+  targetDistance      String?
+  targetSide          String?
   order               Int
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   day                 TrainingRoutineDay   @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  block               TrainingRoutineBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
   workoutLogs         WorkoutExerciseLog[]
   followUpComments    FollowUpComment[]
   active              Boolean              @default(true)
@@ -955,6 +1007,7 @@ model TrainingRoutineExercise {
 
   @@index([dayId, order])
   @@index([dayId, active])
+  @@index([blockId, order])
   @@map("training_routine_exercises")
 }
 
@@ -1044,11 +1097,35 @@ model WorkoutSession {
   routine                            TrainingRoutine?     @relation(fields: [routineId], references: [id], onDelete: SetNull)
   day                                TrainingRoutineDay?  @relation(fields: [dayId], references: [id], onDelete: SetNull)
   exercises                          WorkoutExerciseLog[]
+  blocks                             WorkoutBlockLog[]
   comments                           FollowUpComment[]
 
   @@index([studentId, date])
   @@index([status, updatedAt])
   @@map("workout_sessions")
+}
+
+model WorkoutBlockLog {
+  id                  String                @id @default(cuid())
+  sessionId           String
+  blockId             String?
+  blockReferenceId    String
+  snapshotVersion     Int                   @default(1)
+  blockName           String
+  blockType           TrainingBlockType
+  blockOrder          Int
+  blockConfiguration  Json
+  exercisesSnapshot   Json
+  result              Json
+  completed           Boolean               @default(false)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  session             WorkoutSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  block               TrainingRoutineBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, blockReferenceId])
+  @@index([blockReferenceId, updatedAt])
+  @@map("workout_block_logs")
 }
 
 model WorkoutExerciseLog {

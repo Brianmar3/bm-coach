@@ -31,9 +31,9 @@ test("la tarjeta principal ya no ofrece historial y mantiene acciones importante
   assert.match(card, /Más acciones/);
 });
 
-test("Ver contenido resume series, días, ejercicios y distribución semanal", () => {
+test("Ver contenido separa series de fuerza, bloques, circuitos y distribución semanal", () => {
   assert.match(table, /routineSeriesMetrics\(routine\)/);
-  for (const content of ["Series totales", "Distribución semanal", "Ver desglose por día"]) assert.match(table, new RegExp(content));
+  for (const content of ["Series de fuerza", "Bloques", "Circuitos", "Min. programados", "Distribución semanal", "Ver desglose por día"]) assert.match(table, new RegExp(content.replace(".", "\\.")));
   assert.match(table, /weeklyDistribution\.map/);
   assert.match(table, /perDay\.map/);
   assert.match(table, /item\.percentage/);
@@ -187,7 +187,7 @@ test("Ver contenido muestra la entrada en calor antes de los ejercicios y conser
   assert.match(table, /day\.warmup\.trim\(\)/);
   assert.match(table, /Entrada en calor/);
   assert.match(table, /whitespace-pre-wrap/);
-  assert.ok(table.indexOf("day.warmup.trim()") < table.indexOf("day.exercises.length === 0"));
+  assert.ok(table.indexOf("day.warmup.trim()") < table.indexOf("conditioningBlocks.map"));
 });
 
 test("actualizar una rutina activa incluye warmup sin duplicar rutina ni tocar sesiones", () => {

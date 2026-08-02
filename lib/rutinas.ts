@@ -1,8 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
-import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
+import type { Student, TrainingBlockType, TrainingEffortType, TrainingExercise, TrainingExerciseTargetType, TrainingRoutine, TrainingRoutineBlock, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
-export type ExerciseInput = Omit<TrainingExercise, "id"> & { id?: string };
+export type ExerciseInput = Omit<TrainingExercise, "id" | "blockId"> & { id?: string; blockId?: string };
+export type BlockInput = Omit<TrainingRoutineBlock, "id" | "exercises"> & { id?: string; exercises: ExerciseInput[] };
 export type RoutineDayInput = {
   id?: string;
   dayNumber: number;
@@ -12,6 +13,7 @@ export type RoutineDayInput = {
   observations: string;
   estimatedMinutes: number | null;
   exercises: ExerciseInput[];
+  blocks?: BlockInput[];
 };
 export type RoutineInput = {
   name: string;
@@ -31,7 +33,10 @@ export type RoutineInput = {
 };
 
 export const routineInclude = {
-  days: { where: { active: true }, include: { exercises: { where: { active: true }, orderBy: { order: "asc" as const } } }, orderBy: { dayNumber: "asc" as const } },
+  days: { where: { active: true }, include: {
+    blocks: { where: { active: true }, include: { exercises: { where: { active: true }, orderBy: { order: "asc" as const } } }, orderBy: { order: "asc" as const } },
+    exercises: { where: { active: true }, orderBy: { order: "asc" as const } },
+  }, orderBy: { dayNumber: "asc" as const } },
   assignments: { include: { student: true } },
 };
 
@@ -41,6 +46,8 @@ const levels: TrainingRoutineLevel[] = ["principiante", "intermedio", "avanzado"
 const statuses: TrainingRoutineStatus[] = ["borrador", "activa", "finalizada", "archivada"];
 const effortTypes: TrainingEffortType[] = ["RPE", "RIR"];
 const kinds: TrainingRoutineKind[] = ["assigned", "template"];
+const blockTypes: TrainingBlockType[] = ["STRENGTH", "ROUNDS", "INTERVAL", "EMOM", "AMRAP", "FOR_TIME", "FREE"];
+const targetTypes: TrainingExerciseTargetType[] = ["TIME", "REPS", "DISTANCE", "REST", "FREE"];
 
 const levelToDatabase = { principiante: "PRINCIPIANTE", intermedio: "INTERMEDIO", avanzado: "AVANZADO" } as const;
 const statusToDatabase = { borrador: "BORRADOR", activa: "ACTIVA", finalizada: "FINALIZADA", archivada: "ARCHIVADA" } as const;
@@ -59,18 +66,53 @@ function validUrl(value: string | undefined) {
   }
 }
 
-export function validateExercise(input: ExerciseInput) {
+export function validateExercise(input: ExerciseInput, blockType: TrainingBlockType = "STRENGTH") {
   if (!input.name?.trim() || !input.muscleGroup?.trim()) return "Cada ejercicio necesita nombre y grupo muscular.";
+  if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) return "El orden debe ser un entero entre 1 y 999.";
+  if ((input.observations?.length ?? 0) > 1000) return "Las observaciones del ejercicio son demasiado extensas.";
+  if ((input.alternativeExercise?.length ?? 0) > 120) return "El ejercicio alternativo es demasiado extenso.";
+  if (!validUrl(input.videoUrl)) return "La URL del video debe comenzar con http o https.";
+  if (blockType !== "STRENGTH") {
+    if (!targetTypes.includes(input.targetType)) return "Seleccioná un objetivo válido para cada ejercicio.";
+    if (input.targetSeconds !== null && (!Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) return "El tiempo objetivo no es válido.";
+    if ((input.targetRepetitions?.length ?? 0) > 50 || (input.targetDistance?.length ?? 0) > 50 || (input.targetSide?.length ?? 0) > 80) return "El objetivo del ejercicio es demasiado extenso.";
+    if (input.targetType === "TIME" && input.targetSeconds === null) return "Ingresá los segundos objetivo.";
+    if (input.targetType === "REST" && input.targetSeconds === null) return "Ingresá los segundos de descanso.";
+    if (input.targetType === "REPS" && !input.targetRepetitions?.trim()) return "Ingresá las repeticiones objetivo.";
+    if (input.targetType === "DISTANCE" && !input.targetDistance?.trim()) return "Ingresá la distancia objetivo.";
+    return null;
+  }
   if (!Number.isInteger(input.sets) || input.sets < 1 || input.sets > 100) return "Las series deben ser un número entero entre 1 y 100.";
   if (!input.repetitions?.trim() || input.repetitions.length > 50) return "Ingresá repeticiones válidas.";
   if (input.weight !== null && (!Number.isFinite(input.weight) || input.weight < 0 || input.weight > 1000)) return "El peso debe estar entre 0 y 1000 kg.";
   if (!effortTypes.includes(input.effortType)) return "Seleccioná RPE o RIR.";
   if (input.effortValue !== null && (!Number.isFinite(input.effortValue) || input.effortValue < 0 || input.effortValue > 10)) return "El valor de RPE/RIR debe estar entre 0 y 10.";
   if (input.restSeconds !== null && (!Number.isInteger(input.restSeconds) || input.restSeconds < 0 || input.restSeconds > 3600)) return "El descanso debe estar entre 0 y 3600 segundos.";
-  if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) return "El orden debe ser un entero entre 1 y 999.";
-  if ((input.observations?.length ?? 0) > 1000) return "Las observaciones del ejercicio son demasiado extensas.";
   if ((input.tempo?.length ?? 0) > 40 || (input.alternativeExercise?.length ?? 0) > 120 || (input.equipment?.length ?? 0) > 120) return "Los datos complementarios del ejercicio son demasiado extensos.";
-  if (!validUrl(input.videoUrl)) return "La URL del video debe comenzar con http o https.";
+  return null;
+}
+
+export function normalizedBlocks(day: RoutineDayInput): BlockInput[] {
+  if (Array.isArray(day.blocks) && day.blocks.length) return [...day.blocks].sort((a, b) => a.order - b.order);
+  return [{ type: "STRENGTH", name: "Bloque de fuerza", order: 1, rounds: null, durationSeconds: null, workSeconds: null, restSeconds: null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: "", exercises: day.exercises ?? [] }];
+}
+
+export function validateBlock(block: BlockInput) {
+  if (!blockTypes.includes(block.type)) return "Seleccioná un tipo de bloque válido.";
+  if (!block.name?.trim() || block.name.trim().length > 120) return "Cada bloque necesita un nombre de hasta 120 caracteres.";
+  if (!Number.isInteger(block.order) || block.order < 1 || block.order > 99) return "El orden del bloque no es válido.";
+  if ((block.instructions?.length ?? 0) > 2000) return "Las instrucciones del bloque son demasiado extensas.";
+  for (const value of [block.rounds, block.durationSeconds, block.workSeconds, block.restSeconds, block.restBetweenRoundsSeconds, block.targetRounds]) {
+    if (value !== null && (!Number.isInteger(value) || value < 0 || value > 86400)) return "La configuración numérica del bloque no es válida.";
+  }
+  if (["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && !block.rounds) return "Ingresá la cantidad de rondas del bloque.";
+  if (["EMOM", "AMRAP"].includes(block.type) && !block.durationSeconds) return "Ingresá la duración total del bloque.";
+  if (block.type === "INTERVAL" && (!block.workSeconds || block.restSeconds === null)) return "Ingresá los tiempos de trabajo y descanso.";
+  if (!Array.isArray(block.exercises)) return "Los ejercicios del bloque no son válidos.";
+  for (const exercise of block.exercises) {
+    const error = validateExercise(exercise, block.type);
+    if (error) return error;
+  }
   return null;
 }
 
@@ -104,10 +146,13 @@ export function validateRoutine(input: RoutineInput) {
     if (day.estimatedMinutes !== null && (!Number.isInteger(day.estimatedMinutes) || day.estimatedMinutes < 1 || day.estimatedMinutes > 1440)) {
       return `La duración estimada del día ${day.dayNumber} no es válida.`;
     }
-    if (!Array.isArray(day.exercises)) return `Los ejercicios del día ${day.dayNumber} no son válidos.`;
-    for (const exercise of day.exercises) {
-      const error = validateExercise(exercise);
-      if (error) return `Día ${day.dayNumber}: ${error}`;
+    if (!Array.isArray(day.exercises) && !Array.isArray(day.blocks)) return `Los ejercicios del día ${day.dayNumber} no son válidos.`;
+    const blocks = normalizedBlocks(day);
+    if (blocks.length > 20) return `El día ${day.dayNumber} tiene demasiados bloques.`;
+    if (new Set(blocks.map((block) => block.order)).size !== blocks.length) return `Los bloques del día ${day.dayNumber} tienen órdenes repetidos.`;
+    for (const block of blocks) {
+      const error = validateBlock(block);
+      if (error) return `Día ${day.dayNumber}, ${block.name || "bloque"}: ${error}`;
     }
   }
   return null;
@@ -129,7 +174,27 @@ export function exerciseData(input: ExerciseInput) {
     alternativeExercise: input.alternativeExercise?.trim() || null,
     equipment: input.equipment?.trim() || null,
     optional: Boolean(input.optional),
+    targetType: input.targetType,
+    targetSeconds: input.targetSeconds,
+    targetRepetitions: input.targetRepetitions?.trim() || null,
+    targetDistance: input.targetDistance?.trim() || null,
+    targetSide: input.targetSide?.trim() || null,
     order: input.order,
+  };
+}
+
+export function blockData(input: BlockInput) {
+  return {
+    type: input.type,
+    name: input.name.trim(),
+    order: input.order,
+    rounds: input.rounds,
+    durationSeconds: input.durationSeconds,
+    workSeconds: input.workSeconds,
+    restSeconds: input.restSeconds,
+    restBetweenRoundsSeconds: input.restBetweenRoundsSeconds,
+    targetRounds: input.targetRounds,
+    instructions: input.instructions.trim(),
   };
 }
 
@@ -159,8 +224,19 @@ export function nestedDays(days: RoutineDayInput[]) {
     warmup: day.warmup?.trim() ?? "",
     observations: day.observations?.trim() ?? "",
     estimatedMinutes: day.estimatedMinutes,
-    exercises: { create: [...day.exercises].sort((a, b) => a.order - b.order).map(exerciseData) },
   }));
+}
+
+export async function createRoutineDays(transaction: Prisma.TransactionClient, routineId: string, days: RoutineDayInput[]) {
+  for (const dayInput of nestedDays(days)) {
+    const day = await transaction.trainingRoutineDay.create({ data: { routineId, ...dayInput } });
+    for (const blockInput of normalizedBlocks(days.find((item) => item.dayNumber === dayInput.dayNumber)!)) {
+      const block = await transaction.trainingRoutineBlock.create({ data: { routineDayId: day.id, ...blockData(blockInput) } });
+      if (blockInput.exercises.length) {
+        await transaction.trainingRoutineExercise.createMany({ data: blockInput.exercises.map((exercise) => ({ dayId: day.id, blockId: block.id, ...exerciseData(exercise) })) });
+      }
+    }
+  }
 }
 
 export function routineVersionSnapshot(input: RoutineInput) {
@@ -186,7 +262,18 @@ export function routineVersionSnapshot(input: RoutineInput) {
       warmup: day.warmup?.trim() ?? "",
       observations: day.observations?.trim() ?? "",
       estimatedMinutes: day.estimatedMinutes,
-      exercises: [...day.exercises].sort((left, right) => left.order - right.order).map((exercise) => ({
+      blocks: normalizedBlocks(day).map((block) => ({
+        ...block,
+        exercises: [...block.exercises].sort((left, right) => left.order - right.order).map((exercise) => ({
+          ...exercise,
+          observations: exercise.observations?.trim() ?? "",
+          videoUrl: exercise.videoUrl?.trim() ?? "",
+          tempo: exercise.tempo?.trim() ?? "",
+          alternativeExercise: exercise.alternativeExercise?.trim() ?? "",
+          equipment: exercise.equipment?.trim() ?? "",
+        })),
+      })),
+      exercises: normalizedBlocks(day).flatMap((block) => block.exercises).map((exercise) => ({
         ...exercise,
         observations: exercise.observations?.trim() ?? "",
         videoUrl: exercise.videoUrl?.trim() ?? "",
@@ -219,7 +306,30 @@ export function serializeExercise(record: RoutineWithRelations["days"][number]["
     alternativeExercise: record.alternativeExercise ?? "",
     equipment: record.equipment ?? "",
     optional: record.optional,
+    blockId: record.blockId,
+    targetType: record.targetType,
+    targetSeconds: record.targetSeconds,
+    targetRepetitions: record.targetRepetitions ?? "",
+    targetDistance: record.targetDistance ?? "",
+    targetSide: record.targetSide ?? "",
     order: record.order,
+  };
+}
+
+function serializeBlock(record: RoutineWithRelations["days"][number]["blocks"][number]): TrainingRoutineBlock {
+  return {
+    id: record.id,
+    type: record.type,
+    name: record.name,
+    order: record.order,
+    rounds: record.rounds,
+    durationSeconds: record.durationSeconds,
+    workSeconds: record.workSeconds,
+    restSeconds: record.restSeconds,
+    restBetweenRoundsSeconds: record.restBetweenRoundsSeconds,
+    targetRounds: record.targetRounds,
+    instructions: record.instructions,
+    exercises: record.exercises.map(serializeExercise),
   };
 }
 
@@ -249,7 +359,9 @@ export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine 
     studentIds: students.map((student) => student.id),
     students,
     historicalStudents: assignmentStudents.map(({ id, name }) => ({ id, name })),
-    days: record.days.map((day) => ({
+    days: record.days.map((day) => {
+      const blocks = day.blocks.map(serializeBlock);
+      return {
       id: day.id,
       dayNumber: day.dayNumber,
       name: day.name.trim() || `Día ${day.dayNumber}`,
@@ -257,8 +369,10 @@ export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine 
       warmup: day.warmup,
       observations: day.observations,
       estimatedMinutes: day.estimatedMinutes,
-      exercises: day.exercises.map(serializeExercise),
-    })),
+      blocks,
+      exercises: blocks.flatMap((block) => block.exercises),
+    };
+    }),
   };
 }
 

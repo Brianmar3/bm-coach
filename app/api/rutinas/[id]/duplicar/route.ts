@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { databaseUnavailable, nestedDays, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type ExerciseInput, type RoutineInput } from "@/lib/rutinas";
+import { createRoutineDays, databaseUnavailable, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type ExerciseInput, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -37,7 +37,18 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       warmup: day.warmup,
       observations: day.observations,
       estimatedMinutes: day.estimatedMinutes,
-      exercises: day.exercises.map((exercise): ExerciseInput => ({
+      blocks: day.blocks.map((block) => ({
+        type: block.type,
+        name: block.name,
+        order: block.order,
+        rounds: block.rounds,
+        durationSeconds: block.durationSeconds,
+        workSeconds: block.workSeconds,
+        restSeconds: block.restSeconds,
+        restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+        targetRounds: block.targetRounds,
+        instructions: block.instructions,
+        exercises: block.exercises.map((exercise): ExerciseInput => ({
         name: exercise.name,
         muscleGroup: exercise.muscleGroup,
         sets: exercise.sets,
@@ -52,8 +63,15 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
         alternativeExercise: exercise.alternativeExercise ?? "",
         equipment: exercise.equipment ?? "",
         optional: exercise.optional,
+        targetType: exercise.targetType,
+        targetSeconds: exercise.targetSeconds,
+        targetRepetitions: exercise.targetRepetitions ?? "",
+        targetDistance: exercise.targetDistance ?? "",
+        targetSide: exercise.targetSide ?? "",
         order: exercise.order,
+        })),
       })),
+      exercises: [],
     }));
     const input: RoutineInput = {
       name: body.name?.trim() || `${source.name} (copia)`,
@@ -103,10 +121,10 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
           location: input.location,
           equipment: input.equipment,
           tags: input.tags,
-          days: { create: nestedDays(days) },
           assignments: studentId ? { create: { studentId, active: true, archivedAt: null } } : undefined,
         },
       });
+      await createRoutineDays(transaction, created.id, days);
       await transaction.trainingRoutineVersion.create({
         data: { routineId: created.id, version: 1, summary: mode === "saveAsTemplate" ? "Plantilla creada desde una rutina" : "Copia independiente creada", fingerprint: routineFingerprint(input), snapshot: routineVersionSnapshot(input) as unknown as Prisma.InputJsonValue },
       });

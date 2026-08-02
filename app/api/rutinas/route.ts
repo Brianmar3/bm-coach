@@ -1,4 +1,4 @@
-import { databaseUnavailable, nestedDays, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
+import { createRoutineDays, databaseUnavailable, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
@@ -50,14 +50,13 @@ export async function POST(request: Request) {
         data: {
           ...routineData(input),
           archivedAt,
-          days: { create: nestedDays(input.days) },
           assignments: input.kind === "assigned" ? { create: input.studentIds.map((studentId) => ({ studentId, active: input.status !== "archivada" && input.status !== "finalizada", archivedAt })) } : undefined,
         },
-        include: routineInclude,
       });
+      await createRoutineDays(transaction, created.id, input.days);
       const snapshot = routineVersionSnapshot(input);
       await transaction.trainingRoutineVersion.create({ data: { routineId: created.id, version: 1, summary: "Versión inicial", fingerprint: routineFingerprint(input), snapshot: snapshot as unknown as Prisma.InputJsonValue } });
-      return created;
+      return transaction.trainingRoutine.findUniqueOrThrow({ where: { id: created.id }, include: routineInclude });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return Response.json(serializeRoutine(record), { status: 201 });
   } catch (error) {

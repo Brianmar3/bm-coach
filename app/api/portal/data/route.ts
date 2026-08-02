@@ -130,7 +130,7 @@ export async function GET(request: Request) {
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
         where: { studentId },
-        include: { day: true, routine: true, exercises: { include: { exercise: true, sets: { orderBy: { setNumber: "asc" } } } } },
+        include: { day: true, routine: true, blocks: true, exercises: { include: { exercise: true, sets: { orderBy: { setNumber: "asc" } } } } },
         orderBy: [{ date: "desc" }, { createdAt: "desc" }],
         take: fullWorkoutHistory ? 30 : 5,
       }),
@@ -177,6 +177,16 @@ export async function GET(request: Request) {
         hasPain: workout.hasPain,
         painDetails: workout.painDetails,
         status: workout.status === "COMPLETED" ? "finalizado" as const : workout.status === "IN_PROGRESS" ? "en_progreso" as const : "pendiente" as const,
+        blocks: [...workout.blocks].sort((left, right) => left.blockOrder - right.blockOrder).map((log) => ({
+          id: log.id,
+          blockId: log.blockReferenceId,
+          blockName: log.blockName,
+          blockType: log.blockType,
+          blockOrder: log.blockOrder,
+          configuration: log.blockConfiguration as Record<string, number | string | null>,
+          exercises: log.exercisesSnapshot as Array<{ exerciseId: string; name: string; targetType: string; targetLabel: string; order: number }>,
+          result: log.result as unknown as import("@/types/portal").PortalWorkoutBlockResult,
+        })),
         exercises: [...workout.exercises].sort((left, right) => (left.exerciseOrder ?? left.exercise?.order ?? 0) - (right.exerciseOrder ?? right.exercise?.order ?? 0)).map((log) => {
           const older = workoutSessions
             .filter((candidate) => candidate.id !== workout.id && candidate.date <= workout.date)

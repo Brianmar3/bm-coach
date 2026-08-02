@@ -51,9 +51,9 @@ test("el selector horizontal funciona con cualquier cantidad de días", () => {
   assert.match(source, /aria-pressed/);
 });
 
-test("el resumen usa ejercicios reales, duración, estado y progreso", () => {
+test("el resumen usa actividades reales, duración, estado y progreso", () => {
   assert.equal(completedExerciseCount([{ exerciseId: "a", sets: [{ completed: true }] }, { exerciseId: "b", sets: [{ completed: false }] }]), 1);
-  for (const value of ["ejercicios completados", "Día sugerido", "Sin comenzar", "En curso", "Completado"]) assert.match(source, new RegExp(value));
+  for (const value of ["actividades completadas", "Día sugerido", "Sin comenzar", "En curso", "Completado"]) assert.match(source, new RegExp(value));
   assert.match(source, /conic-gradient\(#facc15/);
   assert.match(source, /completados<\/small>/);
   assert.match(source, /min duración/);

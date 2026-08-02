@@ -5,10 +5,11 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import { RoutineTableView } from "@/componentes/routine-table-view";
 import { routineSeriesMetrics } from "@/lib/routine-metrics";
-import type { Student, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
+import type { Student, TrainingBlockType, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineBlock, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 
-type ExerciseDraft = Omit<TrainingExercise, "id"> & { id?: string; clientId: string };
-type DayDraft = { id?: string; clientId: string; dayNumber: number; name: string; objective: string; warmup: string; observations: string; estimatedMinutes: number | null; exercises: ExerciseDraft[] };
+type ExerciseDraft = Omit<TrainingExercise, "id" | "blockId"> & { id?: string; clientId: string };
+type BlockDraft = Omit<TrainingRoutineBlock, "id" | "exercises"> & { id?: string; clientId: string; exercises: ExerciseDraft[] };
+type DayDraft = { id?: string; clientId: string; dayNumber: number; name: string; objective: string; warmup: string; observations: string; estimatedMinutes: number | null; blocks: BlockDraft[]; exercises: ExerciseDraft[] };
 type RoutineDraft = {
   name: string;
   kind: TrainingRoutineKind;
@@ -34,8 +35,14 @@ const levels: TrainingRoutineLevel[] = ["principiante", "intermedio", "avanzado"
 const statuses: TrainingRoutineStatus[] = ["borrador", "activa", "finalizada", "archivada"];
 const muscleGroups = ["Pecho", "Espalda", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Gemelos", "Core", "Cuerpo completo", "Movilidad"];
 
-function newExercise(order: number): ExerciseDraft {
-  return { clientId: crypto.randomUUID(), name: "", muscleGroup: "", sets: 3, repetitions: "10-12", weight: null, effortType: "RIR", effortValue: 2, restSeconds: 90, observations: "", videoUrl: "", tempo: "", alternativeExercise: "", equipment: "", optional: false, order };
+function newExercise(order: number, type: TrainingBlockType = "STRENGTH"): ExerciseDraft {
+  return { clientId: crypto.randomUUID(), name: "", muscleGroup: "", sets: type === "STRENGTH" ? 3 : 1, repetitions: type === "STRENGTH" ? "10-12" : "-", weight: null, effortType: "RIR", effortValue: type === "STRENGTH" ? 2 : null, restSeconds: type === "STRENGTH" ? 90 : null, observations: "", videoUrl: "", tempo: "", alternativeExercise: "", equipment: "", optional: false, targetType: "REPS", targetSeconds: null, targetRepetitions: type === "STRENGTH" ? "" : "10", targetDistance: "", targetSide: "", order };
+}
+
+const blockLabels: Record<TrainingBlockType, string> = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "For time", FREE: "Bloque libre" };
+
+function newBlock(type: TrainingBlockType, order: number): BlockDraft {
+  return { clientId: crypto.randomUUID(), type, name: type === "STRENGTH" ? "Bloque de fuerza" : blockLabels[type], order, rounds: ["ROUNDS", "INTERVAL", "FOR_TIME"].includes(type) ? 3 : null, durationSeconds: ["EMOM", "AMRAP"].includes(type) ? 600 : null, workSeconds: type === "INTERVAL" ? 40 : null, restSeconds: type === "INTERVAL" ? 20 : null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: "", exercises: [] };
 }
 
 function blankRoutine(kind: TrainingRoutineKind = "assigned"): RoutineDraft {
@@ -53,7 +60,7 @@ function blankRoutine(kind: TrainingRoutineKind = "assigned"): RoutineDraft {
     equipment: [],
     tags: [],
     studentIds: [],
-    days: [{ clientId: crypto.randomUUID(), dayNumber: 1, name: "Día 1", objective: "", warmup: "", observations: "", estimatedMinutes: null, exercises: [] }],
+    days: [{ clientId: crypto.randomUUID(), dayNumber: 1, name: "Día 1", objective: "", warmup: "", observations: "", estimatedMinutes: null, blocks: [newBlock("STRENGTH", 1)], exercises: [] }],
   };
 }
 
@@ -81,6 +88,11 @@ function routineDraft(routine: TrainingRoutine): RoutineDraft {
       warmup: day.warmup ?? "",
       observations: day.observations,
       estimatedMinutes: day.estimatedMinutes,
+      blocks: (day.blocks.length ? day.blocks : [{ id: `legacy-${day.id}`, type: "STRENGTH" as const, name: "Bloque de fuerza", order: 1, rounds: null, durationSeconds: null, workSeconds: null, restSeconds: null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: "", exercises: day.exercises }]).map((block) => ({
+        ...block,
+        clientId: crypto.randomUUID(),
+        exercises: block.exercises.map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })),
+      })),
       exercises: day.exercises.map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })),
     })),
   };
@@ -190,24 +202,43 @@ export default function RutinasPage() {
         warmup: day.warmup,
         observations: day.observations,
         estimatedMinutes: day.estimatedMinutes,
-        exercises: [...day.exercises].sort((a, b) => a.order - b.order).map((exercise, index) => ({
-          id: exercise.id,
-          name: exercise.name,
-          muscleGroup: exercise.muscleGroup,
-          sets: exercise.sets,
-          repetitions: exercise.repetitions,
-          weight: exercise.weight,
-          effortType: exercise.effortType,
-          effortValue: exercise.effortValue,
-          restSeconds: exercise.restSeconds,
-          observations: exercise.observations,
-          videoUrl: exercise.videoUrl,
-          tempo: exercise.tempo,
-          alternativeExercise: exercise.alternativeExercise,
-          equipment: exercise.equipment,
-          optional: exercise.optional,
-          order: index + 1,
+        blocks: [...day.blocks].sort((a, b) => a.order - b.order).map((block, blockIndex) => ({
+          id: block.id,
+          type: block.type,
+          name: block.name,
+          order: blockIndex + 1,
+          rounds: block.rounds,
+          durationSeconds: block.durationSeconds,
+          workSeconds: block.workSeconds,
+          restSeconds: block.restSeconds,
+          restBetweenRoundsSeconds: block.restBetweenRoundsSeconds,
+          targetRounds: block.targetRounds,
+          instructions: block.instructions,
+          exercises: [...block.exercises].sort((a, b) => a.order - b.order).map((exercise, index) => ({
+            id: exercise.id,
+            name: exercise.name,
+            muscleGroup: exercise.muscleGroup,
+            sets: exercise.sets,
+            repetitions: exercise.repetitions,
+            weight: exercise.weight,
+            effortType: exercise.effortType,
+            effortValue: exercise.effortValue,
+            restSeconds: exercise.restSeconds,
+            observations: exercise.observations,
+            videoUrl: exercise.videoUrl,
+            tempo: exercise.tempo,
+            alternativeExercise: exercise.alternativeExercise,
+            equipment: exercise.equipment,
+            optional: exercise.optional,
+            targetType: exercise.targetType,
+            targetSeconds: exercise.targetSeconds,
+            targetRepetitions: exercise.targetRepetitions,
+            targetDistance: exercise.targetDistance,
+            targetSide: exercise.targetSide,
+            order: index + 1,
+          })),
         })),
+        exercises: day.blocks.flatMap((block) => block.exercises),
       })),
     };
     setSaving(true); setError("");
@@ -464,6 +495,53 @@ function RoutineCard({ routine, view, tracking, edit, duplicate, saveAsTemplate,
 function Info({ label: title, value }: { label: string; value: string }) { return <div className="rounded-xl bg-zinc-950 p-3"><p className="text-xs text-zinc-500">{title}</p><p className="mt-1 font-semibold">{value}</p></div>; }
 
 function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, close, submit, editingStatus, saving }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean }) {
+  const updatingActiveRoutine = editingStatus === "activa";
+  const currentDay = form.days.find((day) => day.dayNumber === activeDay) ?? form.days[0];
+  const updateDay = (updater: (day: DayDraft) => DayDraft) => setForm({ ...form, days: form.days.map((day) => day.dayNumber === activeDay ? updater(day) : day) });
+  const reorderBlocks = (blocks: BlockDraft[]) => blocks.map((block, index) => ({ ...block, order: index + 1 }));
+  function addBlock(type: TrainingBlockType) { updateDay((day) => ({ ...day, blocks: [...day.blocks, newBlock(type, day.blocks.length + 1)] })); }
+  function updateBlock(clientId: string, updater: (block: BlockDraft) => BlockDraft) { updateDay((day) => ({ ...day, blocks: day.blocks.map((block) => block.clientId === clientId ? updater(block) : block) })); }
+  function moveBlock(clientId: string, direction: -1 | 1) { updateDay((day) => { const blocks = [...day.blocks].sort((a, b) => a.order - b.order); const index = blocks.findIndex((block) => block.clientId === clientId); const target = index + direction; if (index < 0 || target < 0 || target >= blocks.length) return day; [blocks[index], blocks[target]] = [blocks[target], blocks[index]]; return { ...day, blocks: reorderBlocks(blocks) }; }); }
+  function duplicateBlock(clientId: string) { updateDay((day) => { const index = day.blocks.findIndex((block) => block.clientId === clientId); if (index < 0) return day; const source = day.blocks[index]; const copy = { ...source, id: undefined, clientId: crypto.randomUUID(), name: `${source.name} (copia)`, exercises: source.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID() })) }; return { ...day, blocks: reorderBlocks([...day.blocks.slice(0, index + 1), copy, ...day.blocks.slice(index + 1)]) }; }); }
+  function removeBlock(clientId: string) { if (!window.confirm("¿Eliminar este bloque? El servidor preservará cualquier historial asociado.")) return; updateDay((day) => ({ ...day, blocks: reorderBlocks(day.blocks.filter((block) => block.clientId !== clientId)) })); }
+  function addDay() { if (form.days.length >= 14) return; const next = form.days.length + 1; setForm({ ...form, days: [...form.days, { clientId: crypto.randomUUID(), dayNumber: next, name: `Día ${next}`, objective: "", warmup: "", observations: "", estimatedMinutes: null, blocks: [newBlock("STRENGTH", 1)], exercises: [] }] }); setActiveDay(next); }
+  function moveDay(direction: -1 | 1) { const index = form.days.findIndex((day) => day.dayNumber === activeDay); const target = index + direction; if (index < 0 || target < 0 || target >= form.days.length) return; const days = [...form.days]; [days[index], days[target]] = [days[target], days[index]]; setForm({ ...form, days: days.map((day, i) => ({ ...day, dayNumber: i + 1 })) }); setActiveDay(target + 1); }
+  function duplicateDay() { if (form.days.length >= 14) return; const index = form.days.findIndex((day) => day.dayNumber === activeDay); const source = form.days[index]; if (!source) return; const copy: DayDraft = { ...source, id: undefined, clientId: crypto.randomUUID(), dayNumber: source.dayNumber + 1, name: `${source.name} (copia)`, blocks: source.blocks.map((block) => ({ ...block, id: undefined, clientId: crypto.randomUUID(), exercises: block.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID() })) })), exercises: [] }; const days = [...form.days.slice(0, index + 1), copy, ...form.days.slice(index + 1)].map((day, i) => ({ ...day, dayNumber: i + 1 })); setForm({ ...form, days }); setActiveDay(index + 2); }
+  function removeDay() { if (form.days.length === 1 || !window.confirm(`¿Eliminar “${currentDay.name}”? Las sesiones históricas no cambiarán.`)) return; const index = form.days.findIndex((day) => day.dayNumber === activeDay); const days = form.days.filter((day) => day.dayNumber !== activeDay).map((day, i) => ({ ...day, dayNumber: i + 1 })); setForm({ ...form, days }); setActiveDay(Math.min(index + 1, days.length)); }
+  function toggleStudent(studentId: string) { setForm({ ...form, studentIds: form.studentIds.includes(studentId) ? form.studentIds.filter((id) => id !== studentId) : [...form.studentIds, studentId] }); }
+  const exerciseCount = (day: DayDraft) => day.blocks.reduce((sum, block) => sum + block.exercises.length, 0);
+  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-0 sm:p-4"><form onSubmit={submit} className="mx-auto min-h-dvh w-full max-w-7xl border border-zinc-800 bg-zinc-900 p-4 text-white sm:my-6 sm:min-h-0 sm:rounded-2xl sm:p-6">
+    <header className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold">{editingStatus ? "Editar rutina" : "Nueva rutina"}</h2><p className="mt-1 text-sm text-zinc-400">Combiná fuerza, circuitos y formatos de tiempo dentro de cada día.</p></div><button type="button" onClick={close} className="text-zinc-400">Cerrar</button></header>
+    {error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
+    <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"><label className="md:col-span-2">Nombre<input required maxLength={120} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Objetivo<input required list="routine-objectives" maxLength={100} value={form.objective} onChange={(event) => setForm({ ...form, objective: event.target.value })} className={`${inputClass} mt-1`} /><datalist id="routine-objectives">{objectives.map((objective) => <option key={objective} value={objective} />)}</datalist></label><label>Nivel<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as TrainingRoutineLevel })} className={`${inputClass} mt-1`}>{levels.map((level) => <option key={level}>{level}</option>)}</select></label><label>Fecha de inicio<input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Duración (semanas)<input type="number" min="1" max="104" value={form.durationWeeks ?? ""} onChange={(event) => setForm({ ...form, durationWeeks: event.target.value ? Number(event.target.value) : null })} className={`${inputClass} mt-1`} /></label><label>Lugar<input maxLength={100} value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} className={`${inputClass} mt-1`} /></label><label>Estado<select disabled={updatingActiveRoutine} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as TrainingRoutineStatus })} className={`${inputClass} mt-1 disabled:opacity-60`}>{statuses.filter((status) => form.kind === "assigned" || status !== "finalizada").map((status) => <option key={status}>{status}</option>)}</select></label><label className="md:col-span-2">Descripción<textarea maxLength={1000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${inputClass} mt-1`} /></label><label className="md:col-span-2">Músculos prioritarios<input value={form.priorityMuscles.join(", ")} onChange={(event) => setForm({ ...form, priorityMuscles: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} className={`${inputClass} mt-1`} /></label><label className="md:col-span-2">Equipamiento<input value={form.equipment.join(", ")} onChange={(event) => setForm({ ...form, equipment: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} className={`${inputClass} mt-1`} /></label><label className="md:col-span-2">Etiquetas<input value={form.tags.join(", ")} onChange={(event) => setForm({ ...form, tags: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} className={`${inputClass} mt-1`} /></label></div>
+    {form.kind === "assigned" && <fieldset className="mt-6"><legend className="font-semibold text-yellow-400">Alumnos asignados</legend><div className="mt-3 flex flex-wrap gap-2">{students.map((student) => <label key={student.id} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm ${form.studentIds.includes(student.id) ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-zinc-700 text-zinc-400"}`}><input type="checkbox" checked={form.studentIds.includes(student.id)} onChange={() => toggleStudent(student.id)} className="sr-only" />{student.firstName} {student.lastName}</label>)}</div></fieldset>}
+    <nav aria-label="Días de la rutina" className="-mx-1 mt-7 flex gap-2 overflow-x-auto px-1 pb-2">{form.days.map((day) => <button type="button" key={day.clientId} onClick={() => setActiveDay(day.dayNumber)} className={`min-h-16 w-36 shrink-0 rounded-xl px-3 py-2 text-left ${activeDay === day.dayNumber ? "bg-yellow-400 font-bold text-zinc-950" : "bg-zinc-800"}`}><span className="block">Día {day.dayNumber}</span><span className="text-xs opacity-70">{day.blocks.length} bloques · {exerciseCount(day)} ejercicios</span></button>)}<button type="button" onClick={addDay} className="w-36 shrink-0 rounded-xl border border-dashed border-zinc-600">+ Día</button></nav>
+    <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-3 sm:p-4"><div className="grid gap-4 lg:grid-cols-[1fr_auto]"><div className="grid gap-3 sm:grid-cols-2"><label>Nombre del día<input required value={currentDay.name} onChange={(event) => updateDay((day) => ({ ...day, name: event.target.value }))} className={`${inputClass} mt-1`} /></label><label>Duración estimada<input type="number" min="1" value={currentDay.estimatedMinutes ?? ""} onChange={(event) => updateDay((day) => ({ ...day, estimatedMinutes: event.target.value ? Number(event.target.value) : null }))} className={`${inputClass} mt-1`} /></label><label>Objetivo del día<input value={currentDay.objective} onChange={(event) => updateDay((day) => ({ ...day, objective: event.target.value }))} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2">Entrada en calor<textarea rows={3} value={currentDay.warmup} onChange={(event) => updateDay((day) => ({ ...day, warmup: event.target.value }))} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2">Observaciones<textarea value={currentDay.observations} onChange={(event) => updateDay((day) => ({ ...day, observations: event.target.value }))} className={`${inputClass} mt-1`} /></label></div><div className="grid grid-cols-2 gap-2 self-end text-xs"><button type="button" onClick={() => moveDay(-1)} className="rounded-lg bg-zinc-800 p-2">← Día</button><button type="button" onClick={() => moveDay(1)} className="rounded-lg bg-zinc-800 p-2">Día →</button><button type="button" onClick={duplicateDay} className="rounded-lg bg-zinc-800 p-2">Duplicar día</button><button type="button" onClick={removeDay} className="rounded-lg bg-red-400/10 p-2 text-red-300">Eliminar día</button></div></div>
+      <details className="mt-4 rounded-xl border border-yellow-400/25 bg-yellow-400/[.04]"><summary className="cursor-pointer list-none px-4 py-3 font-bold text-yellow-300">+ Agregar bloque</summary><div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-3 sm:grid-cols-4">{(Object.keys(blockLabels) as TrainingBlockType[]).map((type) => <button type="button" key={type} onClick={() => addBlock(type)} className="min-h-11 rounded-lg bg-zinc-800 px-2 text-sm">{blockLabels[type]}</button>)}</div></details>
+      <div className="mt-4 space-y-4">{currentDay.blocks.length === 0 ? <p className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-zinc-500">Agregá el primer bloque del día.</p> : [...currentDay.blocks].sort((a, b) => a.order - b.order).map((block) => <BlockEditor key={block.clientId} block={block} update={(updater) => updateBlock(block.clientId, updater)} move={(direction) => moveBlock(block.clientId, direction)} duplicate={() => duplicateBlock(block.clientId)} remove={() => removeBlock(block.clientId)} />)}</div>
+    </section>
+    <footer className="sticky bottom-0 mt-6 flex flex-wrap justify-end gap-3 border-t border-zinc-800 bg-zinc-900 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]"><button type="button" onClick={close} disabled={saving} className="rounded-xl border border-zinc-700 px-5 py-3">Cancelar</button>{updatingActiveRoutine ? <button className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950">{saving ? "Actualizando…" : "Actualizar rutina"}</button> : <><button name="intent" value="draft" className="rounded-xl border border-yellow-400/50 px-5 py-3 font-bold text-yellow-300">Guardar borrador</button><button name="intent" value="activate" className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950">Activar rutina</button></>}</footer>
+  </form></div>;
+}
+
+function BlockEditor({ block, update, move, duplicate, remove }: { block: BlockDraft; update: (updater: (block: BlockDraft) => BlockDraft) => void; move: (direction: -1 | 1) => void; duplicate: () => void; remove: () => void }) {
+  const set = <K extends keyof BlockDraft>(key: K, value: BlockDraft[K]) => update((current) => ({ ...current, [key]: value }));
+  function updateExercise<K extends keyof ExerciseDraft>(clientId: string, key: K, value: ExerciseDraft[K]) { update((current) => ({ ...current, exercises: current.exercises.map((exercise) => exercise.clientId === clientId ? { ...exercise, [key]: value } : exercise) })); }
+  function moveExercise(clientId: string, direction: -1 | 1) { update((current) => { const exercises = [...current.exercises].sort((a, b) => a.order - b.order); const index = exercises.findIndex((exercise) => exercise.clientId === clientId); const target = index + direction; if (index < 0 || target < 0 || target >= exercises.length) return current; [exercises[index], exercises[target]] = [exercises[target], exercises[index]]; return { ...current, exercises: exercises.map((exercise, i) => ({ ...exercise, order: i + 1 })) }; }); }
+  function removeExercise(clientId: string) { update((current) => ({ ...current, exercises: current.exercises.filter((exercise) => exercise.clientId !== clientId).map((exercise, i) => ({ ...exercise, order: i + 1 })) })); }
+  return <article className="rounded-2xl border border-yellow-400/15 bg-zinc-900 p-3 sm:p-4"><header className="flex flex-wrap items-center gap-2"><span className="rounded-lg bg-yellow-400 px-2 py-1 text-xs font-black text-zinc-950">{blockLabels[block.type]}</span><input aria-label="Nombre del bloque" value={block.name} onChange={(event) => set("name", event.target.value)} className={`${inputClass} min-w-48 flex-1`} /><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque arriba">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque abajo">↓</button><button type="button" onClick={duplicate} className="rounded bg-zinc-800 px-2 py-2 text-xs">Duplicar</button><button type="button" onClick={remove} className="rounded bg-red-400/10 px-2 py-2 text-xs text-red-300">Eliminar</button></header>
+    <details open className="mt-3"><summary className="cursor-pointer text-sm font-bold text-zinc-300">Configuración del bloque</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && <NumberField label="Rondas" value={block.rounds} setValue={(value) => set("rounds", value)} />}{["EMOM", "AMRAP"].includes(block.type) && <NumberField label="Duración total (seg.)" value={block.durationSeconds} setValue={(value) => set("durationSeconds", value)} />}{block.type === "FOR_TIME" && <NumberField label="Límite de tiempo (seg.)" value={block.durationSeconds} setValue={(value) => set("durationSeconds", value)} />}{block.type === "EMOM" && <NumberField label="Estaciones del ciclo" value={block.targetRounds} setValue={(value) => set("targetRounds", value)} />}{block.type === "ROUNDS" && <NumberField label="Descanso entre ejercicios" value={block.restSeconds} setValue={(value) => set("restSeconds", value)} />}{block.type === "INTERVAL" && <><NumberField label="Trabajo (seg.)" value={block.workSeconds} setValue={(value) => set("workSeconds", value)} /><NumberField label="Descanso (seg.)" value={block.restSeconds} setValue={(value) => set("restSeconds", value)} /></>} {["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && <NumberField label="Descanso entre rondas" value={block.restBetweenRoundsSeconds} setValue={(value) => set("restBetweenRoundsSeconds", value)} />}<label className="sm:col-span-2 lg:col-span-4">Instrucciones<textarea rows={2} value={block.instructions} onChange={(event) => set("instructions", event.target.value)} className={`${inputClass} mt-1`} /></label></div></details>
+    <div className="mt-4 space-y-3">{block.exercises.map((exercise) => block.type === "STRENGTH" ? <ExerciseEditor key={exercise.clientId} exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} /> : <ConditioningExerciseEditor key={exercise.clientId} exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} />)}</div><button type="button" onClick={() => update((current) => ({ ...current, exercises: [...current.exercises, newExercise(current.exercises.length + 1, current.type)] }))} className="mt-3 min-h-11 w-full rounded-xl border border-dashed border-yellow-400/30 text-sm font-bold text-yellow-300">+ Agregar ejercicio</button>
+  </article>;
+}
+
+function NumberField({ label: title, value, setValue }: { label: string; value: number | null; setValue: (value: number | null) => void }) { return <label>{title}<input type="number" min="0" value={value ?? ""} onChange={(event) => setValue(event.target.value ? Number(event.target.value) : null)} className={`${inputClass} mt-1`} /></label>; }
+
+function ConditioningExerciseEditor({ exercise, update, move, remove }: { exercise: ExerciseDraft; update: <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) => void; move: (direction: -1 | 1) => void; remove: () => void }) {
+  return <article className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3"><header className="mb-3 flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-1">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-1">↓</button><button type="button" onClick={remove} className="ml-auto text-sm text-red-300">Eliminar</button></header><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="lg:col-span-2">Ejercicio<input required value={exercise.name} onChange={(event) => update("name", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Zona muscular<input required value={exercise.muscleGroup} onChange={(event) => update("muscleGroup", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Objetivo<select value={exercise.targetType} onChange={(event) => update("targetType", event.target.value as ExerciseDraft["targetType"])} className={`${inputClass} mt-1`}><option value="REPS">Repeticiones</option><option value="TIME">Tiempo</option><option value="DISTANCE">Distancia</option><option value="REST">Descanso</option><option value="FREE">Libre</option></select></label>{["TIME", "REST"].includes(exercise.targetType) && <NumberField label="Segundos" value={exercise.targetSeconds} setValue={(value) => update("targetSeconds", value)} />}{exercise.targetType === "REPS" && <label>Repeticiones<input value={exercise.targetRepetitions} onChange={(event) => update("targetRepetitions", event.target.value)} className={`${inputClass} mt-1`} /></label>}{exercise.targetType === "DISTANCE" && <label>Distancia<input value={exercise.targetDistance} onChange={(event) => update("targetDistance", event.target.value)} placeholder="Ej. 200 m" className={`${inputClass} mt-1`} /></label>}<label>Indicación o lado<input value={exercise.targetSide} onChange={(event) => update("targetSide", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Alternativa<input value={exercise.alternativeExercise} onChange={(event) => update("alternativeExercise", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Video<input type="url" value={exercise.videoUrl} onChange={(event) => update("videoUrl", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2 lg:col-span-4">Observaciones técnicas<textarea value={exercise.observations} onChange={(event) => update("observations", event.target.value)} className={`${inputClass} mt-1`} /></label></div></article>;
+}
+
+export function LegacyRoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, close, submit, editingStatus, saving }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean }) {
   const editing = editingStatus !== null;
   const updatingActiveRoutine = editingStatus === "activa";
   const currentDay = form.days.find((day) => day.dayNumber === activeDay) ?? form.days[0];
@@ -479,7 +557,7 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
   function addDay() {
     if (form.days.length >= 14) return;
     const next = form.days.length + 1;
-    setForm({ ...form, days: [...form.days, { clientId: crypto.randomUUID(), dayNumber: next, name: `Día ${next}`, objective: "", warmup: "", observations: "", estimatedMinutes: null, exercises: [] }] });
+    setForm({ ...form, days: [...form.days, { clientId: crypto.randomUUID(), dayNumber: next, name: `Día ${next}`, objective: "", warmup: "", observations: "", estimatedMinutes: null, blocks: [newBlock("STRENGTH", 1)], exercises: [] }] });
     setActiveDay(next);
   }
   function moveDay(direction: -1 | 1) {
@@ -505,6 +583,7 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
       warmup: source.warmup,
       observations: source.observations,
       estimatedMinutes: source.estimatedMinutes,
+      blocks: source.blocks.map((block) => ({ ...block, id: undefined, clientId: crypto.randomUUID(), exercises: block.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID() })) })),
       exercises: source.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID() })),
     };
     const days = [...form.days.slice(0, index + 1), duplicate, ...form.days.slice(index + 1)].map((day, dayIndex) => ({ ...day, dayNumber: dayIndex + 1 }));

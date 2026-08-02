@@ -63,6 +63,10 @@ test("tolera series inválidas y rutinas vacías sin inventar volumen", () => {
     activeDays: 0,
     totalExercises: 0,
     totalSeries: 0,
+    totalBlocks: 0,
+    conditioningBlocks: 0,
+    circuits: 0,
+    programmedMinutes: 0,
     weeklyDistribution: [],
     perDay: [],
   });

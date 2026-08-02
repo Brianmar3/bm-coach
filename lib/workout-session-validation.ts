@@ -1,5 +1,6 @@
 import type { PortalWorkoutSession } from "../types/portal.ts";
 import { isDateKey } from "./payment-dates.ts";
+import { hasBlockActivity, validateWorkoutBlock } from "./training-blocks.ts";
 
 export const GENERAL_FEELINGS = ["Muy buena", "Buena", "Normal", "Difícil", "Muy difícil"] as const;
 export type PortalGeneralFeeling = typeof GENERAL_FEELINGS[number];
@@ -22,7 +23,8 @@ export function validateWorkoutSessionInput(input: PortalWorkoutSession) {
   if (!Array.isArray(input.exercises)) return "Los ejercicios no son válidos.";
   if (input.status === "finalizado" && input.durationMinutes === null) return "Para finalizar, completá la duración.";
   if (input.status === "finalizado" && !resolveGeneralFeeling(input)) return "Para finalizar, seleccioná una sensación general válida.";
-  if (input.status === "finalizado" && !input.exercises.some((exercise) => exercise.sets.some((set) => set.completed))) return "Marcá al menos una serie como completada antes de finalizar.";
+  const blockActivity = (input.blocks ?? []).some(hasBlockActivity);
+  if (input.status === "finalizado" && !input.exercises.some((exercise) => exercise.sets.some((set) => set.completed)) && !blockActivity) return "Registrá actividad en al menos un bloque antes de finalizar.";
   if (input.finalComment.length > 2000 || input.painDetails.length > 1000) return "El comentario es demasiado extenso.";
   if (!["pendiente", "en_progreso", "finalizado"].includes(input.status)) return "El estado no es válido.";
   for (const exercise of input.exercises) {
@@ -34,6 +36,10 @@ export function validateWorkoutSessionInput(input: PortalWorkoutSession) {
       if (set.effort !== null && (!Number.isFinite(set.effort) || set.effort < 0 || set.effort > 10)) return "El esfuerzo debe estar entre 0 y 10.";
       if (set.observation.length > 500) return "La observación de una serie es demasiado extensa.";
     }
+  }
+  for (const block of input.blocks ?? []) {
+    const error = validateWorkoutBlock(block);
+    if (error) return error;
   }
   return null;
 }

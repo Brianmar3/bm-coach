@@ -247,6 +247,8 @@ export type TrainingRoutineLevel = "principiante" | "intermedio" | "avanzado";
 export type TrainingRoutineStatus = "borrador" | "activa" | "finalizada" | "archivada";
 export type TrainingRoutineKind = "assigned" | "template";
 export type TrainingEffortType = "RPE" | "RIR";
+export type TrainingBlockType = "STRENGTH" | "ROUNDS" | "INTERVAL" | "EMOM" | "AMRAP" | "FOR_TIME" | "FREE";
+export type TrainingExerciseTargetType = "TIME" | "REPS" | "DISTANCE" | "REST" | "FREE";
 
 export type TrainingExercise = {
   id: string;
@@ -264,7 +266,28 @@ export type TrainingExercise = {
   alternativeExercise: string;
   equipment: string;
   optional: boolean;
+  blockId: string;
+  targetType: TrainingExerciseTargetType;
+  targetSeconds: number | null;
+  targetRepetitions: string;
+  targetDistance: string;
+  targetSide: string;
   order: number;
+};
+
+export type TrainingRoutineBlock = {
+  id: string;
+  type: TrainingBlockType;
+  name: string;
+  order: number;
+  rounds: number | null;
+  durationSeconds: number | null;
+  workSeconds: number | null;
+  restSeconds: number | null;
+  restBetweenRoundsSeconds: number | null;
+  targetRounds: number | null;
+  instructions: string;
+  exercises: TrainingExercise[];
 };
 
 export type TrainingRoutineDay = {
@@ -275,6 +298,7 @@ export type TrainingRoutineDay = {
   warmup: string;
   observations: string;
   estimatedMinutes: number | null;
+  blocks: TrainingRoutineBlock[];
   exercises: TrainingExercise[];
 };
 

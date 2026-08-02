@@ -30,7 +30,9 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
     });
     if (!day) return Response.json({ error: "Rutina o día no encontrado." }, { status: 404 });
     const exercise = await prisma.$transaction(async (transaction) => {
-      const created = await transaction.trainingRoutineExercise.create({ data: { dayId: day.id, ...exerciseData(input) } });
+      const block = await transaction.trainingRoutineBlock.findFirst({ where: { routineDayId: day.id, type: "STRENGTH", active: true }, orderBy: { order: "asc" } })
+        ?? await transaction.trainingRoutineBlock.create({ data: { routineDayId: day.id, type: "STRENGTH", name: "Bloque de fuerza", order: 1 } });
+      const created = await transaction.trainingRoutineExercise.create({ data: { dayId: day.id, blockId: block.id, ...exerciseData({ ...input, targetType: input.targetType ?? "REPS", targetSeconds: input.targetSeconds ?? null, targetRepetitions: input.targetRepetitions ?? "", targetDistance: input.targetDistance ?? "", targetSide: input.targetSide ?? "" }) } });
       await transaction.trainingRoutine.update({ where: { id }, data: { updatedAt: new Date() } });
       return created;
     });
