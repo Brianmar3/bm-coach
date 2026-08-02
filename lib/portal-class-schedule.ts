@@ -1,5 +1,6 @@
 export const PORTAL_CLASS_SEARCH_DAYS = 35;
 export const PORTAL_UPCOMING_DAYS = 7;
+export const PORTAL_HOME_PREVIEW_COUNT = 2;
 export const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 
 export type PortalClassCandidate = {
@@ -48,6 +49,18 @@ export type PortalClassAgenda<T extends PortalAgendaCandidate> = {
   occurrences: T[];
   focus: RelevantClassDay;
   upcoming: UpcomingClassWindow;
+  summary: PortalClassAgendaSummary<T>;
+};
+
+export type PortalClassAgendaSummary<T extends PortalAgendaCandidate> = {
+  mode: "TODAY" | "NEXT_DAY" | "EMPTY";
+  date: string | null;
+  dateLabel: string | null;
+  total: number;
+  firstStartTime: string | null;
+  lastStartTime: string | null;
+  preview: T[];
+  hiddenCount: number;
 };
 
 export type StudentClassAvailability = {
@@ -161,12 +174,43 @@ export function selectPortalClassAgenda<T extends PortalAgendaCandidate>(
   studentType: string,
   now = new Date(),
 ): PortalClassAgenda<T> {
-  const eligible = occurrences.filter((item) => classIsEligibleForStudent(item.category, studentType));
+  const clock = argentinaLocalClock(now);
+  const eligible = occurrences.filter((item) =>
+    item.status === "SCHEDULED"
+    && classIsEligibleForStudent(item.category, studentType)
+    && !classHasEnded(item, clock),
+  );
+  const focus = selectRelevantClassDay(eligible, now);
+  const focusIds = new Set(focus.occurrenceIds);
+  const focusedOccurrences = eligible
+    .filter((item) => focusIds.has(item.id))
+    .sort((left, right) => left.startTime.localeCompare(right.startTime));
+  const mode = focus.date === null ? "EMPTY" : focus.date === clock.date ? "TODAY" : "NEXT_DAY";
   return {
     occurrences: eligible,
-    focus: selectRelevantClassDay(eligible, now),
+    focus,
     upcoming: selectUpcomingClassWindow(eligible, now),
+    summary: {
+      mode,
+      date: focus.date,
+      dateLabel: focus.date ? portalDateLabel(focus.date) : null,
+      total: focusedOccurrences.length,
+      firstStartTime: focusedOccurrences[0]?.startTime ?? null,
+      lastStartTime: focusedOccurrences.at(-1)?.startTime ?? null,
+      preview: focusedOccurrences.slice(0, PORTAL_HOME_PREVIEW_COUNT),
+      hiddenCount: Math.max(0, focusedOccurrences.length - PORTAL_HOME_PREVIEW_COUNT),
+    },
   };
+}
+
+function portalDateLabel(date: string) {
+  const value = new Intl.DateTimeFormat("es-AR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00.000Z`));
+  return `${value.charAt(0).toLocaleUpperCase("es")}${value.slice(1)}`;
 }
 
 function dateTitle(date: string, today: string) {

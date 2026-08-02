@@ -76,13 +76,13 @@ export async function GET() {
         occurrences: [],
         focus: { ...agenda.focus, subtitle: availability.message ?? agenda.focus.subtitle },
         upcoming: agenda.upcoming,
+        summary: agenda.summary,
       });
     }
     const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS);
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
         date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) },
-        status: { not: "CANCELLED" },
         schedule: { active: true },
       },
       include: occurrenceInclude(session.studentId),
@@ -96,6 +96,7 @@ export async function GET() {
       occurrences: agenda.occurrences,
       focus: agenda.focus,
       upcoming: agenda.upcoming,
+      summary: agenda.summary,
     });
   } catch (error) {
     console.error("No se pudieron cargar las clases del portal", error);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalClassOccurrence } from "@/types/classes";
+import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
@@ -25,7 +26,10 @@ type ClassData = {
     to: string;
     occurrenceIds: string[];
   };
+  summary: PortalClassAgendaSummary<PortalClassOccurrence>;
 };
+
+const noClassesMessage = "No hay clases disponibles durante los próximos 7 días.";
 
 const dateLabel = (value: string) =>
   new Date(`${value}T12:00:00Z`).toLocaleDateString("es-AR", {
@@ -194,42 +198,51 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
 
   if (compact)
     return (
-      <section className="h-full rounded-2xl border border-yellow-400/15 bg-[linear-gradient(145deg,#181818,#0a0a0a)] p-4 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">
-              <span aria-hidden="true">▣</span>{data.focus.title}
+      <section className="h-full overflow-hidden rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_34%),linear-gradient(145deg,#181818,#090909)] p-3.5 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-4">
+        <div className="flex items-start justify-between gap-3 border-b border-white/[.06] pb-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">
+              <span aria-hidden="true">▣</span>{data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.mode === "NEXT_DAY" ? "Próximo día" : "Agenda de clases"}
             </p>
-            <h2 className="mt-2 text-xl font-black">
-              {focusItems.length
-                ? `${focusItems.length} ${focusItems.length === 1 ? "clase disponible" : "clases disponibles"}`
+            <h2 className="mt-1.5 text-lg font-black leading-tight text-zinc-50">
+              {data.summary.total
+                ? `${data.summary.total} ${data.summary.total === 1 ? "clase disponible" : "clases disponibles"}`
                 : "Sin próximas clases"}
             </h2>
-            {focusItems.length > 0 && <p className="mt-1 text-xs text-zinc-500">{data.focus.subtitle}</p>}
           </div>
-          <Link
-            href="/portal/clases"
-            className="shrink-0 rounded-lg border border-zinc-700 px-3 py-2 text-xs font-bold text-yellow-300 transition hover:border-yellow-400/40"
-          >
-            Ver horarios
-          </Link>
+          {data.summary.dateLabel && <span className="max-w-28 shrink-0 text-right text-[11px] font-bold leading-tight text-zinc-400">{data.summary.dateLabel}</span>}
         </div>
-        {focusItems.length ? (
-          <div className="mt-4 space-y-3">
-            {focusItems.slice(0, 2).map((item) => (
-              <ClassCard
-                key={item.id}
-                item={item}
-                saving={savingId === item.id}
-                respond={respond}
-              />
-            ))}
-          </div>
+        {data.summary.total ? (
+          <>
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-400">
+              {data.summary.firstStartTime && data.summary.lastStartTime && (
+                <span>Desde las <strong className="text-zinc-200">{data.summary.firstStartTime}</strong> hasta las <strong className="text-zinc-200">{data.summary.lastStartTime}</strong></span>
+              )}
+              <span>{data.summary.mode === "TODAY" ? "Elegí tu horario y confirmá tu asistencia." : "Tu próximo día con actividad."}</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {data.summary.preview.map((item) => (
+                <CompactClassRow
+                  key={item.id}
+                  item={item}
+                  saving={savingId === item.id}
+                  respond={respond}
+                />
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/[.06] pt-3">
+              <span className="text-[11px] font-bold text-zinc-500">
+                {data.summary.hiddenCount > 0 ? `+${data.summary.hiddenCount} horarios más` : "Agenda completa"}
+              </span>
+              <Link href="/portal/clases" className="shrink-0 text-xs font-black text-yellow-300 transition hover:text-yellow-200">Ver todos los horarios →</Link>
+            </div>
+          </>
         ) : (
-          <div className="mt-4 rounded-xl border border-dashed border-zinc-800 bg-black/25 p-5">
-            <p className="text-sm text-zinc-400">
-              {data.availability.message ?? data.focus.subtitle}
+          <div className="mt-3 rounded-xl border border-dashed border-zinc-800 bg-black/25 p-3.5">
+            <p className="text-xs leading-relaxed text-zinc-400">
+              {data.availability.message ?? noClassesMessage}
             </p>
+            <Link href="/portal/clases" className="mt-2.5 inline-flex text-xs font-black text-yellow-300">Ver todos los horarios →</Link>
           </div>
         )}
         <Feedback error={error} notice={notice} />
@@ -270,7 +283,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
           <span className="mx-auto grid size-10 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.07] text-yellow-300"><CalendarIcon /></span>
           <h2 className="mt-3 text-base font-black text-zinc-100">Sin clases próximas</h2>
           <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-zinc-400">
-            {data.availability.message ?? "No hay clases disponibles durante los próximos 7 días."}
+            {data.availability.message ?? noClassesMessage}
           </p>
         </section>
       ) : showWeek ? (
@@ -365,6 +378,35 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function CompactClassRow({
+  item,
+  saving,
+  respond,
+}: {
+  item: PortalClassOccurrence;
+  saving: boolean;
+  respond: (
+    item: PortalClassOccurrence,
+    value: "GOING" | "NOT_GOING",
+  ) => void;
+}) {
+  const discipline = disciplinePresentation(`${item.name} ${item.category}`, item.name || item.category);
+  const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
+  return (
+    <article className={`min-w-0 rounded-xl border border-white/[.07] border-l-2 ${discipline.accent} bg-black/30 p-2.5`}>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/[.06] bg-white/[.035] text-sm">{discipline.icon}</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-black text-zinc-100">{discipline.label}</p>
+          <p className="mt-0.5 text-[11px] font-bold tabular-nums text-yellow-300">{item.startTime}–{item.endTime}</p>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black ${item.response === "GOING" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-white/[.08] bg-white/[.035] text-zinc-400"}`}>{responseLabel}</span>
+      </div>
+      {item.canRespond && <ResponseButtons item={item} saving={saving} respond={respond} compact />}
+    </article>
+  );
+}
+
 function ClassCard({
   item,
   saving,
@@ -420,6 +462,7 @@ function ResponseButtons({
   item,
   saving,
   respond,
+  compact = false,
 }: {
   item: PortalClassOccurrence;
   saving: boolean;
@@ -427,14 +470,15 @@ function ResponseButtons({
     item: PortalClassOccurrence,
     value: "GOING" | "NOT_GOING",
   ) => void;
+  compact?: boolean;
 }) {
   return (
-    <div className="mt-2.5 grid grid-cols-2 gap-2 sm:mt-3">
+    <div className={`${compact ? "mt-2" : "mt-2.5 sm:mt-3"} grid grid-cols-2 gap-2`}>
       <button
         type="button"
         disabled={saving}
         onClick={() => respond(item, "GOING")}
-        className={`min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] font-black transition disabled:opacity-50 sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs ${item.response === "GOING" ? "bg-emerald-400 text-zinc-950" : "bg-yellow-400 text-zinc-950 hover:bg-yellow-300"}`}
+        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} font-black transition disabled:opacity-50 ${item.response === "GOING" ? "bg-emerald-400 text-zinc-950" : "bg-yellow-400 text-zinc-950 hover:bg-yellow-300"}`}
       >
         Asistiré
       </button>
@@ -442,7 +486,7 @@ function ResponseButtons({
         type="button"
         disabled={saving}
         onClick={() => respond(item, "NOT_GOING")}
-        className={`min-h-9 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition disabled:opacity-50 sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs ${item.response === "NOT_GOING" ? "border-red-300/50 bg-red-400/10 text-red-200" : "border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
+        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-red-300/50 bg-red-400/10 text-red-200" : "border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
       >
         No asistiré
       </button>

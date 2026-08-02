@@ -6,6 +6,7 @@ import {
   classHasEnded,
   classIsEligibleForStudent,
   classIsInProgress,
+  PORTAL_HOME_PREVIEW_COUNT,
   selectActivePortalSchedules,
   selectPortalClassAgenda,
   selectRelevantClassDay,
@@ -71,6 +72,17 @@ test("la ventana futura excluye clases pasadas, inactivas y canceladas", () => {
     occurrence("valid", "2026-08-04", "08:00", "09:00"),
   ], now);
   assert.deepEqual(result.occurrenceIds, ["current", "valid"]);
+});
+
+test("la fuente única excluye finalizadas y canceladas antes de responder a Inicio o Clases", () => {
+  const agenda = selectPortalClassAgenda([
+    { ...occurrence("ended", "2026-08-03", "18:00", "19:00"), category: "GAP" },
+    { ...occurrence("current", "2026-08-03", "19:00", "20:00"), category: "GAP" },
+    { ...occurrence("cancelled", "2026-08-04", "07:00", "08:00", "CANCELLED"), category: "GAP" },
+  ], "Adulto", new Date("2026-08-03T22:30:00.000Z"));
+  assert.deepEqual(agenda.occurrences.map((item) => item.id), ["current"]);
+  assert.deepEqual(agenda.focus.occurrenceIds, ["current"]);
+  assert.equal(agenda.summary.total, 1);
 });
 
 test("los horarios semanales respetan actividad, vigencia y orden lunes a domingo", () => {
@@ -148,6 +160,45 @@ test("la agenda general separa clases de adultos y Kids sin depender de asignaci
   assert.equal(classIsEligibleForStudent("Entrenamiento funcional", "Kids"), false);
 });
 
+test("un día con siete clases conserva el total bruto y calcula totales visibles por elegibilidad", () => {
+  const classes = [
+    { ...occurrence("functional-07", "2026-08-03", "07:00", "08:00"), category: "Entrenamiento funcional" },
+    { ...occurrence("functional-08", "2026-08-03", "08:00", "09:00"), category: "Entrenamiento funcional" },
+    { ...occurrence("kids-09", "2026-08-03", "09:00", "10:00"), category: "Funcional Kids" },
+    { ...occurrence("functional-1530", "2026-08-03", "15:30", "16:30"), category: "Entrenamiento funcional" },
+    { ...occurrence("kids-1630", "2026-08-03", "16:30", "17:30"), category: "Funcional Kids" },
+    { ...occurrence("functional-19", "2026-08-03", "19:00", "20:00"), category: "Entrenamiento funcional" },
+    { ...occurrence("functional-20", "2026-08-03", "20:00", "21:00"), category: "Entrenamiento funcional" },
+  ];
+  const now = new Date("2026-08-03T09:00:00.000Z");
+  const adultAgenda = selectPortalClassAgenda(classes, "Adulto", now);
+  const kidsAgenda = selectPortalClassAgenda(classes, "Kids", now);
+
+  assert.equal(classes.length, 7);
+  assert.equal(adultAgenda.summary.total, 5);
+  assert.equal(adultAgenda.focus.occurrenceIds.length, adultAgenda.summary.total);
+  assert.equal(adultAgenda.occurrences.length, adultAgenda.summary.total);
+  assert.equal(kidsAgenda.summary.total, 2);
+  assert.equal(kidsAgenda.focus.occurrenceIds.length, kidsAgenda.summary.total);
+  assert.equal(adultAgenda.summary.preview.length, PORTAL_HOME_PREVIEW_COUNT);
+  assert.deepEqual(adultAgenda.summary.preview.map((item) => item.id), ["functional-07", "functional-08"]);
+  assert.equal(adultAgenda.summary.hiddenCount, 3);
+  assert.equal(adultAgenda.summary.firstStartTime, "07:00");
+  assert.equal(adultAgenda.summary.lastStartTime, "20:00");
+  assert.equal(adultAgenda.summary.mode, "TODAY");
+  assert.equal(adultAgenda.summary.dateLabel, "Lunes, 3 de agosto");
+});
+
+test("el resumen cambia a próximo día sin llamarlo mañana", () => {
+  const agenda = selectPortalClassAgenda([
+    { ...occurrence("monday", "2026-08-10", "07:00", "08:00"), category: "GAP" },
+  ], "Adulto", new Date("2026-08-08T12:00:00.000Z"));
+  assert.equal(agenda.summary.mode, "NEXT_DAY");
+  assert.equal(agenda.summary.date, "2026-08-10");
+  assert.equal(agenda.summary.dateLabel, "Lunes, 10 de agosto");
+  assert.equal(agenda.summary.total, 1);
+});
+
 test("los horarios fijos y la agenda general conservan fuentes independientes", () => {
   const fixedGap = selectActivePortalSchedules([
     {
@@ -198,7 +249,9 @@ test("la API materializa recurrencias y devuelve una única agenda elegible calc
   assert.ok(source.indexOf("ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS)") < source.indexOf("prisma.classOccurrence.findMany"));
   assert.match(source, /selectPortalClassAgenda\(occurrences\.map\(serializeOccurrence\), student\.studentType\)/);
   assert.match(source, /selectActivePortalSchedules\(assignments\)/);
-  assert.match(source, /status: \{ not: "CANCELLED" \}/);
+  assert.match(source, /summary: agenda\.summary/);
+  const query = source.slice(source.indexOf("prisma.classOccurrence.findMany"), source.indexOf("const agenda = selectPortalClassAgenda"));
+  assert.doesNotMatch(query, /take:|limit:|\.slice\(/);
 });
 
 test("la vista consume la ventana del servidor y muestra un unico estado vacio", () => {
@@ -206,7 +259,21 @@ test("la vista consume la ventana del servidor y muestra un unico estado vacio",
   assert.match(source, /data\?\.upcoming\.occurrenceIds/);
   assert.doesNotMatch(source, /const weekStart =/);
   assert.equal(source.match(/No hay clases disponibles durante los próximos 7 días\./g)?.length, 1);
+  assert.equal(source.match(/noClassesMessage/g)?.length, 3);
   assert.match(source, /data\.availability\.message/);
+});
+
+test("Inicio usa total y preview del servidor sin recortar la fuente completa", () => {
+  const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  assert.match(source, /data\.summary\.total/);
+  assert.match(source, /data\.summary\.preview\.map/);
+  assert.match(source, /data\.summary\.hiddenCount/);
+  assert.match(source, /\+\$\{data\.summary\.hiddenCount\} horarios más/);
+  assert.match(source, /data\.summary\.firstStartTime/);
+  assert.match(source, /data\.summary\.lastStartTime/);
+  assert.match(source, /Ver todos los horarios/);
+  assert.doesNotMatch(source, /focusItems\.slice\(/);
+  assert.match(source, /focusItems\.map/);
 });
 
 test("la vista de clases usa jerarquia premium y selector segmentado", () => {
