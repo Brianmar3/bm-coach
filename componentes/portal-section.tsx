@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { PaymentAccountStatus, PhysicalEvaluation } from "@/types/gestion";
 import type { PortalData, PortalWorkoutSession } from "@/types/portal";
 import { PortalClasses } from "@/componentes/portal-classes";
-import { dailyFocusForDate } from "@/lib/daily-focus";
+import { dailyFocusForInstant } from "@/lib/daily-focus";
 import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/body-evolution-card";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { StudentProfileView } from "@/componentes/student-profile-view";
@@ -56,8 +56,9 @@ export function PortalSection({ section }: { section: Section }) {
 }
 
 function PortalOverview({ data }: { data: PortalData }) {
-  const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date());
-  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  const now = new Date();
+  const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(now);
+  const dailyFocus = dailyFocusForInstant(now);
   const groupClassesEnabled = hasGroupClasses(data.profile.serviceType);
   return <div className="space-y-4">
     <header className="relative overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_85%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(135deg,#181818,#090909_65%)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.35)] sm:p-5">
@@ -69,7 +70,7 @@ function PortalOverview({ data }: { data: PortalData }) {
         {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </header>
-    <section className="flex items-center justify-between gap-4 rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.24)]"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><p className="mt-2 text-sm leading-relaxed text-zinc-200">{dailyFocusForDate(todayKey)}</p></div><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.07] shadow-[inset_0_0_0_1px_rgba(250,204,21,.04)]"><svg aria-hidden="true" viewBox="0 0 64 64" className="h-7 w-7 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,.24)]"><defs><linearGradient id="bolt-glow" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#fde68a" /><stop offset="100%" stopColor="#b45309" /></linearGradient></defs><path d="M34 6 18 34h12l-2 24 20-30H34l4-18Z" fill="none" stroke="url(#bolt-glow)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg></div></section>
+    <section className="flex min-w-0 items-center justify-between gap-3 overflow-hidden rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-3.5 shadow-[0_12px_28px_rgba(0,0,0,.24)] sm:p-4"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><h2 className="mt-1.5 line-clamp-2 break-words text-sm font-black leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-zinc-400 sm:text-sm">{dailyFocus.reflection}</p></div><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-yellow-400/20 bg-yellow-400/[0.07] shadow-[inset_0_0_0_1px_rgba(250,204,21,.04)] sm:h-12 sm:w-12 sm:rounded-2xl"><svg aria-hidden="true" viewBox="0 0 64 64" className="h-7 w-7 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,.24)]"><defs><linearGradient id="bolt-glow" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#fde68a" /><stop offset="100%" stopColor="#b45309" /></linearGradient></defs><path d="M34 6 18 34h12l-2 24 20-30H34l4-18Z" fill="none" stroke="url(#bolt-glow)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg></div></section>
     {groupClassesEnabled ? <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div> : <div className="max-w-md"><QuotaSummaryCard data={data} /></div>}
     <ProgressSummary data={data} />
     <PointsSummary data={data} />
