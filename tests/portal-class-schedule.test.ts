@@ -176,3 +176,42 @@ test("la vista consume la ventana del servidor y muestra un unico estado vacio",
   assert.equal(source.match(/No tenés clases asignadas para los próximos 7 días\./g)?.length, 1);
   assert.match(source, /data\.availability\.message/);
 });
+
+test("la vista de clases usa jerarquia premium y selector segmentado", () => {
+  const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  for (const text of ["Agenda presencial", "Tus próximas clases", "Consultá tus horarios y confirmá tu asistencia.", "Próximo día", "Próximos 7 días"]) {
+    assert.match(source, new RegExp(text));
+  }
+  assert.match(source, /aria-label="Vista de clases"/);
+  assert.match(source, /aria-pressed=\{!showWeek\}/);
+  assert.match(source, /onClick=\{\(\) => setShowWeek\(false\)\}/);
+  assert.match(source, /onClick=\{\(\) => setShowWeek\(true\)\}/);
+});
+
+test("las disciplinas mantienen iconos claros sin inventar ubicacion", () => {
+  const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  assert.match(source, /icon: "🍑", label: "GAP"/);
+  assert.match(source, /icon: "🧒", label: "Kids"/);
+  assert.match(source, /icon: "💪🏽", label: "Funcional"/);
+  assert.doesNotMatch(source, /ubicaci[oó]n/i);
+});
+
+test("horarios semanales y registros conservan acceso y presentacion movil", () => {
+  const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  assert.match(source, /Mis horarios semanales/);
+  assert.match(source, /Ver semana completa/);
+  assert.match(source, /data\.scheduleLabels/);
+  assert.match(source, /href="\/portal\/registro"/);
+  assert.match(source, /Ver mis registros/);
+  assert.match(source, /grid-cols-2/);
+  assert.match(source, /min-w-0/);
+  assert.doesNotMatch(source, /overflow-x-auto/);
+});
+
+test("confirmar asistencia conserva endpoint payload y handlers", () => {
+  const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  assert.match(source, /fetch\("\/api\/portal\/clases"/);
+  assert.match(source, /body: JSON\.stringify\(\{ occurrenceId: item\.id, response: value \}\)/);
+  assert.match(source, /onClick=\{\(\) => respond\(item, "GOING"\)\}/);
+  assert.match(source, /onClick=\{\(\) => respond\(item, "NOT_GOING"\)\}/);
+});

@@ -34,6 +34,44 @@ const dateLabel = (value: string) =>
     month: "long",
     timeZone: "UTC",
   });
+
+const capitalize = (value: string) => value.charAt(0).toLocaleUpperCase("es") + value.slice(1);
+
+function disciplinePresentation(value: string, fallbackLabel = value) {
+  const normalized = value.toLocaleLowerCase("es");
+  if (normalized.includes("gap")) return { icon: "🍑", label: "GAP", accent: "border-l-pink-400" };
+  if (normalized.includes("kids") || normalized.includes("niñ")) return { icon: "🧒", label: "Kids", accent: "border-l-sky-400" };
+  if (normalized.includes("funcional")) return { icon: "💪🏽", label: "Funcional", accent: "border-l-yellow-400" };
+  return { icon: "◆", label: fallbackLabel || "Clase", accent: "border-l-zinc-500" };
+}
+
+function focusDateHeading(data: ClassData) {
+  if (!data.focus.date) return "Próximo día";
+  const label = capitalize(dateLabel(data.focus.date));
+  if (data.focus.title.toLocaleLowerCase("es").includes("mañana")) return `Mañana · ${label}`;
+  if (data.focus.title.toLocaleLowerCase("es").includes("hoy")) return `Hoy · ${label}`;
+  return label;
+}
+
+function weeklyScheduleDisplay(label: string) {
+  const [timePart = label, disciplinePart = "Clase"] = label.split(" · ");
+  const match = /^(\S+)\s+(\d{2}:\d{2})[–-](\d{2}:\d{2})$/.exec(timePart.trim());
+  const discipline = disciplinePresentation(disciplinePart);
+  return {
+    day: match?.[1] ?? "Horario",
+    time: match ? `${match[2]}–${match[3]}` : timePart,
+    discipline,
+  };
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none">
+      <path d="M7 3v3m10-3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<ClassData | null>(null);
   const [notice, setNotice] = useState("");
@@ -127,6 +165,14 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
       map.set(item.date, [...(map.get(item.date) ?? []), item]);
     return [...map.entries()];
   }, [focusItems, showWeek, upcomingItems]);
+  const weeklySchedules = useMemo(() => {
+    const map = new Map<string, Array<ReturnType<typeof weeklyScheduleDisplay>>>();
+    for (const label of data?.scheduleLabels ?? []) {
+      const item = weeklyScheduleDisplay(label);
+      map.set(item.day, [...(map.get(item.day) ?? []), item]);
+    }
+    return [...map.entries()];
+  }, [data?.scheduleLabels]);
 
   if (!data) {
     if (!error) return <div className="h-44 animate-pulse rounded-2xl bg-zinc-900" />;
@@ -183,102 +229,132 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     );
 
   return (
-    <div>
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm text-yellow-400">Agenda presencial</p>
-          <h1 className="mt-1 text-2xl font-bold">
-            {showWeek ? "Próximos 7 días con agenda" : data?.focus.title}
-          </h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            {showWeek ? "Consultá tus horarios y confirmá tu asistencia." : data?.focus.subtitle}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowWeek((value) => !value)}
-          className="self-start rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:border-yellow-400/50 hover:text-yellow-300 sm:self-auto"
-        >
-          {showWeek ? "Ver próximo día" : "Ver próximos 7 días"}
-        </button>
+    <div className="mx-auto w-full max-w-5xl pb-4">
+      <header className="px-1">
+        <p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Agenda presencial</p>
+        <h1 className="mt-2 text-[2rem] font-black leading-tight tracking-[-.035em] text-zinc-50 sm:text-4xl">Tus próximas clases</h1>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p>
       </header>
-      <details className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
-        <summary className="cursor-pointer list-none text-sm font-bold text-yellow-300">
-          Mis horarios semanales ({data?.scheduleLabels.length ?? 0})
-        </summary>
-        {data?.scheduleLabels.length ? (
-          <ul className="mt-3 space-y-2 border-t border-zinc-800 pt-3">
-            {data.scheduleLabels.map((label) => (
-              <li
-                key={label}
-                className="rounded-lg bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
-              >
-                {label}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-3 text-sm text-zinc-500">
-            No tenés horarios semanales asignados.
-          </p>
-        )}
-        {data?.flexibleSchedule && (
-          <p className="mt-3 text-sm text-zinc-400">
-            Horario habitual: {data.flexibleSchedule}
-          </p>
-        )}
-      </details>
+
+      <nav aria-label="Vista de clases" className="mt-6 grid grid-cols-2 gap-1 rounded-2xl border border-white/[.07] bg-zinc-950/80 p-1.5 shadow-[inset_0_1px_rgba(255,255,255,.03)]">
+        <button
+          type="button"
+          aria-pressed={!showWeek}
+          onClick={() => setShowWeek(false)}
+          className={`min-h-11 rounded-xl px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 ${!showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
+        >
+          Próximo día
+        </button>
+        <button
+          type="button"
+          aria-pressed={showWeek}
+          onClick={() => setShowWeek(true)}
+          className={`min-h-11 rounded-xl px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 ${showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
+        >
+          Próximos 7 días
+        </button>
+      </nav>
+
       <Feedback error={error} notice={notice} />
-      {grouped.length === 0 && (
-        <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">
-          {data.availability.message ?? (showWeek
-            ? "No tenés clases asignadas para los próximos 7 días."
-            : data.focus.subtitle)}
-        </p>
-      )}
-      <div className="mt-6 space-y-5">
-        {grouped.map(([date, items]) => (
-          <section key={date}>
-            <h2 className="mb-3 font-bold capitalize text-yellow-300">
-              {dateLabel(date)}
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {items.map((item) => (
-                <ClassCard
-                  key={item.id}
-                  item={item}
-                  saving={savingId === item.id}
-                  respond={respond}
-                />
-              ))}
+
+      {grouped.length === 0 ? (
+        <section className="mt-5 overflow-hidden rounded-3xl border border-white/[.07] bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#181818,#0b0b0b)] p-6 text-center shadow-[0_20px_60px_rgba(0,0,0,.28)]">
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[.07] text-yellow-300"><CalendarIcon /></span>
+          <h2 className="mt-4 text-lg font-black text-zinc-100">Sin clases próximas</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-zinc-400">
+            {data.availability.message ?? (showWeek ? "No tenés clases asignadas para los próximos 7 días." : data.focus.subtitle)}
+          </p>
+        </section>
+      ) : showWeek ? (
+        <section className="mt-5 rounded-3xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0b0b0b)] p-4 shadow-[0_20px_60px_rgba(0,0,0,.28)] sm:p-6">
+          <div className="flex items-center gap-3 border-b border-white/[.07] pb-4">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300"><CalendarIcon /></span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Agenda completa</p>
+              <h2 className="mt-1 text-lg font-black text-zinc-100">Próximos 7 días</h2>
             </div>
-          </section>
-        ))}
-      </div>
-      <section className="mt-8 rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-black p-5">
-        <div className="flex items-start gap-3">
-          <span
-            aria-hidden="true"
-            className="grid size-10 shrink-0 place-items-center rounded-full border border-yellow-400/30 bg-yellow-400/10 text-yellow-300"
-          >
-            ↗
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">
-              Mis registros
-            </p>
-            <h2 className="mt-1 text-lg font-bold">
-              Ejercicios, cargas y marcas
-            </h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              Consultá tus ejercicios, cargas y marcas registradas.
-            </p>
-            <Link
-              href="/portal/registro"
-              className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-yellow-400/35 px-4 py-2 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/10 focus:outline-none focus:ring-2 focus:ring-yellow-300"
-            >
-              Ver mis registros
-            </Link>
           </div>
+          <div className="mt-5 space-y-6">
+            {grouped.map(([date, items]) => (
+              <section key={date}>
+                <h3 className="mb-3 text-sm font-black capitalize text-zinc-200">{dateLabel(date)}</h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {items.map((item) => <ClassCard key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
+                </div>
+              </section>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section id="clases-del-dia" className="mt-5 overflow-hidden rounded-3xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_22px_65px_rgba(0,0,0,.32)]">
+          <div className="flex items-center justify-between gap-3 border-b border-white/[.07] px-4 py-4 sm:px-6">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-yellow-400/25 bg-yellow-400/[.09] text-yellow-300"><CalendarIcon /></span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Próximo entrenamiento</p>
+                <h2 className="mt-1 truncate text-base font-black text-zinc-100 sm:text-lg">{focusDateHeading(data)}</h2>
+              </div>
+            </div>
+            <span className="shrink-0 rounded-full border border-yellow-400/20 bg-yellow-400/[.08] px-2.5 py-1 text-[10px] font-black text-yellow-300">
+              {focusItems.length} {focusItems.length === 1 ? "clase" : "clases"}
+            </span>
+          </div>
+          <div className="grid gap-3 p-4 sm:p-6 md:grid-cols-2">
+            {focusItems.map((item) => <ClassCard key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-white/[.06] bg-black/20 px-4 py-3 text-xs sm:px-6">
+            <span className="text-zinc-500">Todas las clases asignadas para este día</span>
+            <button type="button" onClick={() => setShowWeek(true)} className="shrink-0 font-black text-yellow-300 transition hover:text-yellow-200">Ver semana →</button>
+          </div>
+        </section>
+      )}
+
+      <details className="group mt-5 overflow-hidden rounded-3xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0c0c0c)] shadow-[0_18px_45px_rgba(0,0,0,.22)]">
+        <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:px-6">
+          <div className="min-w-0">
+            <h2 className="font-black text-zinc-100">Mis horarios semanales</h2>
+            <p className="mt-1 text-xs text-zinc-500">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
+          </div>
+          <span className="flex shrink-0 items-center gap-2 text-xs font-black text-yellow-300">Ver semana completa <span aria-hidden="true" className="text-lg transition group-open:rotate-90">›</span></span>
+        </summary>
+        <div className="border-t border-white/[.07] px-4 py-2 sm:px-6">
+          {weeklySchedules.length ? (
+            <ul>
+              {weeklySchedules.map(([day, schedules]) => (
+                <li key={day} className="grid grid-cols-[minmax(5.25rem,.7fr)_minmax(0,1.5fr)_auto] items-center gap-3 border-b border-white/[.06] py-4 last:border-0">
+                  <strong className="text-sm text-zinc-200">{day}</strong>
+                  <div className="min-w-0 space-y-2">
+                    {schedules.map((schedule, index) => (
+                      <div key={`${schedule.time}-${schedule.discipline.label}-${index}`} className="flex min-w-0 items-center gap-2 text-sm text-zinc-400">
+                        <span className="font-bold tabular-nums text-zinc-200">{schedule.time}</span>
+                        <span aria-hidden="true">{schedule.discipline.icon}</span>
+                        <span className="truncate">{schedule.discipline.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <span aria-hidden="true" className="text-lg text-zinc-600">›</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="py-5 text-sm text-zinc-500">No tenés horarios semanales asignados.</p>
+          )}
+          {data.flexibleSchedule && <p className="border-t border-white/[.06] py-4 text-sm text-zinc-400">Horario habitual: {data.flexibleSchedule}</p>}
+        </div>
+      </details>
+
+      <section className="relative mt-5 overflow-hidden rounded-3xl border border-yellow-400/15 bg-[linear-gradient(135deg,#181818,#090909)] p-5 shadow-[0_20px_55px_rgba(0,0,0,.25)] sm:p-6">
+        <span aria-hidden="true" className="absolute -right-10 -top-12 size-36 rounded-full border border-yellow-400/10 bg-yellow-400/[.035]" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-2xl border border-yellow-400/25 bg-yellow-400/[.08] text-lg text-yellow-300">↗</span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Mis registros</p>
+              <h2 className="mt-1 text-lg font-black text-zinc-100">Ejercicios, cargas y marcas</h2>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-400">Consultá tus ejercicios, cargas y marcas registradas.</p>
+            </div>
+          </div>
+          <Link href="/portal/registro" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-yellow-400/30 bg-yellow-400/[.07] px-4 py-2 text-sm font-black text-yellow-300 transition hover:bg-yellow-400/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300">Ver mis registros</Link>
         </div>
       </section>
     </div>
@@ -297,20 +373,24 @@ function ClassCard({
     value: "GOING" | "NOT_GOING",
   ) => void;
 }) {
+  const discipline = disciplinePresentation(`${item.name} ${item.category}`, item.name || item.category);
+  const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+    <article className={`min-w-0 rounded-2xl border border-white/[.07] border-l-2 ${discipline.accent} bg-zinc-950/75 p-4 shadow-[0_12px_30px_rgba(0,0,0,.18)]`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="break-words font-bold">{item.name}</h3>
-          <p className="mt-1 text-sm text-zinc-400">
-            {item.startTime}–{item.endTime} · {item.category}
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.035] text-lg">{discipline.icon}</span>
+          <div className="min-w-0">
+            <h3 className="break-words text-sm font-black text-zinc-100">{discipline.label}</h3>
+            <p className="mt-1 text-base font-black tabular-nums text-yellow-300">{item.startTime}–{item.endTime}</p>
+            {item.name !== item.category && <p className="mt-1 truncate text-xs text-zinc-500">{item.name}</p>}
+          </div>
         </div>
-        <span className="shrink-0 rounded-full bg-zinc-950 px-2 py-1 text-xs text-zinc-400">
-          {item.statusLabel}
+        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black ${item.response === "GOING" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-white/[.08] bg-white/[.035] text-zinc-400"}`}>
+          {responseLabel}
         </span>
       </div>
-      <p className="mt-3 text-xs text-zinc-500">
+      <p className="mt-3 border-t border-white/[.06] pt-3 text-[11px] text-zinc-500">
         {item.confirmedCount} confirmados
         {item.capacity === null ? "" : ` · cupo ${item.capacity}`}
       </p>
@@ -345,18 +425,20 @@ function ResponseButtons({
   ) => void;
 }) {
   return (
-    <div className="mt-4 grid grid-cols-2 gap-2">
+    <div className="mt-3 grid grid-cols-2 gap-2">
       <button
+        type="button"
         disabled={saving}
         onClick={() => respond(item, "GOING")}
-        className={`rounded-xl p-3 font-bold text-zinc-950 ${item.response === "GOING" ? "bg-emerald-400" : "bg-yellow-400"}`}
+        className={`min-h-10 rounded-xl px-3 py-2 text-xs font-black transition disabled:opacity-50 ${item.response === "GOING" ? "bg-emerald-400 text-zinc-950" : "bg-yellow-400 text-zinc-950 hover:bg-yellow-300"}`}
       >
         Asistiré
       </button>
       <button
+        type="button"
         disabled={saving}
         onClick={() => respond(item, "NOT_GOING")}
-        className={`rounded-xl border p-3 font-semibold ${item.response === "NOT_GOING" ? "border-red-300 text-red-200" : "border-zinc-700"}`}
+        className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-red-300/50 bg-red-400/10 text-red-200" : "border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
       >
         No asistiré
       </button>
