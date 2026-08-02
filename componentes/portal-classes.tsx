@@ -8,12 +8,22 @@ type ClassData = {
   occurrences: PortalClassOccurrence[];
   scheduleLabels: string[];
   flexibleSchedule: string;
+  availability: {
+    eligible: boolean;
+    reason: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+    message: string | null;
+  };
   focus: {
     date: string | null;
     title: string;
     subtitle: string;
     occurrenceIds: string[];
     refreshAfterMs: number | null;
+  };
+  upcoming: {
+    from: string;
+    to: string;
+    occurrenceIds: string[];
   };
 };
 
@@ -24,19 +34,6 @@ const dateLabel = (value: string) =>
     month: "long",
     timeZone: "UTC",
   });
-const argentinaToday = () =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-const addDays = (value: string, days: number) => {
-  const date = new Date(`${value}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-};
-
 export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<ClassData | null>(null);
   const [notice, setNotice] = useState("");
@@ -115,24 +112,21 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
     }
   }
 
-  const today = argentinaToday();
   const focusItems = useMemo(() => {
     const ids = new Set(data?.focus.occurrenceIds ?? []);
     return (data?.occurrences ?? []).filter((item) => ids.has(item.id)).sort((left, right) => left.startTime.localeCompare(right.startTime));
   }, [data]);
-  const weekStart = data?.focus.date ?? today;
-  const weekEnd = addDays(weekStart, 6);
+  const upcomingItems = useMemo(() => {
+    const ids = new Set(data?.upcoming.occurrenceIds ?? []);
+    return (data?.occurrences ?? []).filter((item) => ids.has(item.id));
+  }, [data]);
   const grouped = useMemo(() => {
     const map = new Map<string, PortalClassOccurrence[]>();
-    const visible = showWeek
-      ? (data?.occurrences ?? []).filter(
-          (item) => item.status === "SCHEDULED" && item.date >= weekStart && item.date <= weekEnd,
-        )
-      : focusItems;
+    const visible = showWeek ? upcomingItems : focusItems;
     for (const item of visible)
       map.set(item.date, [...(map.get(item.date) ?? []), item]);
     return [...map.entries()];
-  }, [data, focusItems, showWeek, weekEnd, weekStart]);
+  }, [focusItems, showWeek, upcomingItems]);
 
   if (!data) {
     if (!error) return <div className="h-44 animate-pulse rounded-2xl bg-zinc-900" />;
@@ -157,7 +151,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
                 ? `${focusItems.length} ${focusItems.length === 1 ? "clase disponible" : "clases disponibles"}`
                 : "Sin próximas clases"}
             </h2>
-            <p className="mt-1 text-xs text-zinc-500">{data.focus.subtitle}</p>
+            {focusItems.length > 0 && <p className="mt-1 text-xs text-zinc-500">{data.focus.subtitle}</p>}
           </div>
           <Link
             href="/portal/clases"
@@ -180,7 +174,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         ) : (
           <div className="mt-4 rounded-xl border border-dashed border-zinc-800 bg-black/25 p-5">
             <p className="text-sm text-zinc-400">
-              No encontramos próximas clases asignadas. Consultá con tu entrenador.
+              {data.availability.message ?? data.focus.subtitle}
             </p>
           </div>
         )}
@@ -234,9 +228,11 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         )}
       </details>
       <Feedback error={error} notice={notice} />
-      {!showWeek && focusItems.length === 0 && (
+      {grouped.length === 0 && (
         <p className="mt-6 rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">
-          No encontramos próximas clases asignadas. Consultá con tu entrenador.
+          {data.availability.message ?? (showWeek
+            ? "No tenés clases asignadas para los próximos 7 días."
+            : data.focus.subtitle)}
         </p>
       )}
       <div className="mt-6 space-y-5">

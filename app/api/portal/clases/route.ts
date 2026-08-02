@@ -14,8 +14,10 @@ import { hasGroupClasses } from "@/lib/student-service";
 import {
   occurrenceBelongsToStudent,
   PORTAL_CLASS_SEARCH_DAYS,
+  selectActivePortalSchedules,
   selectRelevantClassDay,
-  studentIsActiveForClasses,
+  selectUpcomingClassWindow,
+  studentClassAvailability,
 } from "@/lib/portal-class-schedule";
 
 export const runtime = "nodejs";
@@ -57,20 +59,25 @@ export async function GET() {
   if (session.credential.mustChangePassword) return Response.json({ error: "Primero cambiá tu contraseña.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   try {
     const student = session.credential.student.data as unknown as Student;
-    if (!studentIsActiveForClasses(student.status, student.lifecycleStatus)) {
+    const assignments = await prisma.weeklyClassAssignment.findMany({
+      where: { studentId: session.studentId },
+      include: { schedule: true },
+    });
+    const schedules = selectActivePortalSchedules(assignments);
+    const scheduleLabels = schedules.map((item) => `${weeklyScheduleLabel(item.schedule)} · Vigente`);
+    const availability = studentClassAvailability(student.status, student.lifecycleStatus);
+    if (!availability.eligible) {
+      const focus = selectRelevantClassDay([]);
       return Response.json({
-        scheduleLabels: [],
+        availability,
+        scheduleLabels,
         flexibleSchedule: student.flexibleSchedule ?? "",
         occurrences: [],
-        focus: selectRelevantClassDay([]),
+        focus: { ...focus, subtitle: availability.message ?? focus.subtitle },
+        upcoming: selectUpcomingClassWindow([]),
       });
     }
     const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS);
-    const schedules = await prisma.weeklyClassAssignment.findMany({
-      where: { studentId: session.studentId, active: true, schedule: { active: true } },
-      include: { schedule: true },
-      orderBy: [{ schedule: { dayOfWeek: "asc" } }, { schedule: { startTime: "asc" } }],
-    });
     const assignedScheduleIds = new Set(schedules.map((item) => item.scheduleId));
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
@@ -91,10 +98,12 @@ export async function GET() {
       .filter((item) => occurrenceBelongsToStudent(item, assignedScheduleIds, explicitOccurrenceIds))
       .map(serializeOccurrence);
     return Response.json({
-      scheduleLabels: schedules.map((item) => weeklyScheduleLabel(item.schedule)),
+      availability,
+      scheduleLabels,
       flexibleSchedule: student.flexibleSchedule ?? "",
       occurrences: serialized,
       focus: selectRelevantClassDay(serialized),
+      upcoming: selectUpcomingClassWindow(serialized),
     });
   } catch (error) {
     console.error("No se pudieron cargar las clases del portal", error);
@@ -108,7 +117,7 @@ export async function POST(request: Request) {
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
   if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Las clases grupales no están disponibles para tu servicio." }, { status: 403 });
   const student = session.credential.student.data as unknown as Student;
-  if (!studentIsActiveForClasses(student.status, student.lifecycleStatus)) return Response.json({ error: "Tu cuenta no tiene clases activas." }, { status: 403 });
+  if (!studentClassAvailability(student.status, student.lifecycleStatus).eligible) return Response.json({ error: "Tu cuenta no tiene clases activas." }, { status: 403 });
   try {
     const input = await request.json() as { occurrenceId?: unknown; response?: unknown };
     if (typeof input.occurrenceId !== "string" || !["GOING", "NOT_GOING"].includes(String(input.response))) {

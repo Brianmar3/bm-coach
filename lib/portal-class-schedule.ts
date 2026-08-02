@@ -1,4 +1,5 @@
 export const PORTAL_CLASS_SEARCH_DAYS = 35;
+export const PORTAL_UPCOMING_DAYS = 7;
 export const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 
 export type PortalClassCandidate = {
@@ -18,6 +19,41 @@ export type RelevantClassDay = {
   subtitle: string;
   occurrenceIds: string[];
   refreshAfterMs: number | null;
+};
+
+export type PortalWeeklyScheduleCandidate = {
+  scheduleId: string;
+  active: boolean;
+  endedAt: Date | null;
+  schedule: {
+    active: boolean;
+    dayOfWeek: string;
+    startTime: string;
+    endTime: string;
+    classType: string;
+  };
+};
+
+export type UpcomingClassWindow = {
+  from: string;
+  to: string;
+  occurrenceIds: string[];
+};
+
+export type StudentClassAvailability = {
+  eligible: boolean;
+  reason: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+  message: string | null;
+};
+
+const weekdayOrder: Record<string, number> = {
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6,
+  SUNDAY: 7,
 };
 
 export function argentinaLocalClock(date = new Date()): ArgentinaClock {
@@ -68,8 +104,49 @@ export function occurrenceBelongsToStudent(
   return explicitOccurrenceIds.has(item.id) || Boolean(item.scheduleId && assignedScheduleIds.has(item.scheduleId));
 }
 
+export function selectActivePortalSchedules<T extends PortalWeeklyScheduleCandidate>(assignments: T[]) {
+  return assignments
+    .filter((item) => item.active && item.endedAt === null && item.schedule.active)
+    .sort((left, right) =>
+      (weekdayOrder[left.schedule.dayOfWeek] ?? 99) - (weekdayOrder[right.schedule.dayOfWeek] ?? 99)
+      || left.schedule.startTime.localeCompare(right.schedule.startTime),
+    );
+}
+
+export function studentClassAvailability(status: string | undefined, lifecycleStatus?: string): StudentClassAvailability {
+  if (lifecycleStatus === "suspendido") {
+    return {
+      eligible: false,
+      reason: "SUSPENDED",
+      message: "Tu cuenta está suspendida. Tus horarios asignados siguen visibles, pero no hay próximas clases disponibles.",
+    };
+  }
+  if (status !== "activo" || lifecycleStatus === "inactivo") {
+    return {
+      eligible: false,
+      reason: "INACTIVE",
+      message: "Tu cuenta está inactiva. Tus horarios asignados siguen visibles, pero no hay próximas clases disponibles.",
+    };
+  }
+  return { eligible: true, reason: "ACTIVE", message: null };
+}
+
 export function studentIsActiveForClasses(status: string | undefined, lifecycleStatus?: string) {
-  return status === "activo" && lifecycleStatus !== "inactivo" && lifecycleStatus !== "suspendido";
+  return studentClassAvailability(status, lifecycleStatus).eligible;
+}
+
+export function selectUpcomingClassWindow(
+  occurrences: PortalClassCandidate[],
+  now = new Date(),
+  daysAhead = PORTAL_UPCOMING_DAYS,
+): UpcomingClassWindow {
+  const clock = argentinaLocalClock(now);
+  const to = addPortalDateDays(clock.date, daysAhead);
+  const occurrenceIds = occurrences
+    .filter((item) => item.status === "SCHEDULED" && item.date >= clock.date && item.date <= to && !classHasEnded(item, clock))
+    .sort((left, right) => left.date.localeCompare(right.date) || left.startTime.localeCompare(right.startTime))
+    .map((item) => item.id);
+  return { from: clock.date, to, occurrenceIds };
 }
 
 function dateTitle(date: string, today: string) {
