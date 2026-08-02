@@ -5,6 +5,27 @@ import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId,
 
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 
+test("el tren inferior usa un icono claro y conserva el fallback general", () => {
+  assert.match(source, /data-area-icon="lower"/);
+  assert.match(source, /d="M9 6h14l-1 9h-5l-1-5-1 5h-5L9 6Z"/);
+  assert.match(source, /data-area-icon="general"/);
+});
+
+test("dolor o molestias es un bloque visual propio sin cambiar su comportamiento", () => {
+  assert.match(source, /rounded-xl border border-red-400\/20 bg-red-400\/\[\.05\] p-3\.5 text-red-100/);
+  assert.match(source, /Marcá esta opción si sentiste dolor durante la sesión\./);
+  assert.match(source, /checked=\{draft\.hasPain\}/);
+  assert.match(source, /onChange=\{\(event\) => setDraft\(\{ \.\.\.draft, hasPain: event\.target\.checked \}\)\}/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /onClick=\{\(\) => save\(true\)\}/);
+});
+
+test("el modal sigue adaptado a movil y conserva el payload de finalizacion", () => {
+  assert.match(source, /max-h-\[92dvh\] w-full overflow-y-auto/);
+  assert.match(source, /flex min-w-0 items-start/);
+  assert.match(source, /const payload = \{ \.\.\.draft, durationMinutes: duration, finalComment, painDetails, status:/);
+});
+
 test("el encabezado limpia copias y evita repetir el nombre del día", () => {
   assert.equal(cleanRoutineDisplayName(" Rutina Juani nueva (copia) "), "Rutina Juani nueva");
   assert.equal(cleanRoutineDisplayName("Rutina base - copia"), "Rutina base");
