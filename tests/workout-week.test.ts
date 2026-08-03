@@ -158,6 +158,8 @@ test("la API bloquea doble toque con una clave semanal y transacción serializab
   assert.match(apiSource, /pg_advisory_xact_lock/);
   assert.match(apiSource, /TransactionIsolationLevel\.Serializable/);
   assert.match(apiSource, /WEEKLY_SESSION:/);
+  assert.match(apiSource, /\$executeRaw\(/);
+  assert.doesNotMatch(apiSource, /\$queryRaw\(/);
 });
 
 test("solo reutiliza una IN_PROGRESS de la combinación y rango semanal actuales", () => {

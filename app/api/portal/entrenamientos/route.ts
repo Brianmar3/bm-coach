@@ -221,7 +221,7 @@ export async function POST(request: Request) {
     saveStage = "database-transaction";
     const saved = await prisma.$transaction(async (transaction) => {
       const lockKey = weeklySessionLockKey(session.studentId, input.routineId, input.dayId, weekRange.weekKey);
-      await transaction.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`);
+      await transaction.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`);
       if (!resolvedSessionId) {
         const duplicate = await transaction.workoutSession.findFirst({
           where: { studentId: session.studentId, routineId: input.routineId, dayId: input.dayId, date: { gte: weekRange.startDate, lt: weekRange.endExclusiveDate } },
