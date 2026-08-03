@@ -116,6 +116,8 @@ test("los objetivos por tiempo, repeticiones, distancia, descanso y libre se rep
 
 test("INTERVAL con TIME usa el tiempo general sin exigir repeticiones ni segundos propios", () => {
   assert.equal(validateExercise(exercise({ targetType: "TIME", targetSeconds: null, targetRepetitions: "" }), "INTERVAL"), null);
+  const interval = block("INTERVAL", { workSeconds: 40, exercises: [exercise({ targetType: "TIME", targetSeconds: null })] });
+  assert.equal(freshWorkoutBlock(interval).exercises[0].targetLabel, "40 segundos");
 });
 
 test("un ejercicio nuevo de INTERVAL usa TIME por defecto", () => {

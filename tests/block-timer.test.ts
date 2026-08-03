@@ -111,7 +111,15 @@ test("finalizar INTERVAL guarda inmediatamente una sola vez y el id conserva la 
   assert.match(timerComponent, /finishingRef\.current/);
   assert.match(portal, /async function completeBlockResult/);
   assert.match(portal, /autosaveSignature\.current = signature/);
-  assert.match(portal, /if \(body\.id\) setDraft/);
+  assert.match(portal, /const saved = \{ \.\.\.next, id: body\.id \?\? next\.id \}/);
+});
+
+test("INTERVAL no se marca completo antes de confirmar y revierte a pausa si falla", () => {
+  assert.match(timerComponent, /complete\(result\)\.then\(\(\) => \{/);
+  assert.match(timerComponent, /setTimer\(finishedTimer\)/);
+  assert.match(timerComponent, /\.catch\(\(\) => \{[\s\S]*setTimer\(retryTimer\)/);
+  assert.match(portal, /autosaveAbortRef\.current\?\.abort\(\)/);
+  assert.doesNotMatch(portal, /autosaveSignature\.current = signature;\s*setDraft\(next\)/);
 });
 
 test("los sonidos diferencian trabajo, descanso y final doble", () => {

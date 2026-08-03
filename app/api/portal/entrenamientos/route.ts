@@ -49,6 +49,7 @@ const workoutSessionSelect = {
 
 export async function POST(request: Request) {
   let parsedInput: PortalWorkoutSession | null = null;
+  let saveStage = "request";
   try {
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const session = await getPortalSession();
@@ -57,7 +58,10 @@ export async function POST(request: Request) {
     const input = await request.json() as PortalWorkoutSession;
     parsedInput = input;
     const validationError = validateWorkoutSessionInput(input);
-    if (validationError) return Response.json({ error: validationError }, { status: 400 });
+    if (validationError) {
+      if (process.env.NODE_ENV === "development") console.error("Payload de entrenamiento rechazado", { status: 400, validationError, routineId: input.routineId, dayId: input.dayId, sessionId: input.id ?? null, blocks: input.blocks, payload: input });
+      return Response.json({ error: validationError, ...(process.env.NODE_ENV === "development" ? { invalidField: validationError } : {}) }, { status: 400 });
+    }
     const weekRange = getWorkoutWeekRange(input.date);
     if (weekRange.weekKey !== getWeekKey()) return Response.json({ error: "Esta sesión pertenece a una semana anterior y quedó preservada en el historial." }, { status: 409 });
 
@@ -185,6 +189,7 @@ export async function POST(request: Request) {
       });
     }
 
+    saveStage = "database-transaction";
     const saved = await prisma.$transaction(async (transaction) => {
       const lockKey = weeklySessionLockKey(session.studentId, input.routineId, input.dayId, weekRange.weekKey);
       await transaction.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`);
@@ -232,6 +237,7 @@ export async function POST(request: Request) {
         ? transaction.workoutSession.update({ where: { id: resolvedSessionId }, data })
         : transaction.workoutSession.create({ data });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    saveStage = "post-save";
     const student = session.credential.student.data as unknown as Student;
     const achievements = input.status === "finalizado"
       ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.id)
@@ -258,8 +264,8 @@ export async function POST(request: Request) {
       return Response.json({ error: status === "COMPLETED" ? "Este día ya fue finalizado durante la semana actual." : "La sesión se creó al mismo tiempo. Reintentá para continuarla sin duplicar datos." }, { status: 409 });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La sesión cambió mientras la guardabas. Recargá Mi rutina antes de volver a intentar." }, { status: 409 });
-    console.error("Error al guardar entrenamiento del portal", error);
-    const developmentDetail = process.env.NODE_ENV === "development" ? error instanceof Error ? error.message : String(error) : undefined;
+    console.error("Error al guardar entrenamiento del portal", { status: 500, saveStage, message: error instanceof Error ? error.message : String(error), payload: process.env.NODE_ENV === "development" ? parsedInput : undefined, error });
+    const developmentDetail = process.env.NODE_ENV === "development" ? `${saveStage}: ${error instanceof Error ? error.message : String(error)}` : undefined;
     return Response.json({ error: "No se pudo guardar el entrenamiento.", ...(developmentDetail ? { developmentDetail } : {}) }, { status: 500 });
   }
 }

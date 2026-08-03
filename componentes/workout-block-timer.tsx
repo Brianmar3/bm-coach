@@ -105,7 +105,8 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, c
     finishingRef.current = true;
     const actionTime = Date.now();
     const elapsed = elapsedBlockSeconds(timer, actionTime);
-    setTimer(reduceBlockTimer(timer, "FINISH", actionTime)); setNowMs(actionTime);
+    const finishedTimer = reduceBlockTimer(timer, "FINISH", actionTime);
+    const retryTimer = timer.status === "running" ? reduceBlockTimer(timer, "PAUSE", actionTime) : timer;
     const base = { completed: true, durationSeconds: elapsed };
     const result = timer.blockType === "INTERVAL"
       ? { ...base, roundsCompleted: programmed.rounds ?? 1, completedExerciseIds: block.exercises.map((exercise) => exercise.exerciseId) }
@@ -113,9 +114,16 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, c
         ? { ...base, minutesCompleted: Math.ceil(elapsed / 60), roundsCompleted: block.exercises.length ? Math.floor(Math.ceil(elapsed / 60) / block.exercises.length) : null, completedExerciseIds: block.exercises.map((exercise) => exercise.exerciseId) }
         : base;
     setNotice("Guardando resultado…");
-    void complete(result).then(() => setNotice(automatic ? "Bloque completado" : "Resultado guardado")).catch(() => setNotice("No se pudo guardar. Reintentá."));
-    feedback("finish");
-    noticeTimerRef.current = window.setTimeout(() => { finishingRef.current = false; setNotice(""); }, 1800);
+    void complete(result).then(() => {
+      setTimer(finishedTimer); setNowMs(actionTime);
+      setNotice(automatic ? "Bloque completado" : "Resultado guardado");
+      feedback("finish");
+      noticeTimerRef.current = window.setTimeout(() => setNotice(""), 1800);
+    }).catch(() => {
+      finishingRef.current = false;
+      setTimer(retryTimer); setNowMs(actionTime);
+      setNotice("No se pudo guardar. Reintentá.");
+    });
   }, [block.exercises, complete, feedback, programmed.rounds, timer]);
 
   useEffect(() => { if (timer.status === "running" && view.finished) finish(true); }, [finish, timer.status, view.finished]);

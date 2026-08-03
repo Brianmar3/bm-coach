@@ -11,8 +11,8 @@ export function emptyBlockResult(): PortalWorkoutBlockResult {
   return { completed: false, roundsCompleted: null, minutesCompleted: null, extraRepetitions: null, durationSeconds: null, pendingWork: "", resultText: "", observation: "", completedExerciseIds: [] };
 }
 
-export function exerciseTargetLabel(exercise: Pick<TrainingExercise, "targetType" | "targetSeconds" | "targetRepetitions" | "targetDistance" | "targetSide" | "repetitions">) {
-  const main = exercise.targetType === "TIME" ? `${exercise.targetSeconds ?? 0} segundos`
+export function exerciseTargetLabel(exercise: Pick<TrainingExercise, "targetType" | "targetSeconds" | "targetRepetitions" | "targetDistance" | "targetSide" | "repetitions">, fallbackTimeSeconds?: number | null) {
+  const main = exercise.targetType === "TIME" ? `${exercise.targetSeconds ?? fallbackTimeSeconds ?? 0} segundos`
     : exercise.targetType === "REST" ? `Descanso · ${exercise.targetSeconds ?? 0} segundos`
       : exercise.targetType === "REPS" ? `${exercise.targetRepetitions || exercise.repetitions} repeticiones`
         : exercise.targetType === "DISTANCE" ? exercise.targetDistance || "Distancia libre"
@@ -25,7 +25,7 @@ export function blockConfiguration(block: TrainingRoutineBlock): Record<string, 
 }
 
 export function freshWorkoutBlock(block: TrainingRoutineBlock): PortalWorkoutBlock {
-  return { blockId: block.id, blockName: block.name, blockType: block.type, blockOrder: block.order, configuration: blockConfiguration(block), exercises: block.exercises.map((exercise) => ({ exerciseId: exercise.id, name: exercise.name, targetType: exercise.targetType, targetLabel: exerciseTargetLabel(exercise), order: exercise.order })), result: emptyBlockResult() };
+  return { blockId: block.id, blockName: block.name, blockType: block.type, blockOrder: block.order, configuration: blockConfiguration(block), exercises: block.exercises.map((exercise) => ({ exerciseId: exercise.id, name: exercise.name, targetType: exercise.targetType, targetLabel: exerciseTargetLabel(exercise, block.type === "INTERVAL" ? block.workSeconds : null), order: exercise.order })), result: emptyBlockResult() };
 }
 
 export function hasBlockActivity(block: PortalWorkoutBlock) {

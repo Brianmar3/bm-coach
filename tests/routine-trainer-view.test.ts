@@ -1,8 +1,28 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { searchStudents } from "../lib/student-search.ts";
 
 const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
+
+test("el buscador de asignaciones filtra nombre, apellido y tildes con máximo ocho", () => {
+  const students = [
+    { id: "1", firstName: "Ángela", lastName: "Pérez" },
+    { id: "2", firstName: "Bruno", lastName: "Pereyra" },
+    ...Array.from({ length: 10 }, (_, index) => ({ id: `x${index}`, firstName: "Alumno", lastName: `Prueba ${index}` })),
+  ];
+  assert.equal(searchStudents(students, "angela", []).map((student) => student.id).join(), "1");
+  assert.equal(searchStudents(students, "perez", []).map((student) => student.id).join(), "1");
+  assert.equal(searchStudents(students, "alumno", []).length, 8);
+  assert.equal(searchStudents(students, "", []).length, 0);
+  assert.equal(searchStudents(students, "angela", ["1"]).length, 0);
+});
+
+test("las asignaciones seleccionadas quedan visibles y la lista inicia cerrada", () => {
+  for (const text of ["Buscar alumno", "Escribí para buscar alumnos", "No se encontraron alumnos", "Alumnos seleccionados"]) assert.match(page, new RegExp(text));
+  assert.match(page, /searchStudents\(students, query, selectedIds\)/);
+  assert.match(page, /min-w-0 overflow-hidden/);
+});
 const table = readFileSync(new URL("../componentes/routine-table-view.tsx", import.meta.url), "utf8");
 const api = readFileSync(new URL("../app/api/rutinas/[id]/route.ts", import.meta.url), "utf8");
 const routinesLib = readFileSync(new URL("../lib/rutinas.ts", import.meta.url), "utf8");

@@ -381,6 +381,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(() => initialOpenExerciseId(inProgress?.exercises ?? []));
   const [openBlockId, setOpenBlockId] = useState<string | null>(null);
   const autosaveSignature = useRef("");
+  const autosaveAbortRef = useRef<AbortController | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
@@ -491,21 +492,19 @@ function WorkoutView({ data }: { data: PortalData }) {
     if (!draft) throw new Error("No hay una sesión activa.");
     const next = beginWith({ ...draft, blocks: (draft.blocks ?? []).map((block) => block.blockId === blockId ? { ...block, result: { ...block.result, ...changes } } : block) });
     const signature = JSON.stringify(next);
+    autosaveAbortRef.current?.abort();
     autosaveSignature.current = signature;
-    setDraft(next);
-    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
     setError("");
     try {
+      if (process.env.NODE_ENV === "development") console.info("Guardando resultado de bloque", { routineId: next.routineId, dayId: next.dayId, sessionId: next.id ?? null, blockId, payload: next });
       const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) });
       const body = await response.json() as { id?: string; error?: string; developmentDetail?: string };
+      if (process.env.NODE_ENV === "development") console.info("Respuesta al guardar bloque", { status: response.status, body });
       if (!response.ok) throw new Error(process.env.NODE_ENV === "development" && body.developmentDetail ? `${body.error ?? "No se pudo guardar."} ${body.developmentDetail}` : body.error ?? "No se pudo guardar el entrenamiento.");
-      if (body.id) setDraft((current) => {
-        if (current?.dayId !== next.dayId) return current;
-        const saved = { ...current, id: body.id };
-        autosaveSignature.current = JSON.stringify(saved);
-        window.localStorage.setItem(storageKey(saved.dayId), JSON.stringify(saved));
-        return saved;
-      });
+      const saved = { ...next, id: body.id ?? next.id };
+      autosaveSignature.current = JSON.stringify(saved);
+      window.localStorage.setItem(storageKey(saved.dayId), JSON.stringify(saved));
+      setDraft((current) => current?.dayId === next.dayId ? saved : current);
     } catch (value) {
       autosaveSignature.current = "";
       const message = value instanceof Error ? value.message : "No se pudo guardar el entrenamiento.";
@@ -520,18 +519,21 @@ function WorkoutView({ data }: { data: PortalData }) {
     window.localStorage.setItem(storageKey(draft.dayId), JSON.stringify(draft));
     const signature = JSON.stringify(draft);
     if (signature === autosaveSignature.current) return;
+    const controller = new AbortController();
+    autosaveAbortRef.current = controller;
     const timer = window.setTimeout(async () => {
       try {
-        const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }) });
+        const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }), signal: controller.signal });
         const body = await response.json() as { id?: string; error?: string };
         if (!response.ok) throw new Error(body.error ?? "No se pudo guardar automáticamente.");
         autosaveSignature.current = signature;
         if (!draft.id && body.id) setDraft((current) => current?.dayId === draft.dayId ? { ...current, id: body.id } : current);
       } catch (value) {
+        if (value instanceof DOMException && value.name === "AbortError") return;
         setError(value instanceof Error ? value.message : "No se pudo guardar automáticamente.");
       }
     }, 900);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); controller.abort(); if (autosaveAbortRef.current === controller) autosaveAbortRef.current = null; };
   }, [data.profile.id, draft, started, storageKey]);
   async function save(finalize = false) {
     if (!draft) return;
