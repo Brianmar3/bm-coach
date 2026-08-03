@@ -99,7 +99,7 @@ test("la persistencia temporal restaura bloque, tipo, estado y ancla", () => {
 
 test("cada tipo usa su cronómetro y guarda el resultado en el bloque", () => {
   for (const type of ["INTERVAL", "EMOM", "AMRAP", "FOR_TIME"]) assert.match(timerComponent, new RegExp(`"${type}"`));
-  assert.match(timerComponent, /complete\(result\)/);
+  assert.match(timerComponent, /update\(result\)/);
   assert.match(timerComponent, /roundsCompleted/);
   assert.match(timerComponent, /minutesCompleted/);
   assert.match(timerComponent, /extraRepetitions/);
@@ -107,17 +107,14 @@ test("cada tipo usa su cronómetro y guarda el resultado en el bloque", () => {
   assert.match(portal, /updateBlockResult/);
 });
 
-test("finalizar INTERVAL guarda inmediatamente una sola vez y el id conserva la sesión", () => {
+test("finalizar INTERVAL actualiza estado local y permite continuar sin persisitir en servidor", () => {
   assert.match(timerComponent, /finishingRef\.current/);
-  assert.match(portal, /async function completeBlockResult/);
-  assert.match(portal, /autosaveSignature\.current = signature/);
-  assert.match(portal, /const saved = \{ \.\.\.next, id: body\.id \?\? next\.id \}/);
+  assert.match(timerComponent, /update\(result\)/);
+  assert.match(portal, /updateBlockResult/);
 });
 
 test("INTERVAL no se marca completo antes de confirmar y revierte a pausa si falla", () => {
-  assert.match(timerComponent, /complete\(result\)\.then\(\(\) => \{/);
   assert.match(timerComponent, /setTimer\(finishedTimer\)/);
-  assert.match(timerComponent, /\.catch\(\(\) => \{[\s\S]*setTimer\(retryTimer\)/);
   assert.match(portal, /autosaveAbortRef\.current\?\.abort\(\)/);
   assert.doesNotMatch(portal, /autosaveSignature\.current = signature;\s*setDraft\(next\)/);
 });

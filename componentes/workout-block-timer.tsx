@@ -20,7 +20,7 @@ function stateFromResult(block: PortalWorkoutBlock): BlockTimerState {
   return { ...initial, status: "finished", elapsedSeconds: block.result.durationSeconds ?? (block.result.minutesCompleted ?? 0) * 60 };
 }
 
-export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, complete }: TimerProps) {
+export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, complete: _complete }: TimerProps) {
   const [timer, setTimer] = useState(() => stateFromResult(block));
   const [nowMs, setNowMs] = useState(Date.now);
   const [notice, setNotice] = useState("");
@@ -106,27 +106,32 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, c
     const actionTime = Date.now();
     const elapsed = elapsedBlockSeconds(timer, actionTime);
     const finishedTimer = reduceBlockTimer(timer, "FINISH", actionTime);
-    const retryTimer = timer.status === "running" ? reduceBlockTimer(timer, "PAUSE", actionTime) : timer;
     const base = { completed: true, durationSeconds: elapsed };
     const result = timer.blockType === "INTERVAL"
       ? { ...base, roundsCompleted: programmed.rounds ?? 1, completedExerciseIds: block.exercises.map((exercise) => exercise.exerciseId) }
       : timer.blockType === "EMOM"
         ? { ...base, minutesCompleted: Math.ceil(elapsed / 60), roundsCompleted: block.exercises.length ? Math.floor(Math.ceil(elapsed / 60) / block.exercises.length) : null, completedExerciseIds: block.exercises.map((exercise) => exercise.exerciseId) }
         : base;
-    setNotice("Guardando resultado…");
-    void complete(result).then(() => {
-      setTimer(finishedTimer); setNowMs(actionTime);
-      setNotice(automatic ? "Bloque completado" : "Resultado guardado");
-      feedback("finish");
-      noticeTimerRef.current = window.setTimeout(() => setNotice(""), 1800);
-    }).catch(() => {
-      finishingRef.current = false;
-      setTimer(retryTimer); setNowMs(actionTime);
-      setNotice("No se pudo guardar. Reintentá.");
-    });
-  }, [block.exercises, complete, feedback, programmed.rounds, timer]);
+    // No persistir en servidor al finalizar bloque: solo actualizar estado local y marcar como completado.
+    update(result);
+    setTimer(finishedTimer);
+    setNowMs(actionTime);
+    setNotice(automatic ? "Bloque completado" : "Resultado guardado");
+    feedback("finish");
+    if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = window.setTimeout(() => setNotice(""), 1800);
+  }, [block.exercises, feedback, programmed.rounds, timer, update]);
 
-  useEffect(() => { if (timer.status === "running" && view.finished) finish(true); }, [finish, timer.status, view.finished]);
+  useEffect(() => {
+    if (timer.status !== "running" || !view.finished) return;
+    // Cuando termina el tiempo, no guardar automáticamente: informar al alumno y permitir que presione "Finalizar bloque".
+    const scheduled = window.setTimeout(() => {
+      setNotice("Tiempo finalizado. Presioná 'Finalizar bloque' para confirmar.");
+      if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = window.setTimeout(() => setNotice(""), 3000);
+    }, 0);
+    return () => window.clearTimeout(scheduled);
+  }, [timer.status, view.finished]);
 
   async function prepareAudio() {
     try {
