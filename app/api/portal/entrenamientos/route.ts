@@ -259,6 +259,7 @@ export async function POST(request: Request) {
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La sesión cambió mientras la guardabas. Recargá Mi rutina antes de volver a intentar." }, { status: 409 });
     console.error("Error al guardar entrenamiento del portal", error);
-    return Response.json({ error: "No se pudo guardar el entrenamiento." }, { status: 500 });
+    const developmentDetail = process.env.NODE_ENV === "development" ? error instanceof Error ? error.message : String(error) : undefined;
+    return Response.json({ error: "No se pudo guardar el entrenamiento.", ...(developmentDetail ? { developmentDetail } : {}) }, { status: 500 });
   }
 }

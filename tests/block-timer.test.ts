@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { blockTimerView, elapsedBlockSeconds, formatTimerClock, initialBlockTimer, intervalSegments, parseBlockTimer, reduceBlockTimer, serializeBlockTimer, type BlockTimerConfiguration } from "../lib/block-timer.ts";
+import { bellStrikes } from "../lib/block-timer-sounds.ts";
 
 const timerComponent = readFileSync(new URL("../componentes/workout-block-timer.tsx", import.meta.url), "utf8");
 const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
@@ -98,12 +99,48 @@ test("la persistencia temporal restaura bloque, tipo, estado y ancla", () => {
 
 test("cada tipo usa su cronómetro y guarda el resultado en el bloque", () => {
   for (const type of ["INTERVAL", "EMOM", "AMRAP", "FOR_TIME"]) assert.match(timerComponent, new RegExp(`"${type}"`));
-  assert.match(timerComponent, /update\(\{ \.\.\.base/);
+  assert.match(timerComponent, /complete\(result\)/);
   assert.match(timerComponent, /roundsCompleted/);
   assert.match(timerComponent, /minutesCompleted/);
   assert.match(timerComponent, /extraRepetitions/);
   assert.match(timerComponent, /durationSeconds/);
   assert.match(portal, /updateBlockResult/);
+});
+
+test("finalizar INTERVAL guarda inmediatamente una sola vez y el id conserva la sesión", () => {
+  assert.match(timerComponent, /finishingRef\.current/);
+  assert.match(portal, /async function completeBlockResult/);
+  assert.match(portal, /autosaveSignature\.current = signature/);
+  assert.match(portal, /if \(body\.id\) setDraft/);
+});
+
+test("los sonidos diferencian trabajo, descanso y final doble", () => {
+  const work = bellStrikes("work");
+  const rest = bellStrikes("rest");
+  const finish = bellStrikes("finish");
+  assert.equal(work.length, 1);
+  assert.equal(rest.length, 1);
+  assert.ok(rest[0].volume < work[0].volume);
+  assert.ok(work[0].durationSeconds >= 0.5 && work[0].durationSeconds <= 0.8);
+  assert.ok(rest[0].durationSeconds >= 0.3 && rest[0].durationSeconds <= 0.5);
+  assert.equal(finish.length, 2);
+  assert.ok(finish[1].delaySeconds >= 0.25 && finish[1].delaySeconds <= 0.4);
+  assert.match(timerComponent, /feedback\("work"\)/);
+  assert.match(timerComponent, /feedback\("finish"\)/);
+});
+
+test("sin Web Audio continúa y limpia contexto y avisos", () => {
+  assert.match(timerComponent, /if \(!AudioConstructor\) return/);
+  assert.match(timerComponent, /context\.close\(\)\.catch/);
+  assert.match(timerComponent, /clearTimeout\(noticeTimerRef\.current\)/);
+  assert.match(timerComponent, /catch \{/);
+});
+
+test("el ejercicio actual, objetivo, siguiente y lista tienen jerarquía móvil", () => {
+  for (const text of ["Ejercicio actual", "Ejercicio {exerciseIndex + 1} de", "Siguiente:", "Ejercicios del circuito", "data-exercise-state"]) assert.match(timerComponent, new RegExp(text.replace(/[{}+]/g, "\\$&")));
+  assert.match(timerComponent, /text-2xl/);
+  assert.match(timerComponent, /break-words/);
+  assert.match(timerComponent, /truncate text-xs text-zinc-500/);
 });
 
 test("la vista móvil evita overflow y deja controles fuera de la navegación inferior", () => {

@@ -487,6 +487,34 @@ function WorkoutView({ data }: { data: PortalData }) {
     window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
   }
 
+  async function completeBlockResult(blockId: string, changes: Partial<NonNullable<PortalWorkoutSession["blocks"]>[number]["result"]>) {
+    if (!draft) throw new Error("No hay una sesión activa.");
+    const next = beginWith({ ...draft, blocks: (draft.blocks ?? []).map((block) => block.blockId === blockId ? { ...block, result: { ...block.result, ...changes } } : block) });
+    const signature = JSON.stringify(next);
+    autosaveSignature.current = signature;
+    setDraft(next);
+    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
+    setError("");
+    try {
+      const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) });
+      const body = await response.json() as { id?: string; error?: string; developmentDetail?: string };
+      if (!response.ok) throw new Error(process.env.NODE_ENV === "development" && body.developmentDetail ? `${body.error ?? "No se pudo guardar."} ${body.developmentDetail}` : body.error ?? "No se pudo guardar el entrenamiento.");
+      if (body.id) setDraft((current) => {
+        if (current?.dayId !== next.dayId) return current;
+        const saved = { ...current, id: body.id };
+        autosaveSignature.current = JSON.stringify(saved);
+        window.localStorage.setItem(storageKey(saved.dayId), JSON.stringify(saved));
+        return saved;
+      });
+    } catch (value) {
+      autosaveSignature.current = "";
+      const message = value instanceof Error ? value.message : "No se pudo guardar el entrenamiento.";
+      console.error("Error al guardar resultado de bloque", value);
+      setError(message);
+      throw value;
+    }
+  }
+
   useEffect(() => {
     if (!started || !draft || draft.status === "finalizado") return;
     window.localStorage.setItem(storageKey(draft.dayId), JSON.stringify(draft));
@@ -578,7 +606,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     {warmupOpen && <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWarmupOpen(false); }} className="fixed inset-0 z-[120] grid place-items-center overflow-y-auto bg-black/80 px-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] pt-[calc(env(safe-area-inset-top)+.75rem)] backdrop-blur-sm"><section role="dialog" aria-modal="true" aria-labelledby="warmup-title" className="max-h-[82dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-yellow-400/25 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5"><header className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 id="warmup-title" className="text-lg font-black">Entrada en calor</h2><p className="mt-1 text-sm text-yellow-300">Día {selectedDay.dayNumber} · {selectedDay.objective || selectedDay.name}</p></div><button type="button" onClick={() => setWarmupOpen(false)} aria-label="Cerrar entrada en calor" className="grid size-9 shrink-0 place-items-center rounded-lg text-xl text-zinc-400 hover:bg-zinc-800 hover:text-white">×</button></header><p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">{selectedDay.warmup}</p><button type="button" onClick={() => setWarmupOpen(false)} className="mt-5 min-h-11 w-full rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-200">Cerrar</button></section></div>}
     {draft && conditioningBlocks.map((programmed) => {
       const block = (draft.blocks ?? []).find((item) => item.blockId === programmed.id);
-      return block ? <WorkoutBlockCard key={block.blockId} block={block} programmed={programmed} timerPersistenceKey={`${storageKey(selectedDay.id)}:timer:${block.blockId}`} open={openBlockId === block.blockId} toggle={() => setOpenBlockId(openBlockId === block.blockId ? null : block.blockId)} update={(changes) => updateBlockResult(block.blockId, changes)} /> : null;
+      return block ? <WorkoutBlockCard key={block.blockId} block={block} programmed={programmed} timerPersistenceKey={`${storageKey(selectedDay.id)}:timer:${block.blockId}`} open={openBlockId === block.blockId} toggle={() => setOpenBlockId(openBlockId === block.blockId ? null : block.blockId)} update={(changes) => updateBlockResult(block.blockId, changes)} complete={(changes) => completeBlockResult(block.blockId, changes)} /> : null;
     })}
     {draft && <>
       <div className="mt-5 space-y-3">{draft.exercises.map((exercise, exerciseIndex) => {
@@ -611,13 +639,13 @@ function WorkoutView({ data }: { data: PortalData }) {
   </>;
 }
 
-function WorkoutBlockCard({ block, programmed, timerPersistenceKey, open, toggle, update }: { block: PortalWorkoutBlock; programmed: TrainingRoutineBlock; timerPersistenceKey: string; open: boolean; toggle: () => void; update: (changes: Partial<PortalWorkoutBlock["result"]>) => void }) {
+function WorkoutBlockCard({ block, programmed, timerPersistenceKey, open, toggle, update, complete }: { block: PortalWorkoutBlock; programmed: TrainingRoutineBlock; timerPersistenceKey: string; open: boolean; toggle: () => void; update: (changes: Partial<PortalWorkoutBlock["result"]>) => void; complete: (changes: Partial<PortalWorkoutBlock["result"]>) => Promise<void> }) {
   const configuration = [programmed.rounds ? `${programmed.rounds} rondas` : null, programmed.durationSeconds ? `${Math.round(programmed.durationSeconds / 60)} min` : null, programmed.workSeconds ? `${programmed.workSeconds} s trabajo` : null, programmed.restSeconds !== null ? `${programmed.restSeconds} s pausa` : null].filter(Boolean).join(" · ");
   const active = hasBlockActivity(block);
   const timed = isTimedBlockType(block.blockType);
   const numeric = (value: string) => value === "" ? null : Number(value);
   function toggleExercise(id: string) { update({ completedExerciseIds: block.result.completedExerciseIds.includes(id) ? block.result.completedExerciseIds.filter((item) => item !== id) : [...block.result.completedExerciseIds, id] }); }
-  return <article className={`mb-3 overflow-hidden rounded-2xl border bg-zinc-900/90 ${open ? "border-yellow-400/30" : "border-zinc-800"}`}><button type="button" onClick={toggle} aria-expanded={open} className="flex min-h-16 w-full items-center gap-3 p-3.5 text-left"><span className={`grid size-9 shrink-0 place-items-center rounded-xl text-sm font-black ${active ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{active ? "✓" : programmed.order}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm uppercase tracking-wide text-zinc-100">{programmed.name}</strong><span className="mt-1 block text-[10px] text-zinc-500">{TRAINING_BLOCK_LABELS[programmed.type]}{configuration ? ` · ${configuration}` : ""}</span></span><span className="shrink-0 rounded-lg border border-yellow-400/25 px-2 py-1 text-[10px] font-bold text-yellow-300">{open ? "Cerrar" : "Comenzar bloque"}</span></button>{open && <div className="border-t border-zinc-800 p-3.5">{programmed.instructions && <p className="mb-3 whitespace-pre-wrap rounded-xl bg-zinc-950 p-3 text-xs leading-relaxed text-zinc-300">{programmed.instructions}</p>}{timed && <WorkoutBlockTimer block={block} programmed={programmed} persistenceKey={timerPersistenceKey} update={update} />}<ol className="mt-3 space-y-2">{block.exercises.map((exercise) => <li key={exercise.exerciseId} className="flex items-center gap-3 rounded-xl bg-zinc-950 px-3 py-2.5">{!timed && <input aria-label={`${exercise.name} completado`} type="checkbox" checked={block.result.completedExerciseIds.includes(exercise.exerciseId)} onChange={() => toggleExercise(exercise.exerciseId)} className="size-5 shrink-0 accent-yellow-400" />}<span className="min-w-0"><strong className="block text-sm">{exercise.order}. {exercise.name}</strong><span className="text-xs text-zinc-500">{exercise.targetLabel}</span></span></li>)}</ol><div className="mt-4 grid gap-3 sm:grid-cols-2">
+  return <article className={`mb-3 overflow-hidden rounded-2xl border bg-zinc-900/90 ${open ? "border-yellow-400/30" : "border-zinc-800"}`}><button type="button" onClick={toggle} aria-expanded={open} className="flex min-h-16 w-full items-center gap-3 p-3.5 text-left"><span className={`grid size-9 shrink-0 place-items-center rounded-xl text-sm font-black ${active ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{active ? "✓" : programmed.order}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm uppercase tracking-wide text-zinc-100">{programmed.name}</strong><span className="mt-1 block text-[10px] text-zinc-500">{TRAINING_BLOCK_LABELS[programmed.type]}{configuration ? ` · ${configuration}` : ""}</span></span><span className="shrink-0 rounded-lg border border-yellow-400/25 px-2 py-1 text-[10px] font-bold text-yellow-300">{open ? "Cerrar" : "Comenzar bloque"}</span></button>{open && <div className="border-t border-zinc-800 p-3.5">{programmed.instructions && <p className="mb-3 whitespace-pre-wrap rounded-xl bg-zinc-950 p-3 text-xs leading-relaxed text-zinc-300">{programmed.instructions}</p>}{timed && <WorkoutBlockTimer block={block} programmed={programmed} persistenceKey={timerPersistenceKey} update={update} complete={complete} />}{!timed && <ol className="mt-3 space-y-2">{block.exercises.map((exercise) => <li key={exercise.exerciseId} className="flex items-center gap-3 rounded-xl bg-zinc-950 px-3 py-2.5"><input aria-label={`${exercise.name} completado`} type="checkbox" checked={block.result.completedExerciseIds.includes(exercise.exerciseId)} onChange={() => toggleExercise(exercise.exerciseId)} className="size-5 shrink-0 accent-yellow-400" /><span className="min-w-0"><strong className="block text-sm">{exercise.order}. {exercise.name}</strong><span className="text-xs text-zinc-500">{exercise.targetLabel}</span></span></li>)}</ol>}<div className="mt-4 grid gap-3 sm:grid-cols-2">
       {block.blockType === "ROUNDS" && <Field label="Rondas completadas"><input type="number" min="0" value={block.result.roundsCompleted ?? ""} onChange={(event) => update({ roundsCompleted: numeric(event.target.value) })} className={`${portalInput} mt-1`} /></Field>}
       {block.blockType === "ROUNDS" && <Field label="Duración realizada (seg.)"><input type="number" min="0" value={block.result.durationSeconds ?? ""} onChange={(event) => update({ durationSeconds: numeric(event.target.value) })} className={`${portalInput} mt-1`} /></Field>}
       {block.blockType === "FOR_TIME" && <Field label="Trabajo pendiente"><input value={block.result.pendingWork} onChange={(event) => update({ pendingWork: event.target.value })} className={`${portalInput} mt-1`} /></Field>}
