@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 
 export type WeeklyItem = { muscleGroup: string; series: number; percentage: number };
 
@@ -27,9 +27,9 @@ export function mapMuscleToZone(muscle: string) {
 }
 
 export function intensityColor(series: number, maxSeries: number) {
-  if (maxSeries <= 0) return "#2a2a2a"; // neutral
+  if (maxSeries <= 0) return "#3a3a3a"; // neutral
   const ratio = series / maxSeries;
-  if (series === 0) return "#2a2a2a"; // dark gray
+  if (series === 0) return "#3a3a3a"; // dark gray
   if (ratio <= 0.33) return "#f6e58d"; // soft yellow
   if (ratio <= 0.66) return "#d4af37"; // dorado
   return "#ff9f1c"; // orange/dorado intenso
@@ -44,6 +44,9 @@ export default function BodyMapModal({
   onClose: () => void;
   weekly: WeeklyItem[];
 }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -82,117 +85,157 @@ export default function BodyMapModal({
 
   const zoneColor = (zone: string) => intensityColor(mapped[zone] || 0, maxSeries);
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/65" onClick={onClose} aria-hidden />
-      <div className="relative mx-4 w-full max-w-4xl rounded-2xl bg-gradient-to-b from-[#0b0b0b] to-[#070707] p-5 shadow-2xl">
-        <button aria-label="Cerrar" onClick={onClose} className="absolute right-3 top-3 rounded-md bg-zinc-800/40 px-2 py-1 text-sm text-zinc-300">✕</button>
-        <h3 className="text-lg font-bold text-yellow-300">Mapa corporal semanal</h3>
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-zinc-300">
-            <div>Tren superior: <span className="font-semibold text-zinc-100">{upperPct}%</span></div>
-            <div>Tren inferior: <span className="font-semibold text-zinc-100">{lowerPct}%</span></div>
-          </div>
-          <div className="text-xs text-zinc-400">Serie máxima de referencia: {maxSeries} series</div>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4 sm:px-6 sm:py-10" ref={modalRef} onClick={handleBackdropClick} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div className="absolute inset-0 bg-black/70" aria-hidden />
+      <div className="relative w-full max-w-2xl max-h-[90dvh] overflow-hidden rounded-3xl bg-gradient-to-b from-[#0f0f0f] to-[#050505] shadow-2xl border border-zinc-800/50 flex flex-col" ref={contentRef}>
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-50 flex items-center justify-center w-11 h-11 rounded-lg bg-black/60 border border-zinc-700/50 hover:border-amber-400/60 transition-colors text-zinc-300 hover:text-amber-300 font-bold text-lg"
+          aria-label="Cerrar mapa corporal"
+          type="button"
+        >
+          ✕
+        </button>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Frontal */}
-          <div className="flex flex-col items-center justify-center">
-            <div className="mb-2 text-sm font-semibold text-zinc-200">Frontal</div>
-            <svg viewBox="0 0 300 600" className="h-[420px] w-full max-w-[320px]" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Silueta frontal">
-              <defs>
-                <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#1c1c1c" />
-                  <stop offset="100%" stopColor="#0a0a0a" />
-                </linearGradient>
-                <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" />
-                </filter>
-              </defs>
-              <g transform="translate(30,20)" filter="url(#soft)">
-                {/* Silhouette base */}
-                <path d="M120 10 C140 10 160 30 165 60 C180 120 190 150 200 200 C210 260 210 300 200 360 C190 420 180 460 150 520 C135 550 110 570 80 572 C50 574 30 552 20 520 C-5 460 5 420 20 360 C35 300 35 260 45 200 C55 150 70 120 85 60 C90 30 100 10 120 10 Z" fill="url(#g1)" stroke="#111" strokeWidth="1" />
+        <div className="overflow-y-auto flex-1 px-4 py-4 sm:px-6 sm:py-5">
+          <h3 id="modal-title" className="text-lg sm:text-xl font-bold text-amber-300">Mapa corporal semanal</h3>
 
-                {/* chest */}
-                <path id="chest" d="M110 70 C118 60 182 60 190 70 C190 90 190 110 160 120 C140 125 120 125 100 120 C70 110 70 90 75 75 Z" fill={zoneColor("chest")} stroke="#111" />
-                {/* abdomen / core */}
-                <path id="core" d="M100 120 C140 125 160 130 170 150 C175 170 170 190 160 200 C150 210 130 215 110 210 C90 205 80 190 80 170 C82 150 90 135 100 120 Z" fill={zoneColor("core")} stroke="#111" />
-                {/* quads frontal */}
-                <path id="quadL" d="M95 210 C85 230 80 280 85 320 C88 350 95 380 105 400 C115 420 125 430 135 430 C120 380 115 330 110 280 C105 240 100 220 95 210 Z" fill={zoneColor("quad")} stroke="#111" />
-                <path id="quadR" d="M205 210 C215 230 220 280 215 320 C212 350 205 380 195 400 C185 420 175 430 165 430 C180 380 185 330 190 280 C195 240 200 220 205 210 Z" fill={zoneColor("quad")} stroke="#111" />
-                {/* glutes */}
-                <path id="glutes" d="M115 180 C125 175 175 175 185 180 C195 200 195 210 185 225 C165 245 145 250 125 245 C105 240 95 225 100 210 C105 195 110 185 115 180 Z" fill={zoneColor("glutes")} stroke="#111" />
-                {/* adductors inner thigh */}
-                <path id="adductorsL" d="M120 230 C120 260 125 300 130 330 C132 350 140 360 145 360 C140 320 135 280 130 245 C125 235 122 230 120 230 Z" fill={zoneColor("adductors")} stroke="#111" />
-                <path id="adductorsR" d="M180 230 C180 260 175 300 170 330 C168 350 160 360 155 360 C160 320 165 280 170 245 C175 235 178 230 180 230 Z" fill={zoneColor("adductors")} stroke="#111" />
-                {/* calves frontal (lower) */}
-                <path id="calvesL" d="M115 430 C120 440 128 460 130 480 C118 485 110 486 105 480 C100 472 108 455 115 430 Z" fill={zoneColor("calves")} stroke="#111" />
-                <path id="calvesR" d="M195 430 C190 440 182 460 180 480 C192 485 200 486 205 480 C210 472 202 455 195 430 Z" fill={zoneColor("calves")} stroke="#111" />
-                {/* biceps / shoulders */}
-                <path id="shouldersL" d="M80 60 C70 80 72 100 86 110 C95 90 95 70 80 60 Z" fill={zoneColor("shoulders")} stroke="#111" />
-                <path id="shouldersR" d="M220 60 C230 80 228 100 214 110 C205 90 205 70 220 60 Z" fill={zoneColor("shoulders")} stroke="#111" />
-                <path id="bicepsL" d="M60 120 C55 140 58 170 68 190 C75 170 78 140 70 120 Z" fill={zoneColor("biceps")} stroke="#111" />
-                <path id="bicepsR" d="M240 120 C245 140 242 170 232 190 C225 170 222 140 230 120 Z" fill={zoneColor("biceps")} stroke="#111" />
-                {/* triceps back/front small */}
-                <path id="tricepsL" d="M60 190 C55 205 58 220 68 235 C75 220 78 205 70 190 Z" fill={zoneColor("triceps")} stroke="#111" />
-                <path id="tricepsR" d="M240 190 C245 205 242 220 232 235 C225 220 222 205 230 190 Z" fill={zoneColor("triceps")} stroke="#111" />
-              </g>
-            </svg>
+          <div className="mt-3 sm:mt-4 grid grid-cols-2 gap-4 sm:flex sm:gap-6 sm:items-center">
+            <div className="text-sm text-zinc-300">
+              <div className="text-xs text-zinc-500 uppercase tracking-wide">Tren superior</div>
+              <div className="text-xl sm:text-2xl font-bold text-zinc-100">{upperPct}%</div>
+            </div>
+            <div className="text-sm text-zinc-300">
+              <div className="text-xs text-zinc-500 uppercase tracking-wide">Tren inferior</div>
+              <div className="text-xl sm:text-2xl font-bold text-zinc-100">{lowerPct}%</div>
+            </div>
+            {totalSeries > 0 && (
+              <div className="col-span-2 sm:col-span-1 text-xs text-zinc-500">
+                Máx. referencia: <span className="text-amber-400 font-semibold">{maxSeries}</span> series
+              </div>
+            )}
           </div>
 
-          {/* Posterior */}
-          <div className="flex flex-col items-center justify-center">
-            <div className="mb-2 text-sm font-semibold text-zinc-200">Posterior</div>
-            <svg viewBox="0 0 300 600" className="h-[420px] w-full max-w-[320px]" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Silueta posterior">
-              <defs>
-                <linearGradient id="g2" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#1c1c1c" />
-                  <stop offset="100%" stopColor="#090909" />
-                </linearGradient>
-              </defs>
-              <g transform="translate(30,20)">
-                <path d="M120 10 C140 10 160 30 165 60 C180 120 190 150 200 200 C210 260 210 300 200 360 C190 420 180 460 150 520 C135 550 110 570 80 572 C50 574 30 552 20 520 C-5 460 5 420 20 360 C35 300 35 260 45 200 C55 150 70 120 85 60 C90 30 100 10 120 10 Z" fill="url(#g2)" stroke="#111" strokeWidth="1" />
+          <div className="mt-5 sm:mt-6 grid grid-cols-1 gap-6">
+            <div className="flex flex-col items-center gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Vista Frontal</h4>
+              <svg viewBox="0 0 240 500" className="w-full max-w-xs h-auto aspect-[3/5]" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa corporal frontal">
+                <defs>
+                  <linearGradient id="frontGrad" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#1a1a1a" />
+                    <stop offset="100%" stopColor="#0d0d0d" />
+                  </linearGradient>
+                </defs>
 
-                {/* upper back */}
-                <path id="back" d="M110 70 C120 60 180 60 190 70 C190 90 190 110 170 130 C150 145 130 145 110 130 C90 110 90 90 95 80 Z" fill={zoneColor("back")} stroke="#111" />
-                {/* lower back */}
-                <path id="lowerback" d="M100 130 C140 140 160 150 170 170 C175 190 170 210 160 230 C150 250 130 260 110 250 C90 240 85 220 90 200 C92 180 95 150 100 130 Z" fill={zoneColor("glutes")} stroke="#111" />
-                {/* hamstrings */}
-                <path id="hamL" d="M95 230 C85 260 80 330 85 380 C90 430 100 460 115 480 C120 450 120 410 125 360 C120 320 115 280 110 250 Z" fill={zoneColor("hamstring")} stroke="#111" />
-                <path id="hamR" d="M205 230 C215 260 220 330 215 380 C210 430 200 460 185 480 C180 450 180 410 175 360 C180 320 185 280 190 250 Z" fill={zoneColor("hamstring")} stroke="#111" />
-                {/* glutes posterior */}
-                <path id="glutesBack" d="M115 160 C135 150 165 150 185 160 C195 180 195 200 185 215 C165 235 135 240 115 230 C95 220 95 200 100 185 C105 170 110 165 115 160 Z" fill={zoneColor("glutes")} stroke="#111" />
-                {/* calves posterior */}
-                <path id="calvesBackL" d="M115 470 C120 480 128 500 130 520 C118 525 110 526 105 520 C100 512 108 495 115 470 Z" fill={zoneColor("calves")} stroke="#111" />
-                <path id="calvesBackR" d="M195 470 C190 480 182 500 180 520 C192 525 200 526 205 520 C210 512 202 495 195 470 Z" fill={zoneColor("calves")} stroke="#111" />
-                {/* shoulders / traps */}
-                <path id="shouldersBackL" d="M80 60 C70 80 72 100 86 110 C95 90 95 70 80 60 Z" fill={zoneColor("shoulders")} stroke="#111" />
-                <path id="shouldersBackR" d="M220 60 C230 80 228 100 214 110 C205 90 205 70 220 60 Z" fill={zoneColor("shoulders")} stroke="#111" />
-                {/* arms */}
-                <path id="tricepsBackL" d="M60 120 C55 140 58 170 68 190 C75 170 78 140 70 120 Z" fill={zoneColor("triceps")} stroke="#111" />
-                <path id="tricepsBackR" d="M240 120 C245 140 242 170 232 190 C225 170 222 140 230 120 Z" fill={zoneColor("triceps")} stroke="#111" />
-              </g>
-            </svg>
-          </div>
-        </div>
+                {/* Head */}
+                <circle cx="120" cy="35" r="20" fill="#1a1a1a" stroke="#d4af37" strokeWidth="0.5" />
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span style={{ background: '#2a2a2a' }} className="inline-block h-3 w-3 rounded-sm border border-zinc-800" />
-            <span>Sin series</span>
+                {/* Shoulders - upper body frame */}
+                <ellipse cx="75" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
+                <ellipse cx="165" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Chest */}
+                <path d="M 90 65 Q 120 55 150 65 L 150 110 Q 120 115 90 110 Z" fill={zoneColor("chest")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Biceps Left */}
+                <rect x="50" y="70" width="20" height="60" rx="10" fill={zoneColor("biceps")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Triceps Left (back area) */}
+                <ellipse cx="120" cy="95" rx="8" ry="20" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1"/>
+
+                {/* Biceps Right */}
+                <rect x="170" y="70" width="20" height="60" rx="10" fill={zoneColor("biceps")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Triceps Right (back area) */}
+                <ellipse cx="120" cy="95" rx="8" ry="20" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1"/>
+
+                {/* Core/Abdomen */}
+                <path d="M 95 115 L 145 115 L 145 165 Q 120 175 95 165 Z" fill={zoneColor("core")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Quads Left */}
+                <path d="M 80 165 Q 75 200 80 260 L 100 270 Q 100 210 95 165 Z" fill={zoneColor("quad")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Quads Right */}
+                <path d="M 160 165 Q 165 200 160 260 L 140 270 Q 140 210 145 165 Z" fill={zoneColor("quad")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Adductors Left (inner) */}
+                <ellipse cx="85" cy="210" rx="8" ry="35" fill={zoneColor("adductors")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Adductors Right (inner) */}
+                <ellipse cx="155" cy="210" rx="8" ry="35" fill={zoneColor("adductors")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Calves Left */}
+                <path d="M 80 270 Q 75 310 85 360 L 100 360 Q 95 310 100 270 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Calves Right */}
+                <path d="M 160 270 Q 165 310 155 360 L 140 360 Q 145 310 140 270 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
+              </svg>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Vista Posterior</h4>
+              <svg viewBox="0 0 240 500" className="w-full max-w-xs h-auto aspect-[3/5]" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa corporal posterior">
+                <defs>
+                  <linearGradient id="backGrad" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#151515" />
+                    <stop offset="100%" stopColor="#0a0a0a" />
+                  </linearGradient>
+                </defs>
+
+                {/* Head */}
+                <circle cx="120" cy="35" r="20" fill="#151515" stroke="#d4af37" strokeWidth="0.5" />
+
+                {/* Shoulders - upper back */}
+                <ellipse cx="75" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
+                <ellipse cx="165" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Upper Back */}
+                <path d="M 95 65 Q 120 55 145 65 L 145 115 Q 120 120 95 115 Z" fill={zoneColor("back")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Lower Back (upper glutes region) */}
+                <ellipse cx="120" cy="145" rx="35" ry="25" fill={zoneColor("back")} stroke="#8b7621" strokeWidth="1"/>
+
+                {/* Glutes */}
+                <ellipse cx="120" cy="180" rx="40" ry="32" fill={zoneColor("glutes")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Hamstrings Left */}
+                <path d="M 85 210 Q 78 250 82 310 L 100 320 Q 100 260 100 210 Z" fill={zoneColor("hamstring")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Hamstrings Right */}
+                <path d="M 155 210 Q 162 250 158 310 L 140 320 Q 140 260 140 210 Z" fill={zoneColor("hamstring")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Calves Left */}
+                <path d="M 82 320 Q 75 350 80 410 L 95 410 Q 95 360 100 320 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Calves Right */}
+                <path d="M 158 320 Q 165 350 160 410 L 145 410 Q 145 360 140 320 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
+
+                {/* Triceps Left arm (extended view) */}
+                <rect x="50" y="70" width="18" height="65" rx="9" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1.5"/>
+                {/* Triceps Right arm */}
+                <rect x="172" y="70" width="18" height="65" rx="9" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1.5"/>
+              </svg>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span style={{ background: '#f6e58d' }} className="inline-block h-3 w-3 rounded-sm border border-zinc-800" />
-            <span>Volumen bajo</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span style={{ background: '#d4af37' }} className="inline-block h-3 w-3 rounded-sm border border-zinc-800" />
-            <span>Volumen medio</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span style={{ background: '#ff9f1c' }} className="inline-block h-3 w-3 rounded-sm border border-zinc-800" />
-            <span>Volumen alto</span>
+
+          <div className="mt-6 sm:mt-8 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Leyenda de volumen</p>
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded border border-zinc-700" style={{ backgroundColor: '#3a3a3a' }} />
+                <span className="text-zinc-400">Sin series</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded border border-zinc-700" style={{ backgroundColor: '#f6e58d' }} />
+                <span className="text-zinc-400">Bajo</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded border border-zinc-700" style={{ backgroundColor: '#d4af37' }} />
+                <span className="text-zinc-400">Medio</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded border border-zinc-700" style={{ backgroundColor: '#ff9f1c' }} />
+                <span className="text-zinc-400">Alto</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
