@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { emptyBlockResult, exerciseTargetLabel, freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS, validateWorkoutBlock } from "../lib/training-blocks.ts";
-import { normalizedBlocks, routineVersionSnapshot, validateBlock, validateRoutine, type BlockInput, type ExerciseInput, type RoutineInput } from "../lib/rutinas.ts";
+import { clearedExerciseTarget, emptyBlockResult, exerciseTargetLabel, freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS, validateWorkoutBlock } from "../lib/training-blocks.ts";
+import { normalizedBlocks, routineVersionSnapshot, validateBlock, validateExercise, validateRoutine, type BlockInput, type ExerciseInput, type RoutineInput } from "../lib/rutinas.ts";
 import { routineSeriesMetrics } from "../lib/routine-metrics.ts";
 import { validateWorkoutSessionInput } from "../lib/workout-session-validation.ts";
 
@@ -112,6 +112,34 @@ test("los objetivos por tiempo, repeticiones, distancia, descanso y libre se rep
   const blockCard = student.slice(student.indexOf("function WorkoutBlockCard"), student.indexOf("function WorkoutHistoryView"));
   assert.match(blockCard, /"ROUNDS"/);
   assert.doesNotMatch(blockCard, /RIR|RPE|kg/);
+});
+
+test("INTERVAL con TIME usa el tiempo general sin exigir repeticiones ni segundos propios", () => {
+  assert.equal(validateExercise(exercise({ targetType: "TIME", targetSeconds: null, targetRepetitions: "" }), "INTERVAL"), null);
+});
+
+test("un ejercicio nuevo de INTERVAL usa TIME por defecto", () => {
+  assert.match(editor, /targetType: type === "INTERVAL" \? "TIME" : "REPS"/);
+  assert.match(editor, /type === "INTERVAL" \? "" : "10"/);
+});
+
+test("REPS continúa exigiendo repeticiones mayores a cero", () => {
+  assert.match(validateExercise(exercise({ targetType: "REPS", targetRepetitions: "" }), "ROUNDS") ?? "", /mayores a 0/);
+  assert.match(validateExercise(exercise({ targetType: "REPS", targetRepetitions: "0" }), "ROUNDS") ?? "", /mayores a 0/);
+  assert.equal(validateExercise(exercise({ targetType: "REPS", targetRepetitions: "12" }), "ROUNDS"), null);
+});
+
+test("cambiar REPS a TIME limpia valores incompatibles y elimina el error en INTERVAL", () => {
+  const changed = { ...exercise({ targetType: "REPS", targetRepetitions: "0", targetDistance: "200 m" }), ...clearedExerciseTarget("TIME") };
+  assert.equal(changed.targetRepetitions, "");
+  assert.equal(changed.targetDistance, "");
+  assert.equal(changed.targetSeconds, null);
+  assert.equal(validateExercise(changed, "INTERVAL"), null);
+  assert.match(editor, /changeExerciseTarget/);
+});
+
+test("FREE no exige repeticiones, tiempo ni distancia", () => {
+  assert.equal(validateExercise(exercise({ targetType: "FREE", targetSeconds: null, targetRepetitions: "", targetDistance: "" }), "ROUNDS"), null);
 });
 
 test("una rutina mixta, una de solo circuito y una de solo fuerza son válidas", () => {

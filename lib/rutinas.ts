@@ -74,12 +74,17 @@ export function validateExercise(input: ExerciseInput, blockType: TrainingBlockT
   if (!validUrl(input.videoUrl)) return "La URL del video debe comenzar con http o https.";
   if (blockType !== "STRENGTH") {
     if (!targetTypes.includes(input.targetType)) return "Seleccioná un objetivo válido para cada ejercicio.";
-    if (input.targetSeconds !== null && (!Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) return "El tiempo objetivo no es válido.";
-    if ((input.targetRepetitions?.length ?? 0) > 50 || (input.targetDistance?.length ?? 0) > 50 || (input.targetSide?.length ?? 0) > 80) return "El objetivo del ejercicio es demasiado extenso.";
-    if (input.targetType === "TIME" && input.targetSeconds === null) return "Ingresá los segundos objetivo.";
-    if (input.targetType === "REST" && input.targetSeconds === null) return "Ingresá los segundos de descanso.";
-    if (input.targetType === "REPS" && !input.targetRepetitions?.trim()) return "Ingresá las repeticiones objetivo.";
-    if (input.targetType === "DISTANCE" && !input.targetDistance?.trim()) return "Ingresá la distancia objetivo.";
+    if ((input.targetSide?.length ?? 0) > 80) return "La indicación del ejercicio es demasiado extensa.";
+    if (input.targetType === "TIME") {
+      if (input.targetSeconds === null && blockType !== "INTERVAL") return "Ingresá los segundos objetivo.";
+      if (input.targetSeconds !== null && (!Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) return "El tiempo objetivo no es válido.";
+    }
+    if (input.targetType === "REST" && (input.targetSeconds === null || !Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) return "Ingresá segundos de descanso válidos.";
+    if (input.targetType === "REPS") {
+      const repetitions = input.targetRepetitions?.match(/\d+(?:[.,]\d+)?/g)?.map((value) => Number(value.replace(",", "."))) ?? [];
+      if (!input.targetRepetitions?.trim() || input.targetRepetitions.length > 50 || !repetitions.length || repetitions.some((value) => value <= 0)) return "Ingresá repeticiones objetivo mayores a 0.";
+    }
+    if (input.targetType === "DISTANCE" && (!input.targetDistance?.trim() || input.targetDistance.length > 50)) return "Ingresá la distancia objetivo.";
     return null;
   }
   if (!Number.isInteger(input.sets) || input.sets < 1 || input.sets > 100) return "Las series deben ser un número entero entre 1 y 100.";

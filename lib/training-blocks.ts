@@ -1,7 +1,11 @@
 import type { PortalWorkoutBlock, PortalWorkoutBlockResult } from "../types/portal.ts";
-import type { TrainingExercise, TrainingRoutineBlock } from "../types/gestion.ts";
+import type { TrainingExercise, TrainingExerciseTargetType, TrainingRoutineBlock } from "../types/gestion.ts";
 
 export const TRAINING_BLOCK_LABELS = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "For time", FREE: "Bloque libre" } as const;
+
+export function clearedExerciseTarget(targetType: TrainingExerciseTargetType) {
+  return { targetType, targetSeconds: null, targetRepetitions: "", targetDistance: "" };
+}
 
 export function emptyBlockResult(): PortalWorkoutBlockResult {
   return { completed: false, roundsCompleted: null, minutesCompleted: null, extraRepetitions: null, durationSeconds: null, pendingWork: "", resultText: "", observation: "", completedExerciseIds: [] };
