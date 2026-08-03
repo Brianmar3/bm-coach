@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { routineSeriesMetrics } from "@/lib/routine-metrics";
+import BodyMapModal from "./body-map";
 import type { TrainingExercise, TrainingRoutine, TrainingRoutineBlock } from "@/types/gestion";
 
 type RoutineTableViewProps = {
@@ -46,6 +47,7 @@ export function RoutineTableView({
 }: RoutineTableViewProps) {
   const firstDay = routine.days[0]?.id ?? "";
   const [openDayId, setOpenDayId] = useState(firstDay);
+  const [mapOpen, setMapOpen] = useState(false);
   const metrics = useMemo(() => routineSeriesMetrics(routine), [routine]);
 
   return (
@@ -260,6 +262,21 @@ export function RoutineTableView({
                     <p className="text-xs font-black uppercase tracking-[.14em] text-yellow-300">Distribución semanal</p>
                     <p className="mt-1 text-xs text-zinc-500">Series configuradas por grupo muscular.</p>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMapOpen(true)}
+                      className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-black/40 px-2 py-1 text-xs font-bold text-yellow-300 hover:border-yellow-400/30"
+                      aria-label="Ver mapa corporal"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path d="M12 2c1.1 0 2 .9 2 2v1.5c0 .83-.67 1.5-1.5 1.5H11.5C10.67 7 10 6.33 10 5.5V4c0-1.1.9-2 2-2z" fill="#F5C518" />
+                        <path d="M6 8c1 0 2 .5 2 1v3c0 2 .9 4 4 4s4-2 4-4V9c0-.5 1-1 2-1" stroke="#F5C518" strokeWidth="0.8" />
+                      </svg>
+                      <span className="sr-only">Ver mapa corporal</span>
+                      <span className="hidden sm:inline">Ver mapa corporal</span>
+                    </button>
+                  </div>
                 </div>
                 {metrics.weeklyDistribution.length ? <div className="mt-4 space-y-3">{metrics.weeklyDistribution.map((item) => <div key={item.muscleGroup}><div className="mb-1.5 flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-zinc-200">{item.muscleGroup}</span><span className="shrink-0 text-zinc-400">{item.series} series · {Math.round(item.percentage)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${item.percentage}%` }} /></div></div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-zinc-800 p-4 text-sm text-zinc-500">No hay series configuradas.</p>}
               </div>
@@ -271,6 +288,7 @@ export function RoutineTableView({
           </section>
         </div>
       </section>
+      <BodyMapModal open={mapOpen} onClose={() => setMapOpen(false)} weekly={metrics.weeklyDistribution} />
     </div>
   );
 }
