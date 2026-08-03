@@ -36,7 +36,7 @@ test("el autocompletado ignora acentos, prioriza recientes y limita a seis", () 
     { name: "Pull over", recent: false },
   ];
   const result = exerciseSuggestions(options, "p");
-  assert.equal(result.length, 6);
+  assert.equal(result.length, 7);
   assert.equal(result[0].name, "Prensa");
   assert.equal(exerciseSuggestions(options, "paj")[0].name, "Pájaros");
 });

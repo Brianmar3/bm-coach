@@ -56,19 +56,71 @@ export function normalizeExerciseSearch(value: string) {
   return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es");
 }
 
-export function exerciseSuggestions(options: ExerciseSuggestion[], query: string, limit = 6) {
+export function exerciseSuggestions(options: ExerciseSuggestion[], query: string, limit = 8) {
+  // Local alias map: normalized alias -> normalized canonical
+  const aliasPairs: Array<[string, string]> = [
+    ["press banca", "press de pecho con barra"],
+    ["biceps barra", "bíceps con barra"],
+    ["bíceps barra", "bíceps con barra"],
+    ["sentadilla barra", "sentadilla con barra"],
+    ["peso muerto rumano", "peso muerto rumano"],
+    ["elevacion talones", "elevación de talones"],
+  ];
+  const aliasMap = new Map<string, string>();
+  for (const [k, v] of aliasPairs) aliasMap.set(normalizeExerciseSearch(k), normalizeExerciseSearch(v));
+
+  function applyAliases(normalizedQuery: string) {
+    // If query exactly matches an alias, map it. Also try to map common startsWith alias.
+    if (!normalizedQuery) return "";
+    if (aliasMap.has(normalizedQuery)) return aliasMap.get(normalizedQuery) ?? normalizedQuery;
+    for (const [alias, target] of aliasMap.entries()) {
+      if (normalizedQuery.startsWith(alias + " ") || normalizedQuery === alias) return target;
+    }
+    return normalizedQuery;
+  }
+
   const normalized = normalizeExerciseSearch(query);
-  if (!normalized) return options.filter((option) => option.recent).slice(0, limit);
-  return options
-    .filter((option) => normalizeExerciseSearch(option.name).includes(normalized))
+  // Dedupe options by normalized name, aggregating metadata
+  const grouped = new Map<string, ExerciseSuggestion>();
+  for (const option of options) {
+    const key = normalizeExerciseSearch(option.name);
+    if (!grouped.has(key)) grouped.set(key, { ...option, name: option.name });
+    else {
+      const existing = grouped.get(key)!;
+      existing.recent = existing.recent || option.recent;
+      existing.count = (existing.count ?? 0) + (option.count ?? 0);
+      if ((option.lastUsedAt ?? "") > (existing.lastUsedAt ?? "")) existing.lastUsedAt = option.lastUsedAt;
+      // prefer a muscleGroup if existing doesn't have it
+      if (!existing.muscleGroup && option.muscleGroup) existing.muscleGroup = option.muscleGroup;
+    }
+  }
+  const deduped = [...grouped.values()];
+
+  if (!normalized) return deduped.filter((option) => option.recent).slice(0, limit);
+  const mapped = applyAliases(normalized);
+
+  return deduped
+    .filter((option) => normalizeExerciseSearch(option.name).includes(mapped))
     .sort((left, right) => {
       const leftName = normalizeExerciseSearch(left.name);
       const rightName = normalizeExerciseSearch(right.name);
-      return Number(Boolean(right.recent)) - Number(Boolean(left.recent)) ||
-        Number(rightName.startsWith(normalized)) - Number(leftName.startsWith(normalized)) ||
-        (right.count ?? 0) - (left.count ?? 0) ||
-        (right.lastUsedAt ?? "").localeCompare(left.lastUsedAt ?? "") ||
-        left.name.localeCompare(right.name, "es");
+      const leftExact = leftName === mapped;
+      const rightExact = rightName === mapped;
+      const leftStarts = leftName.startsWith(mapped);
+      const rightStarts = rightName.startsWith(mapped);
+      // exact matches first
+      if (leftExact !== rightExact) return Number(rightExact) - Number(leftExact);
+      // then names that start with query
+      if (leftStarts !== rightStarts) return Number(rightStarts) - Number(leftStarts);
+      // then prefer recent
+      if (Boolean(left.recent) !== Boolean(right.recent)) return Number(Boolean(right.recent)) - Number(Boolean(left.recent));
+      // then by usage count
+      const countDiff = (right.count ?? 0) - (left.count ?? 0);
+      if (countDiff !== 0) return countDiff;
+      // then by lastUsedAt (most recent first)
+      const lastUsed = (right.lastUsedAt ?? "").localeCompare(left.lastUsedAt ?? "");
+      if (lastUsed !== 0) return lastUsed;
+      return left.name.localeCompare(right.name, "es");
     })
     .slice(0, limit);
 }
