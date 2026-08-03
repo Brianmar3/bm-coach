@@ -55,8 +55,37 @@ export async function POST(request: Request) {
     const session = await getPortalSession();
     if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
     if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal." }, { status: 403 });
-    const input = await request.json() as PortalWorkoutSession;
-    parsedInput = input;
+    const raw = await request.json() as PortalWorkoutSession;
+    parsedInput = raw;
+    // Normalizar payload para evitar errores por campos undefined en bloques nuevos (defensiva).
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const input: PortalWorkoutSession = {
+      ...raw,
+      blocks: (raw.blocks ?? []).map((b) => ({
+        blockId: (b as any).blockId,
+        blockName: String((b as any).blockName ?? ""),
+        blockType: (b as any).blockType ?? "FREE",
+        blockOrder: (b as any).blockOrder ?? 0,
+        configuration: (b as any).configuration ?? {},
+        exercises: Array.isArray((b as any).exercises) ? (b as any).exercises.map((e: any) => ({ exerciseId: String(e.exerciseId ?? ""), name: String(e.name ?? ""), targetType: String(e.targetType ?? ""), targetLabel: String(e.targetLabel ?? ""), order: Number(e.order ?? 0) })) : [],
+        result: (() => {
+          const r: any = (b as any).result ?? {};
+          return {
+            completed: Boolean(r.completed),
+            roundsCompleted: Number.isInteger(r.roundsCompleted) ? r.roundsCompleted : null,
+            minutesCompleted: Number.isInteger(r.minutesCompleted) ? r.minutesCompleted : null,
+            extraRepetitions: Number.isInteger(r.extraRepetitions) ? r.extraRepetitions : null,
+            durationSeconds: Number.isInteger(r.durationSeconds) ? r.durationSeconds : null,
+            pendingWork: String(r.pendingWork ?? ""),
+            resultText: String(r.resultText ?? ""),
+            observation: String(r.observation ?? ""),
+            completedExerciseIds: Array.isArray(r.completedExerciseIds) ? r.completedExerciseIds.map(String) : [],
+          };
+        })(),
+      })),
+      exercises: Array.isArray(raw.exercises) ? raw.exercises : [],
+    };
+    /* eslint-enable @typescript-eslint/no-explicit-any */
     const validationError = validateWorkoutSessionInput(input);
     if (validationError) {
       if (process.env.NODE_ENV === "development") console.error("Payload de entrenamiento rechazado", { status: 400, validationError, routineId: input.routineId, dayId: input.dayId, sessionId: input.id ?? null, blocks: input.blocks, payload: input });
