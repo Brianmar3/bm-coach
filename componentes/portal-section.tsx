@@ -160,13 +160,15 @@ function PointsSummary({ data }: { data: PortalData }) {
 }
 
 function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
-  const percentage = data.home.monthlyAttendancePercentage ?? 0;
-  const angle = Math.min(100, Math.max(0, percentage)) * 3.6;
+  const percentage = data.home.monthlyAttendancePercentage;
+  const angle = Math.min(100, Math.max(0, percentage ?? 0)) * 3.6;
   const attended = data.home.classesAttendedThisMonth;
-  const detail = attended === 0 ? "Sin clases registradas este mes" : `${attended} ${attended === 1 ? "clase" : "clases"} este mes`;
-  return <Link href="/portal/clases" aria-label={`Ver clases. Asistencia mensual ${percentage} por ciento. ${detail}`} className="absolute right-0 top-0 z-10 flex w-16 flex-col items-center gap-1 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-300" title="Ver asistencia mensual">
-    <span className="relative grid h-[60px] w-[60px] place-items-center rounded-full border border-zinc-700/80 shadow-[0_8px_22px_rgba(0,0,0,.28)]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[4px] rounded-full bg-zinc-950" /><strong className="relative text-sm font-black text-yellow-300">{percentage}%</strong></span>
+  const detail = percentage === null ? "Sin registros este mes" : `${attended} ${attended === 1 ? "presente" : "presentes"} este mes`;
+  const display = percentage === null ? "—" : `${percentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+  return <Link href="/portal/asistencias" aria-label={`Ver detalle de asistencia mensual. ${percentage === null ? "Sin registros este mes." : `${display}. ${detail}.`}`} className="group absolute right-0 top-0 z-10 flex w-[4.5rem] cursor-pointer flex-col items-center gap-1 rounded-2xl transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" title="Ver detalle de asistencias">
+    <span className="relative grid h-[60px] w-[60px] place-items-center rounded-full border border-zinc-700/80 shadow-[0_8px_22px_rgba(0,0,0,.28)] transition group-hover:border-yellow-400/40 group-hover:shadow-[0_8px_24px_rgba(250,204,21,.1)]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[4px] rounded-full bg-zinc-950" /><strong className="relative text-sm font-black text-yellow-300">{display}</strong></span>
     <span className="text-[8px] font-bold uppercase tracking-[.08em] text-zinc-500">Asistencia</span>
+    <span className="text-[8px] font-semibold text-yellow-300/80">Ver detalle ›</span>
   </Link>;
 }
 

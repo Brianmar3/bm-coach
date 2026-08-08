@@ -63,7 +63,7 @@ export function PortalShell({
     return true;
   });
   const isLinkActive = (href: string) => {
-    if (href === "/portal/clases" && pathname.startsWith("/portal/registro")) {
+    if (href === "/portal/clases" && (pathname.startsWith("/portal/registro") || pathname.startsWith("/portal/asistencias"))) {
       return true;
     }
     if (

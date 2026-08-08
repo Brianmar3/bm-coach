@@ -18,10 +18,14 @@ const summaryLog = (values: Partial<Parameters<typeof quickLogSummary>[0]>): Par
 
 test("el registro abre con tres opciones simples", () => {
   const source = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
-  assert.match(source, /¿Qué querés anotar\?/);
+  assert.match(source, /¿Qué querés registrar hoy\?/);
+  assert.match(source, /Elegí una opción para guardar tu progreso\./);
   assert.match(source, /Ejercicio de fuerza/);
   assert.match(source, /Circuito o desafío/);
   assert.match(source, /Otro registro/);
+  assert.match(source, /aria-label={`\$\{CATEGORY_LABEL\[value\]\}\. \$\{CATEGORY_META\[value\]\.description\}`}/);
+  assert.match(source, /min-h-\[5\.5rem\]/);
+  assert.match(source, /active:scale-\[\.985\]/);
   assert.doesNotMatch(source.slice(source.indexOf("!category &&"), source.indexOf("category === \"circuit\"")), /FOR_TIME|ROUNDS|INTERVALS|CONDITIONING/);
 });
 

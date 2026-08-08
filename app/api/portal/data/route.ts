@@ -19,6 +19,7 @@ import { activePortalRoutineWhere } from "@/lib/portal-service-access";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 import { loadStudentPointSummary } from "@/lib/student-points";
 import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements";
+import { mergePortalAttendanceRecords, summarizePortalAttendance, type PortalAttendanceRecord } from "@/lib/portal-attendance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,8 +54,8 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   ] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: weekStart } } }),
-    includeClasses ? prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }) : Promise.resolve([]),
-    includeClasses ? prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }) : Promise.resolve([]),
+    includeClasses ? prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: { in: ["PRESENT", "ABSENT"] }, occurrence: { date: { gte: activityStart }, status: { not: "CANCELLED" } } }, select: { id: true, actualAttendance: true, occurrence: { select: { date: true, classNameSnapshot: true, startTime: true, endTime: true, scheduleId: true } } }, orderBy: { occurrence: { date: "asc" } } }) : Promise.resolve([]),
+    includeClasses ? prisma.classAttendance.findMany({ where: { studentId, date: { gte: activityStart } }, select: { id: true, date: true, status: true, scheduleLabel: true, scheduleStartTime: true, scheduleId: true, schedule: { select: { endTime: true } } }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }) : Promise.resolve([]),
     prisma.physicalEvaluation.findMany({ where: { ...meaningfulEvaluation, date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
     loadStrengthAchievements(studentId, activityStart),
@@ -63,32 +64,43 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId) }),
     loadStudentPointSummary(studentId),
   ]);
-  const newDates = newAttendanceDates.map((item) => item.occurrence.date.toISOString().slice(0, 10));
-  const firstNewDate = newDates[0] ?? "";
-  const attendedClassDates = [
-    ...legacyAttendanceDates.map((item) => item.date.toISOString().slice(0, 10)).filter((date) => !firstNewDate || date < firstNewDate),
-    ...newDates,
-  ].sort();
+  const currentAttendance: PortalAttendanceRecord[] = newAttendanceDates.map((item) => ({
+    id: item.id,
+    date: item.occurrence.date.toISOString().slice(0, 10),
+    className: item.occurrence.classNameSnapshot,
+    startTime: item.occurrence.startTime,
+    endTime: item.occurrence.endTime,
+    status: item.actualAttendance as "PRESENT" | "ABSENT",
+    source: "current",
+    scheduleId: item.occurrence.scheduleId,
+  }));
+  const legacyAttendance: PortalAttendanceRecord[] = legacyAttendanceDates.map((item) => ({
+    id: item.id,
+    date: item.date.toISOString().slice(0, 10),
+    className: item.scheduleLabel,
+    startTime: item.scheduleStartTime,
+    endTime: item.schedule?.endTime ?? "",
+    status: item.status,
+    source: "legacy",
+    scheduleId: item.scheduleId,
+  }));
+  const attendanceRecords = mergePortalAttendanceRecords(currentAttendance, legacyAttendance);
+  const attendedClassDates = attendanceRecords.filter((record) => record.status === "PRESENT").map((record) => record.date).sort();
   const evaluationDateKeys = evaluationDates.map((item) => item.date.toISOString().slice(0, 10));
   const monthStartKey = monthStart.toISOString().slice(0, 10);
   const previousMonthStartKey = previousMonthStart.toISOString().slice(0, 10);
   const previousMonthEndKey = previousMonthEnd.toISOString().slice(0, 10);
   const hasClassParticipation = includeClasses && (Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog));
-  const attendedThisMonth = attendedClassDates.filter((date) => date >= monthStartKey && date <= todayKey).length;
-  const attendedPreviousMonth = attendedClassDates.filter((date) => date >= previousMonthStartKey && date <= previousMonthEndKey).length;
+  const currentMonthAttendance = summarizePortalAttendance(attendanceRecords.filter((record) => record.date >= monthStartKey && record.date <= todayKey));
+  const previousMonthAttendance = summarizePortalAttendance(attendanceRecords.filter((record) => record.date >= previousMonthStartKey && record.date <= previousMonthEndKey));
   const weeklyGoal = includeClasses ? planDays(plan) ?? 0 : 0;
-  const elapsedWeeks = Math.max(1, Math.ceil(today.getUTCDate() / 7));
-  const expectedClasses = weeklyGoal * elapsedWeeks;
-  const previousMonthExpectedClasses = weeklyGoal * Math.max(1, Math.ceil(previousMonthEnd.getUTCDate() / 7));
-  const hasPreviousMonthData = attendedPreviousMonth > 0 || Boolean(joinedAt && joinedAt <= previousMonthEndKey);
+  const hasPreviousMonthData = previousMonthAttendance.total > 0;
   return {
     weeklyWorkoutCount,
-    classesAttendedThisMonth: attendedThisMonth,
-    monthlyAttendancePercentage: hasClassParticipation && expectedClasses > 0 ? Math.min(100, Math.round(attendedThisMonth / expectedClasses * 100)) : null,
-    classesAttendedPreviousMonth: hasPreviousMonthData ? attendedPreviousMonth : null,
-    previousMonthAttendancePercentage: hasClassParticipation && hasPreviousMonthData && previousMonthExpectedClasses > 0
-      ? Math.min(100, Math.round(attendedPreviousMonth / previousMonthExpectedClasses * 100))
-      : null,
+    classesAttendedThisMonth: currentMonthAttendance.present,
+    monthlyAttendancePercentage: currentMonthAttendance.percentage,
+    classesAttendedPreviousMonth: hasPreviousMonthData ? previousMonthAttendance.present : null,
+    previousMonthAttendancePercentage: previousMonthAttendance.percentage,
     hasClassParticipation,
     achievements: [...calculatePortalAchievements({
       completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
