@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { calculateAgeAtDate, calculateEvaluationCompletion, validateEvaluationDraft } from "@/lib/evaluation-workflow";
 import type { EvaluationDraftInput, EvaluationWorkflow } from "@/types/evaluation-workflow";
-import { normalizeEvaluation } from "@/lib/evaluation-read-model";
+import { normalizeEvaluation, resolveEvaluationPlanningFields } from "@/lib/evaluation-read-model";
 import type { NormalizedEvaluation } from "@/types/evaluation-read-model";
 
 export const evaluationInclude = {
@@ -21,10 +21,6 @@ function object(value: Prisma.JsonValue): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-function strings(value: Prisma.JsonValue): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
 export function serializeWorkflowEvaluation(record: EvaluationRecordWithDetails): EvaluationWorkflow {
   const student = record.student.data as Record<string, unknown>;
   const savedGeneralData = object(record.generalData);
@@ -36,6 +32,13 @@ export function serializeWorkflowEvaluation(record: EvaluationRecordWithDetails)
     ...(savedGeneralData.height === undefined && record.height !== null ? { height: Number(record.height) } : {}),
     ...(savedGeneralData.bodyFatPercentage === undefined && record.bodyFatPercentage !== null ? { bodyFatPercentage: Number(record.bodyFatPercentage) } : {}),
   };
+  const planning = resolveEvaluationPlanningFields({
+    primaryGoal: record.primaryGoal,
+    secondaryGoals: record.secondaryGoals,
+    experienceLevel: record.experienceLevel,
+    weeklyAvailability: record.weeklyAvailability,
+    generalData,
+  });
   return {
     id: record.id,
     studentId: record.studentId,
@@ -46,10 +49,10 @@ export function serializeWorkflowEvaluation(record: EvaluationRecordWithDetails)
     currentStep: record.currentStep,
     completionPercentage: record.completionPercentage,
     trainerName: record.trainerName,
-    primaryGoal: record.primaryGoal,
-    secondaryGoals: strings(record.secondaryGoals),
-    experienceLevel: record.experienceLevel,
-    weeklyAvailability: record.weeklyAvailability,
+    primaryGoal: planning.primaryGoal,
+    secondaryGoals: planning.secondaryGoals,
+    experienceLevel: planning.experienceLevel,
+    weeklyAvailability: planning.weeklyAvailability,
     generalData,
     habits: object(record.habits),
     trainingObservations: object(record.trainingObservations),

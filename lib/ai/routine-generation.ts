@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { requestCompatibleChat } from "../nutrition-ai-core.ts";
 import { compareEvaluations } from "../evaluation-progress.ts";
 import { interpretEvaluation } from "../evaluation-interpretation.ts";
+import { selectEvaluationForPlanning } from "../evaluation-read-model.ts";
 import type { NormalizedEvaluation } from "../../types/evaluation-read-model.ts";
 import type { RoutineAIBlock, RoutineAIConstraints, RoutineAIContext, RoutineAIDay, RoutineAIExercise, RoutineAIProposal, RoutineExerciseCatalogEntry } from "../../types/routine-ai.ts";
 
@@ -28,7 +29,7 @@ function weeklyAvailability(value: string) { const parsed = value.match(/\d+/)?.
 
 export function buildRoutineAIContext(student: StudentContextInput, evaluations: NormalizedEvaluation[], today: string): RoutineAIContext {
   if (student.serviceType !== "PERSONALIZED" && student.serviceType !== "MIXED") throw new Error("SERVICE_NOT_ELIGIBLE");
-  const ordered = [...evaluations].sort((a, b) => b.date.localeCompare(a.date) || b.version - a.version); const latest = ordered[0]; const previous = ordered[1];
+  const ordered = [...evaluations].sort((a, b) => b.date.localeCompare(a.date) || b.version - a.version); const latest = selectEvaluationForPlanning(ordered); const previous = ordered.find((item) => item.id !== latest?.id);
   if (!latest) return { studentId: student.id, serviceType: student.serviceType, objective: student.goal, secondaryGoals: [], level: student.level ?? "", weeklyAvailability: null, activities: "", evaluation: null };
   const interpretation = interpretEvaluation(latest, today); const comparison = previous ? compareEvaluations(previous, latest, today) : null;
   const measures = Object.fromEntries(([['weight',latest.weight],['waist',latest.waist],['hip',latest.hip],['chest',latest.chest],['bodyFatPercentage',latest.bodyFatPercentage]] as Array<[string, number | null]>).filter((item): item is [string, number] => item[1] !== null));
@@ -71,7 +72,17 @@ export function validateRoutineAIProposal(value: unknown, context: RoutineAICont
 }
 
 function parseJSON(content: string) { const cleaned = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""); return JSON.parse(cleaned) as unknown; }
-function providerConfiguration() { const endpoint = process.env.NUTRITION_AI_BASE_URL?.trim(); const apiKey = process.env.NUTRITION_AI_API_KEY?.trim(); const model = process.env.NUTRITION_AI_MODEL?.trim(); if (!endpoint || !apiKey || !model || process.env.NUTRITION_AI_ENABLED?.trim().toLowerCase() === "false") throw new Error("AI_NOT_CONFIGURED"); return { endpoint, apiKey, model }; }
+function providerConfiguration() { const endpoint = process.env.NUTRITION_AI_BASE_URL?.trim(); const apiKey = process.env.NUTRITION_AI_API_KEY?.trim(); const model = process.env.NUTRITION_AI_MODEL?.trim(); if (!endpoint || !apiKey || !model || process.env.ROUTINE_AI_ENABLED?.trim().toLowerCase() === "false") throw new Error("AI_NOT_CONFIGURED"); return { endpoint, apiKey, model }; }
+
+export function routineAIErrorDescriptor(error: unknown) {
+  const raw = error instanceof Error ? error.message : "AI_FAILED";
+  if (raw === "DAILY_LIMIT") return { code: "DAILY_LIMIT", status: 429, message: "Alcanzaste el límite diario de propuestas con IA." };
+  if (raw === "DUPLICATE_REQUEST") return { code: "DUPLICATE_REQUEST", status: 409, message: "Esta solicitud ya está en proceso." };
+  if (raw.startsWith("AI_INVALID_RESPONSE")) return { code: "INVALID_RESPONSE", status: 422, message: "La respuesta generada no pudo validarse. Regenerá o continuá manualmente." };
+  if (error instanceof DOMException && error.name === "AbortError" || /abort|timeout/i.test(raw)) return { code: "TIMEOUT", status: 504, message: "La generación tardó demasiado. Probá nuevamente." };
+  if (raw === "AI_NOT_CONFIGURED" || raw.startsWith("AI_HTTP")) return { code: "PROVIDER", status: 502, message: "No pudimos generar la propuesta en este momento. Probá nuevamente." };
+  return { code: "AI_FAILED", status: 502, message: "No pudimos generar la propuesta en este momento. Podés continuar manualmente." };
+}
 
 export async function generateRoutineAIProposal(context: RoutineAIContext, constraints: RoutineAIConstraints, catalog: RoutineExerciseCatalogEntry[], fetchImpl: typeof fetch = fetch) { const provider = providerConfiguration(); const prompt = buildRoutineAIPrompt(context, constraints, catalog); const messages = [{ role: "system", content: routineAISystemInstructions() }, { role: "user", content: JSON.stringify(prompt) }]; let lastError = "INVALID_RESPONSE"; for (let attempt = 0; attempt < 2; attempt += 1) { const response = await requestCompatibleChat({ endpoint: provider.endpoint, apiKey: provider.apiKey, timeoutMs: Math.max(3000, Math.min(Number(process.env.NUTRITION_AI_TIMEOUT_MS) || 12000, 30000)), fetchImpl, body: { model: provider.model, temperature: 0.25, response_format: { type: "json_object" }, max_tokens: Math.max(800, Math.min(Number(process.env.ROUTINE_AI_MAX_OUTPUT_TOKENS) || 3000, 5000)), messages: attempt === 0 ? messages : [...messages, { role: "assistant", content: "La respuesta anterior fue inválida." }, { role: "user", content: `Corregí el JSON respetando el schema. Error: ${lastError}` }] } }); try { const validated = validateRoutineAIProposal(parseJSON(response.content), context, constraints, catalog); if (validated.proposal) return { proposal: validated.proposal, model: provider.model, usage: response.usage }; lastError = validated.error; } catch { lastError = "JSON inválido"; } } throw new Error(`AI_INVALID_RESPONSE:${lastError}`); }
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildRoutineAIContext, generateRoutineAIProposal, priorityCoverage, selectProposalDays, validateRoutineAIProposal } from "../lib/ai/routine-generation.ts";
+import { buildRoutineAIContext, generateRoutineAIProposal, priorityCoverage, routineAIErrorDescriptor, selectProposalDays, validateRoutineAIProposal } from "../lib/ai/routine-generation.ts";
 import type { NormalizedEvaluation } from "../types/evaluation-read-model.ts";
 import type { RoutineAIConstraints, RoutineAIContext } from "../types/routine-ai.ts";
 
@@ -20,3 +20,16 @@ test("selección parcial copia días sin mutar la propuesta", () => { const prop
 test("regenerar reemplaza sólo la propuesta y nunca contiene estado activo", () => { const first = validateRoutineAIProposal(rawProposal(), context, constraints, []).proposal!; const secondRaw = rawProposal(); secondRaw.summary = "Regenerada"; const second = validateRoutineAIProposal(secondRaw, context, constraints, []).proposal!; assert.notEqual(first.summary, second.summary); assert.equal("status" in second, false); });
 test("si el proveedor devuelve inválido una vez, reintenta y valida la segunda respuesta", async () => { const previous = { ...process.env }; process.env.NUTRITION_AI_BASE_URL = "https://provider.test"; process.env.NUTRITION_AI_API_KEY = "secret"; process.env.NUTRITION_AI_MODEL = "model"; let calls = 0; const fetchMock = async () => { calls += 1; return new Response(JSON.stringify({ choices: [{ message: { content: calls === 1 ? "{}" : JSON.stringify(rawProposal()) } }] }), { status: 200, headers: { "Content-Type": "application/json" } }); }; try { const result = await generateRoutineAIProposal(context, constraints, [], fetchMock as typeof fetch); assert.equal(result.proposal.days.length, 2); assert.equal(calls, 2); } finally { process.env = previous; } });
 test("molestias permanecen en contexto y la cobertura pendiente no se inventa", () => { const raw = rawProposal(); raw.days.forEach((day) => { day.blocks[0].exercises = [{ ...exercise, name: "Sentadilla goblet", muscleGroup: "Cuádriceps", evidenceIds: [] }]; }); const proposal = validateRoutineAIProposal(raw, context, constraints, []).proposal!; const coverage = priorityCoverage(context, proposal.days); assert.deepEqual(coverage.covered, []); assert.deepEqual(coverage.pending, ["core-endurance"]); assert.equal(context.evaluation?.bodyIssues[0].zone, "Rodilla"); });
+
+test("la IA de rutinas no queda deshabilitada por la bandera de Nutrición", async () => {
+  const previous = { ...process.env }; process.env.NUTRITION_AI_BASE_URL = "https://provider.test"; process.env.NUTRITION_AI_API_KEY = "secret"; process.env.NUTRITION_AI_MODEL = "model"; process.env.NUTRITION_AI_ENABLED = "false"; delete process.env.ROUTINE_AI_ENABLED;
+  const fetchMock = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(rawProposal()) } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  try { const result = await generateRoutineAIProposal(context, constraints, [], fetchMock as typeof fetch); assert.equal(result.proposal.days.length, 2); } finally { process.env = previous; }
+});
+
+test("mapea proveedor, timeout, límite y respuesta inválida con mensajes diferenciados", () => {
+  assert.deepEqual(routineAIErrorDescriptor(new Error("AI_NOT_CONFIGURED")), { code: "PROVIDER", status: 502, message: "No pudimos generar la propuesta en este momento. Probá nuevamente." });
+  assert.equal(routineAIErrorDescriptor(new Error("AI_INVALID_RESPONSE:JSON")).status, 422);
+  assert.equal(routineAIErrorDescriptor(new Error("request timeout")).status, 504);
+  assert.equal(routineAIErrorDescriptor(new Error("DAILY_LIMIT")).status, 429);
+});

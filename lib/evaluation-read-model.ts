@@ -8,6 +8,7 @@ export type EvaluationNormalizationInput = Partial<Record<EvaluationMetricKey, u
   completionPercentage?: unknown; trainerName?: unknown; primaryGoal?: unknown; secondaryGoals?: unknown;
   experienceLevel?: unknown; weeklyAvailability?: unknown; reassessmentDate?: unknown; createdAt?: unknown;
   generalData?: unknown; habits?: unknown; bodyIssues?: unknown; testResults?: unknown; measurements?: unknown;
+  objective?: unknown; mainGoal?: unknown;
   finalStrengths?: unknown; finalPriorities?: unknown; finalLimitations?: unknown; planningNotes?: unknown; finalComment?: unknown;
   source?: "PHYSICAL" | "LEGACY_JSON";
   bodyFat?: unknown;
@@ -19,6 +20,22 @@ function strings(value: unknown) { return Array.isArray(value) ? value.filter((i
 function number(value: unknown) { const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN; return Number.isFinite(parsed) && parsed > 0 ? parsed : null; }
 function integer(value: unknown, fallback: number) { const parsed = Number(value); return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback; }
 function date(value: unknown) { const candidate = string(value).slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : ""; }
+
+export function resolveEvaluationPlanningFields(input: EvaluationNormalizationInput) {
+  const general = object(input.generalData);
+  const first = (...values: unknown[]) => values.map(string).find(Boolean) ?? "";
+  const firstList = (...values: unknown[]) => values.map(strings).find((items) => items.length > 0) ?? [];
+  return {
+    primaryGoal: first(input.primaryGoal, general.primaryGoal, input.objective, general.objective, input.mainGoal, general.mainGoal, general.goal),
+    secondaryGoals: firstList(input.secondaryGoals, general.secondaryGoals),
+    experienceLevel: first(input.experienceLevel, general.experienceLevel, general.level),
+    weeklyAvailability: first(input.weeklyAvailability, general.weeklyAvailability, general.availability),
+  };
+}
+
+export function selectEvaluationForPlanning<T extends { primaryGoal?: string; experienceLevel?: string; weeklyAvailability?: string; testResults?: unknown[]; bodyIssues?: unknown[] }>(items: T[]) {
+  return items.find((item) => Boolean(item.primaryGoal?.trim() || item.experienceLevel?.trim() || item.weeklyAvailability?.trim() || item.testResults?.length || item.bodyIssues?.length)) ?? items[0] ?? null;
+}
 
 function measurement(items: EvaluationMeasurementValue[], type: string, side: string | null = null) {
   return number(items.find((item) => item.measurementType === type && (item.side ?? null) === side)?.value);
@@ -45,6 +62,7 @@ function safeTests(value: unknown): EvaluationTestValue[] {
 
 export function normalizeEvaluation(input: EvaluationNormalizationInput): NormalizedEvaluation {
   const general = object(input.generalData);
+  const planning = resolveEvaluationPlanningFields(input);
   const habits = object(input.habits);
   const measurements = safeMeasurements(input.measurements);
   const pick = (type: string, flat: unknown, generalKey: string, side: string | null = null) => measurement(measurements, type, side) ?? number(general[generalKey]) ?? number(flat);
@@ -56,8 +74,8 @@ export function normalizeEvaluation(input: EvaluationNormalizationInput): Normal
   return {
     id: string(input.id), studentId: string(input.studentId), studentName: string(input.studentName), date: date(input.date),
     version: integer(input.version, 1), status, completionPercentage: Math.min(100, integer(input.completionPercentage, status === "IN_PROGRESS" ? 0 : 100)),
-    trainerName: string(input.trainerName) || "Entrenador", primaryGoal: string(input.primaryGoal), secondaryGoals: strings(input.secondaryGoals),
-    experienceLevel: string(input.experienceLevel), weeklyAvailability: string(input.weeklyAvailability), reassessmentDate: date(input.reassessmentDate),
+    trainerName: string(input.trainerName) || "Entrenador", primaryGoal: planning.primaryGoal, secondaryGoals: planning.secondaryGoals,
+    experienceLevel: planning.experienceLevel, weeklyAvailability: planning.weeklyAvailability, reassessmentDate: date(input.reassessmentDate),
     weight, height, age: number(general.ageSnapshot) ?? number(input.age), bmi, bodyFatPercentage,
     muscleMass: number(input.muscleMass), visceralFat: number(input.visceralFat),
     waist: pick("WAIST", input.waist, "waist"), hip: pick("HIP", input.hip, "hip"), chest: pick("CHEST", input.chest, "chest"),

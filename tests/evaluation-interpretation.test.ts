@@ -66,3 +66,15 @@ test("Rutinas integra evaluación sólo para servicios elegibles y simplifica el
   assert.match(page, /status: mode === "saveAsTemplate" \? "borrador" : "activa"/);
   assert.match(page, /Activar rutina/);
 });
+
+test("el creador muestra evaluación e IA compactas sin bloquear por tests parciales", () => {
+  const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../componentes/routine-evaluation-panel.tsx", import.meta.url), "utf8");
+  const ai = readFileSync(new URL("../componentes/routine-ai-proposal.tsx", import.meta.url), "utf8");
+  const modernEditor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("function BlockEditor"));
+  assert.match(panel, /slice\(0, 2\)/); assert.match(panel, /p-3/); assert.match(panel, /evaluation\.primaryGoal/);
+  assert.match(ai, /Algunos tests no fueron realizados\. La propuesta utilizará la información disponible\./);
+  assert.match(ai, /requestInFlight\.current/); assert.match(ai, /objective, level, constraints/);
+  assert.match(modernEditor, /min-h-14 w-28/); assert.match(modernEditor, /sm:w-32/); assert.match(modernEditor, /border-zinc-700 bg-zinc-800/);
+  assert.doesNotMatch(page, /Crear borrador y revisar/);
+});

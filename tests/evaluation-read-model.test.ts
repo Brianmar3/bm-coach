@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chronologicalMetric, comparableTestChange, deduplicateEvaluations, normalizeEvaluation, toStudentEvaluation } from "../lib/evaluation-read-model.ts";
+import { chronologicalMetric, comparableTestChange, deduplicateEvaluations, normalizeEvaluation, resolveEvaluationPlanningFields, selectEvaluationForPlanning, toStudentEvaluation } from "../lib/evaluation-read-model.ts";
 
 test("prioriza mediciones estructuradas y calcula IMC", () => {
   const item = normalizeEvaluation({ id: "new", studentId: "s1", date: "2026-08-08", generalData: { height: 1.8, ageSnapshot: 32, weight: 70 }, weight: 68, measurements: [{ measurementType: "WEIGHT", side: null, value: 81, unit: "kg", notes: "" }, { measurementType: "WAIST", side: null, value: 90, unit: "cm", notes: "" }] });
@@ -43,4 +43,17 @@ test("la proyección del alumno elimina información privada", () => {
   const item = normalizeEvaluation({ id: "private", trainerName: "Coach", habits: { sleep: "mal" }, finalStrengths: "Privado", planningNotes: "Privado", bodyIssues: [{ bodyZone: "Hombro", trainerObservation: "Privado" }], testResults: [{ testKey: "DEEP_SQUAT", category: "MOBILITY", observations: "Privado", protocol: "Privado" }] });
   const student = toStudentEvaluation(item);
   assert.equal("trainerName" in student, false); assert.equal("habits" in student, false); assert.equal("planningNotes" in student, false); assert.equal(student.bodyIssues[0]?.trainerObservation, ""); assert.equal(student.testResults[0]?.observations, ""); assert.equal(student.testResults[0]?.protocol, "");
+});
+
+test("prioriza campos estructurados y recupera aliases históricos de planificación", () => {
+  assert.equal(resolveEvaluationPlanningFields({ primaryGoal: "Ganancia de masa muscular", generalData: { goal: "Aumento masa muscular" } }).primaryGoal, "Ganancia de masa muscular");
+  assert.deepEqual(resolveEvaluationPlanningFields({ generalData: { objective: "Fuerza", level: "Intermedio", availability: "3 días" } }), { primaryGoal: "Fuerza", secondaryGoals: [], experienceLevel: "Intermedio", weeklyAvailability: "3 días" });
+});
+
+test("regresión Brian: elige la evaluación reciente con objetivo aunque esté en progreso", () => {
+  const selected = selectEvaluationForPlanning([
+    { id: "v3", status: "IN_PROGRESS", primaryGoal: "Ganancia de masa muscular", experienceLevel: "Intermedio", weeklyAvailability: "3", testResults: [{ id: "t1" }], bodyIssues: [] },
+    { id: "v2", status: "COMPLETED", primaryGoal: "", experienceLevel: "", weeklyAvailability: "", testResults: [], bodyIssues: [] },
+  ]);
+  assert.equal(selected?.id, "v3"); assert.equal(selected?.primaryGoal, "Ganancia de masa muscular");
 });

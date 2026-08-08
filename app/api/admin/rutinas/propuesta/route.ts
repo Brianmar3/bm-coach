@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
-import { buildRoutineAIContext, exerciseAlternatives, generateRoutineAIProposal } from "@/lib/ai/routine-generation";
-import { deduplicateEvaluations } from "@/lib/evaluation-read-model";
+import { buildRoutineAIContext, exerciseAlternatives, generateRoutineAIProposal, routineAIErrorDescriptor } from "@/lib/ai/routine-generation";
+import { deduplicateEvaluations, selectEvaluationForPlanning } from "@/lib/evaluation-read-model";
 import { evaluationInclude, normalizeLegacyEvaluationRecord, normalizePhysicalEvaluation } from "@/lib/evaluation-persistence";
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { prisma } from "@/lib/prisma";
@@ -44,7 +44,7 @@ async function finalize(reservation: { usageId: string; key: string }, success: 
 
 export async function POST(request: Request) {
   const unauthorized = await requireAdminApiResponse(); if (unauthorized) return unauthorized;
-  const input = await request.json().catch(() => null) as { action?: string; studentId?: string; requestKey?: string; constraints?: unknown; exerciseName?: string } | null;
+  const input = await request.json().catch(() => null) as { action?: string; studentId?: string; requestKey?: string; constraints?: unknown; exerciseName?: string; objective?: string; level?: string } | null;
   if (!input?.studentId?.trim()) return Response.json({ error: "Seleccioná un alumno." }, { status: 400 });
   const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId }, select: { id: true, serviceType: true, data: true } });
   if (!student) return Response.json({ error: "El alumno no existe." }, { status: 404 });
@@ -52,8 +52,9 @@ export async function POST(request: Request) {
   const exerciseCatalog = await catalog();
   if (input.action === "alternatives") return Response.json({ alternatives: exerciseAlternatives(input.exerciseName ?? "", exerciseCatalog) });
   const parsedConstraints = constraints(input.constraints); if (!parsedConstraints || !input.requestKey?.trim()) return Response.json({ error: "Las restricciones de la propuesta no son válidas." }, { status: 400 });
-  const [physical, legacy] = await Promise.all([prisma.physicalEvaluation.findMany({ where: { studentId: student.id, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }], take: 2 }), prisma.evaluationRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } })]);
-  const evaluations = deduplicateEvaluations([...physical.map(normalizePhysicalEvaluation), ...legacy.map(normalizeLegacyEvaluationRecord).filter((item) => item.studentId === student.id)]).slice(0, 2); const data = student.data && typeof student.data === "object" && !Array.isArray(student.data) ? student.data as Record<string, unknown> : {}; const context = buildRoutineAIContext({ id: student.id, serviceType: student.serviceType, goal: typeof data.goal === "string" ? data.goal : "", level: typeof data.level === "string" ? data.level : "" }, evaluations, argentinaDateKey());
+  const [physical, legacy] = await Promise.all([prisma.physicalEvaluation.findMany({ where: { studentId: student.id }, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }], take: 5 }), prisma.evaluationRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } })]);
+  const allEvaluations = deduplicateEvaluations([...physical.map(normalizePhysicalEvaluation), ...legacy.map(normalizeLegacyEvaluationRecord).filter((item) => item.studentId === student.id)]); const selectedEvaluation = selectEvaluationForPlanning(allEvaluations); const evaluations = selectedEvaluation ? [selectedEvaluation, ...allEvaluations.filter((item) => item.id !== selectedEvaluation.id)].slice(0, 2) : []; const data = student.data && typeof student.data === "object" && !Array.isArray(student.data) ? student.data as Record<string, unknown> : {}; const context = buildRoutineAIContext({ id: student.id, serviceType: student.serviceType, goal: (typeof input.objective === "string" ? input.objective.trim() : "") || (typeof data.goal === "string" ? data.goal : ""), level: (typeof input.level === "string" ? input.level.trim() : "") || (typeof data.level === "string" ? data.level : "") }, evaluations, argentinaDateKey());
+  if (!context.objective || !context.level) return Response.json({ error: "Falta información básica para generar una propuesta.", code: "MINIMUM_DATA" }, { status: 400 });
   let reservation: Awaited<ReturnType<typeof reserve>> | null = null; const started = Date.now();
   try {
     reservation = await reserve(student.id, input.requestKey); const result = await generateRoutineAIProposal(context, parsedConstraints, exerciseCatalog); await finalize(reservation, true);
@@ -61,6 +62,6 @@ export async function POST(request: Request) {
     return Response.json({ proposal: result.proposal, contextSummary: { hasEvaluation: Boolean(context.evaluation), validity: context.evaluation?.validity ?? "NO_EVALUATION", priorityCount: context.evaluation?.priorities.length ?? 0 } });
   } catch (error) {
     const code = error instanceof Error ? error.message.slice(0, 120) : "AI_FAILED"; if (reservation) await finalize(reservation, false, code).catch(() => undefined); await prisma.nutritionAIInteraction.create({ data: { studentId: student.id, feature: "routine_proposal", intention: "generate", contextSnapshot: Prisma.JsonNull, inputSummary: `${parsedConstraints.requestedDays} días · ${parsedConstraints.location}`, outputSummary: "", provider: "external", latencyMs: Date.now() - started, success: false, errorCode: code } }).catch(() => undefined);
-    if (code === "DAILY_LIMIT") return Response.json({ error: "Se alcanzó el límite diario de propuestas." }, { status: 429 }); if (code === "DUPLICATE_REQUEST") return Response.json({ error: "Esta solicitud ya está en proceso." }, { status: 409 }); console.error("Error al generar propuesta de rutina", code); return Response.json({ error: "No se pudo generar la propuesta. Podés continuar creando la rutina manualmente." }, { status: 502 });
+    const descriptor = routineAIErrorDescriptor(error); if (descriptor.status >= 500) console.error("Error al generar propuesta de rutina", descriptor.code); return Response.json({ error: descriptor.message, code: descriptor.code }, { status: descriptor.status });
   }
 }
