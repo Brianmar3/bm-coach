@@ -76,6 +76,7 @@ function PortalOverview({ data }: { data: PortalData }) {
       </div>
     </header>
     <section className="flex min-w-0 items-center justify-between gap-3 overflow-hidden rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-3.5 shadow-[0_12px_28px_rgba(0,0,0,.24)] sm:p-4"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><h2 className="mt-1.5 line-clamp-2 break-words text-sm font-black leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-zinc-400 sm:text-sm">{dailyFocus.reflection}</p></div><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-yellow-400/20 bg-yellow-400/[0.07] shadow-[inset_0_0_0_1px_rgba(250,204,21,.04)] sm:h-12 sm:w-12 sm:rounded-2xl"><svg aria-hidden="true" viewBox="0 0 64 64" className="h-7 w-7 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,.24)]"><defs><linearGradient id="bolt-glow" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#fde68a" /><stop offset="100%" stopColor="#b45309" /></linearGradient></defs><path d="M34 6 18 34h12l-2 24 20-30H34l4-18Z" fill="none" stroke="url(#bolt-glow)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg></div></section>
+    <WeeklyMissionCard data={data} groupClassesEnabled={groupClassesEnabled} />
     {groupClassesEnabled ? <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div> : <div className="max-w-md"><QuotaSummaryCard data={data} /></div>}
     <ProgressSummary data={data} />
     <PointsSummary data={data} />
@@ -84,6 +85,17 @@ function PortalOverview({ data }: { data: PortalData }) {
     <AchievementsOverview data={data} />
     <QuickNoteButton />
   </div>;
+}
+
+function WeeklyMissionCard({ data, groupClassesEnabled }: { data: PortalData; groupClassesEnabled: boolean }) {
+  const mission = data.home.weeklyMission;
+  if (!mission) return <section className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.2)]"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Misión de la semana</p><p className="mt-2 text-sm font-semibold text-zinc-200">{groupClassesEnabled ? "Esta semana todavía no tenés una misión de asistencia." : "Próximamente: misión de entrenamiento."}</p></section>;
+  const completed = mission.state === "COMPLETED";
+  return <section className={`relative overflow-hidden rounded-2xl border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] ${completed ? "border-emerald-400/20 bg-[radial-gradient(circle_at_92%_10%,rgba(52,211,153,.1),transparent_35%),linear-gradient(145deg,#171b18,#090909)]" : "border-yellow-400/20 bg-[radial-gradient(circle_at_92%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(145deg,#181818,#090909)]"}`}>
+    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={`text-[10px] font-bold uppercase tracking-[.18em] ${completed ? "text-emerald-300" : "text-yellow-400"}`}>{completed ? "Misión completada" : "Misión de la semana"}</p><h2 className="mt-1.5 text-sm font-black leading-snug text-white sm:text-base"><span aria-hidden="true" className="mr-2">{completed ? "🏆" : "🎯"}</span>{mission.title}</h2></div><span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>+{mission.rewardPoints} pts</span></div>
+    <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-zinc-500">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-zinc-400"}`}>{completed ? `+${mission.rewardPoints} pts obtenidos` : mission.message}</p></div>
+    <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-label="Progreso de la misión semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)}><div className={`h-full rounded-full transition-[width] duration-500 ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div>
+  </section>;
 }
 
 function PointsSummary({ data }: { data: PortalData }) {

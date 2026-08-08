@@ -2,16 +2,18 @@ export const POINT_RULES = {
   ATTENDANCE: 5,
   RECORD: 3,
   ROUTINE_COMPLETED: 5,
+  WEEKLY_MISSION: 15,
 } as const;
 
 export type ValidPointEvent = {
   eventKey: string;
-  eventType: "ATTENDANCE" | "RECORD";
+  eventType: "ATTENDANCE" | "RECORD" | "WEEKLY_MISSION";
   sourceType:
     | "CLASS_OCCURRENCE_ATTENDANCE"
     | "LEGACY_ATTENDANCE"
     | "QUICK_LOG"
-    | "WORKOUT_SESSION";
+    | "WORKOUT_SESSION"
+    | "WEEKLY_MISSION";
   sourceId: string;
   points: number;
   description: string;
@@ -31,6 +33,7 @@ export type PointEventInputs = {
   occurrenceAttendances?: AttendanceInput[];
   quickLogs?: RecordInput[];
   completedRoutineSessions?: RecordInput[];
+  weeklyMissions?: RecordInput[];
 };
 
 /** Noon UTC keeps a calendar date stable inside Argentina month boundaries. */
@@ -85,6 +88,17 @@ export function buildValidPointEvents(input: PointEventInputs): ValidPointEvent[
       occurredAt: effectivePointDate(item.date),
     });
   }
+  for (const item of input.weeklyMissions ?? []) {
+    events.push({
+      eventKey: `weekly-mission:${item.id}`,
+      eventType: "WEEKLY_MISSION",
+      sourceType: "WEEKLY_MISSION",
+      sourceId: item.id,
+      points: POINT_RULES.WEEKLY_MISSION,
+      description: item.description,
+      occurredAt: effectivePointDate(item.date),
+    });
+  }
   return events;
 }
 
@@ -97,4 +111,3 @@ export function pointEventKeysToInvalidate(
     .filter((item) => item.active && (item.sourceType === "ACHIEVEMENT" || !desiredKeys.has(item.eventKey)))
     .map((item) => item.eventKey);
 }
-

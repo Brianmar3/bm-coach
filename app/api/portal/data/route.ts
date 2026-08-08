@@ -20,6 +20,7 @@ import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 import { loadStudentPointSummary } from "@/lib/student-points";
 import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements";
 import { mergePortalAttendanceRecords, summarizePortalAttendance, type PortalAttendanceRecord } from "@/lib/portal-attendance";
+import { loadCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +96,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   const previousMonthAttendance = summarizePortalAttendance(attendanceRecords.filter((record) => record.date >= previousMonthStartKey && record.date <= previousMonthEndKey));
   const weeklyGoal = includeClasses ? planDays(plan) ?? 0 : 0;
   const hasPreviousMonthData = previousMonthAttendance.total > 0;
+  const weeklyMission = await loadCurrentWeeklyMission(studentId, todayKey);
   return {
     weeklyWorkoutCount,
     classesAttendedThisMonth: currentMonthAttendance.present,
@@ -102,6 +104,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     classesAttendedPreviousMonth: hasPreviousMonthData ? previousMonthAttendance.present : null,
     previousMonthAttendancePercentage: previousMonthAttendance.percentage,
     hasClassParticipation,
+    weeklyMission,
     achievements: [...calculatePortalAchievements({
       completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
       attendedClassDates,
@@ -136,7 +139,7 @@ export async function GET(request: Request) {
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled)
-      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [], points: { total: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
+      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
@@ -250,6 +253,7 @@ export async function GET(request: Request) {
         coachPhone: settings?.phone ?? "",
         achievements: homeInsights.achievements,
         points: homeInsights.points,
+        weeklyMission: homeInsights.weeklyMission,
       },
     };
     if (section === "inicio") data.weeklyWorkouts = homeInsights.weeklyWorkoutCount;

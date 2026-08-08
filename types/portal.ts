@@ -3,6 +3,7 @@ import type { StudentEvaluation } from "@/types/evaluation-read-model";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import type { TrainingBlockType } from "@/types/gestion";
 import type { StudentPointSummary } from "@/types/points";
+import type { WeeklyMissionView } from "@/lib/weekly-mission";
 
 export type PortalProfile = {
   id: string;
@@ -125,5 +126,6 @@ export type PortalData = {
     coachPhone: string;
     achievements: PortalAchievement[];
     points: StudentPointSummary;
+    weeklyMission: WeeklyMissionView | null;
   };
 };

@@ -33,6 +33,7 @@ model StudentRecord {
   quickLogFeedbacks        QuickLogFeedback[]
   classExerciseFeedbacks   ClassExerciseLogFeedback[]
   pointTransactions        StudentPointTransaction[]
+  weeklyMissions           StudentWeeklyMission[]
   trainerNotifications     TrainerNotification[]
   notifications            StudentNotification[]
   nutritionCheckins        NutritionDailyCheckin[]
@@ -687,6 +688,7 @@ enum StudentPointEventType {
   PERSONAL_RECORD
   ACHIEVEMENT
   MILESTONE
+  WEEKLY_MISSION
 }
 
 enum StudentPointSourceType {
@@ -696,6 +698,7 @@ enum StudentPointSourceType {
   CLASS_WORKOUT_LOG
   WORKOUT_SESSION
   ACHIEVEMENT
+  WEEKLY_MISSION
 }
 
 model StudentPointTransaction {
@@ -719,6 +722,39 @@ model StudentPointTransaction {
   @@index([studentId, active, occurredAt(sort: Desc)])
   @@index([active, occurredAt(sort: Desc)])
   @@map("student_point_transactions")
+}
+
+enum WeeklyMissionType {
+  ATTENDANCE
+}
+
+enum WeeklyMissionState {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+model StudentWeeklyMission {
+  id                 String             @id @default(cuid())
+  studentId          String
+  weekStart          DateTime           @db.Date
+  weekEnd            DateTime           @db.Date
+  type               WeeklyMissionType  @default(ATTENDANCE)
+  title              String
+  target             Int
+  scheduledClassKeys String[]
+  progress           Int                @default(0)
+  state              WeeklyMissionState @default(ACTIVE)
+  rewardPoints       Int
+  completedAt        DateTime?
+  pointsAwardedAt    DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  student            StudentRecord      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, weekStart])
+  @@index([studentId, state, weekStart(sort: Desc)])
+  @@map("student_weekly_missions")
 }
 
 model StudentPortalCredential {

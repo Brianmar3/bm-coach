@@ -22,6 +22,7 @@ import type {
   StudentPointMovement,
   StudentPointSummary,
 } from "@/types/points";
+import { resolveCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 
 type PointEvent = ValidPointEvent;
 
@@ -47,6 +48,7 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
     legacyAttendances,
     quickLogs,
     completedRoutineSessions,
+    completedWeeklyMissions,
   ] =
     await Promise.all([
       prisma.classOccurrenceAttendance.findMany({
@@ -102,6 +104,11 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
         },
         orderBy: [{ date: "asc" }, { createdAt: "asc" }],
       }),
+      prisma.studentWeeklyMission.findMany({
+        where: { studentId, state: "COMPLETED" },
+        select: { id: true, weekStart: true },
+        orderBy: { weekStart: "asc" },
+      }),
     ]);
 
   const firstOccurrenceDate =
@@ -144,6 +151,11 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
       id: session.id,
       date: session.date,
       description: `Rutina completada: ${session.routineNameSnapshot || "entrenamiento personalizado"}`,
+    })),
+    weeklyMissions: completedWeeklyMissions.map((mission) => ({
+      id: mission.id,
+      date: mission.weekStart,
+      description: "Misión semanal completada",
     })),
   });
 }
@@ -250,6 +262,7 @@ export async function syncStudentPoints(
   studentId: string,
   options: { notify?: boolean; cleanupHistoricalMarks?: boolean } = {},
 ) {
+  await resolveCurrentWeeklyMission(studentId);
   const desired = await desiredPointEvents(studentId);
   const previous = await prisma.studentPointTransaction.findMany({
     where: { studentId },
@@ -285,6 +298,12 @@ export async function syncStudentPoints(
             invalidatedAt: null,
           },
         });
+        if (event.sourceType === "WEEKLY_MISSION") {
+          await transaction.studentWeeklyMission.updateMany({
+            where: { id: event.sourceId, studentId, pointsAwardedAt: null },
+            data: { pointsAwardedAt: now },
+          });
+        }
       }
       const invalidCandidates = pointEventKeysToInvalidate(previous, desired);
       const obsoleteKeys = previous
