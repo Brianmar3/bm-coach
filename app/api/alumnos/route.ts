@@ -36,7 +36,7 @@ export async function POST(request: Request) {
         where: { id: { in: input.scheduleIds } },
         select: { id: true, active: true, capacity: true, _count: { select: { assignments: { where: { active: true } } } } },
       }) : [];
-      if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("Uno de los horarios seleccionados ya no existe.");
+      if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("El horario seleccionado no es válido.");
       if (schedules.some((schedule) => !schedule.active)) throw new EnrollmentError("Seleccioná únicamente horarios activos para el alta.");
       if (schedules.some((schedule) => schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
       const created = await transaction.studentRecord.create({

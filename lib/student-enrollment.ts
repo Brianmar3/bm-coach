@@ -6,7 +6,7 @@ import { isDateKey } from "@/lib/payment-dates";
 import { isStudentType } from "@/types/gestion";
 import type { CoachSettings, Student, StudentPlanOption, StudentStatus, StudentType } from "@/types/gestion";
 import { isStudentServiceType } from "@/lib/student-service";
-import { studentPlanOptions } from "@/lib/coach-plans";
+import { isPersistentPlanId, resolveStudentPlan, studentPlanOptions } from "@/lib/coach-plans";
 
 const DAY_LABELS = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" } as const;
 
@@ -107,17 +107,22 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const serviceType = isStudentServiceType(input.serviceType) ? input.serviceType : null;
   const requestedPlanId = typeof input.planId === "string" ? input.planId : "";
   const requestedPlanName = typeof input.plan === "string" ? input.plan.trim() : "";
-  const selectedPlan = plans.find((plan) => plan.id === requestedPlanId)
-    ?? plans.find((plan) => plan.name === requestedPlanName);
-
   if (!firstName || !lastName) return { data: null, error: "Ingresá nombre y apellido." };
   if (studentType === "Adulto" && (!phone || normalizePhone(phone).length < 6)) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (studentType === "Kids" && phone && normalizePhone(phone).length < 6) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
-  if (!selectedPlan) return { data: null, error: "Seleccioná uno de los planes mensuales configurados." };
-  if (!isDateKey(joinedAt)) return { data: null, error: "Ingresá una fecha de ingreso válida." };
+  if (!serviceType) return { data: null, error: "Seleccioná un tipo de servicio." };
+  if (!requestedPlanName && !requestedPlanId) return { data: null, error: "Seleccioná un plan mensual." };
+  const resolution = resolveStudentPlan({
+    plan: requestedPlanName,
+    planId: isPersistentPlanId(requestedPlanId) ? requestedPlanId : "",
+    monthlyFee: Number(input.monthlyFee ?? 0),
+  }, plans);
+  if (resolution.status === "ambiguous") return { data: null, error: "El plan anterior coincide con más de un plan actual. Seleccioná uno manualmente." };
+  if (resolution.status === "missing") return { data: null, error: "El plan seleccionado ya no existe." };
+  const selectedPlan = resolution.plan;
+  if (!isDateKey(joinedAt)) return { data: null, error: "Seleccioná una fecha de inicio válida." };
   if (dueDate && !isDateKey(dueDate)) return { data: null, error: "Ingresá un próximo vencimiento válido." };
   if (!(status === "activo" || status === "inactivo" || status === "suspendido")) return { data: null, error: "Seleccioná un estado válido." };
-  if (!serviceType) return { data: null, error: "Seleccioná un tipo de servicio válido." };
 
   const weight = input.weight === "" || input.weight === undefined ? 0 : Number(input.weight);
   const height = input.height === "" || input.height === undefined ? 0 : Number(input.height);
@@ -137,7 +142,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       height,
       goal: typeof input.goal === "string" ? input.goal.trim() : "",
       plan: selectedPlan.name,
-      planId: selectedPlan.id,
+      planId: selectedPlan.persistentId,
       monthlyFee: selectedPlan.price,
       joinedAt,
       dueDate,

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  assignedPlan, normalizePlanName, plansWithIds, removedAssignedPlan, studentPlanOptions,
+  assignedPlan, buildStudentEnrollmentPayload, normalizePlanName, plansWithIds, removedAssignedPlan, resolveStudentPlan, studentPlanOptions,
   synchronizedStudentPlan, validateCoachPlans,
 } from "../lib/coach-plans.ts";
 import type { CoachSettings, Student } from "../types/gestion.ts";
@@ -20,17 +20,17 @@ const student = (plan: string, planId = ""): Student => ({
 
 test("un plan libre guardado aparece en las opciones de Alumnos", () => {
   assert.deepEqual(studentPlanOptions(settings([{ id: "casa", name: "Plan casa", price: 25000 }])), [
-    { id: "casa", days: "casa", name: "Plan casa", price: 25000, configured: true },
+    { id: "id:casa", persistentId: "casa", selectionKey: "id:casa", days: "id:casa", name: "Plan en casa", price: 25000, configured: true },
   ]);
 });
 
 test("los planes se ordenan de forma estable por nombre", () => {
   const options = studentPlanOptions(settings([{ id: "z", name: "Plan Z", price: 2 }, { id: "a", name: "Plan A", price: 1 }]));
-  assert.deepEqual(options.map((plan) => plan.id), ["a", "z"]);
+  assert.deepEqual(options.map((plan) => plan.persistentId), ["a", "z"]);
 });
 
-test("las configuraciones antiguas reciben un id determinista", () => {
-  assert.equal(plansWithIds([{ name: "Plan casa", price: 1 }])[0].id, "legacy-plan-plan-casa-1");
+test("las configuraciones antiguas no reciben un id persistente inventado", () => {
+  assert.equal(plansWithIds([{ name: "Plan casa", price: 1 }])[0].id, "");
 });
 
 test("valida nombres vacíos, duplicados y precios negativos", () => {
@@ -40,7 +40,8 @@ test("valida nombres vacíos, duplicados y precios negativos", () => {
 });
 
 test("la normalización ignora espacios, tildes y mayúsculas", () => {
-  assert.equal(normalizePlanName("  PLÁN Casa "), "plan casa");
+  assert.equal(normalizePlanName("  PLÁN Casa "), "plan en casa");
+  assert.equal(normalizePlanName("2 días por semanas"), normalizePlanName("2 dias por semana"));
 });
 
 test("la asignación usa id y conserva compatibilidad por nombre", () => {
@@ -61,14 +62,14 @@ test("renombrar o cambiar precio sincroniza la ficha actual por id", () => {
 test("quitar un plan asignado se detecta y un plan libre se puede quitar", () => {
   const current = plansWithIds([{ id: "casa", name: "Plan casa", price: 100 }, { id: "gym", name: "Gimnasio", price: 200 }]);
   const withoutCasa = plansWithIds([{ id: "gym", name: "Gimnasio", price: 200 }]);
-  assert.equal(removedAssignedPlan([student("Plan casa", "casa")], current, withoutCasa)?.plan.id, "casa");
+  assert.equal(removedAssignedPlan([student("Plan casa", "casa")], current, withoutCasa)?.plan.persistentId, "casa");
   assert.equal(removedAssignedPlan([student("Plan casa", "casa")], current, current), null);
 });
 
 test("Configuración usa claves estables y guarda solo al enviar", () => {
   const source = readFileSync("app/configuracion/page.tsx", "utf8");
   assert.match(source, /key=\{methodKeys\[index\]/);
-  assert.match(source, /key=\{planId\(plan, index\)\}/);
+  assert.match(source, /planSelectionKey\(plan\)/);
   assert.doesNotMatch(source, /key=\{`\$\{method\}-\$\{index\}`\}/);
   assert.doesNotMatch(source, /key=\{`\$\{plan\.name\}-\$\{index\}`\}/);
   assert.match(source, /onSubmit=\{submit\}/);
@@ -89,4 +90,13 @@ test("la sincronización no toca datos ajenos al plan", () => {
   const updated = synchronizedStudentPlan(original, plansWithIds([{ id: "casa", name: "Plan casa", price: 100 }]), plansWithIds([{ id: "casa", name: "Plan hogar", price: 200 }]));
   assert.equal(updated.notes, original.notes);
   assert.equal(updated.dueDate, original.dueDate);
+});
+
+test("un alumno legacy se resuelve por nombre canónico y precio sin enviar id sintético", () => {
+  const options = studentPlanOptions(settings([{ name: "2 días por semanas", price: 25000 }]));
+  const resolved = resolveStudentPlan({ plan: "2 dias por semana", planId: "legacy-plan-2-dias-1", monthlyFee: 25000 }, options);
+  assert.equal(resolved.status, "matched");
+  const payload = buildStudentEnrollmentPayload({ planId: options[0].id, selectionKey: options[0].selectionKey, plan: options[0].name });
+  assert.equal(payload.planId, "");
+  assert.equal("selectionKey" in payload, false);
 });

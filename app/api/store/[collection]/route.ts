@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
-import { plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
+import { canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings, Student } from "@/types/gestion";
 
 const collections = {
@@ -56,8 +57,19 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
     prisma.studentRecord.findMany({ select: { id: true, data: true } }),
   ]);
   const current = currentRecord?.data as unknown as CoachSettings | undefined;
-  const currentPlans = plansWithIds(current?.plans);
-  const nextPlans = plansWithIds(requested.plans).map((plan) => ({ ...plan, name: plan.name.trim() }));
+  const requestedPersistentPlans = plansWithIds(requested.plans);
+  const currentPlans = plansWithIds(current?.plans).map((plan, index) => {
+    if (plan.id) return plan;
+    const samePlan = requestedPersistentPlans.find((candidate) =>
+      canonicalPlanName(candidate.name) === canonicalPlanName(plan.name)
+      && Number(candidate.price) === Number(plan.price));
+    return { ...plan, id: samePlan?.id || requestedPersistentPlans[index]?.id || "" };
+  });
+  const nextPlans = requested.plans.map((plan) => ({
+    ...plan,
+    id: isPersistentPlanId(plan.id) ? plan.id.trim() : randomUUID(),
+    name: canonicalPlanName(plan.name),
+  }));
   const assignedRemoval = removedAssignedPlan(
     studentRecords.map((record) => record.data as unknown as Student),
     currentPlans,

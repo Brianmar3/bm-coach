@@ -42,8 +42,13 @@ export type Student = {
 };
 
 export type StudentPlanOption = {
+  /** Stable selector identity; it is never persisted as Student.planId. */
   id: string;
-  /** Alias estable conservado para la clave del selector existente. */
+  /** Real identity stored in configuration, or empty for legacy plans. */
+  persistentId: string;
+  /** Client-only selector identity. Never persist this as planId. */
+  selectionKey: string;
+  /** Alias estable conservado para consumidores existentes. */
   days: string;
   name: string;
   price: number;

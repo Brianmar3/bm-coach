@@ -35,6 +35,7 @@ export function useBrowserStore<T>(key: string, initialValue: T[]) {
       const body = await response.json().catch(() => ({})) as { error?: string };
       throw new Error(body.error ?? "No se pudieron guardar los cambios.");
     }
+    return response.json().catch(() => ({ ok: true })) as Promise<{ ok: boolean; settings?: T }>;
   }
 
   return { items, save, ready };

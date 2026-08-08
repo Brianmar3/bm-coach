@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { useBrowserStore } from "@/lib/browser-store";
-import { planId, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
+import { planId, planSelectionKey, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings } from "@/types/gestion";
 
 const defaults: CoachSettings = {
@@ -40,13 +40,17 @@ export default function ConfiguracionPage() {
   const [error, setError] = useState("");
   const [methodKeys, setMethodKeys] = useState(() => Array.from({ length: 64 }, () => crypto.randomUUID()));
   const stored = items[0];
+  const hydratedPlans = useMemo(() => stored?.plans.map((plan) => ({
+    ...plan,
+    id: planId(plan) || crypto.randomUUID(),
+  })) ?? [], [stored]);
   const value =
     settings ??
     (stored
       ? {
           ...stored,
           id: stored.id ?? "main",
-          plans: stored.plans.length ? stored.plans.map((plan, index) => ({ ...plan, id: planId(plan, index) })) : defaults.plans,
+          plans: hydratedPlans.length ? hydratedPlans : defaults.plans,
         }
       : defaults);
   function update<K extends keyof CoachSettings>(
@@ -69,8 +73,8 @@ export default function ConfiguracionPage() {
     setSaving(true);
     setError("");
     try {
-      await save([value]);
-      setSettings(value);
+      const result = await save([value]);
+      setSettings(result.settings ?? value);
       setSaved(true);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudieron guardar los cambios.");
@@ -226,7 +230,7 @@ export default function ConfiguracionPage() {
             <div className="mt-2 space-y-2">
               {value.plans.map((plan, index) => (
                 <div
-                  key={planId(plan, index)}
+                  key={`${planSelectionKey(plan)}:${index}`}
                   className="grid gap-2 sm:grid-cols-[1fr_180px_auto]"
                 >
                   <input

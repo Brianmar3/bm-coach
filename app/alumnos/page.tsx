@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { StudentAccessControls } from "@/componentes/student-access-controls";
@@ -8,6 +8,7 @@ import { StudentQuickPanels } from "@/componentes/student-quick-panels";
 import { AdminQuickLogSummary } from "@/componentes/admin-quick-log-summary";
 import { AdminNutritionSummary } from "@/componentes/admin-nutrition-summary";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
+import { buildStudentEnrollmentPayload, canonicalPlanName, normalizePlanName, resolveStudentPlan } from "@/lib/coach-plans";
 import { STUDENT_TYPES } from "@/types/gestion";
 import type { TrainerNotificationSection } from "@/lib/trainer-notification-destination";
 import type { Student, StudentPlanOption, StudentServiceType, StudentStatus, StudentType } from "@/types/gestion";
@@ -16,6 +17,7 @@ type StudentFormValue = Omit<Student, "id" | "scheduleId" | "scheduleLabel" | "s
     scheduleId: string;
     scheduleIds: string[];
     flexibleSchedule: string;
+    selectionKey: string;
 };
 type EnrollmentSchedule = {
     id: string;
@@ -46,12 +48,14 @@ catch {
 } }
 function blank(options: EnrollmentOptions, previous?: Pick<StudentFormValue, "plan" | "planId" | "joinedAt" | "status" | "studentType" | "serviceType" | "responsibleName" | "responsiblePhone" | "responsibleRelation">): StudentFormValue {
     const joinedAt = previous?.joinedAt ?? "";
-    const plan = options.plans.find((item) => item.id === previous?.planId) ?? options.plans.find((item) => item.name === previous?.plan) ?? options.plans[0];
-    return { firstName: "", lastName: "", phone: "", email: "", birthDate: "", weight: 0, height: 0, goal: "", plan: plan?.name ?? "", planId: plan?.id ?? "", monthlyFee: plan?.price ?? 0, joinedAt, dueDate: "", status: previous?.status ?? "activo", serviceType: previous?.serviceType ?? "CLASSES", notes: "", studentType: previous?.studentType ?? "Adulto", responsibleName: previous?.responsibleName ?? "", responsiblePhone: previous?.responsiblePhone ?? "", responsibleRelation: previous?.responsibleRelation ?? "", scheduleId: "", scheduleIds: [], flexibleSchedule: "" };
+    const resolution = previous ? resolveStudentPlan({ plan: previous.plan, planId: previous.planId, monthlyFee: 0 }, options.plans) : null;
+    const plan = resolution?.status === "matched" ? resolution.plan : options.plans[0];
+    return { firstName: "", lastName: "", phone: "", email: "", birthDate: "", weight: 0, height: 0, goal: "", plan: plan?.name ?? "", planId: plan?.id ?? "", monthlyFee: plan?.price ?? 0, joinedAt, dueDate: "", status: previous?.status ?? "activo", serviceType: previous?.serviceType ?? "CLASSES", notes: "", studentType: previous?.studentType ?? "Adulto", responsibleName: previous?.responsibleName ?? "", responsiblePhone: previous?.responsiblePhone ?? "", responsibleRelation: previous?.responsibleRelation ?? "", scheduleId: "", scheduleIds: [], flexibleSchedule: "", selectionKey: plan?.selectionKey ?? "" };
 }
 function editValue(student: Student, options: EnrollmentOptions): StudentFormValue {
-    const plan = options.plans.find((item) => item.id === student.planId) ?? options.plans.find((item) => item.name === student.plan);
-    return { firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, weight: student.weight, height: student.height, goal: student.goal, plan: plan?.name ?? student.plan, planId: plan?.id ?? student.planId ?? "", monthlyFee: plan?.price ?? student.monthlyFee, joinedAt: student.joinedAt, dueDate: student.dueDate, status: student.status, serviceType: student.serviceType, notes: student.notes, studentType: student.studentType ?? "Adulto", responsibleName: student.responsibleName ?? "", responsiblePhone: student.responsiblePhone ?? "", responsibleRelation: student.responsibleRelation ?? "", scheduleId: student.scheduleIds?.[0] ?? student.scheduleId ?? "", scheduleIds: student.scheduleIds ?? (student.scheduleId ? [student.scheduleId] : []), flexibleSchedule: student.flexibleSchedule ?? "" };
+    const resolution = resolveStudentPlan(student, options.plans);
+    const plan = resolution.status === "matched" ? resolution.plan : null;
+    return { firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, weight: student.weight, height: student.height, goal: student.goal, plan: plan?.name ?? student.plan, planId: plan?.id ?? "", monthlyFee: plan?.price ?? student.monthlyFee, joinedAt: student.joinedAt, dueDate: student.dueDate, status: student.status, serviceType: student.serviceType, notes: student.notes, studentType: student.studentType ?? "Adulto", responsibleName: student.responsibleName ?? "", responsiblePhone: student.responsiblePhone ?? "", responsibleRelation: student.responsibleRelation ?? "", scheduleId: student.scheduleIds?.[0] ?? student.scheduleId ?? "", scheduleIds: student.scheduleIds ?? (student.scheduleId ? [student.scheduleId] : []), flexibleSchedule: student.flexibleSchedule ?? "", selectionKey: plan?.selectionKey ?? "" };
 }
 export default function AlumnosPage() {
     const [items, setItems] = useState<Student[]>([]);
@@ -101,13 +105,26 @@ export default function AlumnosPage() {
             setError(loadError.message); }).finally(() => setReady(true));
         return () => controller.abort();
     }, []);
-    const plans = useMemo(() => [...new Set(items.map((item) => item.plan))].sort((left, right) => left.localeCompare(right, "es")), [items]);
-    const visible = items.filter((item) => {
-        return `${item.firstName} ${item.lastName} ${item.phone}`.toLocaleLowerCase("es").includes(query.toLocaleLowerCase("es"))
-            && (status === "todos" || item.status === status)
-            && (plan === "todos" || item.plan === plan)
-            && (serviceType === "todos" || item.serviceType === serviceType);
-    });
+    const planIdentity = (item: Student) => {
+        const resolution = resolveStudentPlan(item, options.plans);
+        return resolution.status === "matched" ? resolution.plan.selectionKey : `legacy:${normalizePlanName(item.plan)}`;
+    };
+    const contextualItems = items.filter((item) => `${item.firstName} ${item.lastName} ${item.phone}`.toLocaleLowerCase("es").includes(query.toLocaleLowerCase("es"))
+        && (status === "todos" || item.status === status)
+        && (serviceType === "todos" || item.serviceType === serviceType));
+    const planChoices = (() => {
+        const choices = new Map(options.plans.map((item) => [item.selectionKey, { key: item.selectionKey, name: item.name, count: 0 }]));
+        for (const item of items.filter((student) => student.status === "activo")) {
+            const key = planIdentity(item);
+            const current = choices.get(key) ?? { key, name: canonicalPlanName(item.plan) || "Plan sin nombre", count: 0 };
+            current.count += 1;
+            choices.set(key, current);
+        }
+        return [...choices.values()].sort((left, right) => left.name.localeCompare(right.name, "es"));
+    })();
+    const plans = planChoices.map((item) => `${item.name} (${item.count})`);
+    const selectedPlanFilter = planChoices.find((item) => `${item.name} (${item.count})` === plan);
+    const visible = contextualItems.filter((item) => plan === "todos" || (selectedPlanFilter && planIdentity(item) === selectedPlanFilter.key));
     async function begin(item?: Student) {
         setError("");
         try {
@@ -145,15 +162,23 @@ export default function AlumnosPage() {
             setError("No hay planes disponibles. Agregá y guardá un plan en Configuración antes de continuar.");
             return;
         }
-        if (!form.planId || !form.plan || !form.joinedAt || !form.serviceType) {
-            setError("Seleccioná tipo de servicio, plan y fecha de inicio.");
+        if (!form.serviceType) {
+            setError("Seleccioná un tipo de servicio.");
+            return;
+        }
+        if (!form.selectionKey || !form.plan) {
+            setError("Seleccioná un plan mensual.");
+            return;
+        }
+        if (!form.joinedAt) {
+            setError("Seleccioná una fecha de inicio válida.");
             return;
         }
         setSaving(true);
         setError("");
         setNotice("");
         try {
-            const response = await fetch(editing ? `/api/alumnos/${editing.id}` : "/api/alumnos", { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+            const response = await fetch(editing ? `/api/alumnos/${editing.id}` : "/api/alumnos", { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildStudentEnrollmentPayload(form)) });
             if (!response.ok)
                 throw new Error(await responseError(response, "No se pudo guardar el alumno."));
             const saved = await response.json() as Student;

@@ -38,7 +38,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
         where: { id: { in: input.scheduleIds } },
         select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { active: true } }, _count: { select: { assignments: { where: { active: true } } } } },
       }) : [];
-      if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("Uno de los horarios seleccionados ya no existe.");
+      if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("El horario seleccionado no es válido.");
       if (schedules.some((schedule) => !schedule.active && !schedule.assignments.some((assignment) => assignment.active))) throw new EnrollmentError("No podés agregar un horario inactivo.");
       if (schedules.some((schedule) => !schedule.assignments.some((assignment) => assignment.active) && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
       await recordStudentHistoryChange(transaction, id, current.data, current.serviceType, input);
