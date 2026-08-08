@@ -92,6 +92,8 @@ test("Evaluaciones del entrenador no contiene Vista Global y presenta buscador, 
   const dashboard = readFileSync(new URL("../componentes/professional-evaluations-dashboard.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(dashboard, /EvaluationGlobalDashboard|Vista global|Seguimiento de evaluaciones/);
   assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /Estado evaluación/); assert.match(dashboard, /Vigencia/);
+  assert.match(dashboard, /<option value="CLASSES">Clases<\/option>/);
+  assert.match(dashboard, /serviceLabel\[item\.serviceType\]/);
   assert.match(dashboard, /Resultados de alumnos/); assert.match(dashboard, /Ver evaluación/);
   assert.match(dashboard, /Seleccioná un alumno para abrir su dashboard profesional/);
 });

@@ -5,6 +5,7 @@ import { deduplicateEvaluations } from "@/lib/evaluation-read-model";
 import { evaluationInclude, normalizeLegacyEvaluationRecord, normalizePhysicalEvaluation } from "@/lib/evaluation-persistence";
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { prisma } from "@/lib/prisma";
+import { visibleStudentsInEvaluations } from "@/lib/evaluation-student-filter";
 import type { EvaluationStudentSummary } from "@/types/evaluation-progress";
 
 export const runtime = "nodejs";
@@ -24,7 +25,10 @@ export async function GET() {
       return { id: record.id, firstName: typeof data.firstName === "string" ? data.firstName : "", lastName: typeof data.lastName === "string" ? data.lastName : "", birthDate: typeof data.birthDate === "string" ? data.birthDate : "", goal: typeof data.goal === "string" ? data.goal : "", serviceType: record.serviceType };
     });
     const evaluations = deduplicateEvaluations([...physicalRecords.map(normalizePhysicalEvaluation), ...legacyRecords.map(normalizeLegacyEvaluationRecord)]);
-    return Response.json({ students, evaluations, stats: calculateGlobalEvaluationStats(students, evaluations, argentinaDateKey()) });
+    const visibleStudents = visibleStudentsInEvaluations(students, evaluations);
+    const visibleStudentIds = new Set(visibleStudents.map((student) => student.id));
+    const visibleEvaluations = evaluations.filter((evaluation) => visibleStudentIds.has(evaluation.studentId));
+    return Response.json({ students: visibleStudents, evaluations: visibleEvaluations, stats: calculateGlobalEvaluationStats(visibleStudents, visibleEvaluations, argentinaDateKey()) });
   } catch (error) {
     console.error("No se pudo cargar el progreso global de evaluaciones", error instanceof Error ? error.message : "Error desconocido");
     const unavailable = databaseUnavailable(error);

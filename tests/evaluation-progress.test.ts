@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { areTestsCompatible, calculateBMProgress, calculateGlobalEvaluationStats, calculateSymmetry, compareBodyIssues, compareEvaluations, compareMetric, compareTests } from "../lib/evaluation-progress.ts";
 import { deduplicateEvaluations, toStudentEvaluation } from "../lib/evaluation-read-model.ts";
-import { filterEvaluationStudents, type EvaluationStudentResult } from "../lib/evaluation-student-filter.ts";
+import { filterEvaluationStudents, isStudentVisibleInEvaluations, visibleStudentsInEvaluations, type EvaluationStudentResult } from "../lib/evaluation-student-filter.ts";
 import type { NormalizedEvaluation } from "../types/evaluation-read-model.ts";
 import type { EvaluationTestValue } from "../types/evaluation-workflow.ts";
 
@@ -30,4 +31,48 @@ test("búsqueda y filtros de evaluaciones se combinan", () => {
   assert.deepEqual(filterEvaluationStudents(rows, { query: "angela", service: "ALL", status: "ALL", validity: "ALL" }).map((item) => item.id), ["s1"]);
   assert.deepEqual(filterEvaluationStudents(rows, { query: "", service: "MIXED", status: "COMPLETED", validity: "DUE_SOON" }).map((item) => item.id), ["s2"]);
   assert.deepEqual(filterEvaluationStudents(rows, { query: "car", service: "PERSONALIZED", status: "NONE", validity: "ALL" }).map((item) => item.id), ["s3"]);
+});
+
+test("la visibilidad separa servicio actual de historial de evaluaciones", () => {
+  const personalized = { id: "personalized", serviceType: "PERSONALIZED" as const };
+  const mixed = { id: "mixed", serviceType: "MIXED" as const };
+  const classes = { id: "classes", serviceType: "CLASSES" as const };
+  assert.equal(isStudentVisibleInEvaluations(personalized, []), true);
+  assert.equal(isStudentVisibleInEvaluations(mixed, []), true);
+  assert.equal(isStudentVisibleInEvaluations(classes, []), false);
+  assert.equal(isStudentVisibleInEvaluations(classes, [evaluation({ id: "physical", studentId: "classes", source: "PHYSICAL" })]), true);
+});
+
+test("CLASSES conserva visibilidad con evaluación legacy o de Fase 1", () => {
+  const classes = { id: "classes", serviceType: "CLASSES" as const };
+  const legacy = evaluation({ id: "legacy", studentId: "classes", source: "LEGACY_JSON" });
+  const phaseOne = evaluation({ id: "phase-one", studentId: "classes", source: "PHYSICAL" });
+  assert.equal(isStudentVisibleInEvaluations(classes, [legacy]), true);
+  assert.equal(isStudentVisibleInEvaluations(classes, [phaseOne]), true);
+});
+
+test("un cambio PERSONALIZED a CLASSES no oculta el historial ni duplica al alumno", () => {
+  const students = [{ id: "changed", firstName: "Claudia", lastName: "Reinhardt", birthDate: "", goal: "", serviceType: "CLASSES" as const }];
+  const current = evaluation({ id: "current", studentId: "changed", date: "2026-08-05", source: "PHYSICAL" });
+  const legacyDuplicate = evaluation({ id: "legacy", studentId: "changed", date: "2026-08-05", source: "LEGACY_JSON" });
+  const deduplicated = deduplicateEvaluations([current, legacyDuplicate]);
+  assert.equal(deduplicated.length, 1);
+  assert.deepEqual(visibleStudentsInEvaluations(students, deduplicated).map((student) => student.id), ["changed"]);
+});
+
+test("Servicio Clases y búsqueda sólo operan sobre CLASSES ya evaluados", () => {
+  const rows: EvaluationStudentResult[] = [
+    { id: "classes-evaluated", firstName: "Claudia", lastName: "Reinhardt", birthDate: "", goal: "", serviceType: "CLASSES", latestDate: "2026-08-05", latestStatus: "COMPLETED", validity: "CURRENT" },
+    { id: "personalized", firstName: "Claudio", lastName: "Paz", birthDate: "", goal: "", serviceType: "PERSONALIZED", latestDate: "", latestStatus: "", validity: "" },
+  ];
+  assert.deepEqual(filterEvaluationStudents(rows, { query: "", service: "CLASSES", status: "ALL", validity: "ALL" }).map((student) => student.id), ["classes-evaluated"]);
+  assert.deepEqual(filterEvaluationStudents(rows, { query: "Claudia", service: "ALL", status: "ALL", validity: "ALL" }).map((student) => student.id), ["classes-evaluated"]);
+});
+
+test("el endpoint aplica visibilidad después de normalizar y deduplicar fuentes", () => {
+  const endpoint = readFileSync(new URL("../app/api/admin/evaluaciones/progreso/route.ts", import.meta.url), "utf8");
+  assert.match(endpoint, /normalizePhysicalEvaluation/);
+  assert.match(endpoint, /normalizeLegacyEvaluationRecord/);
+  assert.match(endpoint, /deduplicateEvaluations/);
+  assert.match(endpoint, /visibleStudentsInEvaluations/);
 });
