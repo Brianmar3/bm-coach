@@ -18,8 +18,8 @@ test("el buscador de asignaciones filtra nombre, apellido y tildes con máximo o
   assert.equal(searchStudents(students, "angela", ["1"]).length, 0);
 });
 
-test("las asignaciones seleccionadas quedan visibles y la lista inicia cerrada", () => {
-  for (const text of ["Buscar alumno", "Escribí para buscar alumnos", "No se encontraron alumnos", "Alumnos seleccionados"]) assert.match(page, new RegExp(text));
+test("la selección de alumno empieza cerrada y se compacta al elegir", () => {
+  for (const text of ["Buscar alumno", "Escribí para buscar alumnos", "No se encontraron alumnos", "Alumno seleccionado", "Cambiar alumno"]) assert.match(page, new RegExp(text));
   assert.match(page, /searchStudents\(students, query, selectedIds\)/);
   assert.match(page, /min-w-0 overflow-hidden/);
 });

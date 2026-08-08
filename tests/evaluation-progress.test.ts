@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { areTestsCompatible, calculateBMProgress, calculateGlobalEvaluationStats, calculateSymmetry, compareBodyIssues, compareEvaluations, compareMetric, compareTests } from "../lib/evaluation-progress.ts";
 import { deduplicateEvaluations, toStudentEvaluation } from "../lib/evaluation-read-model.ts";
+import { filterEvaluationStudents, type EvaluationStudentResult } from "../lib/evaluation-student-filter.ts";
 import type { NormalizedEvaluation } from "../types/evaluation-read-model.ts";
 import type { EvaluationTestValue } from "../types/evaluation-workflow.ts";
 
@@ -19,3 +20,14 @@ test("el objetivo cambia de forma segura las medidas usadas", () => { const befo
 test("estadísticas globales cuentan elegibles, faltantes, reevaluaciones y deduplicados", () => { const students = [{ id: "s1", firstName: "Ana", lastName: "P", birthDate: "", goal: "", serviceType: "PERSONALIZED" as const }, { id: "s2", firstName: "Beto", lastName: "Q", birthDate: "", goal: "", serviceType: "MIXED" as const }, { id: "s3", firstName: "C", lastName: "R", birthDate: "", goal: "", serviceType: "CLASSES" as const }]; const records = [evaluation(), evaluation({ id: "e2", date: "2026-08-08", version: 2 }), evaluation({ id: "legacy", source: "LEGACY_JSON" })]; const deduped = deduplicateEvaluations(records); const stats = calculateGlobalEvaluationStats(students, deduped, "2026-08-08"); assert.equal(deduped.length, 2); assert.equal(stats.eligibleStudents, 2); assert.equal(stats.studentsWithEvaluation, 1); assert.equal(stats.studentsWithoutEvaluation, 1); assert.equal(stats.reassessmentsPerformed, 1); assert.ok(stats.attention.some((item) => item.reason === "NO_EVALUATION")); });
 test("la comparación no usa tests incompatibles en el índice", () => { const before = evaluation({ testResults: [testValue()] }); const after = evaluation({ id: "e2", testResults: [testValue({ protocol: "otro", numericValue: 100 })] }); const comparison = compareEvaluations(before, after, "2026-08-08"); assert.equal(comparison.tests[0].compatible, false); assert.equal(comparison.progress.components.some((item) => item.key === "PERFORMANCE"), false); });
 test("la proyección del portal elimina notas internas", () => { const publicEvaluation = toStudentEvaluation(evaluation({ testResults: [testValue()], bodyIssues: [{ bodyZone: "Rodilla", side: "RIGHT", intensity: 3, hasPain: true, status: "ACTIVE", studentDescription: "del alumno", trainerObservation: "privada", approximateDate: "" }] })); assert.equal("planningNotes" in publicEvaluation, false); assert.equal("finalLimitations" in publicEvaluation, false); assert.equal(publicEvaluation.testResults[0].observations, ""); assert.equal(publicEvaluation.bodyIssues[0].trainerObservation, ""); });
+
+test("búsqueda y filtros de evaluaciones se combinan", () => {
+  const rows: EvaluationStudentResult[] = [
+    { id: "s1", firstName: "Ángela", lastName: "Pérez", birthDate: "", goal: "", serviceType: "PERSONALIZED", latestDate: "2026-08-08", latestStatus: "IN_PROGRESS", validity: "CURRENT" },
+    { id: "s2", firstName: "Bruno", lastName: "López", birthDate: "", goal: "", serviceType: "MIXED", latestDate: "2026-06-01", latestStatus: "COMPLETED", validity: "DUE_SOON" },
+    { id: "s3", firstName: "Carla", lastName: "Suárez", birthDate: "", goal: "", serviceType: "PERSONALIZED", latestDate: "", latestStatus: "", validity: "" },
+  ];
+  assert.deepEqual(filterEvaluationStudents(rows, { query: "angela", service: "ALL", status: "ALL", validity: "ALL" }).map((item) => item.id), ["s1"]);
+  assert.deepEqual(filterEvaluationStudents(rows, { query: "", service: "MIXED", status: "COMPLETED", validity: "DUE_SOON" }).map((item) => item.id), ["s2"]);
+  assert.deepEqual(filterEvaluationStudents(rows, { query: "car", service: "PERSONALIZED", status: "NONE", validity: "ALL" }).map((item) => item.id), ["s3"]);
+});

@@ -67,14 +67,31 @@ test("Rutinas integra evaluación sólo para servicios elegibles y simplifica el
   assert.match(page, /Activar rutina/);
 });
 
-test("el creador muestra evaluación e IA compactas sin bloquear por tests parciales", () => {
+test("el creador exige alumno, conserva evaluación y oculta la interfaz de IA", () => {
   const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
   const panel = readFileSync(new URL("../componentes/routine-evaluation-panel.tsx", import.meta.url), "utf8");
-  const ai = readFileSync(new URL("../componentes/routine-ai-proposal.tsx", import.meta.url), "utf8");
   const modernEditor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("function BlockEditor"));
   assert.match(panel, /slice\(0, 2\)/); assert.match(panel, /p-3/); assert.match(panel, /evaluation\.primaryGoal/);
-  assert.match(ai, /Algunos tests no fueron realizados\. La propuesta utilizará la información disponible\./);
-  assert.match(ai, /requestInFlight\.current/); assert.match(ai, /objective, level, constraints/);
+  assert.match(page, /¿Para quién es esta rutina\?/); assert.match(modernEditor, /form\.studentIds\.length === 0/);
+  assert.match(page, /Alumno seleccionado/); assert.match(page, /Cambiar alumno/);
+  assert.doesNotMatch(page, /RoutineAIProposalPanel|applyAIProposal|\/api\/admin\/rutinas\/propuesta/);
   assert.match(modernEditor, /min-h-14 w-28/); assert.match(modernEditor, /sm:w-32/); assert.match(modernEditor, /border-zinc-700 bg-zinc-800/);
   assert.doesNotMatch(page, /Crear borrador y revisar/);
+});
+
+test("el portal usa selector de métrica y tres tarjetas superiores", () => {
+  const insights = readFileSync(new URL("../componentes/evaluation-insights.tsx", import.meta.url), "utf8");
+  const portal = readFileSync(new URL("../componentes/portal-evaluations-dashboard.tsx", import.meta.url), "utf8");
+  assert.match(insights, /aria-label="Métrica de evolución"/); assert.match(insights, /onChange=\{\(event\) => setMetricKey/);
+  assert.doesNotMatch(insights, /metrics\.map\(\(item\) => <button/);
+  const cards = portal.slice(portal.indexOf('className="grid grid-cols-3'), portal.indexOf("<details open"));
+  assert.match(cards, /Peso/); assert.match(cards, /IMC/); assert.match(cards, /Grasa corporal/); assert.doesNotMatch(cards, /Cintura/);
+});
+
+test("Evaluaciones del entrenador no contiene Vista Global y presenta buscador, filtros y lista", () => {
+  const dashboard = readFileSync(new URL("../componentes/professional-evaluations-dashboard.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(dashboard, /EvaluationGlobalDashboard|Vista global|Seguimiento de evaluaciones/);
+  assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /Estado evaluación/); assert.match(dashboard, /Vigencia/);
+  assert.match(dashboard, /Resultados de alumnos/); assert.match(dashboard, /Ver evaluación/);
+  assert.match(dashboard, /Seleccioná un alumno para abrir su dashboard profesional/);
 });
