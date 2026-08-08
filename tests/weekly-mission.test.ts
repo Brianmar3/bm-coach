@@ -77,6 +77,28 @@ test("sin horarios asignados no existe target ni misión posible", () => {
   assert.deepEqual(scheduled({ assignments: [] }), []);
 });
 
+test("la oferta general no contamina el target: cinco turnos disponibles y dos asignados dan target 2", () => {
+  const assigned = assignments.slice(0, 2);
+  const fiveGeneralOccurrences = Array.from({ length: 5 }, (_, index) => ({ id: `general-${index + 1}` }));
+  assert.equal(fiveGeneralOccurrences.length, 5);
+  assert.equal(scheduled({ assignments: assigned }).length, 2);
+  assert.equal(scheduled({ assignments: [] }).length, 0);
+});
+
+test("la misión usa asignaciones persistidas y no inventa clases para completar la frecuencia del plan", () => {
+  const onlyTwoRealAssignments = assignments.slice(0, 2);
+  assert.equal(scheduled({ assignments: onlyTwoRealAssignments }).length, 2);
+  const source = readFileSync(new URL("../lib/weekly-mission-data.ts", import.meta.url), "utf8");
+  assert.match(source, /weeklyClasses: \{ include: \{ schedule: true \} \}/);
+  assert.doesNotMatch(source, /weeklyFrequency|planDays|frequencyDays/);
+});
+
+test("los horarios legacy no se infieren: sólo una WeeklyClassAssignment vigente crea target", () => {
+  const source = readFileSync(new URL("../lib/weekly-mission-data.ts", import.meta.url), "utf8");
+  assert.match(source, /studentRecord\.weeklyClasses\.map/);
+  assert.doesNotMatch(source, /primaryScheduleId|flexibleSchedule/);
+});
+
 test("un alumno inactivo no acumula clases programadas", () => {
   assert.deepEqual(scheduled({ statusEvents: [{ type: "DEACTIVATION", date: "2026-08-03" }] }), []);
 });

@@ -198,7 +198,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
 
   if (compact)
     return (
-      <section className="h-full overflow-hidden rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_34%),linear-gradient(145deg,#181818,#090909)] p-3.5 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-4">
+      <section className="h-full overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#090909)] p-3.5 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-4">
         <div className="flex items-start justify-between gap-3 border-b border-white/[.06] pb-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">
@@ -478,15 +478,15 @@ function ResponseButtons({
         type="button"
         disabled={saving}
         onClick={() => respond(item, "GOING")}
-        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} font-black transition disabled:opacity-50 ${item.response === "GOING" ? "bg-emerald-400 text-zinc-950" : "bg-yellow-400 text-zinc-950 hover:bg-yellow-300"}`}
+        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-black transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/45 bg-yellow-400/[.08] text-yellow-200" : "border-zinc-700 bg-zinc-950/70 text-zinc-200 hover:border-yellow-400/25 hover:bg-white/[.03]"}`}
       >
-        Asistiré
+        {item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}
       </button>
       <button
         type="button"
         disabled={saving}
         onClick={() => respond(item, "NOT_GOING")}
-        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-red-300/50 bg-red-400/10 text-red-200" : "border-zinc-700 text-zinc-300 hover:border-zinc-500"}`}
+        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-zinc-500 bg-white/[.04] text-zinc-100" : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-zinc-500"}`}
       >
         No asistiré
       </button>

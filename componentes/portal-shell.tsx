@@ -163,7 +163,7 @@ export function PortalShell({
       <nav
         aria-label="Navegación móvil del portal"
         style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-5 right-5 z-40 mx-auto grid h-[76px] max-w-[30rem] rounded-[30px] border border-yellow-400/20 bg-black/80 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),0_3px_16px_rgba(250,204,21,.07),inset_0_-1px_0_rgba(250,204,21,.1)] backdrop-blur-xl md:hidden"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-5 right-5 z-40 mx-auto grid h-[76px] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden"
       >
         {links.map(([title, href, icon]) => {
           const active = isLinkActive(href);
@@ -174,7 +174,7 @@ export function PortalShell({
               aria-current={active ? "page" : undefined}
               className={`group relative mx-0.5 flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-full border text-[10px] font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-1 focus-visible:ring-offset-black ${
                 active
-                  ? "border-yellow-400/30 bg-[radial-gradient(circle_at_50%_115%,rgba(250,204,21,.13),transparent_55%),linear-gradient(180deg,rgba(39,39,42,.94),rgba(10,10,10,.96))] text-yellow-300 shadow-[0_5px_18px_rgba(250,204,21,.08),inset_0_1px_0_rgba(255,255,255,.035)]"
+                  ? "border-yellow-400/20 bg-white/[.035] text-yellow-300 shadow-[inset_0_1px_0_rgba(255,255,255,.035)]"
                   : "border-transparent bg-transparent text-zinc-500 hover:text-zinc-200"
               }`}
             >
@@ -182,7 +182,7 @@ export function PortalShell({
                 aria-hidden="true"
                 className={`text-[17px] leading-none transition-[color,filter,transform] duration-200 ${
                   active
-                    ? "scale-105 text-yellow-300 drop-shadow-[0_0_6px_rgba(250,204,21,.28)]"
+                    ? "scale-105 text-yellow-300"
                     : "text-zinc-500 group-hover:text-zinc-300"
                 }`}
               >
@@ -192,7 +192,7 @@ export function PortalShell({
               {active && (
                 <span
                   aria-hidden="true"
-                  className="absolute bottom-1.5 h-0.5 w-4 rounded-full bg-yellow-300 shadow-[0_0_6px_rgba(250,204,21,.45)]"
+                  className="absolute bottom-1.5 h-0.5 w-4 rounded-full bg-yellow-300"
                 />
               )}
             </Link>

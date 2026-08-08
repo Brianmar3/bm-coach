@@ -189,6 +189,20 @@ test("un día con siete clases conserva el total bruto y calcula totales visible
   assert.equal(adultAgenda.summary.dateLabel, "Lunes, 3 de agosto");
 });
 
+test("cinco clases disponibles describen oferta general y no asignaciones del alumno", () => {
+  const general = Array.from({ length: 5 }, (_, index) => ({
+    ...occurrence(`general-${index}`, "2026-08-10", `${7 + index}:00`, `${8 + index}:00`),
+    category: "Entrenamiento funcional",
+  }));
+  const agenda = selectPortalClassAgenda(general, "Adulto", new Date("2026-08-08T12:00:00.000Z"));
+  const studentAssignments = selectActivePortalSchedules([
+    assignment("assigned-thursday", "THURSDAY", "07:00"),
+    assignment("assigned-friday", "FRIDAY", "07:00"),
+  ]);
+  assert.equal(agenda.summary.total, 5);
+  assert.equal(studentAssignments.length, 2);
+});
+
 test("el resumen cambia a próximo día sin llamarlo mañana", () => {
   const agenda = selectPortalClassAgenda([
     { ...occurrence("monday", "2026-08-10", "07:00", "08:00"), category: "GAP" },
@@ -320,6 +334,25 @@ test("confirmar asistencia conserva endpoint, payload y protección de doble toq
   assert.match(source, /responseInFlight\.current = true/);
   assert.match(source, /responseInFlight\.current = false/);
   assert.equal(source.match(/disabled=\{saving\}/g)?.length, 2);
+});
+
+test("Inicio conserva el dorado como acento sin botones ni superficies dominantes", () => {
+  const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  const quickLog = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
+  const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
+  const responseButtons = classes.slice(classes.indexOf("function ResponseButtons"));
+  const floatingButton = quickLog.slice(quickLog.indexOf("export function QuickNoteButton"), quickLog.indexOf("function GuidedQuickLogForm"));
+  assert.doesNotMatch(responseButtons, /"bg-yellow-400 text-zinc-950 hover:bg-yellow-300"/);
+  assert.match(responseButtons, /✓ Asistiré/);
+  assert.match(responseButtons, /border-zinc-700 bg-zinc-950/);
+  assert.doesNotMatch(floatingButton, /rounded-full bg-yellow-400/);
+  assert.match(floatingButton, /border-yellow-400\/35 bg-zinc-950/);
+  assert.match(shell, /absolute bottom-1\.5 h-0\.5 w-4 rounded-full bg-yellow-300/);
+  assert.doesNotMatch(shell, /drop-shadow-\[0_0_6px_rgba\(250,204,21/);
+  assert.match(home, /role="progressbar"/);
+  assert.match(home, /from-amber-500 to-yellow-300/);
+  assert.match(home, /MonthlyAttendanceIndicator/);
 });
 
 test("la confirmación del servidor admite clases generales elegibles y conserva cupo atómico", () => {
