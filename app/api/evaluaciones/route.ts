@@ -39,7 +39,11 @@ export async function POST(request: Request) {
         select: { id: true },
       });
       if (duplicate) throw new Error("DUPLICATE_EVALUATION");
-      return transaction.physicalEvaluation.create({ data: evaluationData(input), include: { student: true } });
+      const latest = await transaction.physicalEvaluation.aggregate({ where: { studentId: input.studentId }, _max: { version: true } });
+      return transaction.physicalEvaluation.create({
+        data: { ...evaluationData(input), version: (latest._max.version ?? 0) + 1, status: "COMPLETED", completionPercentage: 100, completedAt: new Date() },
+        include: { student: true },
+      });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     const claimedAchievements = await notifyNewAchievements(record.studentId);
     const pointResult = await reconcileStudentPointsAfterMutation(record.studentId);

@@ -1036,34 +1036,132 @@ model EvaluationRecord {
 }
 
 model PhysicalEvaluation {
-  id                String            @id @default(cuid())
-  studentId         String
-  date              DateTime
-  weight            Decimal?          @db.Decimal(7, 2)
-  height            Decimal?          @db.Decimal(5, 2)
-  bodyFatPercentage Decimal?          @db.Decimal(5, 2)
-  muscleMass        Decimal?          @db.Decimal(7, 2)
-  visceralFat       Decimal?          @db.Decimal(5, 2)
-  waist             Decimal?          @db.Decimal(7, 2)
-  hip               Decimal?          @db.Decimal(7, 2)
-  chest             Decimal?          @db.Decimal(7, 2)
-  rightArm          Decimal?          @db.Decimal(7, 2)
-  leftArm           Decimal?          @db.Decimal(7, 2)
-  rightThigh        Decimal?          @db.Decimal(7, 2)
-  leftThigh         Decimal?          @db.Decimal(7, 2)
-  rightCalf         Decimal?          @db.Decimal(7, 2)
-  leftCalf          Decimal?          @db.Decimal(7, 2)
-  notes             String            @default("")
-  frontPhotoUrl     String?
-  sidePhotoUrl      String?
-  backPhotoUrl      String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  student           StudentRecord     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  followUpComments  FollowUpComment[]
+  id                   String                  @id @default(cuid())
+  studentId            String
+  date                 DateTime
+  weight               Decimal?                @db.Decimal(7, 2)
+  height               Decimal?                @db.Decimal(5, 2)
+  bodyFatPercentage    Decimal?                @db.Decimal(5, 2)
+  muscleMass           Decimal?                @db.Decimal(7, 2)
+  visceralFat          Decimal?                @db.Decimal(5, 2)
+  waist                Decimal?                @db.Decimal(7, 2)
+  hip                  Decimal?                @db.Decimal(7, 2)
+  chest                Decimal?                @db.Decimal(7, 2)
+  rightArm             Decimal?                @db.Decimal(7, 2)
+  leftArm              Decimal?                @db.Decimal(7, 2)
+  rightThigh           Decimal?                @db.Decimal(7, 2)
+  leftThigh            Decimal?                @db.Decimal(7, 2)
+  rightCalf            Decimal?                @db.Decimal(7, 2)
+  leftCalf             Decimal?                @db.Decimal(7, 2)
+  notes                String                  @default("")
+  frontPhotoUrl        String?
+  sidePhotoUrl         String?
+  backPhotoUrl         String?
+  version              Int                     @default(1)
+  status               EvaluationStatus        @default(COMPLETED)
+  currentStep          Int                     @default(1)
+  completionPercentage Int                     @default(100)
+  creationKey          String?                 @unique
+  trainerName          String                  @default("Entrenador")
+  primaryGoal          String                  @default("")
+  secondaryGoals       Json                    @default("[]")
+  experienceLevel      String                  @default("")
+  weeklyAvailability   String                  @default("")
+  generalData          Json                    @default("{}")
+  habits               Json                    @default("{}")
+  trainingObservations Json                    @default("{}")
+  trainerNotes         String                  @default("")
+  finalStrengths       String                  @default("")
+  finalPriorities      String                  @default("")
+  finalLimitations     String                  @default("")
+  planningNotes        String                  @default("")
+  finalComment         String                  @default("")
+  reassessmentDate     DateTime?               @db.Date
+  completedAt          DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  student              StudentRecord           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  followUpComments     FollowUpComment[]
+  measurements         EvaluationMeasurement[]
+  bodyIssues           EvaluationBodyIssue[]
+  testResults          EvaluationTestResult[]
 
+  @@unique([studentId, version])
   @@index([studentId, date])
+  @@index([studentId, status, date])
+  @@index([status])
   @@map("physical_evaluations")
+}
+
+enum EvaluationStatus {
+  IN_PROGRESS
+  COMPLETED
+  REASSESSMENT_RECOMMENDED
+}
+
+model EvaluationMeasurement {
+  id              String             @id @default(cuid())
+  evaluationId    String
+  measurementType String
+  side            String?
+  value           Decimal            @db.Decimal(8, 2)
+  unit            String
+  notes           String             @default("")
+  createdAt       DateTime           @default(now())
+  evaluation      PhysicalEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, measurementType, side])
+  @@index([evaluationId])
+  @@map("evaluation_measurements")
+}
+
+model EvaluationBodyIssue {
+  id                 String             @id @default(cuid())
+  evaluationId       String
+  bodyZone           String
+  side               String
+  intensity          Int?
+  hasPain            Boolean            @default(false)
+  status             String             @default("NOT_SPECIFIED")
+  studentDescription String             @default("")
+  trainerObservation String             @default("")
+  approximateDate    String             @default("")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  evaluation         PhysicalEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId])
+  @@map("evaluation_body_issues")
+}
+
+model EvaluationTestResult {
+  id                 String             @id @default(cuid())
+  evaluationId       String
+  testKey            String
+  category           String
+  status             String             @default("NOT_PERFORMED")
+  numericValue       Decimal?           @db.Decimal(10, 2)
+  unit               String             @default("")
+  rightValue         Decimal?           @db.Decimal(10, 2)
+  leftValue          Decimal?           @db.Decimal(10, 2)
+  rightUnit          String             @default("")
+  leftUnit           String             @default("")
+  pain               Boolean            @default(false)
+  rightPain          Boolean            @default(false)
+  leftPain           Boolean            @default(false)
+  protocol           String             @default("")
+  variation          String             @default("")
+  observations       String             @default("")
+  compensations      String             @default("")
+  notPerformedReason String             @default("")
+  rawResult          Json               @default("{}")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  evaluation         PhysicalEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, testKey, category])
+  @@index([evaluationId, category])
+  @@map("evaluation_test_results")
 }
 
 enum WorkoutSessionStatus {

@@ -264,7 +264,18 @@ function AchievementCard({ achievement, compact = false }: { achievement: Portal
 }
 
 function ComparativeEvaluationsView({ data }: { data: PortalData }) {
-  return <EvaluationsView data={data} />;
+  return <CompactEvaluationsView data={data} />;
+}
+
+function CompactEvaluationsView({ data }: { data: PortalData }) {
+  const latest = data.evaluations[0];
+  if (!latest) return <PageHeader title="Evaluaciones" subtitle="Tu seguimiento"><Notice>Todavía no hay evaluaciones completadas.</Notice></PageHeader>;
+  const progress = Math.min(100, Math.max(0, latest.completionPercentage ?? 100));
+  const state = latest.status === "REASSESSMENT_RECOMMENDED" ? "Reevaluación recomendada" : "Completada";
+  return <PageHeader title="Evaluaciones" subtitle="Tu información básica de seguimiento">
+    <section className="rounded-2xl border border-yellow-400/15 bg-[linear-gradient(145deg,#181818,#090909)] p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)]"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Última evaluación</p><p className="mt-2 text-lg font-black">{date(latest.date)}</p><p className="mt-1 text-xs text-zinc-500">Versión {latest.version ?? data.evaluations.length} · {state}</p></div><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-sm font-black text-emerald-300">{progress}%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800" aria-label={`Progreso ${progress}%`}><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-400" style={{ width: `${progress}%` }} /></div><div className="mt-4 grid grid-cols-2 gap-2"><SmallMetric title="Estado" value={state} /><SmallMetric title="Próxima evaluación" value={latest.reassessmentDate ? date(latest.reassessmentDate) : "—"} /></div></section>
+    <details className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-bold text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400"><span>Ver historial</span><span aria-hidden="true">›</span></summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{data.evaluations.map((item) => <details key={item.id} className="rounded-lg bg-zinc-950 p-3"><summary className="cursor-pointer list-none"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Versión {item.version ?? "—"} · {date(item.date)}</p><p className="mt-1 text-xs text-zinc-500">{item.status === "REASSESSMENT_RECOMMENDED" ? "Reevaluación recomendada" : "Completada"} · {item.completionPercentage ?? 100}%</p></div><span className="text-xs font-bold text-yellow-400">Ver</span></div></summary><div className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3 sm:grid-cols-4">{evaluationMeasurements(item).map((measurement) => <SmallMetric key={measurement.key} title={measurement.label} value={measurement.display} />)}</div></details>)}</div></details>
+  </PageHeader>;
 }
 
 function QuotaSummaryCard({ data }: { data: PortalData }) {
@@ -302,6 +313,8 @@ function evaluationMeasurements(evaluation: PhysicalEvaluation) {
   }]);
 }
 
+// Se conserva temporalmente para compatibilidad visual mientras la Parte 2 define comparaciones públicas.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function EvaluationsView({ data }: { data: PortalData }) {
   const latest = data.evaluations[0];
   const previous = data.evaluations[1];

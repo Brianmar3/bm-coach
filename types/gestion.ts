@@ -246,6 +246,13 @@ export type PhysicalEvaluation = {
   sidePhotoUrl: string;
   backPhotoUrl: string;
   createdAt: string;
+  version?: number;
+  status?: "IN_PROGRESS" | "COMPLETED" | "REASSESSMENT_RECOMMENDED";
+  completionPercentage?: number;
+  primaryGoal?: string;
+  weeklyAvailability?: string;
+  reassessmentDate?: string;
+  ageSnapshot?: number | null;
 };
 
 export type TrainingRoutineLevel = "principiante" | "intermedio" | "avanzado";

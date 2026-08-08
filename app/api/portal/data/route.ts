@@ -31,6 +31,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   const activityStart = dateKeyToDatabase(activityStartKey);
   const meaningfulEvaluation = {
     studentId,
+    status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] },
     OR: [
       { weight: { not: null } }, { height: { not: null } }, { bodyFatPercentage: { not: null } },
       { muscleMass: { not: null } }, { waist: { not: null } }, { hip: { not: null } },
@@ -125,7 +126,7 @@ export async function GET(request: Request) {
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [], points: { total: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
-      prisma.physicalEvaluation.findMany({ where: { studentId }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
+      prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
       prisma.studentPayment.findMany({ where: { studentId, status: "PAGADO" }, include: { student: true }, orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? 50 : section === "inicio" ? 1 : 0 }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
@@ -154,7 +155,7 @@ export async function GET(request: Request) {
     const data: PortalData = {
       profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: student.profileImageUrl ?? "" },
       routine: privateRoutine,
-      evaluations: evaluations.map(serializeEvaluation),
+      evaluations: evaluations.map((evaluation) => ({ ...serializeEvaluation(evaluation), notes: "", frontPhotoUrl: "", sidePhotoUrl: "", backPhotoUrl: "" })),
       payments: payments.map(serializePayment),
       paymentAccount: portalPaymentAccount(student, payments, todayKey),
       paymentMethods: settings?.paymentMethods?.filter((method) => method.trim().length > 0) ?? [],

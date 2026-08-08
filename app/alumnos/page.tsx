@@ -7,6 +7,7 @@ import { StudentAccessControls } from "@/componentes/student-access-controls";
 import { StudentQuickPanels } from "@/componentes/student-quick-panels";
 import { AdminQuickLogSummary } from "@/componentes/admin-quick-log-summary";
 import { AdminNutritionSummary } from "@/componentes/admin-nutrition-summary";
+import { StudentEvaluations } from "@/componentes/student-evaluations";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
 import { buildStudentEnrollmentPayload, canonicalPlanName, normalizePlanName, resolveStudentPlan } from "@/lib/coach-plans";
 import { STUDENT_TYPES } from "@/types/gestion";
@@ -360,6 +361,7 @@ function StudentDetail({ item, focus, close, edit }: {
                 <Detail label="Horario principal" value={item.scheduleLabel ?? "Sin horario principal"} wide/>
             </dl>
             <p className="mt-5 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-300">{item.notes || "Sin observaciones."}</p>
+            {item.serviceType !== "CLASSES" && <StudentEvaluations student={item}/>}
             {focus?.section === "achievements" && <section id="student-section-achievements" className="mt-5 scroll-mt-24 rounded-xl border border-yellow-300/50 bg-yellow-400/10 p-4 shadow-[0_0_24px_rgba(250,204,21,.08)]"><p className="text-xs font-bold uppercase tracking-wide text-yellow-300">Logros</p><h3 className="mt-1 font-bold">Logro relacionado con la notificación</h3><p className="mt-1 text-sm text-zinc-300">La ficha corresponde a {item.firstName} {item.lastName}. {focus.entityId ? "El logro relacionado fue localizado desde su identificador histórico." : "La notificación no conserva un identificador de logro específico."}</p></section>}
             <div id="student-section-attendance"><StudentQuickPanels student={item} initialPanel={focus?.section === "attendance" ? "attendance" : null}/></div>
             <AdminQuickLogSummary studentId={item.id} focusSection={focus?.section === "records" || focus?.section === "routines" ? focus.section : null} focusEntityId={focus?.entityId ?? null}/>
@@ -367,7 +369,7 @@ function StudentDetail({ item, focus, close, edit }: {
             <StudentAccessControls studentId={item.id}/>
             <div className="mt-5 flex flex-wrap gap-3">
                 <button onClick={edit} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">Completar o editar ficha</button>
-                <Link href="/evaluaciones" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver evaluaciones</Link>
+                {item.serviceType !== "CLASSES" && <Link href="/evaluaciones" className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-yellow-400">Ver evaluaciones anteriores</Link>}
             </div>
         </section>
     </div>;

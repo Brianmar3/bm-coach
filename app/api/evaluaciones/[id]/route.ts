@@ -32,9 +32,10 @@ export async function PUT(request: Request, context: RouteContext<"/api/evaluaci
     const validationError = validateEvaluation(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
-    const existing = await prisma.physicalEvaluation.findUnique({ where: { id }, select: { studentId: true } });
+    const existing = await prisma.physicalEvaluation.findUnique({ where: { id }, select: { studentId: true, status: true } });
     if (!existing) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });
     if (existing.studentId !== input.studentId) return Response.json({ error: "No se puede cambiar el alumno de una evaluación existente." }, { status: 409 });
+    if (existing.status !== "IN_PROGRESS") return Response.json({ error: "Una evaluación completada no puede editarse. Creá una nueva versión." }, { status: 409 });
     const duplicate = await prisma.physicalEvaluation.findFirst({ where: { id: { not: id }, studentId: input.studentId, date: evaluationData(input).date }, select: { id: true } });
     if (duplicate) return Response.json({ error: "Ya existe otra evaluación para ese alumno en esa fecha." }, { status: 409 });
     const record = await prisma.physicalEvaluation.update({
@@ -67,8 +68,9 @@ export async function DELETE(request: Request, context: RouteContext<"/api/evalu
     const { id } = await context.params;
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
     if (!studentId) return Response.json({ error: "Falta identificar al alumno de la evaluación." }, { status: 400 });
-    const evaluation = await prisma.physicalEvaluation.findFirst({ where: { id, studentId }, select: { id: true } });
+    const evaluation = await prisma.physicalEvaluation.findFirst({ where: { id, studentId }, select: { id: true, status: true } });
     if (!evaluation) return Response.json({ error: "La evaluación no existe o no pertenece al alumno indicado." }, { status: 404 });
+    if (evaluation.status !== "IN_PROGRESS") return Response.json({ error: "Solo pueden eliminarse borradores en curso." }, { status: 409 });
     await prisma.physicalEvaluation.delete({ where: { id: evaluation.id } });
     await reconcileStudentPointsAfterMutation(studentId);
     return new Response(null, { status: 204 });

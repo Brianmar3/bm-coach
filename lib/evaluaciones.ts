@@ -123,6 +123,13 @@ export function serializeEvaluation(record: EvaluationWithStudent): PhysicalEval
     sidePhotoUrl: record.sidePhotoUrl ?? "",
     backPhotoUrl: record.backPhotoUrl ?? "",
     createdAt: record.createdAt.toISOString(),
+    version: record.version,
+    status: record.status,
+    completionPercentage: record.completionPercentage,
+    primaryGoal: record.primaryGoal,
+    weeklyAvailability: record.weeklyAvailability,
+    reassessmentDate: record.reassessmentDate?.toISOString().slice(0, 10) ?? "",
+    ageSnapshot: typeof (record.generalData as Prisma.JsonObject).ageSnapshot === "number" ? (record.generalData as Prisma.JsonObject).ageSnapshot as number : null,
   };
 }
 
