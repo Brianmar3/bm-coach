@@ -35,12 +35,11 @@ const editorActions = editor.slice(editor.lastIndexOf('<div className="mt-6 flex
 const activeActions = editorActions.slice(editorActions.indexOf("{updatingActiveRoutine ?"), editorActions.indexOf(": <>"));
 const draftActions = editorActions.slice(editorActions.indexOf(": <>"));
 
-test("la tarjeta usa una fuente única y muestra cuatro métricas en dos columnas", () => {
-  assert.match(page, /import \{ routineSeriesMetrics \}/);
-  assert.match(card, /const metrics = routineSeriesMetrics\(routine\)/);
-  assert.match(card, /grid grid-cols-2 gap-3/);
-  assert.match(card, /Series totales/);
-  assert.match(card, /metrics\.totalSeries/);
+test("la tarjeta principal es compacta y delega las métricas a Ver contenido", () => {
+  assert.doesNotMatch(card, /routineSeriesMetrics|Series totales|Días con ejercicios/);
+  assert.match(card, /routine\.name/);
+  assert.match(card, /routine\.students/);
+  assert.match(card, /Ver contenido/);
 });
 
 test("la tarjeta principal ya no ofrece historial y mantiene acciones importantes", () => {
