@@ -9,7 +9,11 @@ type ReadEvaluation = NormalizedEvaluation | StudentEvaluation;
 
 const metrics: Array<{ key: EvaluationMetricKey; label: string; unit: string }> = [
   { key: "weight", label: "Peso", unit: "kg" }, { key: "waist", label: "Cintura", unit: "cm" },
-  { key: "hip", label: "Cadera", unit: "cm" }, { key: "bodyFatPercentage", label: "Grasa corporal", unit: "%" },
+  { key: "hip", label: "Cadera", unit: "cm" }, { key: "chest", label: "Pecho", unit: "cm" },
+  { key: "bodyFatPercentage", label: "Grasa corporal", unit: "%" },
+  { key: "rightArm", label: "Brazo D", unit: "cm" }, { key: "leftArm", label: "Brazo I", unit: "cm" },
+  { key: "rightThigh", label: "Muslo D", unit: "cm" }, { key: "leftThigh", label: "Muslo I", unit: "cm" },
+  { key: "rightCalf", label: "Pantorrilla D", unit: "cm" }, { key: "leftCalf", label: "Pantorrilla I", unit: "cm" },
 ];
 
 const format = (value: number | null, unit = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${unit ? ` ${unit}` : ""}`;
@@ -21,9 +25,12 @@ export function EvaluationLineChart({ evaluations }: { evaluations: ReadEvaluati
   const points = evaluations.flatMap((item) => typeof item[metricKey] === "number" ? [{ date: item.date, value: item[metricKey] as number }] : []).sort((a, b) => a.date.localeCompare(b.date));
   const min = Math.min(...points.map((item) => item.value)); const max = Math.max(...points.map((item) => item.value));
   const coords = points.map((item, index) => ({ ...item, x: points.length === 1 ? 50 : 8 + index * 84 / (points.length - 1), y: max === min ? 50 : 85 - (item.value - min) * 70 / (max - min) }));
+  const firstChange = points.length > 1 ? points.at(-1)!.value - points[0].value : null;
+  const previousChange = points.length > 1 ? points.at(-1)!.value - points.at(-2)!.value : null;
+  const signed = (change: number | null) => change === null ? "—" : `${change > 0 ? "+" : ""}${format(Math.round(change * 10) / 10, definition.unit)}`;
   return <section>
     <div className="flex flex-wrap gap-2">{metrics.map((item) => <button key={item.key} type="button" onClick={() => setMetricKey(item.key)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${metricKey === item.key ? "bg-yellow-400 text-black" : "bg-zinc-800 text-zinc-300"}`}>{item.label}</button>)}</div>
-    {points.length < 2 ? <p className="mt-5 rounded-xl border border-dashed border-zinc-700 p-5 text-sm text-zinc-500">Aún se necesita una segunda evaluación con {definition.label.toLowerCase()} para mostrar evolución.</p> : <div className="mt-4 overflow-hidden rounded-xl border border-zinc-800 bg-black/35 p-3"><svg viewBox="0 0 100 100" role="img" aria-label={`Evolución de ${definition.label}`} className="h-52 w-full overflow-visible"><path d="M8 85H92M8 15V85" stroke="#3f3f46" strokeWidth=".7"/><polyline points={coords.map((item) => `${item.x},${item.y}`).join(" ")} fill="none" stroke="#facc15" strokeWidth="2" vectorEffect="non-scaling-stroke"/>{coords.map((item) => <g key={`${item.date}-${item.value}`}><circle cx={item.x} cy={item.y} r="2.3" fill="#facc15"/><text x={item.x} y={item.y - 5} textAnchor="middle" fill="#fafafa" fontSize="4">{format(item.value, definition.unit)}</text><text x={item.x} y="94" textAnchor="middle" fill="#71717a" fontSize="3.4">{showDate(item.date)}</text></g>)}</svg></div>}
+    {points.length < 2 ? <p className="mt-5 rounded-xl border border-dashed border-zinc-700 p-5 text-sm text-zinc-500">Aún se necesita una segunda evaluación con {definition.label.toLowerCase()} para mostrar evolución.</p> : <><div className="mt-4 grid grid-cols-2 gap-2"><p className="rounded-lg bg-black/35 p-3 text-xs text-zinc-400">Desde la primera <strong className="mt-1 block text-base text-white">{signed(firstChange)}</strong></p><p className="rounded-lg bg-black/35 p-3 text-xs text-zinc-400">Desde la anterior <strong className="mt-1 block text-base text-white">{signed(previousChange)}</strong></p></div><div className="mt-3 overflow-hidden rounded-xl border border-zinc-800 bg-black/35 p-3"><svg viewBox="0 0 100 100" role="img" aria-label={`Evolución de ${definition.label}`} className="h-52 w-full overflow-visible"><path d="M8 85H92M8 15V85" stroke="#3f3f46" strokeWidth=".7"/><polyline points={coords.map((item) => `${item.x},${item.y}`).join(" ")} fill="none" stroke="#facc15" strokeWidth="2" vectorEffect="non-scaling-stroke"/>{coords.map((item) => <g key={`${item.date}-${item.value}`}><title>{`${showDate(item.date)}: ${format(item.value, definition.unit)}`}</title><circle cx={item.x} cy={item.y} r="2.5" fill="#facc15" stroke="#09090b" strokeWidth="1"/><text x={item.x} y={item.y - 5} textAnchor="middle" fill="#fafafa" fontSize="4">{format(item.value, definition.unit)}</text><text x={item.x} y="94" textAnchor="middle" fill="#a1a1aa" fontSize="3.4">{showDate(item.date)}</text></g>)}</svg><p className="mt-1 text-center text-[10px] text-zinc-500">Pasá el cursor o tocá un punto para ver fecha y valor.</p></div></>}
   </section>;
 }
 
