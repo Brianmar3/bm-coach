@@ -1,0 +1,24 @@
+"use client";
+
+import { useState } from "react";
+import { EvaluationBodyMap, EvaluationLineChart, EvaluationStatusSummary, EvaluationTests } from "@/componentes/evaluation-insights";
+import type { StudentEvaluation } from "@/types/evaluation-read-model";
+
+const showDate = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("es-AR") : "—";
+const value = (number: number | null, unit = "") => number === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(number)}${unit ? ` ${unit}` : ""}`;
+
+export function PortalEvaluationsDashboard({ evaluations }: { evaluations: StudentEvaluation[] }) {
+  const [selectedId, setSelectedId] = useState("");
+  const current = evaluations.find((item) => item.id === selectedId) ?? evaluations[0]; const index = current ? evaluations.findIndex((item) => item.id === current.id) : -1; const previous = index >= 0 ? evaluations[index + 1] : undefined;
+  if (!current) return <p className="rounded-xl border border-dashed border-zinc-700 p-6 text-center text-zinc-500">Todavía no hay evaluaciones completadas.</p>;
+  return <div className="space-y-4">
+    <section className="rounded-2xl border border-yellow-400/15 bg-[linear-gradient(145deg,#181818,#090909)] p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Tu última evaluación</p><h2 className="mt-2 text-xl font-black">{showDate(current.date)}</h2><p className="mt-1 text-xs text-zinc-500">Versión {current.version} · {current.status === "REASSESSMENT_RECOMMENDED" ? "Reevaluación recomendada" : "Completada"}</p></div><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-sm font-black text-emerald-300">{current.completionPercentage}%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-gradient-to-r from-yellow-500 to-emerald-400" style={{ width: `${current.completionPercentage}%` }}/></div><p className="mt-3 text-xs text-zinc-500">Próxima evaluación: <strong className="text-zinc-300">{showDate(current.reassessmentDate)}</strong></p></section>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{[["Peso",value(current.weight,"kg")],["IMC",value(current.bmi)],["Grasa corporal",value(current.bodyFatPercentage,"%")],["Cintura",value(current.waist,"cm")]].map(([label, display]) => <article key={label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p><p className="mt-2 font-black">{display}</p></article>)}</div>
+    <details open className="rounded-xl border border-zinc-800 bg-zinc-900"><summary className="cursor-pointer list-none p-4 font-bold text-yellow-400">Tu evolución</summary><div className="border-t border-zinc-800 p-4"><EvaluationLineChart evaluations={evaluations}/></div></details>
+    <details className="rounded-xl border border-zinc-800 bg-zinc-900"><summary className="cursor-pointer list-none p-4 font-bold text-yellow-400">Mapa corporal</summary><div className="border-t border-zinc-800 p-4"><EvaluationBodyMap issues={current.bodyIssues}/></div></details>
+    <details className="rounded-xl border border-zinc-800 bg-zinc-900"><summary className="cursor-pointer list-none p-4 font-bold text-yellow-400">Movilidad y control</summary><div className="border-t border-zinc-800 p-4"><EvaluationTests tests={current.testResults} previousTests={previous?.testResults} category="MOBILITY"/></div></details>
+    <details className="rounded-xl border border-zinc-800 bg-zinc-900"><summary className="cursor-pointer list-none p-4 font-bold text-yellow-400">Tests físicos</summary><div className="border-t border-zinc-800 p-4"><EvaluationTests tests={current.testResults} previousTests={previous?.testResults} category="PHYSICAL"/></div></details>
+    <details className="rounded-xl border border-zinc-800 bg-zinc-900"><summary className="cursor-pointer list-none p-4 font-bold text-yellow-400">Resumen de resultados</summary><div className="border-t border-zinc-800 p-4"><EvaluationStatusSummary tests={current.testResults}/></div></details>
+    <section><h2 className="font-bold">Historial de evaluaciones</h2><div className="mt-3 space-y-2">{evaluations.map((item) => <button type="button" key={item.id} onClick={() => setSelectedId(item.id)} className={`flex w-full items-center justify-between rounded-xl border p-3 text-left ${current.id === item.id ? "border-yellow-400/40 bg-yellow-400/5" : "border-zinc-800 bg-zinc-900"}`}><span><strong className="block">Versión {item.version} · {showDate(item.date)}</strong><span className="mt-1 block text-xs text-zinc-500">{item.completionPercentage}% completado</span></span><span className="text-xs font-bold text-yellow-400">Ver</span></button>)}</div></section>
+  </div>;
+}

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { evaluationInclude, normalizePhysicalEvaluation } from "@/lib/evaluation-persistence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +16,9 @@ export async function GET(_request: Request, context: RouteContext<"/api/evaluac
   try {
     const { id } = await context.params;
     const studentId = new URL(_request.url).searchParams.get("studentId")?.trim();
-    const record = await prisma.physicalEvaluation.findFirst({ where: { id, ...(studentId ? { studentId } : {}) }, include: { student: true } });
+    const record = await prisma.physicalEvaluation.findFirst({ where: { id, ...(studentId ? { studentId } : {}) }, include: evaluationInclude });
     if (!record) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });
-    return Response.json(serializeEvaluation(record));
+    return Response.json(normalizePhysicalEvaluation(record));
   } catch (error) {
     console.error("Error al consultar evaluación física", error);
     const unavailable = databaseUnavailable(error);

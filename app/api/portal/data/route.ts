@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getPortalSession } from "@/lib/portal-auth";
 import { routineInclude, serializeRoutine } from "@/lib/rutinas";
-import { serializeEvaluation } from "@/lib/evaluaciones";
+import { evaluationInclude, normalizeLegacyEvaluationRecord, normalizePhysicalEvaluation } from "@/lib/evaluation-persistence";
+import { deduplicateEvaluations, toStudentEvaluation } from "@/lib/evaluation-read-model";
 import { serializeEvent } from "@/lib/eventos";
 import type { CoachSettings, Student } from "@/types/gestion";
 import type { PortalData } from "@/types/portal";
@@ -124,9 +125,10 @@ export async function GET(request: Request) {
     const homeInsightsPromise = section === "inicio"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, achievements: [], points: { total: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
-    const [routine, evaluations, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
+    const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
-      prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: { student: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
+      prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
+      prisma.evaluationRecord.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.studentPayment.findMany({ where: { studentId, status: "PAGADO" }, include: { student: true }, orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? 50 : section === "inicio" ? 1 : 0 }),
       prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
@@ -151,11 +153,15 @@ export async function GET(request: Request) {
       return Response.json({ error: "No tenés una rutina personalizada activa." }, { status: 403 });
     }
     const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
+    const normalizedEvaluations = deduplicateEvaluations([
+      ...evaluations.map(normalizePhysicalEvaluation),
+      ...legacyEvaluationRecords.map(normalizeLegacyEvaluationRecord).filter((item) => item.studentId === studentId),
+    ]).filter((item) => item.status !== "IN_PROGRESS").slice(0, fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2);
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
       profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: student.profileImageUrl ?? "" },
       routine: privateRoutine,
-      evaluations: evaluations.map((evaluation) => ({ ...serializeEvaluation(evaluation), notes: "", frontPhotoUrl: "", sidePhotoUrl: "", backPhotoUrl: "" })),
+      evaluations: normalizedEvaluations.map((evaluation) => ({ ...toStudentEvaluation(evaluation), notes: "", frontPhotoUrl: "", sidePhotoUrl: "", backPhotoUrl: "" })),
       payments: payments.map(serializePayment),
       paymentAccount: portalPaymentAccount(student, payments, todayKey),
       paymentMethods: settings?.paymentMethods?.filter((method) => method.trim().length > 0) ?? [],

@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { calculateAgeAtDate, calculateEvaluationCompletion, validateEvaluationDraft } from "@/lib/evaluation-workflow";
 import type { EvaluationDraftInput, EvaluationWorkflow } from "@/types/evaluation-workflow";
+import { normalizeEvaluation } from "@/lib/evaluation-read-model";
+import type { NormalizedEvaluation } from "@/types/evaluation-read-model";
 
 export const evaluationInclude = {
   student: true,
@@ -65,6 +67,34 @@ export function serializeWorkflowEvaluation(record: EvaluationRecordWithDetails)
     bodyIssues: record.bodyIssues.map((item) => ({ id: item.id, bodyZone: item.bodyZone, side: item.side, intensity: item.intensity, hasPain: item.hasPain, status: item.status, studentDescription: item.studentDescription, trainerObservation: item.trainerObservation, approximateDate: item.approximateDate })),
     testResults: record.testResults.map((item) => ({ id: item.id, testKey: item.testKey, category: item.category as "MOBILITY" | "PHYSICAL", status: item.status, numericValue: number(item.numericValue), unit: item.unit, rightValue: number(item.rightValue), leftValue: number(item.leftValue), rightUnit: item.rightUnit, leftUnit: item.leftUnit, pain: item.pain, rightPain: item.rightPain, leftPain: item.leftPain, protocol: item.protocol, variation: item.variation, observations: item.observations, compensations: item.compensations, notPerformedReason: item.notPerformedReason, rawResult: object(item.rawResult) as Record<string, string | number | boolean | null> })),
   };
+}
+
+export function normalizePhysicalEvaluation(record: EvaluationRecordWithDetails): NormalizedEvaluation {
+  const workflow = serializeWorkflowEvaluation(record);
+  return normalizeEvaluation({
+    ...workflow,
+    weight: record.weight,
+    height: record.height,
+    bodyFatPercentage: record.bodyFatPercentage,
+    muscleMass: record.muscleMass,
+    visceralFat: record.visceralFat,
+    waist: record.waist,
+    hip: record.hip,
+    chest: record.chest,
+    rightArm: record.rightArm,
+    leftArm: record.leftArm,
+    rightThigh: record.rightThigh,
+    leftThigh: record.leftThigh,
+    rightCalf: record.rightCalf,
+    leftCalf: record.leftCalf,
+    source: "PHYSICAL",
+  });
+}
+
+export function normalizeLegacyEvaluationRecord(record: { id: string; data: Prisma.JsonValue; createdAt: Date }): NormalizedEvaluation {
+  const saved = object(record.data);
+  const nested = object(saved.data as Prisma.JsonValue);
+  return normalizeEvaluation({ ...saved, ...nested, id: saved.id ?? record.id, createdAt: saved.createdAt ?? record.createdAt.toISOString(), source: "LEGACY_JSON" });
 }
 
 export function workflowSummary(record: EvaluationRecordWithDetails) {

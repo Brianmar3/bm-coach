@@ -1,4 +1,5 @@
-import type { CoachEvent, Payment, PhysicalEvaluation, PortalPaymentAccount, StudentServiceType, TrainingRoutine } from "@/types/gestion";
+import type { CoachEvent, Payment, PortalPaymentAccount, StudentServiceType, TrainingRoutine } from "@/types/gestion";
+import type { StudentEvaluation } from "@/types/evaluation-read-model";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import type { TrainingBlockType } from "@/types/gestion";
 import type { StudentPointSummary } from "@/types/points";
@@ -104,7 +105,7 @@ export type PortalComment = {
 export type PortalData = {
   profile: PortalProfile;
   routine: TrainingRoutine | null;
-  evaluations: PhysicalEvaluation[];
+  evaluations: StudentEvaluation[];
   payments: Payment[];
   paymentAccount: PortalPaymentAccount;
   paymentMethods: string[];

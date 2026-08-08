@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import { notifyNutritionEvaluationUpdate } from "@/lib/nutrition-notifications";
+import { deduplicateEvaluations } from "@/lib/evaluation-read-model";
+import { evaluationInclude, normalizeLegacyEvaluationRecord, normalizePhysicalEvaluation } from "@/lib/evaluation-persistence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,12 +13,12 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
-    const records = await prisma.physicalEvaluation.findMany({
-      where: studentId ? { studentId } : undefined,
-      include: { student: true },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-    });
-    return Response.json(records.map(serializeEvaluation));
+    const [records, legacyRecords] = await Promise.all([
+      prisma.physicalEvaluation.findMany({ where: studentId ? { studentId } : undefined, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
+      prisma.evaluationRecord.findMany({ orderBy: { createdAt: "desc" } }),
+    ]);
+    const normalizedLegacy = legacyRecords.map(normalizeLegacyEvaluationRecord).filter((item) => !studentId || item.studentId === studentId);
+    return Response.json(deduplicateEvaluations([...records.map(normalizePhysicalEvaluation), ...normalizedLegacy]));
   } catch (error) {
     console.error("Error al consultar evaluaciones físicas", error);
     const unavailable = databaseUnavailable(error);

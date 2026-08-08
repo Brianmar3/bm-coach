@@ -29,7 +29,9 @@ const shortDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00Z`)
   timeZone: "UTC",
 });
 
-export function BodyEvolutionCard({ evaluations, compact = false }: { evaluations: PhysicalEvaluation[]; compact?: boolean }) {
+type BodyEvaluation = Pick<PhysicalEvaluation, "date" | "weight" | "bodyFatPercentage" | "muscleMass" | "waist" | "hip">;
+
+export function BodyEvolutionCard({ evaluations, compact = false }: { evaluations: BodyEvaluation[]; compact?: boolean }) {
   const [metricKey, setMetricKey] = useState<BodyMetricKey>("weight");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const metric = BODY_METRICS.find((item) => item.key === metricKey) ?? BODY_METRICS[0];

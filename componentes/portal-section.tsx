@@ -2,7 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { PaymentAccountStatus, PhysicalEvaluation, TrainingRoutineBlock } from "@/types/gestion";
+import type { PaymentAccountStatus, TrainingRoutineBlock } from "@/types/gestion";
+import type { StudentEvaluation } from "@/types/evaluation-read-model";
 import type { PortalData, PortalWorkoutBlock, PortalWorkoutSession } from "@/types/portal";
 import { PortalClasses } from "@/componentes/portal-classes";
 import { dailyFocusForInstant } from "@/lib/daily-focus";
@@ -20,6 +21,7 @@ import { createFreshWorkoutSets, findCurrentWeekSession, getLocalWeekEnd, getWee
 import { freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS } from "@/lib/training-blocks";
 import { isTimedBlockType } from "@/lib/block-timer";
 import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
+import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-dashboard";
 
 type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -201,7 +203,7 @@ function EmptyProgress({ children }: { children: ReactNode }) {
 
 type PhysicalSummaryKey = "weight" | "bodyFatPercentage" | "muscleMass" | "waist" | "hip";
 
-function physicalProgressSummary(evaluations: PhysicalEvaluation[]) {
+function physicalProgressSummary(evaluations: StudentEvaluation[]) {
   const latest = evaluations[0];
   if (!latest) return null;
   const previous = evaluations[1];
@@ -264,9 +266,11 @@ function AchievementCard({ achievement, compact = false }: { achievement: Portal
 }
 
 function ComparativeEvaluationsView({ data }: { data: PortalData }) {
-  return <CompactEvaluationsView data={data} />;
+  return <PageHeader title="Mis evaluaciones" subtitle="Tu evolución física"><PortalEvaluationsDashboard evaluations={data.evaluations} /></PageHeader>;
 }
 
+// Se conserva temporalmente para compatibilidad visual con enlaces internos antiguos.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CompactEvaluationsView({ data }: { data: PortalData }) {
   const latest = data.evaluations[0];
   if (!latest) return <PageHeader title="Evaluaciones" subtitle="Tu seguimiento"><Notice>Todavía no hay evaluaciones completadas.</Notice></PageHeader>;
@@ -288,7 +292,7 @@ function QuotaSummaryCard({ data }: { data: PortalData }) {
   </section>;
 }
 
-function evaluationMeasurements(evaluation: PhysicalEvaluation) {
+function evaluationMeasurements(evaluation: StudentEvaluation) {
   return [
     { key: "weight", label: "Peso", value: evaluation.weight, unit: "kg" },
     { key: "height", label: "Altura", value: evaluation.height, unit: "m" },
