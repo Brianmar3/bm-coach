@@ -41,12 +41,8 @@ const dateLabel = (value: string) =>
 
 const capitalize = (value: string) => value.charAt(0).toLocaleUpperCase("es") + value.slice(1);
 
-function disciplinePresentation(value: string, fallbackLabel = value) {
-  const normalized = value.toLocaleLowerCase("es");
-  if (normalized.includes("gap")) return { icon: "🍑", label: "GAP", accent: "border-l-pink-400" };
-  if (normalized.includes("kids") || normalized.includes("niñ")) return { icon: "🧒", label: "Kids", accent: "border-l-sky-400" };
-  if (normalized.includes("funcional")) return { icon: "💪🏽", label: "Funcional", accent: "border-l-yellow-400" };
-  return { icon: "◆", label: fallbackLabel || "Clase", accent: "border-l-zinc-500" };
+function disciplineLabel(value: string, fallbackLabel = value) {
+  return fallbackLabel.trim() || value.trim() || "Clase";
 }
 
 function focusDateHeading(data: ClassData) {
@@ -64,7 +60,7 @@ function focusSectionLabel(data: ClassData) {
 function weeklyScheduleDisplay(label: string) {
   const [timePart = label, disciplinePart = "Clase"] = label.split(" · ");
   const match = /^(\S+)\s+(\d{2}:\d{2})[–-](\d{2}:\d{2})$/.exec(timePart.trim());
-  const discipline = disciplinePresentation(disciplinePart);
+  const discipline = disciplineLabel(disciplinePart);
   return {
     day: match?.[1] ?? "Horario",
     time: match ? `${match[2]}–${match[3]}` : timePart,
@@ -76,6 +72,14 @@ function CalendarIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none">
       <path d="M7 3v3m10-3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RecordsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none">
+      <path d="M5 19V12h3v7H5Zm5.5 0V7h3v12h-3Zm5.5 0V4h3v15h-3ZM3 20.5h18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -254,12 +258,12 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p>
       </header>
 
-      <nav aria-label="Vista de clases" className="mt-4 grid grid-cols-2 gap-1 rounded-xl border border-white/[.07] bg-zinc-950/80 p-1 shadow-[inset_0_1px_rgba(255,255,255,.03)]">
+      <nav aria-label="Vista de clases" className="mt-5 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]">
         <button
           type="button"
           aria-pressed={!showWeek}
           onClick={() => setShowWeek(false)}
-          className={`min-h-10 rounded-lg px-2 py-2 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:text-sm ${!showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
+          className={`min-h-12 border-b-2 px-2 py-3 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:text-sm ${!showWeek ? "border-yellow-400 text-yellow-300" : "border-transparent text-zinc-400 hover:text-zinc-100"}`}
         >
           Clases de hoy
         </button>
@@ -267,7 +271,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
           type="button"
           aria-pressed={showWeek}
           onClick={() => setShowWeek(true)}
-          className={`min-h-10 rounded-lg px-2 py-2 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:text-sm ${showWeek ? "bg-yellow-400 text-zinc-950 shadow-[0_8px_24px_rgba(250,204,21,.16)]" : "border border-transparent text-zinc-400 hover:text-zinc-100"}`}
+          className={`min-h-12 border-b-2 border-l border-l-white/[.05] px-2 py-3 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:text-sm ${showWeek ? "border-b-yellow-400 text-yellow-300" : "border-b-transparent text-zinc-400 hover:text-zinc-100"}`}
         >
           Próximos 7 días
         </button>
@@ -284,20 +288,20 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
           </p>
         </section>
       ) : showWeek ? (
-        <section className="mt-4 rounded-2xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0b0b0b)] p-3 shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl sm:p-6">
-          <div className="flex items-center gap-2.5 border-b border-white/[.07] pb-3 sm:gap-3 sm:pb-4">
+        <section className="mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl">
+          <div className="flex items-center gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300 sm:size-10"><CalendarIcon /></span>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Agenda completa</p>
               <h2 className="mt-0.5 text-base font-black text-zinc-100 sm:text-lg">Próximos 7 días</h2>
             </div>
           </div>
-          <div className="mt-3 space-y-4 sm:mt-5 sm:space-y-6">
+          <div className="px-3 sm:px-5">
             {grouped.map(([date, items]) => (
-              <section key={date}>
-                <h3 className="mb-2 text-xs font-black capitalize text-zinc-200 sm:mb-3 sm:text-sm">{dateLabel(date)}</h3>
-                <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
-                  {items.map((item) => <ClassCard key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
+              <section key={date} className="border-b border-white/[.07] py-3 last:border-0 sm:py-4">
+                <h3 className="mb-1.5 text-xs font-black capitalize text-zinc-300 sm:text-sm">{dateLabel(date)}</h3>
+                <div>
+                  {items.map((item) => <ClassRow key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
                 </div>
               </section>
             ))}
@@ -317,8 +321,8 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
               {focusItems.length} {focusItems.length === 1 ? "clase" : "clases"}
             </span>
           </div>
-          <div className="grid gap-2.5 p-3 sm:gap-3 sm:p-6 md:grid-cols-2">
-            {focusItems.map((item) => <ClassCard key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
+          <div className="px-3 sm:px-5">
+            {focusItems.map((item) => <ClassRow key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
           </div>
         </section>
       )}
@@ -339,10 +343,9 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
                   <strong className="text-sm text-zinc-200">{day}</strong>
                   <div className="min-w-0 space-y-2">
                     {schedules.map((schedule, index) => (
-                      <div key={`${schedule.time}-${schedule.discipline.label}-${index}`} className="flex min-w-0 items-center gap-2 text-sm text-zinc-400">
+                      <div key={`${schedule.time}-${schedule.discipline}-${index}`} className="flex min-w-0 items-center gap-2 text-sm text-zinc-400">
                         <span className="font-bold tabular-nums text-zinc-200">{schedule.time}</span>
-                        <span aria-hidden="true">{schedule.discipline.icon}</span>
-                        <span className="truncate">{schedule.discipline.label}</span>
+                        <span className="truncate">{schedule.discipline}</span>
                       </div>
                     ))}
                   </div>
@@ -361,7 +364,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         <span aria-hidden="true" className="absolute -right-10 -top-12 size-36 rounded-full border border-yellow-400/10 bg-yellow-400/[.035]" />
         <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.08] text-base text-yellow-300 sm:size-11 sm:rounded-2xl sm:text-lg">↗</span>
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.08] text-yellow-300 sm:size-11 sm:rounded-2xl"><RecordsIcon /></span>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Mis registros</p>
               <h2 className="mt-0.5 text-base font-black text-zinc-100 sm:mt-1 sm:text-lg">Ejercicios, cargas y marcas</h2>
@@ -387,14 +390,13 @@ function CompactClassRow({
     value: "GOING" | "NOT_GOING",
   ) => void;
 }) {
-  const discipline = disciplinePresentation(`${item.name} ${item.category}`, item.name || item.category);
+  const discipline = disciplineLabel(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.065] bg-black/35 p-2 sm:grid-cols-[2rem_minmax(0,1fr)_auto_auto]">
-      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.035] text-xs text-yellow-300">{discipline.icon}</span>
+    <article className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.065] bg-black/35 p-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
       <div className="min-w-0">
         <p className="truncate text-[11px] font-black tabular-nums text-zinc-100">{item.startTime}–{item.endTime}</p>
-        <p className="mt-0.5 truncate text-[10px] text-zinc-500">{discipline.label}</p>
+        <p className="mt-0.5 truncate text-[10px] text-zinc-500">{discipline}</p>
       </div>
       <span className={`hidden shrink-0 text-[9px] font-bold sm:inline ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</span>
       {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`min-h-9 shrink-0 rounded-lg border px-2.5 text-[10px] font-bold transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/35 bg-yellow-400/[.055] text-yellow-200" : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-yellow-400/25"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
@@ -402,7 +404,7 @@ function CompactClassRow({
   );
 }
 
-function ClassCard({
+function ClassRow({
   item,
   saving,
   respond,
@@ -414,29 +416,21 @@ function ClassCard({
     value: "GOING" | "NOT_GOING",
   ) => void;
 }) {
-  const discipline = disciplinePresentation(`${item.name} ${item.category}`, item.name || item.category);
+  const discipline = disciplineLabel(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
+  const confirmedLabel = `${item.confirmedCount} ${item.confirmedCount === 1 ? "confirmado" : "confirmados"}`;
   return (
-    <article className={`min-w-0 rounded-xl border border-white/[.07] border-l-2 ${discipline.accent} bg-zinc-950/75 p-3 shadow-[0_10px_24px_rgba(0,0,0,.16)] sm:rounded-2xl sm:p-4`}>
-      <div className="flex items-start justify-between gap-2.5 sm:gap-3">
-        <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-          <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-lg border border-white/[.07] bg-white/[.035] text-base sm:size-10 sm:rounded-xl sm:text-lg">{discipline.icon}</span>
-          <div className="min-w-0">
-            <h3 className="break-words text-sm font-black text-zinc-100">{discipline.label}</h3>
-            <p className="mt-0.5 text-sm font-black tabular-nums text-yellow-300 sm:mt-1 sm:text-base">{item.startTime}–{item.endTime}</p>
-            {item.name !== item.category && <p className="mt-1 truncate text-xs text-zinc-500">{item.name}</p>}
-          </div>
-        </div>
-        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black ${item.response === "GOING" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-white/[.08] bg-white/[.035] text-zinc-400"}`}>
-          {responseLabel}
-        </span>
+    <article className="grid min-w-0 grid-cols-[5.75rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 border-b border-white/[.065] py-3 last:border-0 min-[420px]:grid-cols-[6.5rem_minmax(0,1fr)_7.5rem] sm:gap-x-4 sm:py-3.5">
+      <p className="border-r border-white/[.08] pr-3 text-xs font-black tabular-nums text-yellow-300 sm:text-sm">{item.startTime}–{item.endTime}</p>
+      <div className="min-w-0">
+        <h3 className="truncate text-sm font-black text-zinc-100 sm:text-base">{discipline}</h3>
+        <p className={`mt-0.5 text-[11px] font-semibold ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-400"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</p>
+        <p className="mt-0.5 text-[10px] text-zinc-500 sm:text-[11px]">
+          {confirmedLabel}{item.capacity === null ? "" : ` · cupo ${item.capacity}`}
+        </p>
       </div>
-      <p className="mt-2 border-t border-white/[.06] pt-2 text-[10px] text-zinc-500 sm:mt-3 sm:pt-3 sm:text-[11px]">
-        {item.confirmedCount} confirmados
-        {item.capacity === null ? "" : ` · cupo ${item.capacity}`}
-      </p>
       {item.canRespond && (
-        <ResponseButtons item={item} saving={saving} respond={respond} />
+        <ResponseButtons item={item} saving={saving} respond={respond} compact />
       )}
     </article>
   );
@@ -468,12 +462,12 @@ function ResponseButtons({
   compact?: boolean;
 }) {
   return (
-    <div className={`${compact ? "mt-2" : "mt-2.5 sm:mt-3"} grid grid-cols-2 gap-2`}>
+    <div className={`${compact ? "col-span-2 grid-cols-2 min-[420px]:col-span-1 min-[420px]:grid-cols-1" : "mt-2.5 grid-cols-2 sm:mt-3"} grid gap-1.5`}>
       <button
         type="button"
         disabled={saving}
         onClick={() => respond(item, "GOING")}
-        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-black transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/45 bg-yellow-400/[.08] text-yellow-200" : "border-zinc-700 bg-zinc-950/70 text-zinc-200 hover:border-yellow-400/25 hover:bg-white/[.03]"}`}
+        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-black transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/45 bg-yellow-400/[.08] text-yellow-200" : "border-zinc-700 bg-zinc-950/70 text-zinc-200 hover:border-yellow-400/25 hover:bg-white/[.03]"}`}
       >
         {item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}
       </button>
@@ -481,7 +475,7 @@ function ResponseButtons({
         type="button"
         disabled={saving}
         onClick={() => respond(item, "NOT_GOING")}
-        className={`${compact ? "min-h-8 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-zinc-500 bg-white/[.04] text-zinc-100" : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-zinc-500"}`}
+        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-zinc-500 bg-white/[.04] text-zinc-100" : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-zinc-500"}`}
       >
         No asistiré
       </button>

@@ -302,12 +302,25 @@ test("la vista de clases usa jerarquia premium y selector segmentado", () => {
   assert.match(source, /onClick=\{\(\) => setShowWeek\(true\)\}/);
 });
 
-test("las disciplinas mantienen iconos claros sin inventar ubicacion", () => {
+test("Funcional, GAP y Kids conservan el nombre real sin emojis ni variantes visuales", () => {
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
-  assert.match(source, /icon: "🍑", label: "GAP"/);
-  assert.match(source, /icon: "🧒", label: "Kids"/);
-  assert.match(source, /icon: "💪🏽", label: "Funcional"/);
+  assert.match(source, /function disciplineLabel/);
+  assert.match(source, /item\.name \|\| item\.category/);
+  for (const emoji of ["🍑", "🧒", "💪", "💪🏽"]) assert.doesNotMatch(source, new RegExp(emoji, "u"));
+  assert.doesNotMatch(source, /discipline\.icon|discipline\.accent|border-l-pink|border-l-sky/);
   assert.doesNotMatch(source, /ubicaci[oó]n/i);
+});
+
+test("cada clase usa una fila compacta con horario, estado, contador y respuestas", () => {
+  const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  const row = source.slice(source.indexOf("function ClassRow"), source.indexOf("function Feedback"));
+  assert.match(row, /item\.startTime/);
+  assert.match(row, /item\.endTime/);
+  assert.match(row, /Confirmada/);
+  assert.match(row, /item\.statusLabel/);
+  assert.match(row, /item\.confirmedCount === 1 \? "confirmado" : "confirmados"/);
+  assert.match(row, /<ResponseButtons/);
+  assert.doesNotMatch(row, /discipline\.icon|rounded-2xl.*shadow/);
 });
 
 test("horarios semanales y registros conservan acceso y presentación móvil compacta", () => {
@@ -317,11 +330,21 @@ test("horarios semanales y registros conservan acceso y presentación móvil com
   assert.match(source, /data\.scheduleLabels/);
   assert.match(source, /href="\/portal\/registro"/);
   assert.match(source, /Ver mis registros/);
+  assert.match(source, /function RecordsIcon/);
   assert.match(source, /grid-cols-2/);
   assert.match(source, /min-w-0/);
   assert.match(source, /min-h-12/);
   assert.match(source, /rounded-2xl/);
   assert.doesNotMatch(source, /overflow-x-auto/);
+});
+
+test("las tabs no usan fondo amarillo sólido y la navegación inferior conserva sus rutas", () => {
+  const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
+  const tabs = classes.slice(classes.indexOf('aria-label="Vista de clases"'), classes.indexOf("<Feedback", classes.indexOf('aria-label="Vista de clases"')));
+  assert.match(tabs, /border-yellow-400 text-yellow-300|border-b-yellow-400 text-yellow-300/);
+  assert.doesNotMatch(tabs, /bg-yellow-400 text-zinc-950/);
+  for (const route of ["/portal", "/portal/rutina", "/portal/clases", "/portal/nutricion", "/portal/evaluaciones"]) assert.match(shell, new RegExp(`"${route}"`));
 });
 
 test("confirmar asistencia conserva endpoint, payload y protección de doble toque", () => {
