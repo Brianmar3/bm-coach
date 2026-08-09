@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   addMonthsToDateKey,
   argentinaDateKey,
+  argentinaDateTimeBoundary,
   databaseDateKey,
   dateKeyToDatabase,
   paymentAccountStatus,
@@ -10,6 +11,12 @@ import {
 import type { DashboardData } from "@/types/dashboard";
 import type { PaymentAccountStatus, Student } from "@/types/gestion";
 import { ensureClassOccurrences, occurrenceClassName } from "@/lib/class-occurrences";
+import {
+  buildDashboardPriorities,
+  compactRanking,
+  countPaymentStatuses,
+  latestEvaluationPriorityCounts,
+} from "@/lib/dashboard-read-model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,7 +70,7 @@ export async function GET() {
     const weekday = WEEKDAY[todayDate.getUTCDay()];
     await ensureClassOccurrences(35);
 
-    const [studentRecords, paymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events] = await Promise.all([
+    const [studentRecords, paymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events, evaluations, pointTotals] = await Promise.all([
       prisma.studentRecord.findMany({
         select: {
           id: true,
@@ -109,10 +116,22 @@ export async function GET() {
         orderBy: [{ date: "asc" }, { time: "asc" }],
         take: 3,
       }),
+      prisma.physicalEvaluation.findMany({
+        select: { studentId: true, status: true, reassessmentDate: true },
+        distinct: ["studentId"],
+        orderBy: [{ studentId: "asc" }, { date: "desc" }, { version: "desc" }],
+      }),
+      prisma.studentPointTransaction.groupBy({
+        by: ["studentId"],
+        where: { active: true, occurredAt: { gte: argentinaDateTimeBoundary(monthStart) } },
+        _sum: { points: true },
+      }),
     ]);
 
     const students = studentRecords.map((record) => ({ ...record, student: studentData(record.data) }));
     const active = students.filter(({ student }) => student.status !== "inactivo");
+    const activeStudentIds = new Set(active.map(({ id }) => id));
+    const namesByStudent = new Map(active.map(({ id, student }) => [id, studentName(student)]));
     const accounts = active.map(({ id, student, payments }) => ({
       studentId: id,
       studentName: studentName(student),
@@ -136,6 +155,20 @@ export async function GET() {
     const dueSoonThreeDaysCount = accounts.filter((account) =>
       account.status === "VENCE_PRONTO" && account.dueDate >= today && account.dueDate <= threeDaysFromToday,
     ).length;
+    const paymentPriorityCounts = countPaymentStatuses(accounts.map((account) => account.status));
+    const evaluationPriorityCounts = latestEvaluationPriorityCounts(evaluations, activeStudentIds, today);
+    const priorities = buildDashboardPriorities({
+      overdue: paymentPriorityCounts.overdue,
+      dueSoon: dueSoonThreeDaysCount,
+      unconfigured: paymentPriorityCounts.unconfigured,
+      reassessments: evaluationPriorityCounts.reassessments,
+      evaluationsInProgress: evaluationPriorityCounts.inProgress,
+    });
+    const ranking = compactRanking(
+      pointTotals.map((entry) => ({ studentId: entry.studentId, points: entry._sum.points ?? 0 })),
+      namesByStudent,
+      activeStudentIds,
+    );
     const estimatedPendingBalance = threeDayAccounts.every((account) => account.amount > 0)
       ? threeDayAccounts.reduce((sum, account) => sum + account.amount, 0)
       : null;
@@ -208,9 +241,11 @@ export async function GET() {
         newStudents: currentNewStudents,
       },
       income,
-      todayClasses,
+      priorities,
+      ranking,
+      todayClasses: todayClasses.slice(0, 3),
       upcomingPayments: actionableAccounts.slice(0, 3),
-      recentStudents: active.slice(0, 6).map(({ id, student, payments }) => ({
+      recentStudents: active.slice(0, 3).map(({ id, student, payments }) => ({
         id,
         studentName: studentName(student),
         plan: student.plan ?? "",

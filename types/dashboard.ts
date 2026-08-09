@@ -1,5 +1,13 @@
 import type { PaymentAccountStatus } from "@/types/gestion";
 
+export type DashboardPriority = {
+  id: string;
+  label: string;
+  count: number;
+  href: string;
+  tone: "danger" | "warning" | "gold" | "info" | "neutral";
+};
+
 export type DashboardData = {
   generatedAt: string;
   today: string;
@@ -19,6 +27,12 @@ export type DashboardData = {
     newStudents: number;
   };
   income: Array<{ date: string; label: string; amount: number }>;
+  priorities: DashboardPriority[];
+  ranking: Array<{
+    studentId: string;
+    studentName: string;
+    points: number;
+  }>;
   todayClasses: Array<{
     id: string;
     startTime: string;
