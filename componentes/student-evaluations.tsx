@@ -135,7 +135,7 @@ function EvaluationPanel({ student, items, latestDetail, loading, creating, onCl
 
 function Stat({ label, value, valueClass = "text-white" }: { label: string; value: string; valueClass?: string }) { return <div className="min-w-0 rounded-lg border border-zinc-800 bg-black/35 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p><p className={`mt-1 break-words text-lg font-black ${valueClass}`}>{value}</p></div>; }
 
-function EvaluationWizard({ initial, baseUrl, profileWeight, profileHeight, birthDate, onClose }: { initial: EvaluationWorkflow; baseUrl: string; profileWeight: number; profileHeight: number; birthDate: string; onClose: () => void }) {
+export function EvaluationWizard({ initial, baseUrl, profileWeight, profileHeight, birthDate, onClose }: { initial: EvaluationWorkflow; baseUrl: string; profileWeight: number; profileHeight: number; birthDate: string; onClose: () => void }) {
   const [value, setValue] = useState(initial);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState("");

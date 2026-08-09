@@ -91,9 +91,10 @@ test("el portal usa selector de métrica y tres tarjetas superiores", () => {
 test("Evaluaciones del entrenador no contiene Vista Global y presenta buscador, filtros y lista", () => {
   const dashboard = readFileSync(new URL("../componentes/professional-evaluations-dashboard.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(dashboard, /EvaluationGlobalDashboard|Vista global|Seguimiento de evaluaciones/);
-  assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /Estado evaluación/); assert.match(dashboard, /Vigencia/);
-  assert.match(dashboard, /<option value="CLASSES">Clases<\/option>/);
-  assert.match(dashboard, /serviceLabel\[item\.serviceType\]/);
-  assert.match(dashboard, /Resultados de alumnos/); assert.match(dashboard, /Ver evaluación/);
-  assert.match(dashboard, /Seleccioná un alumno para abrir su dashboard profesional/);
+  assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /label="Estado"/); assert.match(dashboard, /Reevaluación pendiente/);
+  assert.match(dashboard, /Personalizados/); assert.match(dashboard, /Mixtos/);
+  assert.doesNotMatch(dashboard, /<option value="CLASSES">Clases<\/option>/);
+  assert.match(dashboard, /serviceLabel\[student\.serviceType\]/);
+  assert.match(dashboard, /Resultados de alumnos/); assert.match(dashboard, /Abrir ficha/);
+  assert.match(dashboard, /Resumen/); assert.match(dashboard, /Progreso/); assert.match(dashboard, /Ficha/);
 });

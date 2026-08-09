@@ -29,13 +29,14 @@ export function visibleStudentsInEvaluations(
   return students.filter((student) => isStudentVisibleInEvaluations(student, evaluations));
 }
 
-export function filterEvaluationStudents(items: EvaluationStudentResult[], filters: { query: string; service: EvaluationServiceFilter; status: EvaluationStatusFilter; validity: EvaluationValidityFilter }) {
+export function filterEvaluationStudents<T extends EvaluationStudentResult>(items: T[], filters: { query: string; service: EvaluationServiceFilter; status: EvaluationStatusFilter; validity: EvaluationValidityFilter }): T[] {
   const query = normalized(filters.query);
   return items.filter((item) => {
     if (query && !normalized(`${item.firstName} ${item.lastName}`).includes(query)) return false;
     if (filters.service !== "ALL" && item.serviceType !== filters.service) return false;
     if (filters.status === "NONE" && item.latestStatus) return false;
-    if (filters.status !== "ALL" && filters.status !== "NONE" && item.latestStatus !== filters.status) return false;
+    if (filters.status === "REASSESSMENT_RECOMMENDED" && item.latestStatus !== "REASSESSMENT_RECOMMENDED" && item.validity !== "REASSESSMENT_RECOMMENDED") return false;
+    if (filters.status !== "ALL" && filters.status !== "NONE" && filters.status !== "REASSESSMENT_RECOMMENDED" && item.latestStatus !== filters.status) return false;
     if (filters.validity !== "ALL" && item.validity !== filters.validity) return false;
     return true;
   });

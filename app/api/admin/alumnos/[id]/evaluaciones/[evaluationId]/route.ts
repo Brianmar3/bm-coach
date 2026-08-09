@@ -1,6 +1,7 @@
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { evaluationInclude, serializeWorkflowEvaluation, workflowUpdateData } from "@/lib/evaluation-persistence";
 import { prisma } from "@/lib/prisma";
+import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import type { EvaluationDraftInput } from "@/types/evaluation-workflow";
 
 export const runtime = "nodejs";
@@ -56,9 +57,23 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/admi
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId, evaluationId } = await context.params;
-  const existing = await prisma.physicalEvaluation.findFirst({ where: { id: evaluationId, studentId }, select: { id: true, status: true } });
-  if (!existing) return Response.json({ error: "Evaluación no encontrada." }, { status: 404 });
-  if (existing.status !== "IN_PROGRESS") return Response.json({ error: "Solo pueden eliminarse borradores en curso." }, { status: 409 });
-  await prisma.physicalEvaluation.delete({ where: { id: evaluationId } });
-  return new Response(null, { status: 204 });
+  let result: { count: number; latest: { id: string; date: string; version: number; status: "IN_PROGRESS" | "COMPLETED" | "REASSESSMENT_RECOMMENDED" } | null } | null;
+  try {
+    result = await prisma.$transaction(async (transaction) => {
+      const existing = await transaction.physicalEvaluation.findFirst({ where: { id: evaluationId, studentId }, select: { id: true } });
+      if (!existing) return null;
+      await transaction.physicalEvaluation.delete({ where: { id: evaluationId } });
+      const [count, latest] = await Promise.all([
+        transaction.physicalEvaluation.count({ where: { studentId } }),
+        transaction.physicalEvaluation.findFirst({ where: { studentId }, orderBy: [{ date: "desc" }, { version: "desc" }], select: { id: true, date: true, version: true, status: true } }),
+      ]);
+      return { count, latest: latest ? { ...latest, date: latest.date.toISOString().slice(0, 10) } : null };
+    });
+  } catch (error) {
+    console.error("No se pudo eliminar la evaluación", error instanceof Error ? error.message : "Error desconocido");
+    return Response.json({ error: "No se pudo eliminar la evaluación. Intentá nuevamente." }, { status: 500 });
+  }
+  if (!result) return Response.json({ error: "La evaluación no existe o no pertenece al alumno indicado." }, { status: 404 });
+  await reconcileStudentPointsAfterMutation(studentId).catch((error) => console.error("No se pudieron reconciliar los puntos después de eliminar la evaluación", error instanceof Error ? error.message : "Error desconocido"));
+  return Response.json(result);
 }

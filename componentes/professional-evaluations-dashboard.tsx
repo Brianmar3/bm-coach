@@ -1,56 +1,245 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { EvaluationBodyMap, EvaluationLineChart, EvaluationStatusSummary, EvaluationTests } from "@/componentes/evaluation-insights";
 import { BMProgressCard, EvaluationComparisonPanel, EvaluationSymmetryPanel } from "@/componentes/evaluation-progress-panels";
-import { compareEvaluations } from "@/lib/evaluation-progress";
+import { EvaluationWizard } from "@/componentes/student-evaluations";
+import { calculateAgeAtDate } from "@/lib/evaluation-workflow";
 import { interpretEvaluation } from "@/lib/evaluation-interpretation";
-import { filterEvaluationStudents, type EvaluationServiceFilter, type EvaluationStatusFilter, type EvaluationStudentResult, type EvaluationValidityFilter } from "@/lib/evaluation-student-filter";
+import { compareEvaluations } from "@/lib/evaluation-progress";
+import { filterEvaluationStudents, type EvaluationServiceFilter, type EvaluationStatusFilter } from "@/lib/evaluation-student-filter";
+import { buildEvaluationWorkspaceStudents, evaluationSequenceLabel, type EvaluationListItem, type EvaluationWorkspaceStudent } from "@/lib/evaluation-workspace";
 import type { NormalizedEvaluation } from "@/types/evaluation-read-model";
 import type { EvaluationStudentSummary } from "@/types/evaluation-progress";
+import type { EvaluationWorkflow } from "@/types/evaluation-workflow";
 
-const showDate = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("es-AR") : "—";
-const value = (number: number | null, unit = "") => number === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(number)}${unit ? ` ${unit}` : ""}`;
-const service = { CLASSES: "Clases presenciales", PERSONALIZED: "Rutina personalizada", MIXED: "Servicio mixto" } as const;
+type WorkspaceTab = "summary" | "evaluations" | "progress" | "record";
+type SummaryPayload = { students: EvaluationStudentSummary[]; evaluations: EvaluationListItem[] };
+type DetailPayload = { evaluations: NormalizedEvaluation[] };
+
 const serviceLabel = { CLASSES: "Clases", PERSONALIZED: "Personalizado", MIXED: "Mixto" } as const;
+const statusLabel = { "": "Sin evaluación", IN_PROGRESS: "En curso", COMPLETED: "Completada", REASSESSMENT_RECOMMENDED: "Reevaluación pendiente" } as const;
+const tabLabel: Record<WorkspaceTab, string> = { summary: "Resumen", evaluations: "Evaluaciones", progress: "Progreso", record: "Ficha" };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
-const daysBetween = (from: string, to: string) => Math.max(0, Math.round((Date.parse(`${to}T12:00:00`) - Date.parse(`${from}T12:00:00`)) / 86400000));
-const evaluationStatusLabel = { "": "Sin evaluación", IN_PROGRESS: "En curso", COMPLETED: "Completada", REASSESSMENT_RECOMMENDED: "Reevaluación recomendada" } as const;
+const showDate = (date: string) => date ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`)) : "Sin programar";
+const number = (value: number | null, unit = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${unit ? ` ${unit}` : ""}`;
+const signed = (value: number | null, unit = "") => value === null ? "—" : `${value > 0 ? "+" : ""}${number(value, unit)}`;
+const daysBetween = (from: string, to: string) => Math.max(0, Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86400000));
 
-function Panel({ title, subtitle, children, open = false }: { title: string; subtitle?: string; children: React.ReactNode; open?: boolean }) {
-  return <details open={open} className="rounded-2xl border border-zinc-800 bg-zinc-900/80"><summary className="cursor-pointer list-none p-4 focus:outline-none focus:ring-2 focus:ring-yellow-400"><div className="flex items-center justify-between gap-4"><div><h2 className="font-bold">{title}</h2>{subtitle && <p className="mt-1 text-xs text-zinc-500">{subtitle}</p>}</div><span className="text-yellow-400">⌄</span></div></summary><div className="border-t border-zinc-800 p-4">{children}</div></details>;
+async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+  const body = await response.json().catch(() => ({})) as T & { error?: string };
+  if (!response.ok) throw new Error(body.error || "La solicitud no pudo completarse.");
+  return body;
+}
+
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <section className={`rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,rgba(24,24,27,.96),rgba(8,8,10,.98))] shadow-[0_18px_45px_rgba(0,0,0,.22)] ${className}`}>{children}</section>;
+}
+
+function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "gold" | "green" | "amber" }) {
+  const tones = { neutral: "border-zinc-700 text-zinc-300", gold: "border-yellow-400/30 bg-yellow-400/[.06] text-yellow-300", green: "border-emerald-400/25 bg-emerald-400/[.05] text-emerald-300", amber: "border-amber-400/25 bg-amber-400/[.05] text-amber-300" };
+  return <span className={`inline-flex min-h-7 items-center rounded-full border px-2.5 text-[10px] font-bold uppercase tracking-[.08em] ${tones[tone]}`}>{children}</span>;
+}
+
+function StatusBadge({ status, pending = false }: { status: EvaluationListItem["status"] | ""; pending?: boolean }) {
+  const tone = pending || status === "REASSESSMENT_RECOMMENDED" ? "amber" : status === "COMPLETED" ? "green" : status === "IN_PROGRESS" ? "gold" : "neutral";
+  return <Badge tone={tone}>{pending ? "Reevaluación pendiente" : statusLabel[status]}</Badge>;
+}
+
+function Stat({ label, value, note }: { label: string; value: ReactNode; note?: string }) {
+  return <div className="min-w-0 rounded-xl border border-white/[.06] bg-black/25 p-3"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-zinc-500">{label}</p><div className="mt-1.5 break-words text-lg font-black text-zinc-100">{value}</div>{note && <p className="mt-1 text-[11px] text-zinc-500">{note}</p>}</div>;
+}
+
+function Accordion({ title, subtitle, children, open = false }: { title: string; subtitle?: string; children: ReactNode; open?: boolean }) {
+  return <details open={open} className="group rounded-xl border border-white/[.07] bg-black/25"><summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"><span><span className="block text-sm font-bold text-zinc-100">{title}</span>{subtitle && <span className="mt-0.5 block text-xs text-zinc-500">{subtitle}</span>}</span><span aria-hidden="true" className="text-lg text-yellow-400 transition group-open:rotate-90">›</span></summary><div className="border-t border-white/[.07] p-4">{children}</div></details>;
+}
+
+function ActionButton({ children, onClick, disabled = false, primary = false }: { children: ReactNode; onClick: () => void; disabled?: boolean; primary?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} className={`min-h-11 rounded-xl px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-45 ${primary ? "bg-yellow-400 text-zinc-950 hover:bg-yellow-300" : "border border-zinc-700 bg-zinc-900/80 text-zinc-200 hover:border-yellow-400/35 hover:text-yellow-200"}`}>{children}</button>;
+}
+
+function Overlay({ title, close, children, wide = false }: { title: string; close: () => void; children: ReactNode; wide?: boolean }) {
+  return <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/85 p-3 backdrop-blur-sm sm:p-5" role="dialog" aria-modal="true" aria-labelledby="evaluation-overlay-title"><section className={`mx-auto my-2 w-full ${wide ? "max-w-4xl" : "max-w-lg"} rounded-2xl border border-zinc-700/80 bg-zinc-950 p-4 text-white shadow-2xl sm:my-8 sm:p-6`}><header className="flex items-start justify-between gap-4"><h2 id="evaluation-overlay-title" className="text-lg font-black">{title}</h2><button type="button" onClick={close} aria-label="Cerrar" className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-zinc-700 text-xl text-zinc-300">×</button></header>{children}</section></div>;
 }
 
 export function ProfessionalEvaluationsDashboard() {
-  const [evaluations, setEvaluations] = useState<NormalizedEvaluation[]>([]); const [students, setStudents] = useState<EvaluationStudentSummary[]>([]);
-  const [studentId, setStudentId] = useState(""); const [query, setQuery] = useState(""); const [serviceFilter, setServiceFilter] = useState<EvaluationServiceFilter>("ALL"); const [statusFilter, setStatusFilter] = useState<EvaluationStatusFilter>("ALL"); const [validityFilter, setValidityFilter] = useState<EvaluationValidityFilter>("ALL"); const [selectedId, setSelectedId] = useState(""); const [baseId, setBaseId] = useState(""); const [recentId, setRecentId] = useState(""); const [comparisonOpen, setComparisonOpen] = useState(false); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  useEffect(() => { const requested = new URLSearchParams(window.location.search).get("studentId") ?? ""; fetch("/api/admin/evaluaciones/progreso").then(async (response) => { const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "No se pudieron cargar las evaluaciones."); return payload as { evaluations: NormalizedEvaluation[]; students: EvaluationStudentSummary[] }; }).then((payload) => { setEvaluations(payload.evaluations); setStudents(payload.students); if (requested) setStudentId(requested); }).catch((cause: Error) => setError(cause.message)).finally(() => setLoading(false)); }, []);
-  const studentResults = useMemo<EvaluationStudentResult[]>(() => students.map((item) => { const latest = evaluations.filter((evaluation) => evaluation.studentId === item.id).sort((a, b) => b.date.localeCompare(a.date) || b.version - a.version)[0]; return { ...item, latestDate: latest?.date ?? "", latestStatus: latest?.status ?? "", validity: latest ? interpretEvaluation(latest, today()).validity as EvaluationStudentResult["validity"] : "" }; }), [students, evaluations]);
-  const matches = useMemo(() => filterEvaluationStudents(studentResults, { query, service: serviceFilter, status: statusFilter, validity: validityFilter }).slice(0, 50), [studentResults, query, serviceFilter, statusFilter, validityFilter]);
-  const history = useMemo(() => evaluations.filter((item) => item.studentId === studentId).sort((a, b) => b.date.localeCompare(a.date) || b.version - a.version), [evaluations, studentId]);
-  const current = history.find((item) => item.id === selectedId) ?? history[0]; const currentIndex = current ? history.findIndex((item) => item.id === current.id) : -1; const previous = currentIndex >= 0 ? history[currentIndex + 1] : undefined; const student = students.find((item) => item.id === studentId);
-  const chosenRecent = history.find((item) => item.id === recentId) ?? history[0]; const chosenBase = history.find((item) => item.id === baseId) ?? history[1]; const comparison = chosenBase && chosenRecent && chosenBase.id !== chosenRecent.id ? compareEvaluations(chosenBase, chosenRecent, today()) : null;
-  const latestComparison = history[1] && history[0] ? compareEvaluations(history[1], history[0], today()) : null; const fullComparison = history.length > 1 ? compareEvaluations(history.at(-1)!, history[0], today()) : null;
-  const automaticInterpretation = current ? interpretEvaluation(current, today()) : null;
-  const chooseStudent = (id: string) => { setStudentId(id); setSelectedId(""); setBaseId(""); setRecentId(""); setComparisonOpen(false); };
-  const compareWithPrevious = (item: NormalizedEvaluation, prior: NormalizedEvaluation) => { setRecentId(item.id); setBaseId(prior.id); setComparisonOpen(true); };
-  if (loading) return <ModuleShell title="Evaluaciones" subtitle="Seguimiento profesional"><p className="rounded-xl bg-zinc-900 p-5 text-zinc-400">Cargando evaluaciones…</p></ModuleShell>;
-  return <ModuleShell title="Evaluaciones" subtitle="Seguimiento profesional y evolución del alumno">
-    {error && <p className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{error}</p>}
-    <section className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Buscar alumno<input type="search" className={`${inputClass} mt-1`} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre o apellido"/></label><div className="mt-3 grid gap-2 sm:grid-cols-3"><label className="text-xs text-zinc-500">Servicio<select className={`${inputClass} mt-1`} value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value as EvaluationServiceFilter)}><option value="ALL">Todos</option><option value="CLASSES">Clases</option><option value="PERSONALIZED">Personalizado</option><option value="MIXED">Mixto</option></select></label><label className="text-xs text-zinc-500">Estado evaluación<select className={`${inputClass} mt-1`} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as EvaluationStatusFilter)}><option value="ALL">Todos</option><option value="NONE">Sin evaluación</option><option value="IN_PROGRESS">En curso</option><option value="COMPLETED">Completada</option><option value="REASSESSMENT_RECOMMENDED">Reevaluación recomendada</option></select></label><label className="text-xs text-zinc-500">Vigencia<select className={`${inputClass} mt-1`} value={validityFilter} onChange={(event) => setValidityFilter(event.target.value as EvaluationValidityFilter)}><option value="ALL">Todas</option><option value="CURRENT">Vigente</option><option value="DUE_SOON">Próxima a reevaluación</option><option value="REASSESSMENT_RECOMMENDED">Reevaluación recomendada</option></select></label></div><div aria-label="Resultados de alumnos" className="mt-3 overflow-hidden rounded-lg border border-zinc-800">{matches.length ? matches.map((item) => <article key={item.id} className={`flex flex-col gap-2 border-b border-zinc-800 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between ${studentId === item.id ? "bg-yellow-400/[.06]" : "bg-zinc-950/50"}`}><div className="min-w-0"><strong className="block truncate text-sm">{item.firstName} {item.lastName}</strong><p className="mt-0.5 text-xs text-zinc-500">{serviceLabel[item.serviceType]} · Última evaluación: {showDate(item.latestDate)}</p><p className="mt-0.5 text-xs text-zinc-400">{evaluationStatusLabel[item.latestStatus]}</p></div><button type="button" onClick={() => chooseStudent(item.id)} className="min-h-11 shrink-0 rounded-lg border border-yellow-400/35 px-3 text-xs font-bold text-yellow-300">Ver evaluación</button></article>) : <p className="p-4 text-center text-sm text-zinc-500">No hay alumnos que coincidan con la búsqueda y los filtros.</p>}</div></section>
-    {!studentId ? <p className="rounded-xl border border-dashed border-zinc-700 px-4 py-3 text-center text-sm text-zinc-500">Seleccioná un alumno para abrir su dashboard profesional.</p> : !current ? <p className="rounded-xl border border-dashed border-zinc-700 px-4 py-3 text-center text-sm text-zinc-500">El alumno seleccionado todavía no tiene evaluaciones registradas.</p> : <div className="space-y-4">
-      <header className="rounded-2xl border border-yellow-400/15 bg-[linear-gradient(145deg,#181818,#090909)] p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">Dashboard del alumno</p><h2 className="mt-2 text-2xl font-black">{current.studentName || `${student?.firstName ?? ""} ${student?.lastName ?? ""}`.trim()}</h2><p className="mt-1 text-sm text-zinc-400">{student ? service[student.serviceType] : "Servicio no informado"} · {current.age === null ? "Edad no informada" : `${current.age} años`}</p><p className="mt-2 text-sm"><span className="text-zinc-500">Objetivo:</span> {current.primaryGoal || student?.goal || "Sin registro"}</p></div><div className="text-right"><p className="text-xs text-zinc-500">Última evaluación</p><p className="font-bold">{showDate(history[0].date)}</p><p className="mt-2 text-xs text-zinc-500">Próxima reevaluación</p><p className="font-bold">{showDate(history[0].reassessmentDate)}</p></div></div></header>
-      <div className="grid gap-3 md:grid-cols-[minmax(250px,1.3fr)_repeat(4,minmax(0,1fr))]">{latestComparison ? <BMProgressCard progress={latestComparison.progress} compact/> : <BMProgressCard progress={{ available: false, score: null, reason: "Se necesitan al menos dos evaluaciones comparables.", formula: "", components: [] }} compact/>}{[["Evaluaciones",history.length],["Días desde última",daysBetween(history[0].date,today())],["Prioridades actuales",automaticInterpretation?.priorities.length ?? 0],["Alertas activas",automaticInterpretation?.alerts.length ?? 0]].map(([label, display]) => <article key={label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><p className="text-[10px] text-zinc-500">{label}</p><p className="mt-2 text-2xl font-black">{display}</p></article>)}</div>
-      {fullComparison && <Panel title="Desde la primera evaluación" subtitle="Resumen del período completo" open><div className="grid grid-cols-2 gap-2 md:grid-cols-4"><article className="rounded-lg bg-black/30 p-3"><p className="text-xs text-zinc-500">Tiempo de seguimiento</p><p className="mt-1 font-bold">{fullComparison.elapsedDays} días</p></article><article className="rounded-lg bg-black/30 p-3"><p className="text-xs text-zinc-500">Evaluaciones</p><p className="mt-1 font-bold">{history.length}</p></article>{fullComparison.measurements.filter((item) => ["weight","waist","bodyFatPercentage"].includes(item.key)).map((item) => <article key={item.key} className="rounded-lg bg-black/30 p-3"><p className="text-xs text-zinc-500">Cambio de {item.label.toLowerCase()}</p><p className="mt-1 font-bold">{item.absoluteChange > 0 ? "+" : ""}{value(item.absoluteChange,item.unit)}</p></article>)}<article className="rounded-lg bg-black/30 p-3"><p className="text-xs text-zinc-500">Tests con evolución</p><p className="mt-1 font-bold">{fullComparison.tests.filter((item) => item.compatible && (item.absoluteChange ?? 0) > 0).length}</p></article><article className="rounded-lg bg-black/30 p-3"><p className="text-xs text-zinc-500">Prioridades ya no activas</p><p className="mt-1 font-bold">{fullComparison.progress.components.find((item) => item.key === "PRIORITIES")?.usedData[0] ?? "Datos insuficientes"}</p></article></div></Panel>}
-      <Panel title="Evolución corporal" subtitle="Peso, perímetros y composición ordenados cronológicamente" open><EvaluationLineChart evaluations={history}/></Panel>
-      {comparisonOpen && <Panel title="Comparar evaluaciones" subtitle="Sólo se muestran cambios compatibles" open><div className="mb-4 grid gap-2 sm:grid-cols-2"><label className="text-xs text-zinc-500">Evaluación base<select className={`${inputClass} mt-1`} value={chosenBase?.id ?? ""} onChange={(event) => setBaseId(event.target.value)}>{history.map((item) => <option key={item.id} value={item.id}>Versión {item.version} · {showDate(item.date)}</option>)}</select></label><label className="text-xs text-zinc-500">Evaluación más reciente<select className={`${inputClass} mt-1`} value={chosenRecent?.id ?? ""} onChange={(event) => setRecentId(event.target.value)}>{history.map((item) => <option key={item.id} value={item.id}>Versión {item.version} · {showDate(item.date)}</option>)}</select></label></div>{comparison ? <EvaluationComparisonPanel comparison={comparison}/> : <p className="text-sm text-zinc-500">Elegí dos evaluaciones diferentes.</p>}</Panel>}
-      <div className="grid gap-4 lg:grid-cols-2"><Panel title="Simetría actual" subtitle="Medidas y tests con ambos lados"><EvaluationSymmetryPanel items={latestComparison?.symmetry ?? []}/></Panel><Panel title="Mapa corporal actual" subtitle="Molestias informadas y observación profesional"><EvaluationBodyMap issues={current.bodyIssues} privateDetails/></Panel></div>
-      <Panel title="Movilidad y control" subtitle="Estados y resultados comparables"><EvaluationTests tests={current.testResults} previousTests={previous?.testResults} category="MOBILITY" privateDetails/></Panel>
-      <Panel title="Rendimiento físico" subtitle="Sólo compara protocolo, unidad y variante compatibles"><EvaluationTests tests={current.testResults} previousTests={previous?.testResults} category="PHYSICAL" privateDetails/></Panel>
-      <Panel title="Prioridades y estado general"><EvaluationStatusSummary tests={current.testResults}/>{automaticInterpretation && <div className="mt-4 grid gap-2 sm:grid-cols-2">{automaticInterpretation.priorities.map((item) => <article key={item.id} className="rounded-lg bg-black/35 p-3"><p className="text-sm font-semibold">{item.message}</p><details className="mt-2"><summary className="cursor-pointer text-xs font-bold text-yellow-300">¿Por qué?</summary><div className="mt-2 space-y-1 text-xs text-zinc-500"><p><strong className="text-zinc-300">Dato observado:</strong> {item.evidence}</p><p><strong className="text-zinc-300">Interpretación:</strong> {item.message}</p><p><strong className="text-zinc-300">Impacto posible:</strong> revisar la planificación de {item.category}; no implica diagnóstico.</p><p><strong className="text-zinc-300">Sugerencia:</strong> {item.recommendation}</p></div></details></article>)}</div>}</Panel>
-      <Panel title="Resumen profesional" subtitle="Información privada, sólo para el entrenador"><div className="grid gap-3 sm:grid-cols-2">{[["Fortalezas",current.finalStrengths],["Prioridades",current.finalPriorities],["Limitaciones",current.finalLimitations],["Planificación",current.planningNotes],["Comentario final",current.finalComment]].map(([label, display]) => <article key={label} className="rounded-xl bg-black/35 p-4"><p className="text-xs font-bold text-yellow-400">{label}</p><p className="mt-2 whitespace-pre-wrap text-sm text-zinc-300">{display || "—"}</p></article>)}</div></Panel>
-      <Panel title="Historial" subtitle="Timeline de versiones deduplicadas"><ol className="relative ml-2 border-l border-zinc-700 pl-5">{history.map((item, index) => <li key={item.id} className="relative mb-4 rounded-xl bg-black/35 p-3 last:mb-0"><span className="absolute -left-[26px] top-4 h-3 w-3 rounded-full border-2 border-zinc-900 bg-yellow-400"/><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold">Versión {item.version} · {showDate(item.date)}</p><p className="mt-1 text-xs text-zinc-500">{item.status.replaceAll("_", " ")} · {item.completionPercentage}%</p><p className="mt-1 text-xs text-zinc-400">{[item.primaryGoal, item.weight === null ? "" : value(item.weight,"kg")].filter(Boolean).join(" · ")}</p></div><div className="flex gap-2"><button type="button" onClick={() => setSelectedId(item.id)} className="rounded-lg bg-yellow-400 px-3 py-2 text-xs font-bold text-black">Ver</button>{index < history.length - 1 && <button type="button" onClick={() => compareWithPrevious(item, history[index + 1])} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-300">Comparar</button>}</div></div></li>)}</ol></Panel>
-    </div>}
+  const [summary, setSummary] = useState<SummaryPayload>({ students: [], evaluations: [] });
+  const [history, setHistory] = useState<NormalizedEvaluation[]>([]);
+  const [studentId, setStudentId] = useState("");
+  const [tab, setTab] = useState<WorkspaceTab>("summary");
+  const [query, setQuery] = useState("");
+  const [service, setService] = useState<EvaluationServiceFilter>("ALL");
+  const [status, setStatus] = useState<EvaluationStatusFilter>("ALL");
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [editor, setEditor] = useState<EvaluationWorkflow | null>(null);
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState("");
+  const [menuId, setMenuId] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<NormalizedEvaluation | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  const loadSummary = useCallback(async () => {
+    const payload = await apiJson<SummaryPayload>("/api/admin/evaluaciones/progreso?view=summary");
+    setSummary(payload);
+    return payload;
+  }, []);
+
+  const loadDetail = useCallback(async (id: string) => {
+    if (!id) { setHistory([]); return; }
+    setDetailLoading(true);
+    try {
+      const payload = await apiJson<DetailPayload>(`/api/admin/evaluaciones/progreso?studentId=${encodeURIComponent(id)}`);
+      setHistory([...payload.evaluations].sort((left, right) => right.date.localeCompare(left.date) || right.version - left.version));
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo cargar la ficha del alumno.");
+    } finally { setDetailLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("studentId") ?? "";
+    const timer = window.setTimeout(() => {
+      loadSummary().then((payload) => {
+        if (requested && payload.students.some((student) => student.id === requested)) setStudentId(requested);
+        setError("");
+      }).catch((cause: Error) => setError(cause.message)).finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadSummary]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadDetail(studentId); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [studentId, loadDetail]);
+
+  const students = useMemo(() => buildEvaluationWorkspaceStudents(summary.students, summary.evaluations, today()), [summary]);
+  const matches = useMemo(() => filterEvaluationStudents(students, { query, service, status, validity: "ALL" }), [students, query, service, status]);
+  const student = students.find((item) => item.id === studentId);
+  const latest = history[0];
+  const initial = history.at(-1);
+  const currentInterpretation = latest ? interpretEvaluation(latest, today()) : null;
+  const latestComparison = latest && history[1] ? compareEvaluations(history[1], latest, today()) : null;
+  const fullComparison = latest && initial && latest.id !== initial.id ? compareEvaluations(initial, latest, today()) : null;
+  const selectedEvaluation = history.find((item) => item.id === selectedEvaluationId) ?? null;
+
+  function chooseStudent(id: string) {
+    setStudentId(id); setTab("summary"); setSelectedEvaluationId(""); setNotice(""); setMenuId("");
+    const url = new URL(window.location.href); url.searchParams.set("studentId", id); window.history.replaceState({}, "", url);
+  }
+
+  function closeStudent() {
+    setStudentId(""); setHistory([]); setSelectedEvaluationId("");
+    const url = new URL(window.location.href); url.searchParams.delete("studentId"); window.history.replaceState({}, "", url);
+  }
+
+  async function openEditor(evaluationId: string) {
+    if (!studentId) return;
+    try {
+      setEditor(await apiJson<EvaluationWorkflow>(`/api/admin/alumnos/${studentId}/evaluaciones/${evaluationId}`));
+      setError(""); setMenuId("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo abrir la evaluación."); }
+  }
+
+  async function createEvaluation(baseEvaluationId = "", targetStudentId = studentId) {
+    if (!targetStudentId || creating) return;
+    setCreating(true); setNotice("");
+    try {
+      const creationKey = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+      const created = await apiJson<EvaluationWorkflow>(`/api/admin/alumnos/${targetStudentId}/evaluaciones`, { method: "POST", body: JSON.stringify({ creationKey, ...(baseEvaluationId ? { baseEvaluationId } : {}) }) });
+      setEditor(created); setMenuId("");
+      if (baseEvaluationId) setNotice("Se creó un borrador nuevo con la estructura y los protocolos, sin copiar resultados medidos.");
+      await Promise.all([loadSummary(), loadDetail(targetStudentId)]);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo crear la evaluación."); }
+    finally { setCreating(false); }
+  }
+
+  async function deleteEvaluation() {
+    if (!studentId || !deleteTarget || deleting) return;
+    setDeleting(true); setError("");
+    try {
+      await apiJson(`/api/admin/alumnos/${studentId}/evaluaciones/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null); setSelectedEvaluationId(""); setNotice("La evaluación se eliminó y la ficha fue recalculada.");
+      await Promise.all([loadSummary(), loadDetail(studentId)]);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No se pudo eliminar la evaluación. Intentá nuevamente."); }
+    finally { setDeleting(false); }
+  }
+
+  async function closeEditor() {
+    setEditor(null);
+    await Promise.all([loadSummary(), loadDetail(studentId)]).catch(() => undefined);
+  }
+
+  if (loading) return <ModuleShell title="Evaluaciones" subtitle="Alumnos personalizados y mixtos"><Card className="p-5"><p className="text-sm text-zinc-400">Cargando fichas de alumnos…</p></Card></ModuleShell>;
+
+  return <ModuleShell title="Evaluaciones" subtitle="Alumnos personalizados y mixtos">
+    {error && <p role="alert" className="mb-4 rounded-xl border border-red-400/25 bg-red-400/[.08] p-3 text-sm text-red-200">{error}</p>}
+    {notice && <p role="status" className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/[.06] p-3 text-sm text-emerald-200">{notice}</p>}
+    {!studentId ? <StudentDirectory students={matches} query={query} service={service} status={status} onQuery={setQuery} onService={setService} onStatus={setStatus} onChoose={chooseStudent} onCreate={(id) => { chooseStudent(id); window.setTimeout(() => void createEvaluation("", id), 0); }} /> : student ? <StudentWorkspace student={student} history={history} loading={detailLoading} tab={tab} setTab={setTab} latest={latest} initial={initial} latestComparison={latestComparison} fullComparison={fullComparison} interpretation={currentInterpretation} menuId={menuId} setMenuId={setMenuId} creating={creating} onBack={closeStudent} onCreate={() => void createEvaluation()} onView={(id) => { setSelectedEvaluationId(id); setMenuId(""); }} onEdit={(id) => void openEditor(id)} onDuplicate={(id) => void createEvaluation(id)} onDelete={(item) => { setDeleteTarget(item); setMenuId(""); }} /> : <Card className="p-5"><p className="text-sm text-zinc-400">El alumno seleccionado ya no está disponible.</p><div className="mt-4"><ActionButton onClick={closeStudent}>Volver al listado</ActionButton></div></Card>}
+
+    {selectedEvaluation && <EvaluationDetail evaluation={selectedEvaluation} history={history} onClose={() => setSelectedEvaluationId("")} onEdit={() => void openEditor(selectedEvaluation.id)} />}
+    {deleteTarget && <Overlay title="Eliminar evaluación" close={() => !deleting && setDeleteTarget(null)}><p className="mt-5 text-sm leading-6 text-zinc-300">¿Querés eliminar la evaluación del <strong className="text-white">{showDate(deleteTarget.date)}</strong>?</p><p className="mt-3 rounded-xl border border-red-400/15 bg-red-400/[.05] p-3 text-sm text-zinc-400">Se eliminarán los datos asociados exclusivamente a esta evaluación. Esta acción no se puede deshacer.</p><div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><ActionButton onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancelar</ActionButton><button type="button" disabled={deleting} onClick={() => void deleteEvaluation()} className="min-h-11 rounded-xl border border-red-400/35 bg-red-400/10 px-4 text-sm font-bold text-red-200 disabled:opacity-50">{deleting ? "Eliminando…" : "Eliminar evaluación"}</button></div></Overlay>}
+    {editor && <EvaluationWizard initial={editor} baseUrl={`/api/admin/alumnos/${editor.studentId}/evaluaciones`} profileWeight={0} profileHeight={0} birthDate={student?.birthDate ?? ""} onClose={() => void closeEditor()} />}
   </ModuleShell>;
+}
+
+function StudentDirectory({ students, query, service, status, onQuery, onService, onStatus, onChoose, onCreate }: { students: EvaluationWorkspaceStudent[]; query: string; service: EvaluationServiceFilter; status: EvaluationStatusFilter; onQuery: (value: string) => void; onService: (value: EvaluationServiceFilter) => void; onStatus: (value: EvaluationStatusFilter) => void; onChoose: (id: string) => void; onCreate: (id: string) => void }) {
+  const serviceFilters: Array<[EvaluationServiceFilter, string]> = [["ALL", "Todos"], ["PERSONALIZED", "Personalizados"], ["MIXED", "Mixtos"]];
+  const statusFilters: Array<[EvaluationStatusFilter, string]> = [["ALL", "Todos"], ["NONE", "Sin evaluación"], ["IN_PROGRESS", "En curso"], ["COMPLETED", "Completadas"], ["REASSESSMENT_RECOMMENDED", "Reevaluación pendiente"]];
+  return <div className="space-y-4">
+    <Card className="p-3 sm:p-4"><label htmlFor="evaluation-student-search" className="sr-only">Buscar alumno</label><div className="relative"><span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">⌕</span><input id="evaluation-student-search" type="search" value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Buscar alumno..." className={`${inputClass} pl-9`} /></div><FilterRow label="Servicio" values={serviceFilters} selected={service} choose={(value) => onService(value as EvaluationServiceFilter)} /><FilterRow label="Estado" values={statusFilters} selected={status} choose={(value) => onStatus(value as EvaluationStatusFilter)} /></Card>
+    <div aria-label="Resultados de alumnos" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{students.length ? students.map((student) => <StudentCard key={student.id} student={student} onChoose={() => onChoose(student.id)} onCreate={() => onCreate(student.id)} />) : <Card className="p-8 text-center md:col-span-2 xl:col-span-3"><p className="text-sm text-zinc-400">No hay alumnos que coincidan con la búsqueda y los filtros.</p></Card>}</div>
+  </div>;
+}
+
+function FilterRow({ label, values, selected, choose }: { label: string; values: Array<[string, string]>; selected: string; choose: (value: string) => void }) {
+  return <div className="mt-3"><p className="mb-2 text-[10px] font-bold uppercase tracking-[.14em] text-zinc-600">{label}</p><div className="flex flex-wrap gap-2" role="group" aria-label={`Filtrar por ${label.toLowerCase()}`}>{values.map(([value, text]) => <button type="button" key={value} aria-pressed={selected === value} onClick={() => choose(value)} className={`min-h-9 rounded-full border px-3 text-xs font-semibold transition ${selected === value ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-200" : "border-zinc-800 bg-black/25 text-zinc-400 hover:border-zinc-600"}`}>{text}</button>)}</div></div>;
+}
+
+function StudentCard({ student, onChoose, onCreate }: { student: EvaluationWorkspaceStudent; onChoose: () => void; onCreate: () => void }) {
+  const pending = student.validity === "REASSESSMENT_RECOMMENDED";
+  return <Card className="flex min-h-56 flex-col p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-base font-black">{student.firstName} {student.lastName}</h2><div className="mt-2"><Badge>{serviceLabel[student.serviceType]}</Badge></div></div><StatusBadge status={student.latestStatus} pending={pending} /></div><div className="mt-4 flex-1 space-y-2 text-sm"><p><span className="text-zinc-500">Objetivo:</span> <span className="text-zinc-300">{student.latestGoal || "Sin registro"}</span></p>{student.evaluationCount ? <><p><span className="text-zinc-500">Última evaluación:</span> <span className="text-zinc-300">{showDate(student.latestDate)}</span></p><p className="text-xs text-zinc-500">{student.evaluationCount} {student.evaluationCount === 1 ? "evaluación" : "evaluaciones"} · {pending ? "Reevaluación pendiente" : statusLabel[student.latestStatus]}</p></> : <p className="text-sm text-zinc-500">Sin evaluación</p>}</div><button type="button" onClick={student.evaluationCount ? onChoose : onCreate} className="mt-4 min-h-11 w-full rounded-xl border border-yellow-400/25 bg-yellow-400/[.05] px-4 text-sm font-bold text-yellow-200 transition hover:border-yellow-400/50">{student.evaluationCount ? "Abrir ficha" : "Iniciar evaluación"}</button></Card>;
+}
+
+function StudentWorkspace({ student, history, loading, tab, setTab, latest, initial, latestComparison, fullComparison, interpretation, menuId, setMenuId, creating, onBack, onCreate, onView, onEdit, onDuplicate, onDelete }: { student: EvaluationWorkspaceStudent; history: NormalizedEvaluation[]; loading: boolean; tab: WorkspaceTab; setTab: (tab: WorkspaceTab) => void; latest?: NormalizedEvaluation; initial?: NormalizedEvaluation; latestComparison: ReturnType<typeof compareEvaluations> | null; fullComparison: ReturnType<typeof compareEvaluations> | null; interpretation: ReturnType<typeof interpretEvaluation> | null; menuId: string; setMenuId: (id: string) => void; creating: boolean; onBack: () => void; onCreate: () => void; onView: (id: string) => void; onEdit: (id: string) => void; onDuplicate: (id: string) => void; onDelete: (item: NormalizedEvaluation) => void }) {
+  const age = calculateAgeAtDate(student.birthDate, latest?.date ?? today());
+  return <div className="space-y-4"><button type="button" onClick={onBack} className="min-h-11 rounded-xl px-1 text-sm font-bold text-zinc-400 hover:text-white">← Volver a alumnos</button><Card className="overflow-hidden"><header className="p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-black sm:text-2xl">{student.firstName} {student.lastName}</h2><Badge>{serviceLabel[student.serviceType]}</Badge></div><p className="mt-2 text-sm text-zinc-400">{age === null ? "Edad sin informar" : `${age} años`} · <span className="text-zinc-500">Objetivo:</span> {latest?.primaryGoal || student.goal || "Sin registro"}</p></div><ActionButton onClick={onCreate} disabled={creating || student.serviceType === "CLASSES"} primary>{creating ? "Creando…" : "+ Nueva evaluación"}</ActionButton></div></header><nav aria-label="Secciones de la ficha" className="overflow-x-auto border-t border-white/[.07]"><div className="flex min-w-max px-2 sm:px-4">{(Object.keys(tabLabel) as WorkspaceTab[]).map((item) => <button type="button" key={item} onClick={() => setTab(item)} aria-current={tab === item ? "page" : undefined} className={`min-h-12 min-w-24 border-b-2 px-3 text-xs font-bold transition sm:min-w-32 sm:text-sm ${tab === item ? "border-yellow-400 text-yellow-300" : "border-transparent text-zinc-500 hover:text-zinc-200"}`}>{tabLabel[item]}</button>)}</div></nav></Card>{loading ? <Card className="p-5"><p className="text-sm text-zinc-400">Cargando ficha…</p></Card> : tab === "summary" ? <SummaryTab history={history} latest={latest} initial={initial} comparison={latestComparison} interpretation={interpretation} onCreate={onCreate} creating={creating} /> : tab === "evaluations" ? <EvaluationsTab history={history} menuId={menuId} setMenuId={setMenuId} onCreate={onCreate} onView={onView} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} creating={creating} /> : tab === "progress" ? <ProgressTab history={history} latestComparison={latestComparison} fullComparison={fullComparison} /> : <ProfessionalRecord latest={latest} previous={history[1]} comparison={latestComparison} interpretation={interpretation} />}</div>;
+}
+
+function SummaryTab({ history, latest, initial, comparison, interpretation, onCreate, creating }: { history: NormalizedEvaluation[]; latest?: NormalizedEvaluation; initial?: NormalizedEvaluation; comparison: ReturnType<typeof compareEvaluations> | null; interpretation: ReturnType<typeof interpretEvaluation> | null; onCreate: () => void; creating: boolean }) {
+  if (!latest) return <Card className="p-8 text-center"><p className="text-sm text-zinc-400">Todavía no tiene evaluaciones.</p><div className="mt-4"><ActionButton onClick={onCreate} disabled={creating} primary>{creating ? "Creando…" : "Iniciar evaluación"}</ActionButton></div></Card>;
+  const next = latest.reassessmentDate;
+  const overdue = Boolean(next && next < today()) || latest.status === "REASSESSMENT_RECOMMENDED";
+  return <div className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]"><Card className="p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Resumen rápido</p><p className="mt-2 text-sm text-zinc-400">Seguimiento esencial, sin mezclar el detalle clínico ni los gráficos.</p></div><ActionButton onClick={onCreate} disabled={creating} primary>+ Nueva evaluación</ActionButton></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3"><Stat label="Evaluaciones" value={history.length} /><Stat label="Última" value={`Hace ${daysBetween(latest.date, today())} días`} note={showDate(latest.date)} /><Stat label="Prioridades" value={interpretation?.priorities.length ?? 0} /><Stat label="Alertas" value={interpretation?.alerts.length ?? 0} /><Stat label="Próxima reevaluación" value={next ? showDate(next) : "Sin programar"} note={overdue ? "Vencida / pendiente" : undefined} /><Stat label="Estado" value={<span className="text-sm">{statusLabel[latest.status]}</span>} /></div></Card><Card className="p-4 sm:p-5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-zinc-500">Estado actual</p><div className="mt-4 grid grid-cols-2 gap-2"><Stat label="Peso actual" value={number(latest.weight, "kg")} /><Stat label="Cambio desde inicial" value={signed(initial && latest.id !== initial.id && initial.weight !== null && latest.weight !== null ? Math.round((latest.weight - initial.weight) * 10) / 10 : null, "kg")} /><Stat label="Grasa corporal" value={number(latest.bodyFatPercentage, "%")} /><Stat label="Índice BM" value={comparison?.progress.available ? `${comparison.progress.score}/100` : "—"} /></div></Card></div>;
+}
+
+function EvaluationsTab({ history, menuId, setMenuId, onCreate, onView, onEdit, onDuplicate, onDelete, creating }: { history: NormalizedEvaluation[]; menuId: string; setMenuId: (id: string) => void; onCreate: () => void; onView: (id: string) => void; onEdit: (id: string) => void; onDuplicate: (id: string) => void; onDelete: (item: NormalizedEvaluation) => void; creating: boolean }) {
+  return <Card className="p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Evaluaciones</p><h3 className="mt-1 text-lg font-black">Historial cronológico</h3></div><ActionButton onClick={onCreate} disabled={creating} primary>+ Nueva evaluación</ActionButton></div>{history.length ? <div className="mt-4 space-y-3">{history.map((item) => { const sourcePhysical = item.source === "PHYSICAL"; return <article key={item.id} className="relative rounded-xl border border-white/[.07] bg-black/25 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-yellow-400">{showDate(item.date)}</p><div className="mt-1 flex flex-wrap items-center gap-2"><h4 className="font-black">{evaluationSequenceLabel(history.map((entry) => ({ ...entry, source: entry.source })), item.id)}</h4><StatusBadge status={item.status} /></div></div><button type="button" aria-label={`Acciones de ${evaluationSequenceLabel(history.map((entry) => ({ ...entry, source: entry.source })), item.id)}`} aria-haspopup="menu" aria-expanded={menuId === item.id} onClick={() => setMenuId(menuId === item.id ? "" : item.id)} className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-zinc-700 text-xl text-zinc-300">•••</button></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3"><p><span className="block text-zinc-600">Peso</span><strong className="mt-1 block text-zinc-300">{number(item.weight, "kg")}</strong></p><p><span className="block text-zinc-600">Objetivo</span><strong className="mt-1 block truncate text-zinc-300">{item.primaryGoal || "—"}</strong></p><p><span className="block text-zinc-600">Completitud</span><strong className="mt-1 block text-zinc-300">{item.completionPercentage}%</strong></p></div><button type="button" onClick={() => onView(item.id)} className="mt-4 min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-yellow-200">Ver evaluación</button>{menuId === item.id && <div role="menu" className="absolute right-4 top-16 z-20 w-56 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 p-1 shadow-2xl"><MenuItem onClick={() => onView(item.id)}>Ver evaluación</MenuItem><MenuItem onClick={() => onEdit(item.id)} disabled={!sourcePhysical || item.status !== "IN_PROGRESS"}>Editar{item.status !== "IN_PROGRESS" ? " (protegida)" : ""}</MenuItem><MenuItem onClick={() => onDuplicate(item.id)} disabled={!sourcePhysical}>Duplicar / usar como base</MenuItem><MenuItem onClick={() => onDelete(item)} disabled={!sourcePhysical} danger>Eliminar evaluación</MenuItem>{!sourcePhysical && <p className="px-3 py-2 text-[10px] leading-4 text-zinc-600">Registro legacy conservado en modo lectura.</p>}</div>}</article>; })}</div> : <div className="mt-5 rounded-xl border border-dashed border-zinc-700 p-8 text-center"><p className="text-sm text-zinc-400">Todavía no tiene evaluaciones.</p><div className="mt-4"><ActionButton onClick={onCreate} disabled={creating}>Iniciar evaluación</ActionButton></div></div>}</Card>;
+}
+
+function MenuItem({ children, onClick, disabled = false, danger = false }: { children: ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
+  return <button type="button" role="menuitem" disabled={disabled} onClick={onClick} className={`min-h-11 w-full rounded-lg px-3 text-left text-sm disabled:cursor-not-allowed disabled:text-zinc-700 ${danger ? "text-red-300 hover:bg-red-400/10" : "text-zinc-300 hover:bg-zinc-800"}`}>{children}</button>;
+}
+
+function ProgressTab({ history, latestComparison, fullComparison }: { history: NormalizedEvaluation[]; latestComparison: ReturnType<typeof compareEvaluations> | null; fullComparison: ReturnType<typeof compareEvaluations> | null }) {
+  if (history.length < 2 || !latestComparison) return <Card className="p-8 text-center"><p className="text-sm text-zinc-400">Se necesitan al menos dos evaluaciones comparables.</p></Card>;
+  return <div className="space-y-4"><BMProgressCard progress={latestComparison.progress} /><Card className="p-4 sm:p-5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Evolución corporal</p><div className="mt-4"><EvaluationLineChart evaluations={history} /></div></Card><Accordion title="Desde la evaluación anterior" subtitle={`${showDate(latestComparison.previous.date)} → ${showDate(latestComparison.current.date)}`} open><EvaluationComparisonPanel comparison={latestComparison} /></Accordion>{fullComparison && <Accordion title="Desde la primera evaluación" subtitle={`${showDate(fullComparison.previous.date)} → ${showDate(fullComparison.current.date)}`}><EvaluationComparisonPanel comparison={fullComparison} /></Accordion>}</div>;
+}
+
+function ProfessionalRecord({ latest, previous, comparison, interpretation }: { latest?: NormalizedEvaluation; previous?: NormalizedEvaluation; comparison: ReturnType<typeof compareEvaluations> | null; interpretation: ReturnType<typeof interpretEvaluation> | null }) {
+  if (!latest) return <Card className="p-8 text-center"><p className="text-sm text-zinc-400">La ficha profesional estará disponible después de la primera evaluación.</p></Card>;
+  return <Card className="p-4 sm:p-5"><div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Ficha profesional</p><p className="mt-1 text-xs text-zinc-500">Información privada, sólo para el entrenador.</p></div><div className="space-y-2"><Accordion title="Simetría actual" subtitle="Medidas y tests con ambos lados"><EvaluationSymmetryPanel items={comparison?.symmetry ?? []} /></Accordion><Accordion title="Mapa corporal actual" subtitle="Molestias informadas y observación profesional"><EvaluationBodyMap issues={latest.bodyIssues} privateDetails /></Accordion><Accordion title="Movilidad y control" subtitle="Estados y resultados comparables"><EvaluationTests tests={latest.testResults} previousTests={previous?.testResults} category="MOBILITY" privateDetails /></Accordion><Accordion title="Rendimiento físico" subtitle="Tests y capacidades evaluadas"><EvaluationTests tests={latest.testResults} previousTests={previous?.testResults} category="PHYSICAL" privateDetails /></Accordion><Accordion title="Prioridades y estado general"><EvaluationStatusSummary tests={latest.testResults} />{interpretation && <div className="mt-4 space-y-2">{interpretation.priorities.map((item) => <div key={item.id} className="rounded-lg bg-black/35 p-3 text-sm"><strong>{item.message}</strong><p className="mt-1 text-xs text-zinc-500">{item.recommendation}</p></div>)}</div>}</Accordion><Accordion title="Resumen profesional" subtitle="Información privada, sólo para el entrenador"><ProfessionalNotes evaluation={latest} /></Accordion></div></Card>;
+}
+
+function ProfessionalNotes({ evaluation }: { evaluation: NormalizedEvaluation }) {
+  return <div className="grid gap-2 sm:grid-cols-2">{[["Fortalezas", evaluation.finalStrengths], ["Prioridades", evaluation.finalPriorities], ["Limitaciones", evaluation.finalLimitations], ["Planificación", evaluation.planningNotes], ["Comentario final", evaluation.finalComment]].map(([label, content]) => <div key={label} className="rounded-xl bg-black/30 p-3"><p className="text-xs font-bold text-yellow-300">{label}</p><p className="mt-2 whitespace-pre-wrap text-sm text-zinc-400">{content || "—"}</p></div>)}</div>;
+}
+
+function EvaluationDetail({ evaluation, history, onClose, onEdit }: { evaluation: NormalizedEvaluation; history: NormalizedEvaluation[]; onClose: () => void; onEdit: () => void }) {
+  const physical = evaluation.source === "PHYSICAL";
+  return <Overlay title={evaluationSequenceLabel(history.map((item) => ({ ...item, source: item.source })), evaluation.id)} close={onClose} wide><div className="mt-1 flex flex-wrap items-center gap-2"><span className="text-sm text-zinc-400">{showDate(evaluation.date)}</span><StatusBadge status={evaluation.status} /></div>{physical && evaluation.status === "IN_PROGRESS" && <div className="mt-4"><ActionButton onClick={onEdit} primary>Editar evaluación</ActionButton></div>}<div className="mt-5 space-y-2"><Accordion title="Información general" open><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Stat label="Objetivo" value={<span className="text-sm">{evaluation.primaryGoal || "—"}</span>} /><Stat label="Experiencia" value={<span className="text-sm">{evaluation.experienceLevel || "—"}</span>} /><Stat label="Disponibilidad" value={<span className="text-sm">{evaluation.weeklyAvailability || "—"}</span>} /><Stat label="Entrenador" value={<span className="text-sm">{evaluation.trainerName || "—"}</span>} /></div></Accordion><Accordion title="Medidas corporales"><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Stat label="Peso" value={number(evaluation.weight, "kg")} /><Stat label="Cintura" value={number(evaluation.waist, "cm")} /><Stat label="Cadera" value={number(evaluation.hip, "cm")} /><Stat label="Pecho" value={number(evaluation.chest, "cm")} /><Stat label="Brazo derecho" value={number(evaluation.rightArm, "cm")} /><Stat label="Brazo izquierdo" value={number(evaluation.leftArm, "cm")} /><Stat label="Muslo derecho" value={number(evaluation.rightThigh, "cm")} /><Stat label="Muslo izquierdo" value={number(evaluation.leftThigh, "cm")} /></div></Accordion><Accordion title="Composición corporal"><div className="grid grid-cols-2 gap-2 sm:grid-cols-4"><Stat label="Grasa corporal" value={number(evaluation.bodyFatPercentage, "%")} /><Stat label="Masa muscular" value={number(evaluation.muscleMass, "kg")} /><Stat label="Grasa visceral" value={number(evaluation.visceralFat)} /><Stat label="IMC" value={number(evaluation.bmi)} /></div></Accordion><Accordion title="Tests físicos"><EvaluationTests tests={evaluation.testResults} category="PHYSICAL" privateDetails /></Accordion><Accordion title="Movilidad y control"><EvaluationTests tests={evaluation.testResults} category="MOBILITY" privateDetails /></Accordion><Accordion title="Mapa corporal"><EvaluationBodyMap issues={evaluation.bodyIssues} privateDetails /></Accordion><Accordion title="Observaciones del entrenador" subtitle="Información privada"><ProfessionalNotes evaluation={evaluation} /></Accordion></div></Overlay>;
 }

@@ -111,6 +111,62 @@ export function workflowSummary(record: EvaluationRecordWithDetails) {
   };
 }
 
+const measuredGeneralDataKeys = new Set([
+  "ageSnapshot", "weight", "height", "bmi", "bodyFat", "bodyFatPercentage", "muscleMass", "visceralFat",
+  "waist", "hip", "chest", "rightArm", "leftArm", "rightThigh", "leftThigh", "rightCalf", "leftCalf",
+]);
+
+export function duplicateEvaluationData(record: EvaluationRecordWithDetails, input: { date: string; version: number; creationKey: string; ageSnapshot: number | null }): Prisma.PhysicalEvaluationCreateInput {
+  const generalData = Object.fromEntries(Object.entries(object(record.generalData)).filter(([key]) => !measuredGeneralDataKeys.has(key)));
+  if (input.ageSnapshot !== null) generalData.ageSnapshot = input.ageSnapshot;
+  return {
+    student: { connect: { id: record.studentId } },
+    date: new Date(`${input.date}T12:00:00.000Z`),
+    version: input.version,
+    status: "IN_PROGRESS" as const,
+    currentStep: 1,
+    completionPercentage: 6,
+    creationKey: input.creationKey,
+    trainerName: record.trainerName,
+    primaryGoal: record.primaryGoal,
+    secondaryGoals: record.secondaryGoals as Prisma.InputJsonValue,
+    experienceLevel: record.experienceLevel,
+    weeklyAvailability: record.weeklyAvailability,
+    generalData: generalData as Prisma.InputJsonValue,
+    habits: {} as Prisma.InputJsonValue,
+    trainingObservations: {} as Prisma.InputJsonValue,
+    trainerNotes: record.trainerNotes,
+    planningNotes: record.planningNotes,
+    finalStrengths: "",
+    finalPriorities: "",
+    finalLimitations: "",
+    finalComment: "",
+    reassessmentDate: null,
+    testResults: {
+      create: record.testResults.map((test) => ({
+        testKey: test.testKey,
+        category: test.category,
+        status: "NOT_PERFORMED",
+        numericValue: null,
+        unit: test.unit,
+        rightValue: null,
+        leftValue: null,
+        rightUnit: test.rightUnit,
+        leftUnit: test.leftUnit,
+        pain: false,
+        rightPain: false,
+        leftPain: false,
+        protocol: test.protocol,
+        variation: test.variation,
+        observations: "",
+        compensations: "",
+        notPerformedReason: "",
+        rawResult: {} as Prisma.InputJsonValue,
+      })),
+    },
+  };
+}
+
 function decimalValue(input: EvaluationDraftInput, type: string, side: string | null = null) {
   return input.measurements.find((item) => item.measurementType === type && item.side === side)?.value ?? null;
 }
