@@ -77,7 +77,6 @@ function PortalOverview({ data }: { data: PortalData }) {
       </div>
     </header>
     <section className="relative overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] px-4 py-3.5 shadow-[0_12px_28px_rgba(0,0,0,.22)] sm:px-5 sm:py-4"><span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -right-8 h-28 w-52 rotate-[-18deg] rounded-[50%] border-t border-yellow-400/15" /><div className="relative"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Enfoque de hoy</p><div className="mt-2 flex items-start gap-2.5"><span aria-hidden="true" className="text-2xl font-black leading-none text-yellow-400/80">“</span><div className="min-w-0"><h2 className="line-clamp-2 break-words text-sm font-semibold italic leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-[11px] leading-relaxed text-zinc-500 sm:text-xs">{dailyFocus.reflection}</p></div></div></div></section>
-    <WeeklyMissionCard data={data} groupClassesEnabled={groupClassesEnabled} />
     {groupClassesEnabled && <PortalClasses compact />}
     <HomeQuickStats data={data} />
     <QuickNoteButton />
@@ -102,12 +101,14 @@ function HomeQuickStats({ data }: { data: PortalData }) {
   </section>;
 }
 
-function WeeklyMissionCard({ data, groupClassesEnabled }: { data: PortalData; groupClassesEnabled: boolean }) {
+function WeeklyMissionAchievement({ data }: { data: PortalData }) {
   const mission = data.home.weeklyMission;
-  if (!mission) return <section className="relative min-h-[76px] overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] px-4 py-3.5 shadow-[0_12px_28px_rgba(0,0,0,.2)] sm:px-5"><div className="relative pr-16"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Misión de la semana</p><p className="mt-2 max-w-xl text-xs leading-relaxed text-zinc-400">{groupClassesEnabled ? "Tu misión semanal aparecerá cuando tengas clases programadas." : "Próximamente: misión de entrenamiento."}</p></div><span aria-hidden="true" className="absolute right-5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-yellow-400/20 text-xl text-yellow-400/55">◎</span></section>;
+  if (!mission) return <section className="rounded-2xl border border-white/[.07] bg-[#101010] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Misión semanal</p><p className="mt-1.5 text-xs text-zinc-500">No tenés una misión semanal disponible en este momento.</p></section>;
   const completed = mission.state === "COMPLETED";
+  const expired = mission.state === "EXPIRED";
+  const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";
   return <section className={`relative overflow-hidden rounded-[22px] border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] ${completed ? "border-emerald-400/15 bg-[linear-gradient(145deg,#151816,#090909)]" : "border-white/[.07] bg-[linear-gradient(145deg,#151515,#090909)]"}`}>
-    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={`text-[10px] font-bold uppercase tracking-[.18em] ${completed ? "text-emerald-300" : "text-yellow-400"}`}>{completed ? "Misión completada" : "Misión de la semana"}</p><h2 className="mt-1.5 text-sm font-black leading-snug text-white sm:text-base"><span aria-hidden="true" className="mr-2">{completed ? "🏆" : "🎯"}</span>{mission.title}</h2></div><span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>+{mission.rewardPoints} pts</span></div>
+    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-zinc-400" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>{stateLabel}</span></div><h2 className="mt-1.5 text-sm font-black leading-snug text-white sm:text-base"><span aria-hidden="true" className="mr-2">{completed ? "🏆" : "🎯"}</span>{mission.title}</h2></div><span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>+{mission.rewardPoints} pts</span></div>
     <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-zinc-500">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-zinc-400"}`}>{completed ? `+${mission.rewardPoints} pts obtenidos` : mission.message}</p></div>
     <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-label="Progreso de la misión semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)}><div className={`h-full rounded-full transition-[width] duration-500 ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div>
   </section>;
@@ -188,7 +189,8 @@ function PointsSummary({ data }: { data: PortalData }) {
 
 function PointsAndAchievementsView({ data }: { data: PortalData }) {
   return <PageHeader title="Puntos y logros" subtitle="Tus avances, movimientos y próximos hitos">
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
+      <WeeklyMissionAchievement data={data} />
       <PointsSummary data={data} />
       <AchievementsSpotlight data={data} />
       <AchievementsOverview data={data} />
