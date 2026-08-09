@@ -23,7 +23,7 @@ import { isTimedBlockType } from "@/lib/block-timer";
 import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
 import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-dashboard";
 
-type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "perfil" | "configuracion";
+type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
 const number = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
@@ -55,6 +55,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
+  if (section === "puntos") return <PointsAndAchievementsView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
   if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><ChangePasswordCard /><PushNotificationsCard /><PortalLogoutCard /></PageHeader>;
   return <PortalOverview data={data} />;
@@ -62,36 +63,50 @@ export function PortalSection({ section }: { section: Section }) {
 
 function PortalOverview({ data }: { data: PortalData }) {
   const now = new Date();
-  const todayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(now);
+  const rawTodayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(now);
+  const todayLabel = `${rawTodayLabel.charAt(0).toLocaleUpperCase("es")}${rawTodayLabel.slice(1)}`;
   const dailyFocus = dailyFocusForInstant(now);
   const groupClassesEnabled = hasGroupClasses(data.profile.serviceType);
-  return <div className="space-y-4">
-    <header className="relative overflow-hidden rounded-3xl border border-yellow-400/20 bg-[radial-gradient(circle_at_85%_10%,rgba(250,204,21,.09),transparent_35%),linear-gradient(135deg,#181818,#090909_65%)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.35)] sm:p-5">
-      <span aria-hidden="true" className="pointer-events-none absolute -right-10 top-3 h-px w-48 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/35 to-transparent" /><span aria-hidden="true" className="pointer-events-none absolute -right-5 top-12 h-px w-40 rotate-[-28deg] bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
-      <div className={`relative min-h-24 sm:min-h-28 ${groupClassesEnabled ? "pr-20 sm:pr-24" : ""}`}>
-        <p className="flex items-center gap-2 text-xs capitalize text-zinc-400"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p>
-        <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
-        <p className="mt-1 text-sm text-zinc-400">Vamos por un día más de progreso.</p>
+  return <div className="mx-auto max-w-5xl space-y-2.5 sm:space-y-3">
+    <header className="relative overflow-hidden rounded-[24px] border border-white/[.07] bg-[radial-gradient(circle_at_88%_8%,rgba(250,204,21,.045),transparent_28%),linear-gradient(145deg,#151515,#090909_70%)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.34)] sm:p-5">
+      <div className={`relative min-h-28 sm:min-h-32 ${groupClassesEnabled ? "pr-[5.4rem] sm:pr-28" : ""}`}>
+        <p className="flex items-center gap-2 text-[11px] text-zinc-500"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p>
+        <h1 className="mt-4 text-[1.65rem] font-black tracking-[-.035em] text-zinc-50 sm:text-4xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
+        <p className="mt-1.5 text-xs text-zinc-500 sm:text-sm">Vamos por un día más de progreso.</p>
         {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </header>
-    <section className="flex min-w-0 items-center justify-between gap-3 overflow-hidden rounded-2xl border border-white/[.08] bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-3.5 shadow-[0_12px_28px_rgba(0,0,0,.24)] sm:p-4"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Enfoque de hoy</p><h2 className="mt-1.5 line-clamp-2 break-words text-sm font-black leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-xs leading-relaxed text-zinc-400 sm:text-sm">{dailyFocus.reflection}</p></div><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-yellow-400/15 bg-yellow-400/[0.04] sm:h-12 sm:w-12 sm:rounded-2xl"><svg aria-hidden="true" viewBox="0 0 64 64" className="h-7 w-7 text-yellow-400"><defs><linearGradient id="bolt-glow" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#fde68a" /><stop offset="100%" stopColor="#b45309" /></linearGradient></defs><path d="M34 6 18 34h12l-2 24 20-30H34l4-18Z" fill="none" stroke="url(#bolt-glow)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg></div></section>
+    <section className="relative overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] px-4 py-3.5 shadow-[0_12px_28px_rgba(0,0,0,.22)] sm:px-5 sm:py-4"><span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -right-8 h-28 w-52 rotate-[-18deg] rounded-[50%] border-t border-yellow-400/15" /><div className="relative"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Enfoque de hoy</p><div className="mt-2 flex items-start gap-2.5"><span aria-hidden="true" className="text-2xl font-black leading-none text-yellow-400/80">“</span><div className="min-w-0"><h2 className="line-clamp-2 break-words text-sm font-semibold italic leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-[11px] leading-relaxed text-zinc-500 sm:text-xs">{dailyFocus.reflection}</p></div></div></div></section>
     <WeeklyMissionCard data={data} groupClassesEnabled={groupClassesEnabled} />
-    {groupClassesEnabled ? <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"><PortalClasses compact /><QuotaSummaryCard data={data} /></div> : <div className="max-w-md"><QuotaSummaryCard data={data} /></div>}
-    <ProgressSummary data={data} />
-    <PointsSummary data={data} />
-    <span id="logros" className="scroll-mt-24" />
-    <AchievementsSpotlight data={data} />
-    <AchievementsOverview data={data} />
+    {groupClassesEnabled && <PortalClasses compact />}
+    <HomeQuickStats data={data} />
     <QuickNoteButton />
   </div>;
 }
 
+function HomeQuickStats({ data }: { data: PortalData }) {
+  const account = data.paymentAccount;
+  const status = accountStatus[account.status];
+  const mission = data.home.weeklyMission;
+  const progressValue = mission ? `${mission.progress}/${mission.target}` : `${data.weeklyWorkouts}`;
+  const progressLabel = mission ? "Clases esta semana" : "Entrenamientos esta semana";
+  const weekStart = new Date(`${argentinaDateKey()}T12:00:00.000Z`);
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+  const weekStartKey = weekStart.toISOString().slice(0, 10);
+  const weeklyPoints = data.home.points.recent.filter((item) => item.occurredAt.slice(0, 10) >= weekStartKey).reduce((sum, item) => sum + item.points, 0);
+  const dueLabel = account.nextDueDate ? `${account.status === "VENCIDA" ? "Venció" : "Renueva"} el ${date(account.nextDueDate)}` : account.configured ? "Cuota configurada" : "Consultá con tu entrenador";
+  return <section aria-label="Resumen del alumno" className="grid grid-cols-3 gap-1.5 sm:gap-2">
+    <Link href="/portal/pagos" className="group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3"><span aria-hidden="true" className="absolute right-2.5 top-2.5 text-xs text-yellow-400/60">▣</span><p className="pr-4 text-[8px] font-black uppercase tracking-[.13em] text-yellow-400 sm:text-[9px]">Tu cuota</p><p className={`mt-3 truncate text-sm font-semibold sm:text-base ${status.className.includes("emerald") ? "text-emerald-400" : "text-zinc-100"}`}>{status.label}</p><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">{dueLabel}</p></Link>
+    <Link href="/portal/evaluaciones" className="group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3"><p className="text-[8px] font-black uppercase tracking-[.12em] text-yellow-400 sm:text-[9px]">Progreso resumido</p><div className="mt-3 flex items-end gap-2"><p className="text-lg font-semibold leading-none text-zinc-100 sm:text-xl">{progressValue}</p><span aria-hidden="true" className="flex h-5 items-end gap-0.5"><i className="h-1 w-0.5 bg-yellow-400/30" /><i className="h-2.5 w-0.5 bg-yellow-400/45" /><i className="h-4 w-0.5 bg-yellow-400/65" /><i className="h-2 w-0.5 bg-zinc-700" /></span></div><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">{progressLabel}</p></Link>
+    <Link href="/portal/puntos" className="group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3"><span aria-hidden="true" className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/25 text-[10px] text-yellow-300">★</span><p className="pr-7 text-[8px] font-black uppercase tracking-[.13em] text-yellow-400 sm:text-[9px]">Tus puntos</p><p className="mt-3 truncate text-lg font-semibold leading-none text-zinc-100 sm:text-xl">{data.home.points.total.toLocaleString("es-AR")}</p><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">+{weeklyPoints} esta semana</p></Link>
+  </section>;
+}
+
 function WeeklyMissionCard({ data, groupClassesEnabled }: { data: PortalData; groupClassesEnabled: boolean }) {
   const mission = data.home.weeklyMission;
-  if (!mission) return <section className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.2)]"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Misión de la semana</p><p className="mt-2 text-sm font-semibold text-zinc-200">{groupClassesEnabled ? "Tu misión semanal aparecerá cuando tengas clases programadas." : "Próximamente: misión de entrenamiento."}</p></section>;
+  if (!mission) return <section className="relative min-h-[76px] overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] px-4 py-3.5 shadow-[0_12px_28px_rgba(0,0,0,.2)] sm:px-5"><div className="relative pr-16"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Misión de la semana</p><p className="mt-2 max-w-xl text-xs leading-relaxed text-zinc-400">{groupClassesEnabled ? "Tu misión semanal aparecerá cuando tengas clases programadas." : "Próximamente: misión de entrenamiento."}</p></div><span aria-hidden="true" className="absolute right-5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-yellow-400/20 text-xl text-yellow-400/55">◎</span></section>;
   const completed = mission.state === "COMPLETED";
-  return <section className={`relative overflow-hidden rounded-2xl border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] ${completed ? "border-emerald-400/15 bg-[radial-gradient(circle_at_92%_10%,rgba(52,211,153,.06),transparent_32%),linear-gradient(145deg,#171918,#090909)]" : "border-white/[.08] bg-[linear-gradient(145deg,#181818,#090909)]"}`}>
+  return <section className={`relative overflow-hidden rounded-[22px] border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] ${completed ? "border-emerald-400/15 bg-[linear-gradient(145deg,#151816,#090909)]" : "border-white/[.07] bg-[linear-gradient(145deg,#151515,#090909)]"}`}>
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={`text-[10px] font-bold uppercase tracking-[.18em] ${completed ? "text-emerald-300" : "text-yellow-400"}`}>{completed ? "Misión completada" : "Misión de la semana"}</p><h2 className="mt-1.5 text-sm font-black leading-snug text-white sm:text-base"><span aria-hidden="true" className="mr-2">{completed ? "🏆" : "🎯"}</span>{mission.title}</h2></div><span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>+{mission.rewardPoints} pts</span></div>
     <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-zinc-500">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-zinc-400"}`}>{completed ? `+${mission.rewardPoints} pts obtenidos` : mission.message}</p></div>
     <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-label="Progreso de la misión semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)}><div className={`h-full rounded-full transition-[width] duration-500 ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div>
@@ -171,91 +186,27 @@ function PointsSummary({ data }: { data: PortalData }) {
   );
 }
 
+function PointsAndAchievementsView({ data }: { data: PortalData }) {
+  return <PageHeader title="Puntos y logros" subtitle="Tus avances, movimientos y próximos hitos">
+    <div className="space-y-4">
+      <PointsSummary data={data} />
+      <AchievementsSpotlight data={data} />
+      <AchievementsOverview data={data} />
+    </div>
+  </PageHeader>;
+}
+
 function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
   const percentage = data.home.monthlyAttendancePercentage;
   const angle = Math.min(100, Math.max(0, percentage ?? 0)) * 3.6;
   const attended = data.home.classesAttendedThisMonth;
   const detail = percentage === null ? "Sin registros este mes" : `${attended} ${attended === 1 ? "presente" : "presentes"} este mes`;
   const display = percentage === null ? "—" : `${percentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
-  return <Link href="/portal/asistencias" aria-label={`Ver detalle de asistencia mensual. ${percentage === null ? "Sin registros este mes." : `${display}. ${detail}.`}`} className="group absolute right-0 top-0 z-10 flex w-[4.5rem] cursor-pointer flex-col items-center gap-1 rounded-2xl transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" title="Ver detalle de asistencias">
-    <span className="relative grid h-[60px] w-[60px] place-items-center rounded-full border border-zinc-700/80 shadow-[0_8px_22px_rgba(0,0,0,.28)] transition group-hover:border-yellow-400/40 group-hover:shadow-[0_8px_24px_rgba(250,204,21,.1)]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[4px] rounded-full bg-zinc-950" /><strong className="relative text-sm font-black text-yellow-300">{display}</strong></span>
-    <span className="text-[8px] font-bold uppercase tracking-[.08em] text-zinc-500">Asistencia</span>
-    <span className="text-[8px] font-semibold text-yellow-300/80">Ver detalle ›</span>
+  return <Link href="/portal/asistencias" aria-label={`Ver detalle de asistencia mensual. ${percentage === null ? "Sin registros este mes." : `${display}. ${detail}.`}`} className="group absolute right-0 top-0 z-10 flex w-[5rem] cursor-pointer flex-col items-center gap-1 rounded-2xl transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:w-[6rem]" title="Ver detalle de asistencias">
+    <span className="relative grid h-[68px] w-[68px] place-items-center rounded-full border border-zinc-700/70 shadow-[0_8px_22px_rgba(0,0,0,.28)] transition group-hover:border-yellow-400/40 sm:h-[76px] sm:w-[76px]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[5px] rounded-full bg-[#0b0b0b]" /><strong className="relative text-base font-black text-yellow-300 sm:text-lg">{display}</strong></span>
+    <span className="text-[8px] font-bold uppercase tracking-[.12em] text-zinc-500">Asistencia</span>
+    <span className="text-[9px] font-semibold text-yellow-300/85">Ver detalle ›</span>
   </Link>;
-}
-
-function ProgressSummary({ data }: { data: PortalData }) {
-  const physical = physicalProgressSummary(data.evaluations);
-  return <section>
-    <div className="flex items-center justify-between gap-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Progreso resumido</h2><Link href="/portal/evaluaciones" className="text-xs font-bold text-zinc-400 transition hover:text-yellow-300">Ver progreso ›</Link></div>
-    <div className="mt-3">
-      <ProgressCard title="Progreso físico" icon="◇" className="border-yellow-400/15">
-        {physical ? <div>
-          {physical.featured ? <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><p className="text-xs text-zinc-500">{physical.featured.label}</p><p className="mt-1 text-3xl font-black tracking-tight text-white">{physical.featured.display}</p></div>
-            <p className="max-w-56 rounded-full border border-yellow-400/10 bg-yellow-400/[.06] px-3 py-1.5 text-xs text-zinc-300">{physical.featured.change}</p>
-          </div> : <EmptyProgress>La última evaluación no tiene medidas corporales disponibles.</EmptyProgress>}
-          {physical.secondary.length > 0 && <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{physical.secondary.map((metric) => <div key={metric.key} className="min-w-0 rounded-xl border border-zinc-800/80 bg-black/35 p-3"><p className="truncate text-[10px] uppercase tracking-wide text-zinc-500">{metric.label}</p><p className="mt-1 text-sm font-bold text-zinc-100">{metric.display}</p>{metric.hasComparison && <p className="mt-1 text-[10px] leading-snug text-zinc-500">{metric.change}</p>}</div>)}</div>}
-          <div className="mt-4 border-t border-zinc-800/80 pt-3">
-            {physical.summary && <p className="text-xs leading-relaxed text-zinc-300">{physical.summary}</p>}
-            <p className={`${physical.summary ? "mt-2" : ""} text-[10px] text-zinc-600`}>Última evaluación: {date(physical.date)}</p>
-          </div>
-        </div> : <EmptyProgress>Todavía no tenés evaluaciones registradas.</EmptyProgress>}
-        <Link href="/portal/evaluaciones" className="mt-3 inline-flex text-xs font-bold text-yellow-300">Ver evaluaciones ›</Link>
-      </ProgressCard>
-    </div>
-  </section>;
-}
-
-function ProgressCard({ title, icon, children, className = "" }: { title: string; icon: string; children: ReactNode; className?: string }) {
-  return <article className={`min-w-0 rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_12px_28px_rgba(0,0,0,.2)] ${className}`}><div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-[10px] font-bold uppercase tracking-[.14em] text-zinc-500">{title}</h3><span aria-hidden="true" className="grid h-8 w-8 place-items-center rounded-lg bg-yellow-400/10 text-yellow-400">{icon}</span></div>{children}</article>;
-}
-
-function EmptyProgress({ children }: { children: ReactNode }) {
-  return <p className="text-sm leading-relaxed text-zinc-500">{children}</p>;
-}
-
-type PhysicalSummaryKey = "weight" | "bodyFatPercentage" | "muscleMass" | "waist" | "hip";
-
-function physicalProgressSummary(evaluations: StudentEvaluation[]) {
-  const latest = evaluations[0];
-  if (!latest) return null;
-  const previous = evaluations[1];
-  const definitions: Array<{ key: PhysicalSummaryKey; label: string; unit: string }> = [
-    { key: "weight", label: "Peso", unit: "kg" },
-    { key: "bodyFatPercentage", label: "Grasa corporal", unit: "%" },
-    { key: "muscleMass", label: "Masa muscular", unit: "kg" },
-    { key: "waist", label: "Cintura", unit: "cm" },
-    { key: "hip", label: "Cadera", unit: "cm" },
-  ];
-  const metrics = definitions.flatMap((definition) => {
-    const current = latest[definition.key];
-    if (current === null) return [];
-    const before = previous?.[definition.key] ?? null;
-    const difference = before === null ? null : current - before;
-    return [{
-      ...definition,
-      current,
-      display: formatBodyValue(current, definition.unit),
-      difference,
-      hasComparison: difference !== null,
-      change: difference === null
-        ? "Sin comparación anterior"
-        : difference === 0
-          ? "→ Sin cambios"
-          : `${difference > 0 ? "↑ Subió" : "↓ Bajó"} ${formatBodyValue(Math.abs(difference), definition.unit)}`,
-      relativeChange: difference === null || before === null || before === 0 ? 0 : Math.abs(difference / before),
-    }];
-  });
-  const featured = metrics.find((metric) => metric.key === "weight") ?? metrics[0] ?? null;
-  const secondary = metrics.filter((metric) => metric.key !== featured?.key).slice(0, 4);
-  const relevant = metrics.filter((metric) => metric.difference !== null && metric.difference !== 0).sort((left, right) => right.relativeChange - left.relativeChange)[0];
-  const summary = relevant
-    ? `${relevant.label} ${relevant.difference! > 0 ? "subió" : "bajó"} ${formatBodyValue(Math.abs(relevant.difference!), relevant.unit)} respecto a la evaluación anterior.`
-    : previous && metrics.some((metric) => metric.hasComparison)
-      ? "Las mediciones comparables se mantienen sin cambios."
-      : "";
-  return { date: latest.date, featured, secondary, summary };
 }
 
 function AchievementsSpotlight({ data }: { data: PortalData }) {
@@ -294,16 +245,6 @@ function CompactEvaluationsView({ data }: { data: PortalData }) {
     <section className="rounded-2xl border border-yellow-400/15 bg-[linear-gradient(145deg,#181818,#090909)] p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)]"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Última evaluación</p><p className="mt-2 text-lg font-black">{date(latest.date)}</p><p className="mt-1 text-xs text-zinc-500">Versión {latest.version ?? data.evaluations.length} · {state}</p></div><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-sm font-black text-emerald-300">{progress}%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800" aria-label={`Progreso ${progress}%`}><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-400" style={{ width: `${progress}%` }} /></div><div className="mt-4 grid grid-cols-2 gap-2"><SmallMetric title="Estado" value={state} /><SmallMetric title="Próxima evaluación" value={latest.reassessmentDate ? date(latest.reassessmentDate) : "—"} /></div></section>
     <details className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-bold text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400"><span>Ver historial</span><span aria-hidden="true">›</span></summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{data.evaluations.map((item) => <details key={item.id} className="rounded-lg bg-zinc-950 p-3"><summary className="cursor-pointer list-none"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Versión {item.version ?? "—"} · {date(item.date)}</p><p className="mt-1 text-xs text-zinc-500">{item.status === "REASSESSMENT_RECOMMENDED" ? "Reevaluación recomendada" : "Completada"} · {item.completionPercentage ?? 100}%</p></div><span className="text-xs font-bold text-yellow-400">Ver</span></div></summary><div className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3 sm:grid-cols-4">{evaluationMeasurements(item).map((measurement) => <SmallMetric key={measurement.key} title={measurement.label} value={measurement.display} />)}</div></details>)}</div></details>
   </PageHeader>;
-}
-
-function QuotaSummaryCard({ data }: { data: PortalData }) {
-  const account = data.paymentAccount;
-  const status = accountStatus[account.status];
-  return <section className="flex h-full min-h-44 flex-col rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_90%_0%,rgba(250,204,21,.08),transparent_38%),linear-gradient(145deg,#171717,#090909)] p-4 shadow-[0_14px_35px_rgba(0,0,0,.28)]">
-    <div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Tu cuota</p><span aria-hidden="true" className="text-yellow-400">◇</span></div>
-    {account.configured ? <><p className="mt-4 text-2xl font-black">{money(account.monthlyFee)}</p><span className={`mt-2 self-start rounded-full px-2.5 py-1 text-xs font-bold ${status.className}`}>{status.label}</span>{account.nextDueDate && <p className="mt-2 text-xs text-zinc-500">{account.status === "VENCIDA" ? "Venció" : "Próximo vencimiento"}: <span className="text-zinc-300">{date(account.nextDueDate)}</span></p>}</> : <div className="my-auto"><p className="text-sm font-semibold text-zinc-300">Cuota sin configurar</p><p className="mt-1 text-xs text-zinc-600">Consultá con tu entrenador.</p></div>}
-    <Link href="/portal/pagos" className="mt-auto pt-4 text-xs font-bold text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400">Ver detalle ›</Link>
-  </section>;
 }
 
 function evaluationMeasurements(evaluation: StudentEvaluation) {

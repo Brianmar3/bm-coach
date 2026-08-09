@@ -281,8 +281,8 @@ test("Inicio usa total y preview del servidor sin recortar la fuente completa", 
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
   assert.match(source, /data\.summary\.total/);
   assert.match(source, /data\.summary\.preview\.map/);
-  assert.match(source, /data\.summary\.hiddenCount/);
-  assert.match(source, /\+\$\{data\.summary\.hiddenCount\} horarios más/);
+  assert.match(source, /data\.summary\.preview\.map/);
+  assert.match(source, /Ver agenda completa/);
   assert.match(source, /data\.summary\.firstStartTime/);
   assert.match(source, /data\.summary\.lastStartTime/);
   assert.match(source, /Ver todos los horarios/);
@@ -333,7 +333,7 @@ test("confirmar asistencia conserva endpoint, payload y protección de doble toq
   assert.match(source, /if \(responseInFlight\.current\) return/);
   assert.match(source, /responseInFlight\.current = true/);
   assert.match(source, /responseInFlight\.current = false/);
-  assert.equal(source.match(/disabled=\{saving\}/g)?.length, 2);
+  assert.equal(source.match(/disabled=\{saving\}/g)?.length, 3);
 });
 
 test("Inicio conserva el dorado como acento sin botones ni superficies dominantes", () => {
@@ -353,6 +353,23 @@ test("Inicio conserva el dorado como acento sin botones ni superficies dominante
   assert.match(home, /role="progressbar"/);
   assert.match(home, /from-amber-500 to-yellow-300/);
   assert.match(home, /MonthlyAttendanceIndicator/);
+});
+
+test("Inicio replica la jerarquía compacta y conecta todos los accesos de la referencia", () => {
+  const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
+  const pointsPage = readFileSync(new URL("../app/portal/(student)/puntos/page.tsx", import.meta.url), "utf8");
+  const overview = home.slice(home.indexOf("function PortalOverview"), home.indexOf("function WeeklyMissionCard"));
+  assert.match(overview, /Enfoque de hoy/);
+  assert.match(overview, /WeeklyMissionCard/);
+  assert.match(overview, /<PortalClasses compact/);
+  assert.match(overview, /HomeQuickStats/);
+  assert.doesNotMatch(overview, /<ProgressSummary|<PointsSummary|<AchievementsSpotlight/);
+  for (const href of ["/portal/asistencias", "/portal/pagos", "/portal/evaluaciones", "/portal/puntos"]) assert.match(home, new RegExp(`href="${href}"`));
+  assert.match(pointsPage, /section="puntos"/);
+  for (const label of ["Inicio", "Rutina", "Clases", "Nutrición", "Evaluación"]) assert.match(shell, new RegExp(label));
+  assert.match(home, /grid grid-cols-3/);
+  assert.doesNotMatch(overview, /overflow-x-auto/);
 });
 
 test("la confirmación del servidor admite clases generales elegibles y conserva cupo atómico", () => {

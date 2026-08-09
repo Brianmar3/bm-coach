@@ -17,7 +17,7 @@ const allLinks: PortalLink[] = [
   ["Rutina", "/portal/rutina", "◫"],
   ["Clases", "/portal/clases", "▷"],
   ["Nutrición", "/portal/nutricion", "◉"],
-  ["Evaluaciones", "/portal/evaluaciones", "◇"],
+  ["Evaluación", "/portal/evaluaciones", "◇"],
 ];
 
 function BrandMark() {
@@ -89,7 +89,7 @@ export function PortalShell({
   return (
     <div className="min-h-screen overflow-x-clip bg-[#070707] text-white" style={shellStyle}>
       <AchievementCelebration />
-      <header className="sticky top-0 z-30 border-b border-yellow-400/10 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
+      <header className="sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
           <Link
             href="/portal"
@@ -111,7 +111,7 @@ export function PortalShell({
             <StudentNotificationCenter />
             <Link
               href="/portal/perfil"
-              className="group flex min-h-11 min-w-11 items-center gap-2 rounded-xl p-1 transition hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 sm:pr-3"
+              className="group flex min-h-11 min-w-11 items-center gap-2 rounded-full p-1 transition hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 sm:pr-3"
               aria-label={`Abrir perfil de ${studentName}`}
             >
               <Image
@@ -120,7 +120,7 @@ export function PortalShell({
                 width={36}
                 height={36}
                 unoptimized
-                className="h-9 w-9 shrink-0 rounded-full border border-yellow-400/30 object-cover"
+                className="h-9 w-9 shrink-0 rounded-full border border-yellow-400/25 object-cover"
               />
               <span className="hidden min-w-0 md:block">
                 <span className="block max-w-40 truncate text-xs font-semibold text-zinc-200">
@@ -156,7 +156,7 @@ export function PortalShell({
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl p-3 pb-[calc(env(safe-area-inset-bottom)+8.25rem)] sm:p-6 md:pb-12">
+      <main className="mx-auto max-w-6xl p-2.5 pb-[calc(env(safe-area-inset-bottom)+8.25rem)] sm:p-6 md:pb-12">
         {children}
       </main>
 

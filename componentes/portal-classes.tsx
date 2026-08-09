@@ -198,8 +198,8 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
 
   if (compact)
     return (
-      <section className="h-full overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#090909)] p-3.5 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-4">
-        <div className="flex items-start justify-between gap-3 border-b border-white/[.06] pb-3">
+      <section className="h-full overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">
               <span aria-hidden="true">▣</span>{data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.mode === "NEXT_DAY" ? "Próximo día" : "Agenda de clases"}
@@ -210,15 +210,18 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
                 : "Sin próximas clases"}
             </h2>
           </div>
-          {data.summary.dateLabel && <span className="max-w-28 shrink-0 text-right text-[11px] font-bold leading-tight text-zinc-400">{data.summary.dateLabel}</span>}
+          <div className="shrink-0 text-right">
+            {data.summary.dateLabel && <span className="block max-w-32 text-[10px] font-medium leading-tight text-zinc-500">{data.summary.dateLabel}</span>}
+            <Link href="/portal/clases" className="mt-2 inline-flex min-h-7 items-center text-[10px] font-black text-yellow-300 transition hover:text-yellow-200">Ver agenda completa ›</Link>
+          </div>
         </div>
         {data.summary.total ? (
           <>
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-400">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-zinc-500">
               {data.summary.firstStartTime && data.summary.lastStartTime && (
-                <span>Desde las <strong className="text-zinc-200">{data.summary.firstStartTime}</strong> hasta las <strong className="text-zinc-200">{data.summary.lastStartTime}</strong></span>
+                <span className="tabular-nums">◷ {data.summary.firstStartTime}–{data.summary.lastStartTime}</span>
               )}
-              <span>{data.summary.mode === "TODAY" ? "Elegí tu horario y confirmá tu asistencia." : "Tu próximo día con actividad."}</span>
+              <span>· {data.summary.mode === "TODAY" ? "Elegí tu horario." : "Tu próximo día con actividad."}</span>
             </div>
             <div className="mt-3 space-y-2">
               {data.summary.preview.map((item) => (
@@ -229,12 +232,6 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
                   respond={respond}
                 />
               ))}
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/[.06] pt-3">
-              <span className="text-[11px] font-bold text-zinc-500">
-                {data.summary.hiddenCount > 0 ? `+${data.summary.hiddenCount} horarios más` : "Agenda completa"}
-              </span>
-              <Link href="/portal/clases" className="shrink-0 text-xs font-black text-yellow-300 transition hover:text-yellow-200">Ver todos los horarios →</Link>
             </div>
           </>
         ) : (
@@ -393,16 +390,14 @@ function CompactClassRow({
   const discipline = disciplinePresentation(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className={`min-w-0 rounded-xl border border-white/[.07] border-l-2 ${discipline.accent} bg-black/30 p-2.5`}>
-      <div className="flex min-w-0 items-center gap-2.5">
-        <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg border border-white/[.06] bg-white/[.035] text-sm">{discipline.icon}</span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-black text-zinc-100">{discipline.label}</p>
-          <p className="mt-0.5 text-[11px] font-bold tabular-nums text-yellow-300">{item.startTime}–{item.endTime}</p>
-        </div>
-        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black ${item.response === "GOING" ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-white/[.08] bg-white/[.035] text-zinc-400"}`}>{responseLabel}</span>
+    <article className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.065] bg-black/35 p-2 sm:grid-cols-[2rem_minmax(0,1fr)_auto_auto]">
+      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.035] text-xs text-yellow-300">{discipline.icon}</span>
+      <div className="min-w-0">
+        <p className="truncate text-[11px] font-black tabular-nums text-zinc-100">{item.startTime}–{item.endTime}</p>
+        <p className="mt-0.5 truncate text-[10px] text-zinc-500">{discipline.label}</p>
       </div>
-      {item.canRespond && <ResponseButtons item={item} saving={saving} respond={respond} compact />}
+      <span className={`hidden shrink-0 text-[9px] font-bold sm:inline ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</span>
+      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`min-h-9 shrink-0 rounded-lg border px-2.5 text-[10px] font-bold transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/35 bg-yellow-400/[.055] text-yellow-200" : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-yellow-400/25"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
     </article>
   );
 }
