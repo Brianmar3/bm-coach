@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
@@ -43,6 +43,13 @@ const statusDetails = {
   SIN_PAGOS: { label: "Sin pagos", className: "bg-yellow-400/10 text-yellow-200 ring-yellow-400/30" },
   SIN_CONFIGURAR: { label: "Sin configurar", className: "bg-zinc-800 text-zinc-300 ring-zinc-700" },
 } as const;
+const statusAccent: Record<PaymentStudentAccount["status"], string> = {
+  VENCIDA: "bg-red-400",
+  VENCE_PRONTO: "bg-orange-400",
+  AL_DIA: "bg-emerald-400",
+  SIN_PAGOS: "bg-yellow-300",
+  SIN_CONFIGURAR: "bg-zinc-500",
+};
 
 function money(value: number) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -218,30 +225,38 @@ export default function PagosPage() {
   }
 
   const summary = data.summary;
-  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." action={<div className="flex flex-wrap gap-2"><Link href="/resumen-mensual" className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm font-bold text-yellow-300">Resumen mensual</Link><button onClick={() => begin()} className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-bold text-zinc-950">+ Agregar pago</button></div>}>
+  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." hideHeader flushTop>
+    <header className="admin-welcome mb-4 rounded-2xl px-4 py-5 sm:px-6 sm:py-6">
+      <p className="text-[10px] font-bold uppercase tracking-[.24em] text-yellow-400">Gestión BM Training</p>
+      <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Pagos</h1>
+      <p className="mt-1 text-sm text-zinc-400 sm:text-base">Cuotas, cobros e historial.</p>
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Link href="/resumen-mensual" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-yellow-400/35 px-2.5 text-[13px] font-bold text-yellow-300 transition hover:border-yellow-400/60 hover:bg-yellow-400/5 sm:gap-2 sm:px-3 sm:text-sm"><PaymentIcon name="summary" />Resumen mensual</Link>
+        <button onClick={() => begin()} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-yellow-400 px-2.5 text-[13px] font-bold text-zinc-950 shadow-lg shadow-yellow-400/10 transition hover:bg-yellow-300 sm:gap-2 sm:px-3 sm:text-sm"><span className="text-lg font-light" aria-hidden="true">+</span>Agregar pago</button>
+      </div>
+    </header>
     {(error || notice) && !form && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
 
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-      <p className="text-xs uppercase tracking-wider text-zinc-500">Cobrado este mes</p>
-      <p className="mt-1 text-2xl font-bold text-emerald-300">{ready ? money(summary.collectedThisMonth) : <span className="inline-block h-7 w-32 animate-pulse rounded bg-zinc-800" />}</p>
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <MiniSummary label="Vencidos" value={summary.overdueCount} tone="text-red-300" ready={ready} />
-        <MiniSummary label="Vencen pronto" value={summary.dueSoonCount} tone="text-orange-300" ready={ready} />
-        <MiniSummary label="Al día" value={summary.currentCount} tone="text-emerald-300" ready={ready} />
-        <MiniSummary label="Sin pagos" value={summary.noPaymentCount} tone="text-yellow-200" ready={ready} />
-        <MiniSummary label="Pendiente estimado" value={money(summary.estimatedOutstanding)} tone="text-yellow-300" ready={ready} />
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-lg shadow-black/10 sm:p-5">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-zinc-500">Cobrado este mes</p><p className="mt-1 text-3xl font-bold tracking-tight text-emerald-300 sm:text-4xl">{ready ? money(summary.collectedThisMonth) : <span className="inline-block h-9 w-40 animate-pulse rounded bg-zinc-800" />}</p></div><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-yellow-400/15 bg-yellow-400/5 text-yellow-300"><PaymentIcon name="trend" /></span></div>
+      <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <MiniSummary label="Vencidos" value={summary.overdueCount} tone="text-red-300" icon="overdue" ready={ready} />
+        <MiniSummary label="Vencen pronto" value={summary.dueSoonCount} tone="text-orange-300" icon="calendar" ready={ready} />
+        <MiniSummary label="Al día" value={summary.currentCount} tone="text-emerald-300" icon="check" ready={ready} />
+        <MiniSummary label="Sin pagos" value={summary.noPaymentCount} tone="text-yellow-200" icon="student" ready={ready} />
+        <div className="col-span-2 flex min-h-16 items-center justify-between rounded-xl border border-yellow-400/10 bg-black/25 px-3.5 py-3 lg:col-span-4"><div><p className="text-xs text-zinc-500">Pendiente estimado</p>{ready ? <p className="mt-0.5 text-lg font-bold text-yellow-300">{money(summary.estimatedOutstanding)}</p> : <span className="mt-1 block h-5 w-24 animate-pulse rounded bg-zinc-800" />}</div><span className="text-yellow-300/60"><PaymentIcon name="wallet" /></span></div>
       </div>
     </section>
 
-    <section className="mt-4 space-y-3">
-      <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nombre, plan, teléfono o estado" className={`${inputClass} w-full`} />
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {filters.map((item) => <button key={item.value} onClick={() => setFilter(item.value)} className={`shrink-0 rounded-lg px-3 py-2 text-sm font-semibold ${filter === item.value ? "bg-yellow-400 text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}>{item.label}</button>)}
+    <section aria-label="Buscar y filtrar pagos" className="mt-4 space-y-3">
+      <div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"><PaymentIcon name="search" /></span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nombre, plan, teléfono o estado" className={`${inputClass} w-full pl-11`} /></div>
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {filters.map((item) => <button key={item.value} onClick={() => setFilter(item.value)} aria-pressed={filter === item.value} className={`min-h-10 shrink-0 rounded-xl border px-3 text-sm font-semibold transition ${filter === item.value ? "border-yellow-400/70 bg-yellow-400/10 text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-zinc-800 bg-zinc-900/70 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"}`}>{item.label}</button>)}
       </div>
     </section>
 
-    <section className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-      {!ready ? <div className="space-y-px">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-20 animate-pulse bg-zinc-900 p-4"><div className="h-4 w-36 rounded bg-zinc-800" /><div className="mt-2 h-3 w-52 rounded bg-zinc-800" /></div>)}</div>
+    <section aria-label="Alumnos y cuotas" className="mt-4 space-y-2">
+      {!ready ? <div className="space-y-2">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4"><div className="h-4 w-36 rounded bg-zinc-800" /><div className="mt-2 h-3 w-52 rounded bg-zinc-800" /></div>)}</div>
         : visible.length === 0 ? <p className="p-10 text-center text-zinc-500">No hay alumnos que coincidan con el filtro.</p>
         : visible.map((account) => <AccountRow key={account.studentId} account={account} expanded={expandedId === account.studentId} saving={savingId === account.studentId} toggle={() => setExpandedId((value) => value === account.studentId ? "" : account.studentId)} begin={() => begin(account)} paidToday={() => paidToday(account)} history={() => loadHistory(account)} />)}
     </section>
@@ -251,23 +266,24 @@ export default function PagosPage() {
   </ModuleShell>;
 }
 
-function MiniSummary({ label, value, tone, ready }: { label: string; value: string | number; tone: string; ready: boolean }) {
-  return <div className="rounded-xl bg-zinc-950 px-3 py-2"><p className="text-[11px] text-zinc-500">{label}</p>{ready ? <p className={`mt-1 text-sm font-bold ${tone}`}>{value}</p> : <span className="mt-1 block h-4 w-12 animate-pulse rounded bg-zinc-800" />}</div>;
+function MiniSummary({ label, value, tone, icon, ready }: { label: string; value: string | number; tone: string; icon: PaymentIconName; ready: boolean }) {
+  return <div className="flex min-h-20 items-center justify-between rounded-xl border border-zinc-800 bg-black/25 px-3.5 py-3"><div><p className="text-xs text-zinc-500">{label}</p>{ready ? <p className={`mt-1 text-xl font-bold ${tone}`}>{value}</p> : <span className="mt-1 block h-5 w-12 animate-pulse rounded bg-zinc-800" />}</div><span className={`${tone} opacity-70`}><PaymentIcon name={icon} /></span></div>;
 }
 
 function AccountRow({ account, expanded, saving, toggle, begin, paidToday, history }: { account: PaymentStudentAccount; expanded: boolean; saving: boolean; toggle: () => void; begin: () => void; paidToday: () => void; history: () => void }) {
   const status = statusDetails[account.status];
   const canMessage = Boolean(account.phone) && (account.status === "VENCIDA" || account.status === "VENCE_PRONTO");
-  return <article className="border-b border-zinc-800 last:border-b-0">
-    <div className="flex items-center gap-3 p-3 sm:p-4">
-      <button onClick={toggle} className="min-w-0 flex-1 text-left">
-        <div className="flex flex-wrap items-center gap-2"><h2 className="truncate font-bold text-white">{account.student}</h2><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${status.className}`}>{status.label}</span></div>
-        <p className="mt-1 truncate text-xs text-zinc-400">{account.plan || "Sin plan"} · {money(account.monthlyFee)}</p>
-        <p className="mt-1 text-xs text-zinc-500">Vence: {showDate(account.nextDueDate)}{account.lastPaymentDate ? ` · Último: ${showDate(account.lastPaymentDate)}` : " · Sin pagos"}</p>
+  return <article className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80 shadow-lg shadow-black/10">
+    <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${statusAccent[account.status]}`} />
+    <div className="flex items-center gap-2 p-3 pl-4 sm:gap-3 sm:p-4 sm:pl-5">
+      <button onClick={toggle} aria-expanded={expanded} className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-left sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-zinc-700 bg-black/30 text-sm font-bold text-yellow-300">{initials(account.student)}</span>
+        <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm leading-tight text-white sm:text-base">{account.student}</strong><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 sm:hidden ${status.className}`}>{status.label}</span></span><span className="mt-1 block text-xs leading-relaxed text-zinc-400">{account.plan || "Sin plan"} · {money(account.monthlyFee)}</span><span className="mt-0.5 block text-[11px] leading-relaxed text-zinc-500">Vence: {showDate(account.nextDueDate)}{account.lastPaymentDate ? ` · Último: ${showDate(account.lastPaymentDate)}` : " · Sin pagos"}</span></span>
+        <span className="hidden min-w-24 text-right sm:block"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${status.className}`}>{status.label}</span><strong className="mt-2 block whitespace-nowrap text-sm text-white">{money(account.monthlyFee)}</strong></span>
       </button>
       <AccountActions account={account} saving={saving} canMessage={canMessage} begin={begin} paidToday={paidToday} history={history} />
     </div>
-    {expanded && <div className="grid gap-2 border-t border-zinc-800 bg-zinc-950/50 p-3 text-sm sm:grid-cols-4"><Info label="Cuota mensual" value={money(account.monthlyFee)} /><Info label="Próximo vencimiento" value={showDate(account.nextDueDate)} /><Info label="Último pago" value={showDate(account.lastPaymentDate)} /><Info label="Importe último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /><div className="flex flex-wrap gap-2 sm:col-span-4"><button onClick={begin} className="rounded-lg border border-yellow-400/50 px-3 py-2 text-xs font-bold text-yellow-300">Agregar pago</button><button onClick={history} className="rounded-lg bg-zinc-800 px-3 py-2 text-xs font-bold">Ver historial</button></div></div>}
+    {expanded && <div className="grid gap-3 border-t border-zinc-800 bg-black/25 p-4 text-sm sm:grid-cols-4"><Info label="Cuota mensual" value={money(account.monthlyFee)} /><Info label="Próximo vencimiento" value={showDate(account.nextDueDate)} /><Info label="Último pago" value={showDate(account.lastPaymentDate)} /><Info label="Importe último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /><div className="flex flex-wrap gap-2 sm:col-span-4"><button onClick={begin} className="min-h-10 rounded-lg border border-yellow-400/40 px-3 text-xs font-bold text-yellow-300">Agregar pago</button><button onClick={history} className="min-h-10 rounded-lg border border-zinc-700 px-3 text-xs font-bold text-zinc-300">Ver historial</button></div></div>}
   </article>;
 }
 
@@ -310,7 +326,7 @@ function AccountActions({ account, saving, canMessage, begin, paidToday, history
     action();
   };
   return <>
-    <button ref={triggerRef} type="button" aria-label={`Acciones de ${account.student}`} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : show()} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-xl text-zinc-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>
+    <button ref={triggerRef} type="button" aria-label={`Acciones de ${account.student}`} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : show()} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-700/80 bg-black/25 text-xl text-zinc-400 transition hover:border-yellow-400/30 hover:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>
     {open && createPortal(<div className="fixed inset-0 z-[100]" onPointerDown={(event) => { if (event.target === event.currentTarget) close(); }}>
       <div ref={menuRef} role="menu" aria-label={`Acciones de ${account.student}`} style={mobile ? { left: 12, right: 12, bottom: "calc(env(safe-area-inset-bottom) + 12px)" } : { top: position.top, left: position.left }} className="fixed h-auto max-h-[calc(100dvh-24px)] w-56 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-sm text-white shadow-2xl max-sm:w-auto max-sm:rounded-t-2xl">
         <p className="hidden px-3 py-2 text-xs font-semibold text-zinc-500 max-sm:block">{account.student}</p>
@@ -326,6 +342,26 @@ function AccountActions({ account, saving, canMessage, begin, paidToday, history
 
 function Info({ label, value }: { label: string; value: string }) {
   return <div><p className="text-[11px] text-zinc-500">{label}</p><p className="mt-0.5 font-semibold text-zinc-100">{value}</p></div>;
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+type PaymentIconName = "summary" | "trend" | "overdue" | "calendar" | "check" | "student" | "wallet" | "search";
+
+function PaymentIcon({ name }: { name: PaymentIconName }) {
+  const paths: Record<PaymentIconName, ReactNode> = {
+    summary: <><path d="M12 3a9 9 0 1 0 9 9h-9Z"/><path d="M12 3v9h9"/></>,
+    trend: <><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></>,
+    overdue: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
+    check: <><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></>,
+    student: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
+    wallet: <><path d="M4 6h15a2 2 0 0 1 2 2v11H4a2 2 0 0 1-2-2V6a3 3 0 0 1 3-3h13"/><path d="M16 11h5v4h-5a2 2 0 0 1 0-4Z"/></>,
+    search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
+  };
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">{paths[name]}</svg>;
 }
 
 function StudentCombobox({ form, accounts, setForm, disabled }: { form: PaymentForm; accounts: PaymentStudentAccount[]; setForm: (form: PaymentForm) => void; disabled: boolean }) {
