@@ -141,10 +141,10 @@ test("resuelve coincidencias sin reemplazar ambigüedades", () => {
   assert.ok(audit.libraryAmbiguities.length > 0);
 });
 
-test("detalle usa instrucciones españolas y separa indicación del entrenador", () => {
+test("detalle usa instrucciones españolas sin duplicar indicaciones del entrenador", () => {
   assert.match(component, /instructionStepsEs\.length/);
   assert.match(component, /instructionsEs/);
-  assert.match(component, /Indicación de tu entrenador/);
+  assert.doesNotMatch(component, /Indicación de tu entrenador|trainerInstruction/);
   assert.match(component, /secondaryMusclesEs/);
   assert.match(component, /displayNameEs/);
   assert.match(component, /targetMuscleLabelEs/);

@@ -35,11 +35,10 @@ function ManualExerciseDetail({ exercise, mediaUrl }: { exercise: RoutineMediaEx
       <h3 className="text-xs font-black uppercase tracking-wider text-yellow-400">Instrucciones del ejercicio</h3>
       <p className="mt-2 text-sm text-zinc-500">No hay instrucciones generales disponibles para este ejercicio.</p>
     </div>
-    {exercise.observations && <div className="border-t border-zinc-800 pt-3"><h3 className="text-xs font-black uppercase tracking-wider text-zinc-400">Indicación de tu entrenador</h3><p className="mt-2 whitespace-pre-line text-sm text-zinc-300">{exercise.observations}</p></div>}
   </div>;
 }
 
-export function RoutineExerciseMediaButton({ exercise, libraryMediaEnabled, thumbnail = false, label = "Ver video" }: { exercise: RoutineMediaExercise; libraryMediaEnabled: boolean; thumbnail?: boolean; label?: string }) {
+export function RoutineExerciseMediaButton({ exercise, libraryMediaEnabled, thumbnail = false, separated = false, label = "Ver video" }: { exercise: RoutineMediaExercise; libraryMediaEnabled: boolean; thumbnail?: boolean; separated?: boolean; label?: string }) {
   const media = resolveRoutineExerciseMedia(exercise.videoUrl, libraryMediaEnabled);
   const [open, setOpen] = useState(false);
   const [libraryExercise, setLibraryExercise] = useState<BMExercise | null>(null);
@@ -63,16 +62,17 @@ export function RoutineExerciseMediaButton({ exercise, libraryMediaEnabled, thum
   }, [open]);
 
   if (!media.hasMedia) return null;
-  return <>
-    {thumbnail && media.thumbnailUrl
+  const action = thumbnail && media.thumbnailUrl
       ? <button type="button" onClick={() => setOpen(true)} aria-label={`Ver video de ${exercise.name}`} className="group relative size-16 shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-black"><Image src={media.thumbnailUrl} alt="" width={72} height={72} loading="lazy" unoptimized className="size-full object-cover opacity-90" /><span className="absolute inset-0 grid place-items-center bg-black/20 text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><PlayIcon /></span></button>
-      : <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950/70 px-3.5 text-xs font-semibold text-zinc-200 outline-none transition hover:border-zinc-500 hover:bg-zinc-900 focus-visible:ring-2 focus-visible:ring-yellow-300"><PlayIcon />{label}</button>}
+      : <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950/70 px-3.5 text-xs font-semibold text-zinc-200 outline-none transition hover:border-zinc-500 hover:bg-zinc-900 focus-visible:ring-2 focus-visible:ring-yellow-300"><PlayIcon />{label}</button>;
+  return <>
+    {separated ? <div data-exercise-video-action className="mt-4 border-t border-zinc-800 pt-3">{action}</div> : action}
     {open && <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }} className="fixed inset-0 z-[140] flex items-end overflow-y-auto bg-black/80 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
       <section role="dialog" aria-modal="true" aria-labelledby="routine-video-title" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-zinc-700 bg-[#0b0b0b] p-4 text-white shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-5">
         <header className="mb-4 flex items-center justify-between gap-3"><p id="routine-video-title" className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Ver video</p><button type="button" onClick={() => setOpen(false)} aria-label="Cerrar video" className="grid size-10 place-items-center rounded-xl border border-zinc-800 text-xl text-zinc-400 outline-none hover:bg-zinc-900 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300">×</button></header>
         {media.source === "LIBRARY"
           ? activeLibraryExercise
-            ? <ExerciseDetail exercise={activeLibraryExercise} mediaEnabled trainerInstruction={exercise.observations} />
+            ? <ExerciseDetail exercise={activeLibraryExercise} mediaEnabled />
             : <p className="py-12 text-center text-sm text-zinc-500">Cargando ejercicio…</p>
           : media.mediaUrl && <ManualExerciseDetail exercise={exercise} mediaUrl={media.mediaUrl} />}
       </section>

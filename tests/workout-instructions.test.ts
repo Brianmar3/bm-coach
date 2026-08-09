@@ -17,7 +17,7 @@ test("reconoce complementarios existentes sin inventar una relación temporal", 
   assert.equal(result.technicalText, "");
 });
 
-test("conserva observaciones puramente técnicas dentro de Ver técnica", () => {
+test("conserva observaciones puramente técnicas para el bloque Indicaciones", () => {
   const result = separateWorkoutInstructions("El peso marcado salieron 10rp");
   assert.deepEqual(result.structural, []);
   assert.equal(result.technicalText, "El peso marcado salieron 10rp");

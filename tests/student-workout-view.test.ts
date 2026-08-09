@@ -102,13 +102,14 @@ test("la tabla compacta conserva Kg, Reps, esfuerzo, valores y checkbox accesibl
   assert.match(source, /Serie \$\{set\.setNumber\} completada/);
 });
 
-test("las instrucciones estructurales quedan visibles y no se duplican en técnica", () => {
+test("las instrucciones estructurales quedan visibles y las observaciones usan Indicaciones", () => {
   assert.match(source, /separateWorkoutInstructions\(programmed\?\.observations\)/);
   assert.match(source, /data-structural-instructions/);
   assert.match(source, /instructions\.structural\.map/);
   assert.match(source, /instructions\.technicalText && <details/);
-  assert.match(source, />Ver técnica<\/summary>/);
-  assert.match(source, /data-exercise-video-action/);
+  assert.match(source, />Indicaciones<\/summary>/);
+  assert.doesNotMatch(source, />Ver técnica<\/summary>/);
+  assert.match(source, /RoutineExerciseMediaButton exercise=\{programmed\} libraryMediaEnabled=\{data\.exerciseMediaEnabled\} separated/);
   assert.match(source, /instructions\.technicalText/);
   assert.match(source, /RoutineExerciseMediaButton/);
   assert.doesNotMatch(source, /Abrir video técnico/);

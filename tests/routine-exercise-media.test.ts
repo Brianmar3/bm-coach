@@ -20,6 +20,7 @@ const libraryExercise: BMExercise = {
   displayNameEs: "Thruster con kettlebell",
   aliases: ["kettlebell thruster", "thruster con kettlebell"],
   translationStatus: "EXCEPTION",
+  translationPass: 1,
   bodyPart: "upper legs",
   bodyPartLabelEs: "Muslos",
   equipment: "kettlebell",
@@ -160,6 +161,8 @@ test("el entrenador ve estado vinculado y nunca el identificador interno", () =>
   assert.match(editor, /URL manual opcional o Biblioteca BM/);
   assert.match(editor, /input type="url"/);
   assert.match(editor, /library-video-linked/);
+  assert.match(editor, /onMediaAvailabilityChange=\{setLibraryMediaEnabled\}/);
+  assert.match(editor, /libraryMediaEnabled=\{libraryMediaEnabled\} label="Ver demostraci.n"/);
   assert.match(globalStyles, /\.library-video-linked label:has\(> input\[type="url"\]\)/);
   assert.doesNotMatch(editor, /https:\/\/bm-training\.local\/api\/exercise-library\/media/);
 });
@@ -173,13 +176,14 @@ test("actualizar usa un timeout explícito y reporta expiración transaccional",
 });
 
 test("el alumno muestra detalle seguro, instrucciones y atribución sin duplicar video", () => {
-  assert.match(portal, /RoutineExerciseMediaButton exercise=\{programmed\}/);
-  assert.match(portal, />Ver técnica<\/summary>/);
-  assert.match(portal, /data-exercise-video-action/);
-  assert.ok(portal.indexOf(">Ver técnica</summary>") < portal.indexOf("data-exercise-video-action"));
+  assert.match(portal, /RoutineExerciseMediaButton exercise=\{programmed\} libraryMediaEnabled=\{data\.exerciseMediaEnabled\} separated/);
+  assert.match(portal, />Indicaciones<\/summary>/);
+  assert.match(mediaComponent, /data-exercise-video-action/);
+  assert.ok(portal.indexOf(">Indicaciones</summary>") < portal.indexOf("RoutineExerciseMediaButton exercise={programmed}"));
+  assert.doesNotMatch(portal, />Ver técnica<\/summary>/);
   assert.doesNotMatch(portal, /Abrir video técnico/);
   assert.match(mediaComponent, /<ExerciseDetail exercise=\{activeLibraryExercise\}/);
-  assert.match(mediaComponent, /Indicaci.n de tu entrenador/);
+  assert.doesNotMatch(mediaComponent, /Indicaci.n de tu entrenador|exercise\.observations &&/);
   assert.match(mediaComponent, /<ManualExerciseDetail exercise=\{exercise\}/);
   assert.match(mediaComponent, /<video controls playsInline/);
   assert.match(mediaComponent, /<iframe/);
@@ -197,6 +201,7 @@ test("los circuitos usan thumbnail estático, abren el mismo detalle y conservan
   assert.match(portal, /RoutineExerciseMediaButton exercise=\{source\} libraryMediaEnabled=\{libraryMediaEnabled\} thumbnail/);
   assert.match(mediaComponent, /media\.thumbnailUrl/);
   assert.match(mediaComponent, /loading="lazy"/);
+  assert.match(mediaComponent, /if \(!media\.hasMedia\) return null/);
   assert.doesNotMatch(mediaComponent.slice(0, mediaComponent.indexOf("{open &&")), /kind=\"gif\"/);
   assert.match(portal, /<WorkoutBlockTimer/);
   assert.match(portal, /isTimedBlockType\(block\.blockType\)/);
