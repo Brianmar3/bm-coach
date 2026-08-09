@@ -29,25 +29,3 @@ export function initialOpenExerciseId(exercises: WorkoutExerciseProgress[]) {
     ?? exercises[0]?.exerciseId
     ?? null;
 }
-
-function normalizeMuscleGroupName(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("es")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-export function getMuscleGroupEmoji(groupName: string) {
-  const normalized = normalizeMuscleGroupName(groupName);
-  if (/glute/.test(normalized)) return "🍑";
-  if (/pierna|cuadriceps|isquio|femoral|gemelo|pantorrilla|aductor|abductor|tren inferior/.test(normalized)) return "🦵🏽";
-  if (/pecho|pectoral|full body|cuerpo completo/.test(normalized)) return "🏋🏽";
-  if (/espalda|dorsal|lumbar/.test(normalized)) return "💪🏽";
-  if (/hombro|deltoid|brazo|biceps|triceps|antebrazo|tren superior/.test(normalized)) return "💪🏽";
-  if (/core|abdomen|abdominal/.test(normalized)) return "🔥";
-  if (/cardio|condicionamiento|resistencia/.test(normalized)) return "⚡";
-  if (/movilidad|movility|flexibilidad/.test(normalized)) return "🤸🏽";
-  return "🏋🏽";
-}

@@ -265,13 +265,18 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         },
       });
       return transaction.trainingRoutine.findUniqueOrThrow({ where: { id }, include: routineInclude });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
     return Response.json(serializeRoutine(record));
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Uno o más alumnos ya tienen otra rutina activa asignada." }, { status: 409 });
     if (error instanceof Error && error.message === "ROUTINE_KIND_IMMUTABLE") return Response.json({ error: "No se puede convertir una rutina en plantilla desde la edición. Usá “Guardar como plantilla”." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La rutina cambió al mismo tiempo. Recargá e intentá nuevamente." }, { status: 409 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2028") return Response.json({ error: "La actualización tardó más de lo esperado y fue revertida de forma segura. Intentá nuevamente." }, { status: 503 });
     if (error instanceof Prisma.PrismaClientKnownRequestError) console.error("Error Prisma al actualizar rutina", { code: error.code, message: error.message, meta: error.meta });
     else console.error("Error al actualizar rutina", error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error);
     const unavailable = databaseUnavailable(error);

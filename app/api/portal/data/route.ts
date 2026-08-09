@@ -21,6 +21,7 @@ import { loadStudentPointSummary } from "@/lib/student-points";
 import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements";
 import { mergePortalAttendanceRecords, summarizePortalAttendance, type PortalAttendanceRecord } from "@/lib/portal-attendance";
 import { loadCurrentWeeklyMission } from "@/lib/weekly-mission-data";
+import { exerciseMediaEnabled } from "@/lib/exercise-library-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -174,6 +175,7 @@ export async function GET(request: Request) {
     ]).filter((item) => item.status !== "IN_PROGRESS").slice(0, fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2);
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
+      exerciseMediaEnabled: exerciseMediaEnabled(),
       profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: student.profileImageUrl ?? "" },
       routine: privateRoutine,
       evaluations: normalizedEvaluations.map((evaluation) => ({ ...toStudentEvaluation(evaluation), notes: "", frontPhotoUrl: "", sidePhotoUrl: "", backPhotoUrl: "" })),

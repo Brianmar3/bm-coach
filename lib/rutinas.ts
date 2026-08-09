@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import type { Student, TrainingBlockType, TrainingEffortType, TrainingExercise, TrainingExerciseTargetType, TrainingRoutine, TrainingRoutineBlock, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
+import { isValidRoutineVideoUrl } from "./routine-exercise-media.ts";
 
 export type ExerciseInput = Omit<TrainingExercise, "id" | "blockId"> & { id?: string; blockId?: string };
 export type BlockInput = Omit<TrainingRoutineBlock, "id" | "exercises"> & { id?: string; exercises: ExerciseInput[] };
@@ -56,22 +57,12 @@ const statusFromDatabase = { BORRADOR: "borrador", ACTIVA: "activa", FINALIZADA:
 const kindToDatabase = { assigned: "ASSIGNED", template: "TEMPLATE" } as const;
 const kindFromDatabase = { ASSIGNED: "assigned", TEMPLATE: "template" } as const;
 
-function validUrl(value: string | undefined) {
-  if (!value?.trim()) return true;
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 export function validateExercise(input: ExerciseInput, blockType: TrainingBlockType = "STRENGTH") {
   if (!input.name?.trim() || !input.muscleGroup?.trim()) return "Cada ejercicio necesita nombre y grupo muscular.";
   if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) return "El orden debe ser un entero entre 1 y 999.";
   if ((input.observations?.length ?? 0) > 1000) return "Las observaciones del ejercicio son demasiado extensas.";
   if ((input.alternativeExercise?.length ?? 0) > 120) return "El ejercicio alternativo es demasiado extenso.";
-  if (!validUrl(input.videoUrl)) return "La URL del video debe comenzar con http o https.";
+  if (!isValidRoutineVideoUrl(input.videoUrl)) return "El video debe ser una URL http/https o una referencia válida de Biblioteca BM.";
   if (blockType !== "STRENGTH") {
     if (!targetTypes.includes(input.targetType)) return "Seleccioná un objetivo válido para cada ejercicio.";
     if ((input.targetSide?.length ?? 0) > 80) return "La indicación del ejercicio es demasiado extensa.";

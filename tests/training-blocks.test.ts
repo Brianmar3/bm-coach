@@ -4,6 +4,7 @@ import test from "node:test";
 import { clearedExerciseTarget, emptyBlockResult, exerciseTargetLabel, freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS, validateWorkoutBlock } from "../lib/training-blocks.ts";
 import { normalizedBlocks, routineVersionSnapshot, validateBlock, validateExercise, validateRoutine, type BlockInput, type ExerciseInput, type RoutineInput } from "../lib/rutinas.ts";
 import { routineSeriesMetrics } from "../lib/routine-metrics.ts";
+import { createEmptyRoutineExerciseDraft } from "../lib/routine-exercise-draft.ts";
 import { validateWorkoutSessionInput } from "../lib/workout-session-validation.ts";
 
 const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
@@ -121,8 +122,10 @@ test("INTERVAL con TIME usa el tiempo general sin exigir repeticiones ni segundo
 });
 
 test("un ejercicio nuevo de INTERVAL usa TIME por defecto", () => {
-  assert.match(editor, /targetType: type === "INTERVAL" \? "TIME" : "REPS"/);
-  assert.match(editor, /type === "INTERVAL" \? "" : "10"/);
+  const draft = createEmptyRoutineExerciseDraft(1, "INTERVAL", () => "interval-1");
+  assert.equal(draft.targetType, "TIME");
+  assert.equal(draft.targetRepetitions, "");
+  assert.match(editor, /createEmptyRoutineExerciseDraft\(order, type\)/);
 });
 
 test("REPS continúa exigiendo repeticiones mayores a cero", () => {

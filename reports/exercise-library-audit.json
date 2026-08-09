@@ -1,0 +1,1206 @@
+{
+  "generatedAt": "2026-08-09T04:58:20.055Z",
+  "readOnly": true,
+  "dataset": {
+    "exercises": 1324,
+    "equipment": [
+      "assisted",
+      "band",
+      "barbell",
+      "body weight",
+      "bosu ball",
+      "cable",
+      "dumbbell",
+      "elliptical machine",
+      "ez barbell",
+      "hammer",
+      "kettlebell",
+      "leverage machine",
+      "medicine ball",
+      "olympic barbell",
+      "resistance band",
+      "roller",
+      "rope",
+      "skierg machine",
+      "sled machine",
+      "smith machine",
+      "stability ball",
+      "stationary bike",
+      "stepmill machine",
+      "tire",
+      "trap bar",
+      "upper body ergometer",
+      "weighted",
+      "wheel roller"
+    ],
+    "bodyParts": [
+      "back",
+      "cardio",
+      "chest",
+      "lower arms",
+      "lower legs",
+      "neck",
+      "shoulders",
+      "upper arms",
+      "upper legs",
+      "waist"
+    ],
+    "targets": [
+      "abductors",
+      "abs",
+      "adductors",
+      "biceps",
+      "calves",
+      "cardiovascular system",
+      "delts",
+      "forearms",
+      "glutes",
+      "hamstrings",
+      "lats",
+      "levator scapulae",
+      "pectorals",
+      "quads",
+      "serratus anterior",
+      "spine",
+      "traps",
+      "triceps",
+      "upper back"
+    ]
+  },
+  "bmData": {
+    "databaseAvailable": true,
+    "errorType": null,
+    "distinctNames": 62,
+    "distinctSourceNames": 85,
+    "summary": {
+      "EXACT": 0,
+      "NORMALIZED": 1,
+      "AMBIGUOUS": 0,
+      "NO_MATCH": 61
+    },
+    "sourceSummary": {
+      "EXACT": 0,
+      "NORMALIZED": 1,
+      "AMBIGUOUS": 0,
+      "NO_MATCH": 84
+    }
+  },
+  "libraryAmbiguities": [
+    {
+      "normalizedName": "barbell seated calf raise",
+      "exerciseIds": [
+        "dataset:0088",
+        "dataset:1371"
+      ]
+    },
+    {
+      "normalizedName": "dumbbell close grip press",
+      "exerciseIds": [
+        "dataset:0296",
+        "dataset:1731"
+      ]
+    },
+    {
+      "normalizedName": "dumbbell standing one arm curl over incline bench",
+      "exerciseIds": [
+        "dataset:0422",
+        "dataset:1680"
+      ]
+    },
+    {
+      "normalizedName": "ez barbell spider curl",
+      "exerciseIds": [
+        "dataset:0454",
+        "dataset:1628"
+      ]
+    },
+    {
+      "normalizedName": "lever chest press",
+      "exerciseIds": [
+        "dataset:0576",
+        "dataset:0577"
+      ]
+    },
+    {
+      "normalizedName": "push up on stability ball",
+      "exerciseIds": [
+        "dataset:0655",
+        "dataset:0656"
+      ]
+    },
+    {
+      "normalizedName": "self assisted inverse leg curl",
+      "exerciseIds": [
+        "dataset:0697",
+        "dataset:1766"
+      ]
+    },
+    {
+      "normalizedName": "smith reverse calf raises",
+      "exerciseIds": [
+        "dataset:0763",
+        "dataset:1394"
+      ]
+    }
+  ],
+  "currentExerciseNames": [
+    {
+      "name": "Abduccion con banda (caminata lat) + sentadilla",
+      "normalizedName": "abduccion con banda caminata lat sentadilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Abducción con disco y banda",
+      "normalizedName": "abduccion con disco y banda",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Biceps con barra",
+      "normalizedName": "biceps con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "bíceps con barra",
+      "normalizedName": "biceps con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Bíceps con barra + manc",
+      "normalizedName": "biceps con barra manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Biceps con mancuerna",
+      "normalizedName": "biceps con mancuerna",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Biceps con mancuernas",
+      "normalizedName": "biceps con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Bird dog alternados",
+      "normalizedName": "bird dog alternados",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Buen día",
+      "normalizedName": "buen dia",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Dead bug",
+      "normalizedName": "dead bug",
+      "status": "NORMALIZED",
+      "exerciseIds": [
+        "dataset:0276"
+      ]
+    },
+    {
+      "name": "Dumbell con mancuernas",
+      "normalizedName": "dumbell con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Elevación de piernas",
+      "normalizedName": "elevacion de piernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Elevacion de talones",
+      "normalizedName": "elevacion de talones",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Estocadas alternadas hacia atras",
+      "normalizedName": "estocadas alternadas hacia atras",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Estocadas bulgaras",
+      "normalizedName": "estocadas bulgaras",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "estocadas fijas",
+      "normalizedName": "estocadas fijas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Flexiones de brazos apoyo rodillas",
+      "normalizedName": "flexiones de brazos apoyo rodillas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Flexiones en silla (apoyo en silla)",
+      "normalizedName": "flexiones en silla apoyo en silla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Gemelos",
+      "normalizedName": "gemelos",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Hip thrust",
+      "normalizedName": "hip thrust",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Hip thrust pesado",
+      "normalizedName": "hip thrust pesado",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Patada de burro con mancuernas",
+      "normalizedName": "patada de burro con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Patada de gluteos con banda encima de la rodilla",
+      "normalizedName": "patada de gluteos con banda encima de la rodilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Pecho con barra",
+      "normalizedName": "pecho con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Pecho y espalda",
+      "normalizedName": "pecho y espalda",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Pesas",
+      "normalizedName": "pesas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Peso muerto con mancuernas",
+      "normalizedName": "peso muerto con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Peso muerto romano",
+      "normalizedName": "peso muerto romano",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Plancha con antebrazos apoyados",
+      "normalizedName": "plancha con antebrazos apoyados",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Plancha con brazos extendidos",
+      "normalizedName": "plancha con brazos extendidos",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Plancha frontal con abduccion de piernas",
+      "normalizedName": "plancha frontal con abduccion de piernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Plancha frontal con toque de hombros",
+      "normalizedName": "plancha frontal con toque de hombros",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Plancha lateral (hay dos videos, comun y adaptadas)",
+      "normalizedName": "plancha lateral hay dos videos comun y adaptadas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Plancha lateral para el otro lado",
+      "normalizedName": "plancha lateral para el otro lado",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Press",
+      "normalizedName": "press",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Press  con barra",
+      "normalizedName": "press con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Press banco con barra",
+      "normalizedName": "press banco con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Press con barra",
+      "normalizedName": "press con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "press de pecho con barra",
+      "normalizedName": "press de pecho con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Press francés",
+      "normalizedName": "press frances",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Press militar con manc",
+      "normalizedName": "press militar con manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Press pecho c/barra",
+      "normalizedName": "press pecho c barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Puente de gluteos con carga (pesa rusa)",
+      "normalizedName": "puente de gluteos con carga pesa rusa",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Puente de gluteos isometrico",
+      "normalizedName": "puente de gluteos isometrico",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "remo con barra",
+      "normalizedName": "remo con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Remo con barra",
+      "normalizedName": "remo con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Remo con landmine",
+      "normalizedName": "remo con landmine",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Remo con mancuernas",
+      "normalizedName": "remo con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Remo con mancuernas agarre supino",
+      "normalizedName": "remo con mancuernas agarre supino",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sent",
+      "normalizedName": "sent",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sentadilla",
+      "normalizedName": "sentadilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "SENTADILLA",
+      "normalizedName": "sentadilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sentadilla + Press c/mancuernas",
+      "normalizedName": "sentadilla press c mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sentadilla con barra",
+      "normalizedName": "sentadilla con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "sentadilla sumo",
+      "normalizedName": "sentadilla sumo",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sentadilla sumo globet con mancuerna",
+      "normalizedName": "sentadilla sumo globet con mancuerna",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sentadillas c/barra",
+      "normalizedName": "sentadillas c barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sentadillas con barra",
+      "normalizedName": "sentadillas con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Sentadillas sumo",
+      "normalizedName": "sentadillas sumo",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "step up",
+      "normalizedName": "step up",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "Subida al cajón",
+      "normalizedName": "subida al cajon",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "name": "vuelo lateral mas vuelo frontal con manc",
+      "normalizedName": "vuelo lateral mas vuelo frontal con manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    }
+  ],
+  "matches": [
+    {
+      "source": "ClassExerciseLog.exerciseNameSnapshot",
+      "name": "bíceps con barra",
+      "count": 1,
+      "normalizedName": "biceps con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "ClassExerciseLog.exerciseNameSnapshot",
+      "name": "Gemelos",
+      "count": 1,
+      "normalizedName": "gemelos",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "ClassExerciseLog.exerciseNameSnapshot",
+      "name": "Hip thrust",
+      "count": 1,
+      "normalizedName": "hip thrust",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "ClassExerciseLog.exerciseNameSnapshot",
+      "name": "remo con barra",
+      "count": 1,
+      "normalizedName": "remo con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "ClassExerciseLog.exerciseNameSnapshot",
+      "name": "Sentadilla",
+      "count": 1,
+      "normalizedName": "sentadilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "ClassStrengthExercise.exerciseName",
+      "name": "SENTADILLA",
+      "count": 1,
+      "normalizedName": "sentadilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Biceps con barra",
+      "count": 1,
+      "normalizedName": "biceps con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Biceps con mancuerna",
+      "count": 1,
+      "normalizedName": "biceps con mancuerna",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Buen día",
+      "count": 1,
+      "normalizedName": "buen dia",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "estocadas fijas",
+      "count": 1,
+      "normalizedName": "estocadas fijas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Pecho con barra",
+      "count": 1,
+      "normalizedName": "pecho con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Pecho y espalda",
+      "count": 1,
+      "normalizedName": "pecho y espalda",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Pesas",
+      "count": 1,
+      "normalizedName": "pesas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Press  con barra",
+      "count": 1,
+      "normalizedName": "press con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Press banco con barra",
+      "count": 1,
+      "normalizedName": "press banco con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Press con barra",
+      "count": 1,
+      "normalizedName": "press con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "press de pecho con barra",
+      "count": 1,
+      "normalizedName": "press de pecho con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Press pecho c/barra",
+      "count": 2,
+      "normalizedName": "press pecho c barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "remo con barra",
+      "count": 1,
+      "normalizedName": "remo con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Remo con barra",
+      "count": 1,
+      "normalizedName": "remo con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Sentadilla con barra",
+      "count": 1,
+      "normalizedName": "sentadilla con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "sentadilla sumo",
+      "count": 1,
+      "normalizedName": "sentadilla sumo",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "Sentadillas con barra",
+      "count": 1,
+      "normalizedName": "sentadillas con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "QuickLog.exerciseName",
+      "name": "step up",
+      "count": 1,
+      "normalizedName": "step up",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Abduccion con banda (caminata lat) + sentadilla",
+      "count": 4,
+      "normalizedName": "abduccion con banda caminata lat sentadilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Abducción con disco y banda",
+      "count": 5,
+      "normalizedName": "abduccion con disco y banda",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Bíceps con barra + manc",
+      "count": 5,
+      "normalizedName": "biceps con barra manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Biceps con mancuernas",
+      "count": 3,
+      "normalizedName": "biceps con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Bird dog alternados",
+      "count": 4,
+      "normalizedName": "bird dog alternados",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Dead bug",
+      "count": 4,
+      "normalizedName": "dead bug",
+      "status": "NORMALIZED",
+      "exerciseIds": [
+        "dataset:0276"
+      ]
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Dumbell con mancuernas",
+      "count": 3,
+      "normalizedName": "dumbell con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Elevación de piernas",
+      "count": 3,
+      "normalizedName": "elevacion de piernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Elevacion de talones",
+      "count": 10,
+      "normalizedName": "elevacion de talones",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Estocadas alternadas hacia atras",
+      "count": 4,
+      "normalizedName": "estocadas alternadas hacia atras",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Estocadas bulgaras",
+      "count": 5,
+      "normalizedName": "estocadas bulgaras",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Flexiones de brazos apoyo rodillas",
+      "count": 3,
+      "normalizedName": "flexiones de brazos apoyo rodillas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Flexiones en silla (apoyo en silla)",
+      "count": 3,
+      "normalizedName": "flexiones en silla apoyo en silla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Gemelos",
+      "count": 3,
+      "normalizedName": "gemelos",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Hip thrust",
+      "count": 5,
+      "normalizedName": "hip thrust",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Hip thrust pesado",
+      "count": 5,
+      "normalizedName": "hip thrust pesado",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Patada de burro con mancuernas",
+      "count": 3,
+      "normalizedName": "patada de burro con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Patada de gluteos con banda encima de la rodilla",
+      "count": 4,
+      "normalizedName": "patada de gluteos con banda encima de la rodilla",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Peso muerto con mancuernas",
+      "count": 3,
+      "normalizedName": "peso muerto con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Peso muerto romano",
+      "count": 5,
+      "normalizedName": "peso muerto romano",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Plancha con antebrazos apoyados",
+      "count": 3,
+      "normalizedName": "plancha con antebrazos apoyados",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Plancha con brazos extendidos",
+      "count": 3,
+      "normalizedName": "plancha con brazos extendidos",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Plancha frontal con abduccion de piernas",
+      "count": 3,
+      "normalizedName": "plancha frontal con abduccion de piernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Plancha frontal con toque de hombros",
+      "count": 4,
+      "normalizedName": "plancha frontal con toque de hombros",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Plancha lateral (hay dos videos, comun y adaptadas)",
+      "count": 3,
+      "normalizedName": "plancha lateral hay dos videos comun y adaptadas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Plancha lateral para el otro lado",
+      "count": 3,
+      "normalizedName": "plancha lateral para el otro lado",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Press",
+      "count": 1,
+      "normalizedName": "press",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Press francés",
+      "count": 5,
+      "normalizedName": "press frances",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Press militar con manc",
+      "count": 5,
+      "normalizedName": "press militar con manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Press pecho c/barra",
+      "count": 5,
+      "normalizedName": "press pecho c barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Puente de gluteos con carga (pesa rusa)",
+      "count": 4,
+      "normalizedName": "puente de gluteos con carga pesa rusa",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Puente de gluteos isometrico",
+      "count": 3,
+      "normalizedName": "puente de gluteos isometrico",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Remo con barra",
+      "count": 5,
+      "normalizedName": "remo con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Remo con landmine",
+      "count": 5,
+      "normalizedName": "remo con landmine",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Remo con mancuernas",
+      "count": 3,
+      "normalizedName": "remo con mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Remo con mancuernas agarre supino",
+      "count": 3,
+      "normalizedName": "remo con mancuernas agarre supino",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Sent",
+      "count": 1,
+      "normalizedName": "sent",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Sentadilla + Press c/mancuernas",
+      "count": 4,
+      "normalizedName": "sentadilla press c mancuernas",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Sentadilla sumo globet con mancuerna",
+      "count": 3,
+      "normalizedName": "sentadilla sumo globet con mancuerna",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Sentadillas c/barra",
+      "count": 5,
+      "normalizedName": "sentadillas c barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Sentadillas con barra",
+      "count": 3,
+      "normalizedName": "sentadillas con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Sentadillas sumo",
+      "count": 5,
+      "normalizedName": "sentadillas sumo",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "Subida al cajón",
+      "count": 5,
+      "normalizedName": "subida al cajon",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "TrainingRoutineExercise.name",
+      "name": "vuelo lateral mas vuelo frontal con manc",
+      "count": 3,
+      "normalizedName": "vuelo lateral mas vuelo frontal con manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Abducción con disco y banda",
+      "count": 2,
+      "normalizedName": "abduccion con disco y banda",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Bíceps con barra + manc",
+      "count": 1,
+      "normalizedName": "biceps con barra manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Elevacion de talones",
+      "count": 4,
+      "normalizedName": "elevacion de talones",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Estocadas bulgaras",
+      "count": 2,
+      "normalizedName": "estocadas bulgaras",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Gemelos",
+      "count": 1,
+      "normalizedName": "gemelos",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Hip thrust",
+      "count": 2,
+      "normalizedName": "hip thrust",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Hip thrust pesado",
+      "count": 2,
+      "normalizedName": "hip thrust pesado",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Peso muerto romano",
+      "count": 2,
+      "normalizedName": "peso muerto romano",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Press francés",
+      "count": 1,
+      "normalizedName": "press frances",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Press militar con manc",
+      "count": 1,
+      "normalizedName": "press militar con manc",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Press pecho c/barra",
+      "count": 1,
+      "normalizedName": "press pecho c barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Remo con barra",
+      "count": 1,
+      "normalizedName": "remo con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Remo con landmine",
+      "count": 1,
+      "normalizedName": "remo con landmine",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Sentadillas c/barra",
+      "count": 2,
+      "normalizedName": "sentadillas c barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Sentadillas con barra",
+      "count": 1,
+      "normalizedName": "sentadillas con barra",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Sentadillas sumo",
+      "count": 2,
+      "normalizedName": "sentadillas sumo",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    },
+    {
+      "source": "WorkoutExerciseLog.exerciseName",
+      "name": "Subida al cajón",
+      "count": 2,
+      "normalizedName": "subida al cajon",
+      "status": "NO_MATCH",
+      "exerciseIds": []
+    }
+  ]
+}

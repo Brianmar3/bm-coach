@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Las referencias internas de Biblioteca BM se persisten en videoUrl por
+   compatibilidad, pero nunca se presentan como un campo editable. */
+.library-video-linked label:has(> input[type="url"]) {
+  display: none;
+}
+
 :root {
   --background: #000000;
   --foreground: #ffffff;

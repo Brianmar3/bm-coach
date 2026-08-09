@@ -22,8 +22,9 @@ export function proxy(request: NextRequest) {
   if (path === "/sw.js" || path === "/manifest.webmanifest" || path === "/portal/manifest.webmanifest" || path.startsWith("/icons/")) return NextResponse.next();
   if (/\.[^/]+$/.test(path)) return NextResponse.next();
   const portalRoute = path === "/portal" || path.startsWith("/portal/") || path === "/api/portal" || path.startsWith("/api/portal/");
+  const exerciseLibraryRead = path.startsWith("/api/exercise-library") && SAFE_METHODS.has(request.method);
   const authRoute = path === "/admin/login" || path === "/api/admin/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";
-  if (portalRoute || authRoute) return NextResponse.next();
+  if (portalRoute || authRoute || exerciseLibraryRead) return NextResponse.next();
 
   const session = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
   if (!session.ok) {

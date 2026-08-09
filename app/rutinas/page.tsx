@@ -4,13 +4,18 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import { RoutineTableView } from "@/componentes/routine-table-view";
+import { ExerciseLibraryPicker } from "@/componentes/exercise-library";
+import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { ContextualSuggestion, RoutineEvaluationPanel, useRoutineEvaluation } from "@/componentes/routine-evaluation-panel";
 import { contextualExerciseSuggestions, uncoveredPriorityReminders } from "@/lib/evaluation-interpretation";
 import { clearedExerciseTarget } from "@/lib/training-blocks";
 import { searchStudents } from "@/lib/student-search";
-import type { Student, TrainingBlockType, TrainingEffortType, TrainingExercise, TrainingRoutine, TrainingRoutineBlock, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
+import { applyLibraryExerciseSelection, createEmptyRoutineExerciseDraft, type RoutineExerciseDraft } from "@/lib/routine-exercise-draft";
+import { libraryExerciseIdFromMediaUrl } from "@/lib/routine-exercise-media";
+import type { Student, TrainingBlockType, TrainingEffortType, TrainingRoutine, TrainingRoutineBlock, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
+import type { BMExercise } from "@/types/exercise-library";
 
-type ExerciseDraft = Omit<TrainingExercise, "id" | "blockId"> & { id?: string; clientId: string };
+type ExerciseDraft = RoutineExerciseDraft;
 type BlockDraft = Omit<TrainingRoutineBlock, "id" | "exercises"> & { id?: string; clientId: string; exercises: ExerciseDraft[] };
 type DayDraft = { id?: string; clientId: string; dayNumber: number; name: string; objective: string; warmup: string; observations: string; estimatedMinutes: number | null; blocks: BlockDraft[]; exercises: ExerciseDraft[] };
 type RoutineDraft = {
@@ -39,7 +44,7 @@ const statuses: TrainingRoutineStatus[] = ["borrador", "activa", "finalizada", "
 const muscleGroups = ["Pecho", "Espalda", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Gemelos", "Core", "Cuerpo completo", "Movilidad"];
 
 function newExercise(order: number, type: TrainingBlockType = "STRENGTH"): ExerciseDraft {
-  return { clientId: crypto.randomUUID(), name: "", muscleGroup: "", sets: type === "STRENGTH" ? 3 : 1, repetitions: type === "STRENGTH" ? "10-12" : "-", weight: null, effortType: "RIR", effortValue: type === "STRENGTH" ? 2 : null, restSeconds: type === "STRENGTH" ? 90 : null, observations: "", videoUrl: "", tempo: "", alternativeExercise: "", equipment: "", optional: false, targetType: type === "INTERVAL" ? "TIME" : "REPS", targetSeconds: null, targetRepetitions: type === "STRENGTH" ? "" : type === "INTERVAL" ? "" : "10", targetDistance: "", targetSide: "", order };
+  return createEmptyRoutineExerciseDraft(order, type);
 }
 
 const blockLabels: Record<TrainingBlockType, string> = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "For time", FREE: "Bloque libre" };
@@ -94,9 +99,9 @@ function routineDraft(routine: TrainingRoutine): RoutineDraft {
       blocks: (day.blocks.length ? day.blocks : [{ id: `legacy-${day.id}`, type: "STRENGTH" as const, name: "Bloque de fuerza", order: 1, rounds: null, durationSeconds: null, workSeconds: null, restSeconds: null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: "", exercises: day.exercises }]).map((block) => ({
         ...block,
         clientId: crypto.randomUUID(),
-        exercises: block.exercises.map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })),
+        exercises: block.exercises.map((exercise) => ({ ...exercise, clientId: crypto.randomUUID(), libraryExerciseId: libraryExerciseIdFromMediaUrl(exercise.videoUrl) ?? undefined })),
       })),
-      exercises: day.exercises.map((exercise) => ({ ...exercise, clientId: crypto.randomUUID() })),
+      exercises: day.exercises.map((exercise) => ({ ...exercise, clientId: crypto.randomUUID(), libraryExerciseId: libraryExerciseIdFromMediaUrl(exercise.videoUrl) ?? undefined })),
     })),
   };
 }
@@ -519,15 +524,29 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
 }
 
 function BlockEditor({ block, interpretation, update, move, duplicate, remove }: { block: BlockDraft; interpretation: import("@/types/evaluation-interpretation").EvaluationInterpretation | null; update: (updater: (block: BlockDraft) => BlockDraft) => void; move: (direction: -1 | 1) => void; duplicate: () => void; remove: () => void }) {
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryTargetId, setLibraryTargetId] = useState<string | null>(null);
+  const [librarySession, setLibrarySession] = useState(0);
   const set = <K extends keyof BlockDraft>(key: K, value: BlockDraft[K]) => update((current) => ({ ...current, [key]: value }));
+  function openLibraryFor(clientId: string) { setLibraryTargetId(clientId); setLibrarySession((value) => value + 1); setLibraryOpen(true); }
+  function addLibraryExercise(item: BMExercise) { update((current) => ({ ...current, exercises: applyLibraryExerciseSelection(current.exercises, libraryTargetId, item) })); setLibraryTargetId(null); setLibraryOpen(false); }
   function updateExercise<K extends keyof ExerciseDraft>(clientId: string, key: K, value: ExerciseDraft[K]) { update((current) => ({ ...current, exercises: current.exercises.map((exercise) => exercise.clientId === clientId ? { ...exercise, [key]: value } : exercise) })); }
   function changeExerciseTarget(clientId: string, targetType: ExerciseDraft["targetType"]) { update((current) => ({ ...current, exercises: current.exercises.map((exercise) => exercise.clientId === clientId ? { ...exercise, ...clearedExerciseTarget(targetType) } : exercise) })); }
   function moveExercise(clientId: string, direction: -1 | 1) { update((current) => { const exercises = [...current.exercises].sort((a, b) => a.order - b.order); const index = exercises.findIndex((exercise) => exercise.clientId === clientId); const target = index + direction; if (index < 0 || target < 0 || target >= exercises.length) return current; [exercises[index], exercises[target]] = [exercises[target], exercises[index]]; return { ...current, exercises: exercises.map((exercise, i) => ({ ...exercise, order: i + 1 })) }; }); }
   function removeExercise(clientId: string) { update((current) => ({ ...current, exercises: current.exercises.filter((exercise) => exercise.clientId !== clientId).map((exercise, i) => ({ ...exercise, order: i + 1 })) })); }
   return <article className="rounded-2xl border border-yellow-400/15 bg-zinc-900 p-3 sm:p-4"><header className="flex flex-wrap items-center gap-2"><span className="rounded-lg bg-yellow-400 px-2 py-1 text-xs font-black text-zinc-950">{blockLabels[block.type]}</span><input aria-label="Nombre del bloque" value={block.name} onChange={(event) => set("name", event.target.value)} className={`${inputClass} min-w-48 flex-1`} /><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque arriba">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque abajo">↓</button><button type="button" onClick={duplicate} className="rounded bg-zinc-800 px-2 py-2 text-xs">Duplicar</button><button type="button" onClick={remove} className="rounded bg-red-400/10 px-2 py-2 text-xs text-red-300">Eliminar</button></header>
     <details open className="mt-3"><summary className="cursor-pointer text-sm font-bold text-zinc-300">Configuración del bloque</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && <NumberField label="Rondas" value={block.rounds} setValue={(value) => set("rounds", value)} />}{["EMOM", "AMRAP"].includes(block.type) && <NumberField label="Duración total (seg.)" value={block.durationSeconds} setValue={(value) => set("durationSeconds", value)} />}{block.type === "FOR_TIME" && <NumberField label="Límite de tiempo (seg.)" value={block.durationSeconds} setValue={(value) => set("durationSeconds", value)} />}{block.type === "EMOM" && <NumberField label="Estaciones del ciclo" value={block.targetRounds} setValue={(value) => set("targetRounds", value)} />}{block.type === "ROUNDS" && <NumberField label="Descanso entre ejercicios" value={block.restSeconds} setValue={(value) => set("restSeconds", value)} />}{block.type === "INTERVAL" && <><NumberField label="Trabajo (seg.)" value={block.workSeconds} setValue={(value) => set("workSeconds", value)} /><NumberField label="Descanso (seg.)" value={block.restSeconds} setValue={(value) => set("restSeconds", value)} /></>} {["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && <NumberField label="Descanso entre rondas" value={block.restBetweenRoundsSeconds} setValue={(value) => set("restBetweenRoundsSeconds", value)} />}<label className="sm:col-span-2 lg:col-span-4">Instrucciones<textarea rows={2} value={block.instructions} onChange={(event) => set("instructions", event.target.value)} className={`${inputClass} mt-1`} /></label></div></details>
-    <div className="mt-4 space-y-3">{block.exercises.map((exercise) => <div key={exercise.clientId}>{block.type === "STRENGTH" ? <ExerciseEditor exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} /> : <ConditioningExerciseEditor blockType={block.type} exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} changeTarget={(targetType) => changeExerciseTarget(exercise.clientId, targetType)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} />}<ContextualSuggestion messages={contextualExerciseSuggestions(exercise.name, exercise.muscleGroup, interpretation)} /></div>)}</div><button type="button" onClick={() => update((current) => ({ ...current, exercises: [...current.exercises, newExercise(current.exercises.length + 1, current.type)] }))} className="mt-3 min-h-11 w-full rounded-xl border border-dashed border-yellow-400/30 text-sm font-bold text-yellow-300">+ Agregar ejercicio</button>
+    <div className="mt-4 space-y-3">{block.exercises.map((exercise) => <div key={exercise.clientId} className={libraryExerciseIdFromMediaUrl(exercise.videoUrl) ? "library-video-linked" : undefined}>{block.type === "STRENGTH" ? <ExerciseEditor exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} /> : <ConditioningExerciseEditor blockType={block.type} exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} changeTarget={(targetType) => changeExerciseTarget(exercise.clientId, targetType)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} />}<ExerciseMediaEditorActions exercise={exercise} openLibrary={() => openLibraryFor(exercise.clientId)} /><ContextualSuggestion messages={contextualExerciseSuggestions(exercise.name, exercise.muscleGroup, interpretation)} /></div>)}</div>
+    <div className="mt-3 flex justify-end border-t border-zinc-800 pt-3">
+      <button type="button" onClick={() => update((current) => ({ ...current, exercises: [...current.exercises, newExercise(current.exercises.length + 1, current.type)] }))} className="min-h-9 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-xs font-semibold text-zinc-300">+ Agregar ejercicio</button>
+    </div>
+    <ExerciseLibraryPicker key={librarySession} open={libraryOpen} onClose={() => { setLibraryTargetId(null); setLibraryOpen(false); }} onSelect={addLibraryExercise} />
   </article>;
+}
+
+function ExerciseMediaEditorActions({ exercise, openLibrary }: { exercise: ExerciseDraft; openLibrary: () => void }) {
+  const libraryExerciseId = libraryExerciseIdFromMediaUrl(exercise.videoUrl);
+  return <div className="-mt-1 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-x border-b border-zinc-800 bg-zinc-950/70 px-3 py-2.5"><div><p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Video demostrativo</p>{libraryExerciseId ? <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-emerald-300"><span aria-hidden="true">✓</span> Video de Biblioteca BM vinculado</p> : <p className="mt-1 text-xs text-zinc-500">URL manual opcional o Biblioteca BM</p>}</div><div className="flex flex-wrap items-center gap-2">{libraryExerciseId && <RoutineExerciseMediaButton exercise={exercise} libraryMediaEnabled label="Ver demostración" />}<button type="button" onClick={openLibrary} className="min-h-9 rounded-lg border border-yellow-400/20 px-3 text-xs font-semibold text-yellow-200">{libraryExerciseId ? "Cambiar desde Biblioteca" : "Buscar en Biblioteca BM"}</button></div></div>;
 }
 
 function NumberField({ label: title, value, setValue }: { label: string; value: number | null; setValue: (value: number | null) => void }) { return <label>{title}<input type="number" min="0" value={value ?? ""} onChange={(event) => setValue(event.target.value ? Number(event.target.value) : null)} className={`${inputClass} mt-1`} /></label>; }

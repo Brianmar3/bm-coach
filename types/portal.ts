@@ -104,6 +104,7 @@ export type PortalComment = {
 };
 
 export type PortalData = {
+  exerciseMediaEnabled: boolean;
   profile: PortalProfile;
   routine: TrainingRoutine | null;
   evaluations: StudentEvaluation[];

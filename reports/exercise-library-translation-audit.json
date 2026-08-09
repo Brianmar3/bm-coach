@@ -1,0 +1,3202 @@
+{
+  "generatedAt": "2026-08-09T14:18:51.048Z",
+  "total": 1324,
+  "reliableTranslations": 1316,
+  "coveragePercentage": 99.4,
+  "automaticallyTranslated": 1076,
+  "translatedByException": 240,
+  "review": 8,
+  "withoutTranslation": 8,
+  "previousReview": 311,
+  "previousReviewByReason": {
+    "UNKNOWN_QUALIFIERS": 204,
+    "MULTIPLE_MOVEMENTS": 69,
+    "NO_MOVEMENT_PATTERN": 38
+  },
+  "secondPassResolved": 303,
+  "remainingReview": 8,
+  "previouslyAcceptedModified": 0,
+  "strategies": [
+    "Excepciones exactas para nombres compuestos o vocabulario propio del ejercicio.",
+    "Patrones adicionales de movimiento para familias reutilizables.",
+    "Frases calificadoras contextuales antes de traducir palabra por palabra.",
+    "Composición de varios movimientos sólo durante la segunda pasada.",
+    "Fallback REVIEW cuando el contexto sigue siendo ambiguo."
+  ],
+  "qualityValidation": {
+    "scope": "SECOND_PASS_ACCEPTED",
+    "checked": 303,
+    "warnings": 0,
+    "rules": [
+      "REPEATED_CONNECTOR",
+      "REPEATED_WORD",
+      "UNBALANCED_PARENTHESES",
+      "EXCESSIVE_LENGTH",
+      "REPEATED_EQUIPMENT",
+      "ACCIDENTAL_ENGLISH"
+    ]
+  },
+  "qualityWarnings": [],
+  "secondPassResolvedItems": [
+    {
+      "id": "dataset:1512",
+      "sourceId": "1512",
+      "name": "all fours squad stretch",
+      "displayNameEs": "Estiramiento en cuadrupedia",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3214",
+      "sourceId": "3214",
+      "name": "arms apart circular toe touch (male)",
+      "displayNameEs": "Toque circular de puntas con brazos separados",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0010",
+      "sourceId": "0010",
+      "name": "assisted hanging knee raise with throw down",
+      "displayNameEs": "Elevación de rodillas colgado con lanzamiento hacia abajo asistido",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "assisted",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1708",
+      "sourceId": "1708",
+      "name": "assisted lying calves stretch",
+      "displayNameEs": "Estiramiento asistido de gemelos acostado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1709",
+      "sourceId": "1709",
+      "name": "assisted lying glutes stretch",
+      "displayNameEs": "Estiramiento asistido de glúteos acostado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1710",
+      "sourceId": "1710",
+      "name": "assisted lying gluteus and piriformis stretch",
+      "displayNameEs": "Estiramiento asistido de glúteo y piriforme acostado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0012",
+      "sourceId": "0012",
+      "name": "assisted lying leg raise with lateral throw down",
+      "displayNameEs": "Elevación de piernas asistida con lanzamiento lateral",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0013",
+      "sourceId": "0013",
+      "name": "assisted lying leg raise with throw down",
+      "displayNameEs": "Elevación de piernas asistida con lanzamiento hacia abajo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0014",
+      "sourceId": "0014",
+      "name": "assisted motion russian twist",
+      "displayNameEs": "Giro ruso asistido con balón medicinal",
+      "translationStatus": "EXCEPTION",
+      "equipment": "medicine ball",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0016",
+      "sourceId": "0016",
+      "name": "assisted prone hamstring",
+      "displayNameEs": "Trabajo asistido de isquiotibiales boca abajo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1714",
+      "sourceId": "1714",
+      "name": "assisted prone rectus femoris stretch",
+      "displayNameEs": "Estiramiento asistido del recto femoral boca abajo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1716",
+      "sourceId": "1716",
+      "name": "assisted seated pectoralis major stretch with stability ball",
+      "displayNameEs": "Estiramiento asistido del pectoral mayor sentado con pelota de estabilidad",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1712",
+      "sourceId": "1712",
+      "name": "assisted side lying adductor stretch",
+      "displayNameEs": "Estiramiento asistido de aductores acostado de lado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "assisted",
+      "targetMuscle": "adductors",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3220",
+      "sourceId": "3220",
+      "name": "astride jumps (male)",
+      "displayNameEs": "Saltos con piernas abiertas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:3672",
+      "sourceId": "3672",
+      "name": "back and forth step",
+      "displayNameEs": "Paso hacia atrás y adelante",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:1405",
+      "sourceId": "1405",
+      "name": "back pec stretch",
+      "displayNameEs": "Estiramiento de espalda y pectoral",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1473",
+      "sourceId": "1473",
+      "name": "backward jump",
+      "displayNameEs": "Salto hacia atrás con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0972",
+      "sourceId": "0972",
+      "name": "band bicycle crunch",
+      "displayNameEs": "Crunch bicicleta con banda",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "band",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3117",
+      "sourceId": "3117",
+      "name": "band fixed back close grip pulldown",
+      "displayNameEs": "Jalón con banda, espalda fija y agarre cerrado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "band",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3116",
+      "sourceId": "3116",
+      "name": "band fixed back underhand pulldown",
+      "displayNameEs": "Jalón supino con banda y espalda fija",
+      "translationStatus": "EXCEPTION",
+      "equipment": "band",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0979",
+      "sourceId": "0979",
+      "name": "band horizontal pallof press",
+      "displayNameEs": "Press Pallof horizontal con banda",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "band",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0981",
+      "sourceId": "0981",
+      "name": "band jack knife sit-up",
+      "displayNameEs": "Sit-up navaja con banda",
+      "translationStatus": "EXCEPTION",
+      "equipment": "band",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1369",
+      "sourceId": "1369",
+      "name": "band two legs calf raise - (band under both legs) v. 2",
+      "displayNameEs": "Elevación de gemelos a dos piernas con banda bajo los pies",
+      "translationStatus": "EXCEPTION",
+      "equipment": "band",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1015",
+      "sourceId": "1015",
+      "name": "band vertical pallof press",
+      "displayNameEs": "Press Pallof vertical con banda",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "band",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0029",
+      "sourceId": "0029",
+      "name": "barbell clean-grip front squat",
+      "displayNameEs": "Sentadilla frontal con agarre de cargada y barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0035",
+      "sourceId": "0035",
+      "name": "barbell decline close grip to skull press",
+      "displayNameEs": "Press declinado con agarre cerrado y rompecráneos con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0038",
+      "sourceId": "0038",
+      "name": "barbell drag curl",
+      "displayNameEs": "Curl drag con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0040",
+      "sourceId": "0040",
+      "name": "barbell front raise and pullover",
+      "displayNameEs": "Elevación frontal y pullover con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1545",
+      "sourceId": "1545",
+      "name": "barbell full zercher squat",
+      "displayNameEs": "Sentadilla Zercher profunda con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0045",
+      "sourceId": "0045",
+      "name": "barbell guillotine bench press",
+      "displayNameEs": "Press de banca guillotina con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0051",
+      "sourceId": "0051",
+      "name": "barbell jefferson squat",
+      "displayNameEs": "Sentadilla Jefferson con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0052",
+      "sourceId": "0052",
+      "name": "barbell jm bench press",
+      "displayNameEs": "Press JM de banca con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0060",
+      "sourceId": "0060",
+      "name": "barbell lying triceps extension skull crusher",
+      "displayNameEs": "Rompecráneos acostado con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0071",
+      "sourceId": "0071",
+      "name": "barbell press sit-up",
+      "displayNameEs": "Sit-up con press de barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0022",
+      "sourceId": "0022",
+      "name": "barbell pullover to press",
+      "displayNameEs": "Pullover con press de barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0087",
+      "sourceId": "0087",
+      "name": "barbell seated bradford rocky press",
+      "displayNameEs": "Press sentado Bradford Rocky con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0096",
+      "sourceId": "0096",
+      "name": "barbell side bent v. 2",
+      "displayNameEs": "Flexión lateral de tronco con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:2799",
+      "sourceId": "2799",
+      "name": "barbell sitted alternate leg raise",
+      "displayNameEs": "Elevación alternada de piernas sentado con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:2800",
+      "sourceId": "2800",
+      "name": "barbell sitted alternate leg raise (female)",
+      "displayNameEs": "Elevación alternada de piernas sentado con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0100",
+      "sourceId": "0100",
+      "name": "barbell skier",
+      "displayNameEs": "Esquiador con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0101",
+      "sourceId": "0101",
+      "name": "barbell speed squat",
+      "displayNameEs": "Sentadilla dinámica con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:2798",
+      "sourceId": "2798",
+      "name": "barbell squat jump step rear lunge",
+      "displayNameEs": "Sentadilla con salto y zancada atrás con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0103",
+      "sourceId": "0103",
+      "name": "barbell standing ab rollerout",
+      "displayNameEs": "Rueda abdominal de pie con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0105",
+      "sourceId": "0105",
+      "name": "barbell standing bradford press",
+      "displayNameEs": "Press Bradford de pie con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0115",
+      "sourceId": "0115",
+      "name": "barbell stiff leg good morning",
+      "displayNameEs": "Buenos días con piernas semirrígidas y barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0127",
+      "sourceId": "0127",
+      "name": "barbell zercher squat",
+      "displayNameEs": "Sentadilla Zercher con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3212",
+      "sourceId": "3212",
+      "name": "basic toe touch (male)",
+      "displayNameEs": "Toque de puntas de pie básico con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1374",
+      "sourceId": "1374",
+      "name": "box jump down with one leg stabilization",
+      "displayNameEs": "Salto desde cajón con estabilización a una pierna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:2466",
+      "sourceId": "2466",
+      "name": "bridge - mountain climber (cross body)",
+      "displayNameEs": "Puente con escalador cruzado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1494",
+      "sourceId": "1494",
+      "name": "butterfly yoga pose",
+      "displayNameEs": "Postura de mariposa",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "adductors",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0152",
+      "sourceId": "0152",
+      "name": "cable concentration extension (on knee)",
+      "displayNameEs": "Extensión concentrada de tríceps de rodillas en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0153",
+      "sourceId": "0153",
+      "name": "cable cross-over lateral pulldown",
+      "displayNameEs": "Jalón lateral en cruce de poleas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0154",
+      "sourceId": "0154",
+      "name": "cable cross-over revers fly",
+      "displayNameEs": "Apertura posterior en cruce de poleas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0155",
+      "sourceId": "0155",
+      "name": "cable cross-over variation",
+      "displayNameEs": "Variante de cruce de poleas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1632",
+      "sourceId": "1632",
+      "name": "cable drag curl",
+      "displayNameEs": "Curl drag en polea",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "cable",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1722",
+      "sourceId": "1722",
+      "name": "cable high pulley overhead tricep extension",
+      "displayNameEs": "Extensión de tríceps sobre la cabeza en polea alta",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0174",
+      "sourceId": "0174",
+      "name": "cable judo flip",
+      "displayNameEs": "Volteo judo en polea",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "cable",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0184",
+      "sourceId": "0184",
+      "name": "cable lying extension pullover (with rope attachment)",
+      "displayNameEs": "Pullover con extensión acostado y cuerda en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0188",
+      "sourceId": "0188",
+      "name": "cable middle fly",
+      "displayNameEs": "Apertura media en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0191",
+      "sourceId": "0191",
+      "name": "cable one arm lateral bent-over",
+      "displayNameEs": "Elevación lateral inclinada a un brazo en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0194",
+      "sourceId": "0194",
+      "name": "cable overhead triceps extension (rope attachment)",
+      "displayNameEs": "Extensión de tríceps sobre la cabeza con cuerda en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1319",
+      "sourceId": "1319",
+      "name": "cable palm rotational row",
+      "displayNameEs": "Remo con rotación de palmas en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0197",
+      "sourceId": "0197",
+      "name": "cable pulldown (pro lat bar)",
+      "displayNameEs": "Jalón dorsal con barra Pro Lat en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1638",
+      "sourceId": "1638",
+      "name": "cable pulldown bicep curl",
+      "displayNameEs": "Jalón en polea con curl de bíceps",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0202",
+      "sourceId": "0202",
+      "name": "cable rear delt row (stirrups)",
+      "displayNameEs": "Remo para deltoides posteriores con estribos en polea",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "cable",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0204",
+      "sourceId": "0204",
+      "name": "cable rear drive",
+      "displayNameEs": "Tirón posterior en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:2406",
+      "sourceId": "2406",
+      "name": "cable reverse grip triceps pushdown (sz-bar) (with arm blaster)",
+      "displayNameEs": "Extensión de tríceps en polea con agarre inverso, barra SZ y soporte para bíceps",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1320",
+      "sourceId": "1320",
+      "name": "cable rope crossover seated row",
+      "displayNameEs": "Remo sentado con cuerda cruzada en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1321",
+      "sourceId": "1321",
+      "name": "cable rope elevated seated row",
+      "displayNameEs": "Remo sentado elevado con cuerda en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1322",
+      "sourceId": "1322",
+      "name": "cable rope extension incline bench row",
+      "displayNameEs": "Remo con cuerda y apoyo en banco inclinado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1724",
+      "sourceId": "1724",
+      "name": "cable rope high pulley overhead tricep extension",
+      "displayNameEs": "Extensión de tríceps sobre la cabeza con cuerda en polea alta",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0211",
+      "sourceId": "0211",
+      "name": "cable russian twists (on stability ball)",
+      "displayNameEs": "Giros rusos sobre pelota de estabilidad con polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0221",
+      "sourceId": "0221",
+      "name": "cable side bend crunch (bosu ball)",
+      "displayNameEs": "Crunch con flexión lateral en BOSU y polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0225",
+      "sourceId": "0225",
+      "name": "cable standing cross-over high reverse fly",
+      "displayNameEs": "Apertura posterior alta en cruce de poleas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0230",
+      "sourceId": "0230",
+      "name": "cable standing lift",
+      "displayNameEs": "Elevación diagonal de pie en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0236",
+      "sourceId": "0236",
+      "name": "cable standing twist row (v-bar)",
+      "displayNameEs": "Remo de pie con giro y barra V en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:2464",
+      "sourceId": "2464",
+      "name": "cable thibaudeau kayak row",
+      "displayNameEs": "Remo Thibaudeau kayak en polea",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "cable",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0242",
+      "sourceId": "0242",
+      "name": "cable tuck reverse crunch",
+      "displayNameEs": "Crunch encogido inverso en polea",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "cable",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0862",
+      "sourceId": "0862",
+      "name": "cable twist (up-down)",
+      "displayNameEs": "Giro arriba y abajo en polea",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "cable",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0244",
+      "sourceId": "0244",
+      "name": "cable twisting pull",
+      "displayNameEs": "Tirón con rotación en polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1324",
+      "sourceId": "1324",
+      "name": "cable upper row",
+      "displayNameEs": "Remo superior en polea",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "cable",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0248",
+      "sourceId": "0248",
+      "name": "cambered bar lying row",
+      "displayNameEs": "Remo acostado con barra curva",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:2963",
+      "sourceId": "2963",
+      "name": "captains chair straight leg raise",
+      "displayNameEs": "Elevación de piernas rectas en silla romana",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0257",
+      "sourceId": "0257",
+      "name": "circles knee stretch",
+      "displayNameEs": "Círculos de rodilla",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1273",
+      "sourceId": "1273",
+      "name": "clap push up",
+      "displayNameEs": "Flexión de brazos con palmada con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0258",
+      "sourceId": "0258",
+      "name": "clock push-up",
+      "displayNameEs": "Flexión reloj",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0260",
+      "sourceId": "0260",
+      "name": "cocoons",
+      "displayNameEs": "Abdominal capullo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1468",
+      "sourceId": "1468",
+      "name": "crab twist toe touch",
+      "displayNameEs": "Toque de punta en posición de cangrejo con giro",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3769",
+      "sourceId": "3769",
+      "name": "curtsey squat",
+      "displayNameEs": "Sentadilla de reverencia con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1274",
+      "sourceId": "1274",
+      "name": "deep push up",
+      "displayNameEs": "Flexión profunda con mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0283",
+      "sourceId": "0283",
+      "name": "diamond push-up",
+      "displayNameEs": "Flexión de brazos diamante con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0288",
+      "sourceId": "0288",
+      "name": "dumbbell around pullover",
+      "displayNameEs": "Pullover circular con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1651",
+      "sourceId": "1651",
+      "name": "dumbbell bicep curl lunge with bowling motion",
+      "displayNameEs": "Zancada con curl de bíceps y movimiento de bowling con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1653",
+      "sourceId": "1653",
+      "name": "dumbbell bicep curl with stork stance",
+      "displayNameEs": "Curl de bíceps con mancuerna en equilibrio a una pierna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1655",
+      "sourceId": "1655",
+      "name": "dumbbell biceps curl squat",
+      "displayNameEs": "Sentadilla con curl de bíceps con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1656",
+      "sourceId": "1656",
+      "name": "dumbbell biceps curl v sit on bosu ball",
+      "displayNameEs": "Curl de bíceps en posición V sobre BOSU con mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:3635",
+      "sourceId": "3635",
+      "name": "dumbbell contralateral forward lunge",
+      "displayNameEs": "Zancada contralateral hacia adelante con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0299",
+      "sourceId": "0299",
+      "name": "dumbbell cuban press",
+      "displayNameEs": "Press cubano con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:2136",
+      "sourceId": "2136",
+      "name": "dumbbell cuban press v. 2",
+      "displayNameEs": "Press cubano con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0307",
+      "sourceId": "0307",
+      "name": "dumbbell decline twist fly",
+      "displayNameEs": "Apertura declinada con giro y mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1437",
+      "sourceId": "1437",
+      "name": "dumbbell finger curls",
+      "displayNameEs": "Curl de dedos con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "forearms",
+      "bodyPart": "lower arms"
+    },
+    {
+      "id": "dataset:1732",
+      "sourceId": "1732",
+      "name": "dumbbell forward lunge triceps extension",
+      "displayNameEs": "Zancada adelante con extensión de tríceps con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0311",
+      "sourceId": "0311",
+      "name": "dumbbell full can lateral raise",
+      "displayNameEs": "Elevación lateral full can con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0324",
+      "sourceId": "0324",
+      "name": "dumbbell incline palm-in press",
+      "displayNameEs": "Press inclinado con palmas hacia adentro con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0331",
+      "sourceId": "0331",
+      "name": "dumbbell incline twisted flyes",
+      "displayNameEs": "Aperturas inclinadas con giro y mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0337",
+      "sourceId": "0337",
+      "name": "dumbbell lying extension (across face)",
+      "displayNameEs": "Extensión de tríceps acostado y cruzado sobre el rostro con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0339",
+      "sourceId": "0339",
+      "name": "dumbbell lying femoral",
+      "displayNameEs": "Curl femoral acostado con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0341",
+      "sourceId": "0341",
+      "name": "dumbbell lying one arm deltoid rear",
+      "displayNameEs": "Apertura posterior acostado a un brazo con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0344",
+      "sourceId": "0344",
+      "name": "dumbbell lying one arm pronated triceps extension",
+      "displayNameEs": "Extensión de tríceps acostado a un brazo prono con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0346",
+      "sourceId": "0346",
+      "name": "dumbbell lying one arm supinated triceps extension",
+      "displayNameEs": "Extensión de tríceps acostado a un brazo supino con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1329",
+      "sourceId": "1329",
+      "name": "dumbbell palm rotational bent over row",
+      "displayNameEs": "Remo inclinado con rotación de palma y mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0370",
+      "sourceId": "0370",
+      "name": "dumbbell peacher hammer curl",
+      "displayNameEs": "Curl martillo predicador con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0373",
+      "sourceId": "0373",
+      "name": "dumbbell pronate-grip triceps extension",
+      "displayNameEs": "Extensión de tríceps con agarre prono con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1294",
+      "sourceId": "1294",
+      "name": "dumbbell pullover hip extension on exercise ball",
+      "displayNameEs": "Pullover con extensión de cadera sobre pelota de estabilidad y mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0386",
+      "sourceId": "0386",
+      "name": "dumbbell rotation reverse fly",
+      "displayNameEs": "Apertura posterior con rotación y mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:2397",
+      "sourceId": "2397",
+      "name": "dumbbell scott press",
+      "displayNameEs": "Press Scott con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:3546",
+      "sourceId": "3546",
+      "name": "dumbbell seated alternate shoulder",
+      "displayNameEs": "Elevación alternada de hombros sentado con mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0399",
+      "sourceId": "0399",
+      "name": "dumbbell seated one arm rotate",
+      "displayNameEs": "Rotación de hombro sentado a un brazo con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "forearms",
+      "bodyPart": "lower arms"
+    },
+    {
+      "id": "dataset:1380",
+      "sourceId": "1380",
+      "name": "dumbbell seated one leg calf raise - hammer grip",
+      "displayNameEs": "Elevación de gemelo sentado a una pierna con agarre martillo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1381",
+      "sourceId": "1381",
+      "name": "dumbbell seated one leg calf raise - palm up",
+      "displayNameEs": "Elevación de gemelo sentado a una pierna con palma hacia arriba",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:3664",
+      "sourceId": "3664",
+      "name": "dumbbell side plank with rear fly",
+      "displayNameEs": "Plancha lateral con apertura posterior y mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3560",
+      "sourceId": "3560",
+      "name": "dumbbell standing alternate hammer curl and press",
+      "displayNameEs": "Curl martillo alternado con press y mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0419",
+      "sourceId": "0419",
+      "name": "dumbbell standing front raise above head",
+      "displayNameEs": "Elevación frontal por encima de la cabeza con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0424",
+      "sourceId": "0424",
+      "name": "dumbbell standing one arm palm in press",
+      "displayNameEs": "Press de pie a un brazo con palma hacia adentro y mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:1684",
+      "sourceId": "1684",
+      "name": "dumbbell step up single leg balance with bicep curl",
+      "displayNameEs": "Subida al banco con equilibrio a una pierna y curl de bíceps con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:2796",
+      "sourceId": "2796",
+      "name": "dumbbell step-up lunge",
+      "displayNameEs": "Subida al banco con zancada y mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:2812",
+      "sourceId": "2812",
+      "name": "dumbbell step-up split squat",
+      "displayNameEs": "Subida al banco con sentadilla búlgara y mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0436",
+      "sourceId": "0436",
+      "name": "dumbbell tate press",
+      "displayNameEs": "Press Tate con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1742",
+      "sourceId": "1742",
+      "name": "dumbbell tricep kickback with stork stance",
+      "displayNameEs": "Patada de tríceps con mancuerna en equilibrio a una pierna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0864",
+      "sourceId": "0864",
+      "name": "dumbbell upright shoulder external rotation",
+      "displayNameEs": "Rotación externa de hombro de pie con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:5201",
+      "sourceId": "5201",
+      "name": "dumbbell waiter biceps curl",
+      "displayNameEs": "Waiter curl de bíceps con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:2189",
+      "sourceId": "2189",
+      "name": "dumbbells seated triceps extension",
+      "displayNameEs": "Extensión de tríceps sentado con mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1167",
+      "sourceId": "1167",
+      "name": "dynamic chest stretch (male)",
+      "displayNameEs": "Estiramiento dinámico de pecho con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1772",
+      "sourceId": "1772",
+      "name": "elbow lift - reverse push-up",
+      "displayNameEs": "Elevación de codos en flexión inversa",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1335",
+      "sourceId": "1335",
+      "name": "exercise ball back extension with knees off ground",
+      "displayNameEs": "Extensión lumbar sobre pelota con rodillas sin apoyo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stability ball",
+      "targetMuscle": "spine",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1336",
+      "sourceId": "1336",
+      "name": "exercise ball back extension with rotation",
+      "displayNameEs": "Extensión lumbar con rotación en pelota de estabilidad",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stability ball",
+      "targetMuscle": "spine",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1338",
+      "sourceId": "1338",
+      "name": "exercise ball hug",
+      "displayNameEs": "Abrazo de pelota de estabilidad",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stability ball",
+      "targetMuscle": "spine",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1341",
+      "sourceId": "1341",
+      "name": "exercise ball lower back stretch (pyramid)",
+      "displayNameEs": "Estiramiento lumbar en pirámide sobre pelota de estabilidad",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stability ball",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3241",
+      "sourceId": "3241",
+      "name": "exercise ball on the wall calf raise (tennis ball between ankles)",
+      "displayNameEs": "Elevación de gemelos contra la pared con pelota entre los tobillos",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:3240",
+      "sourceId": "3240",
+      "name": "exercise ball on the wall calf raise (tennis ball between knees)",
+      "displayNameEs": "Elevación de gemelos contra la pared con pelota entre las rodillas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1417",
+      "sourceId": "1417",
+      "name": "exercise ball one legged diagonal kick hamstring curl",
+      "displayNameEs": "Curl femoral a una pierna con patada diagonal sobre pelota",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stability ball",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1296",
+      "sourceId": "1296",
+      "name": "exercise ball pike push up",
+      "displayNameEs": "Flexión de brazos en pica sobre pelota de estabilidad",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stability ball",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0445",
+      "sourceId": "0445",
+      "name": "ez barbell anti gravity press",
+      "displayNameEs": "Press anti gravedad con barra EZ",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "ez barbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0450",
+      "sourceId": "0450",
+      "name": "ez barbell jm bench press",
+      "displayNameEs": "Press JM de banca con barra EZ",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "ez barbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:2404",
+      "sourceId": "2404",
+      "name": "ez-bar biceps curl (with arm blaster)",
+      "displayNameEs": "Curl de bíceps con barra EZ con soporte para bíceps",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "ez barbell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:2432",
+      "sourceId": "2432",
+      "name": "ez-bar close-grip bench press",
+      "displayNameEs": "Press de banca con barra EZ con agarre cerrado",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "ez barbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:2133",
+      "sourceId": "2133",
+      "name": "farmers walk",
+      "displayNameEs": "Farmer walk con mancuerna",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "dumbbell",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0455",
+      "sourceId": "0455",
+      "name": "finger curls",
+      "displayNameEs": "Curl de dedos con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "forearms",
+      "bodyPart": "lower arms"
+    },
+    {
+      "id": "dataset:3303",
+      "sourceId": "3303",
+      "name": "flag",
+      "displayNameEs": "Bandera humana",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0458",
+      "sourceId": "0458",
+      "name": "floor fly (with barbell)",
+      "displayNameEs": "Apertura en el suelo con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:3194",
+      "sourceId": "3194",
+      "name": "frankenstein squat",
+      "displayNameEs": "Sentadilla Frankenstein con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:2429",
+      "sourceId": "2429",
+      "name": "frog crunch",
+      "displayNameEs": "Crunch rana con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3301",
+      "sourceId": "3301",
+      "name": "frog planche",
+      "displayNameEs": "Plancha gimnástica rana con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3295",
+      "sourceId": "3295",
+      "name": "front lever reps",
+      "displayNameEs": "Repeticiones de front lever",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3327",
+      "sourceId": "3327",
+      "name": "full planche push-up",
+      "displayNameEs": "Flexión en plancha gimnástica completa",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0466",
+      "sourceId": "0466",
+      "name": "gironda sternum chin",
+      "displayNameEs": "Dominada Gironda al esternón",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3561",
+      "sourceId": "3561",
+      "name": "glute bridge march",
+      "displayNameEs": "Puente de glúteos con marcha",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3193",
+      "sourceId": "3193",
+      "name": "glute-ham raise",
+      "displayNameEs": "Elevación glute-ham con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0467",
+      "sourceId": "0467",
+      "name": "gorilla chin",
+      "displayNameEs": "Dominada gorila",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0469",
+      "sourceId": "0469",
+      "name": "groin crunch",
+      "displayNameEs": "Crunch de aductores con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3221",
+      "sourceId": "3221",
+      "name": "half knee bends (male)",
+      "displayNameEs": "Media flexión de rodillas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:3202",
+      "sourceId": "3202",
+      "name": "half sit-up (male)",
+      "displayNameEs": "Medio sit-up",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3218",
+      "sourceId": "3218",
+      "name": "hands clasped circular toe touch (male)",
+      "displayNameEs": "Toque circular de puntas con manos entrelazadas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3215",
+      "sourceId": "3215",
+      "name": "hands reversed clasped circular toe touch (male)",
+      "displayNameEs": "Toque circular de puntas con manos entrelazadas hacia atrás",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0471",
+      "sourceId": "0471",
+      "name": "handstand push-up",
+      "displayNameEs": "Flexión de brazos en parada de manos",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1418",
+      "sourceId": "1418",
+      "name": "hug keens to chest",
+      "displayNameEs": "Rodillas al pecho",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3234",
+      "sourceId": "3234",
+      "name": "hyght dumbbell fly",
+      "displayNameEs": "Apertura inclinada con mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:3289",
+      "sourceId": "3289",
+      "name": "impossible dips",
+      "displayNameEs": "Fondos imposibles",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0492",
+      "sourceId": "0492",
+      "name": "incline push up depth jump",
+      "displayNameEs": "Flexión inclinada con salto de profundidad",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:3785",
+      "sourceId": "3785",
+      "name": "incline push-up (on box)",
+      "displayNameEs": "Flexión inclinada con apoyo en cajón",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1564",
+      "sourceId": "1564",
+      "name": "intermediate hip flexor and quad stretch",
+      "displayNameEs": "Estiramiento intermedio de flexores de cadera y cuádriceps con cuerda",
+      "translationStatus": "EXCEPTION",
+      "equipment": "rope",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:2400",
+      "sourceId": "2400",
+      "name": "inverse leg curl (on pull-up cable machine)",
+      "displayNameEs": "Curl femoral inverso en máquina de polea",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0498",
+      "sourceId": "0498",
+      "name": "inverted row with straps",
+      "displayNameEs": "Remo invertido con correas con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1419",
+      "sourceId": "1419",
+      "name": "iron cross stretch",
+      "displayNameEs": "Estiramiento en cruz de hierro",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0507",
+      "sourceId": "0507",
+      "name": "jackknife sit-up",
+      "displayNameEs": "Sit-up navaja con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0508",
+      "sourceId": "0508",
+      "name": "janda sit-up",
+      "displayNameEs": "Sit-up Janda con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0517",
+      "sourceId": "0517",
+      "name": "kettlebell advanced windmill",
+      "displayNameEs": "Molino avanzado con kettlebell",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "kettlebell",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0521",
+      "sourceId": "0521",
+      "name": "kettlebell alternating renegade row",
+      "displayNameEs": "Remo renegado alternado con kettlebell",
+      "translationStatus": "EXCEPTION",
+      "equipment": "kettlebell",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0525",
+      "sourceId": "0525",
+      "name": "kettlebell bottoms up clean from the hang position",
+      "displayNameEs": "Cargada bottoms-up desde posición colgada con kettlebell",
+      "translationStatus": "EXCEPTION",
+      "equipment": "kettlebell",
+      "targetMuscle": "biceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0531",
+      "sourceId": "0531",
+      "name": "kettlebell extended range one arm press on floor",
+      "displayNameEs": "Press a un brazo con recorrido extendido en el suelo y kettlebell",
+      "translationStatus": "EXCEPTION",
+      "equipment": "kettlebell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0536",
+      "sourceId": "0536",
+      "name": "kettlebell lunge pass through",
+      "displayNameEs": "Zancada con pase de kettlebell entre las piernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "kettlebell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0544",
+      "sourceId": "0544",
+      "name": "kettlebell pistol squat",
+      "displayNameEs": "Sentadilla pistol con kettlebell",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "kettlebell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0547",
+      "sourceId": "0547",
+      "name": "kettlebell seesaw press",
+      "displayNameEs": "Press alternado con kettlebell",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "kettlebell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0551",
+      "sourceId": "0551",
+      "name": "kettlebell turkish get up (squat style)",
+      "displayNameEs": "Levantada turca estilo sentadilla con kettlebell",
+      "translationStatus": "EXCEPTION",
+      "equipment": "kettlebell",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0558",
+      "sourceId": "0558",
+      "name": "kipping muscle up",
+      "displayNameEs": "Muscle-up con kipping con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3288",
+      "sourceId": "3288",
+      "name": "korean dips",
+      "displayNameEs": "Fondos coreanos",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:3418",
+      "sourceId": "3418",
+      "name": "l-pull-up",
+      "displayNameEs": "Dominada en L",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3237",
+      "sourceId": "3237",
+      "name": "landmine lateral raise",
+      "displayNameEs": "Elevación lateral con landmine con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:3300",
+      "sourceId": "3300",
+      "name": "lean planche",
+      "displayNameEs": "Plancha gimnástica inclinada",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:2271",
+      "sourceId": "2271",
+      "name": "left hook. boxing",
+      "displayNameEs": "Gancho izquierdo de boxeo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:0580",
+      "sourceId": "0580",
+      "name": "lever gripless shrug",
+      "displayNameEs": "Encogimiento de hombros sin agarre en máquina de palanca",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "leverage machine",
+      "targetMuscle": "traps",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1439",
+      "sourceId": "1439",
+      "name": "lever gripless shrug v. 2",
+      "displayNameEs": "Encogimiento de hombros sin agarre en máquina de palanca",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "leverage machine",
+      "targetMuscle": "traps",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:2611",
+      "sourceId": "2611",
+      "name": "lever horizontal one leg press",
+      "displayNameEs": "Prensa horizontal a una pierna en máquina",
+      "translationStatus": "EXCEPTION",
+      "equipment": "leverage machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3195",
+      "sourceId": "3195",
+      "name": "lever lying two-one leg curl",
+      "displayNameEs": "Curl femoral acostado bilateral con bajada unilateral en máquina de palanca",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "leverage machine",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0591",
+      "sourceId": "0591",
+      "name": "lever overhand triceps dip",
+      "displayNameEs": "Fondos de tríceps con agarre prono en máquina",
+      "translationStatus": "EXCEPTION",
+      "equipment": "leverage machine",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0595",
+      "sourceId": "0595",
+      "name": "lever seated crunch (chest pad)",
+      "displayNameEs": "Crunch sentado con apoyo de pecho en máquina de palanca",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "leverage machine",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0600",
+      "sourceId": "0600",
+      "name": "lever seated leg raise crunch",
+      "displayNameEs": "Crunch con elevación de piernas sentado en máquina",
+      "translationStatus": "EXCEPTION",
+      "equipment": "leverage machine",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1385",
+      "sourceId": "1385",
+      "name": "lever seated squat calf raise on leg press machine",
+      "displayNameEs": "Elevación de gemelos sentado en máquina de prensa",
+      "translationStatus": "EXCEPTION",
+      "equipment": "leverage machine",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:0606",
+      "sourceId": "0606",
+      "name": "lever t bar row",
+      "displayNameEs": "Remo en T en máquina",
+      "translationStatus": "EXCEPTION",
+      "equipment": "leverage machine",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1351",
+      "sourceId": "1351",
+      "name": "lever t-bar reverse grip row",
+      "displayNameEs": "Remo en T con agarre inverso en máquina de palanca",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "leverage machine",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1313",
+      "sourceId": "1313",
+      "name": "lever unilateral row",
+      "displayNameEs": "Remo unilateral en máquina de palanca",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "leverage machine",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3582",
+      "sourceId": "3582",
+      "name": "lunge with jump",
+      "displayNameEs": "Zancada con salto",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1688",
+      "sourceId": "1688",
+      "name": "lunge with twist",
+      "displayNameEs": "Zancada con rotación",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0865",
+      "sourceId": "0865",
+      "name": "lying leg-hip raise",
+      "displayNameEs": "Elevación de piernas y cadera acostado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1353",
+      "sourceId": "1353",
+      "name": "medicine ball catch and overhead throw",
+      "displayNameEs": "Recepción y lanzamiento sobre la cabeza con balón medicinal",
+      "translationStatus": "EXCEPTION",
+      "equipment": "medicine ball",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1312",
+      "sourceId": "1312",
+      "name": "medicine ball chest push with run release",
+      "displayNameEs": "Lanzamiento de pecho con carrera y balón medicinal",
+      "translationStatus": "EXCEPTION",
+      "equipment": "medicine ball",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0627",
+      "sourceId": "0627",
+      "name": "mixed grip chin-up",
+      "displayNameEs": "Dominada con agarre mixto",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3217",
+      "sourceId": "3217",
+      "name": "modified hindu push-up (male)",
+      "displayNameEs": "Flexión hindú modificada",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0628",
+      "sourceId": "0628",
+      "name": "monster walk",
+      "displayNameEs": "Monster walk",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0634",
+      "sourceId": "0634",
+      "name": "negative crunch",
+      "displayNameEs": "Crunch negativo con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0641",
+      "sourceId": "0641",
+      "name": "otis up",
+      "displayNameEs": "Sit-up Otis",
+      "translationStatus": "EXCEPTION",
+      "equipment": "weighted",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0642",
+      "sourceId": "0642",
+      "name": "outside leg kick push-up",
+      "displayNameEs": "Flexión con patada exterior de pierna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1422",
+      "sourceId": "1422",
+      "name": "pelvic tilt into bridge",
+      "displayNameEs": "Basculación pélvica con puente de glúteos",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1388",
+      "sourceId": "1388",
+      "name": "peroneals stretch",
+      "displayNameEs": "Estiramiento de peroneos con cuerda",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "rope",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:3662",
+      "sourceId": "3662",
+      "name": "pike-to-cobra push-up",
+      "displayNameEs": "Flexión de pica a cobra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1687",
+      "sourceId": "1687",
+      "name": "posterior step to overhead reach",
+      "displayNameEs": "Paso atrás con alcance sobre la cabeza",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1389",
+      "sourceId": "1389",
+      "name": "posterior tibialis stretch",
+      "displayNameEs": "Estiramiento del tibial posterior con cuerda",
+      "translationStatus": "EXCEPTION",
+      "equipment": "rope",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:3119",
+      "sourceId": "3119",
+      "name": "potty squat",
+      "displayNameEs": "Sentadilla profunda con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3132",
+      "sourceId": "3132",
+      "name": "potty squat with support",
+      "displayNameEs": "Sentadilla profunda con apoyo con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0648",
+      "sourceId": "0648",
+      "name": "power clean",
+      "displayNameEs": "Power clean con barra",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "barbell",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3665",
+      "sourceId": "3665",
+      "name": "power point plank",
+      "displayNameEs": "Plancha Power Point",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3203",
+      "sourceId": "3203",
+      "name": "prisoner half sit-up (male)",
+      "displayNameEs": "Medio sit-up prisionero",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1689",
+      "sourceId": "1689",
+      "name": "push and pull bodyweight",
+      "displayNameEs": "Empuje y tracción con peso corporal",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0660",
+      "sourceId": "0660",
+      "name": "push-up close-grip off dumbbell",
+      "displayNameEs": "Flexión con agarre cerrado sobre mancuerna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0661",
+      "sourceId": "0661",
+      "name": "push-up inside leg kick",
+      "displayNameEs": "Flexión con patada interior de pierna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3145",
+      "sourceId": "3145",
+      "name": "push-up plus",
+      "displayNameEs": "Flexión de brazos plus con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0664",
+      "sourceId": "0664",
+      "name": "push-up to side plank",
+      "displayNameEs": "Flexión de brazos con plancha lateral",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3533",
+      "sourceId": "3533",
+      "name": "quads",
+      "displayNameEs": "Contracción de cuádriceps",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3201",
+      "sourceId": "3201",
+      "name": "quarter sit-up",
+      "displayNameEs": "Sit-up a un cuarto",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1582",
+      "sourceId": "1582",
+      "name": "reclining big toe pose with rope",
+      "displayNameEs": "Postura reclinada del dedo gordo con cuerda",
+      "translationStatus": "EXCEPTION",
+      "equipment": "rope",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0675",
+      "sourceId": "0675",
+      "name": "reverse hyper extension (on stability ball)",
+      "displayNameEs": "Hiperextensión inversa en pelota de estabilidad",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stability ball",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0677",
+      "sourceId": "0677",
+      "name": "ring dips",
+      "displayNameEs": "Fondos en anillas con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:2571",
+      "sourceId": "2571",
+      "name": "rocking frog stretch",
+      "displayNameEs": "Estiramiento de rana con balanceo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0678",
+      "sourceId": "0678",
+      "name": "rocky pull-up pulldown",
+      "displayNameEs": "Dominada Rocky con jalón",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:2203",
+      "sourceId": "2203",
+      "name": "roller seated shoulder flexor depresor retractor",
+      "displayNameEs": "Movilidad de hombros sentado con rodillo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "roller",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:2209",
+      "sourceId": "2209",
+      "name": "roller seated single leg shoulder flexor depresor retractor",
+      "displayNameEs": "Movilidad de hombros sentado a una pierna con rodillo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "roller",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0684",
+      "sourceId": "0684",
+      "name": "run (equipment)",
+      "displayNameEs": "Carrera con equipamiento",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:1585",
+      "sourceId": "1585",
+      "name": "runners stretch",
+      "displayNameEs": "Estiramiento del corredor con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0688",
+      "sourceId": "0688",
+      "name": "scapular pull-up",
+      "displayNameEs": "Dominada escapular con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "traps",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1424",
+      "sourceId": "1424",
+      "name": "seated glute stretch",
+      "displayNameEs": "Estiramiento de glúteos sentado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:2567",
+      "sourceId": "2567",
+      "name": "seated piriformis stretch",
+      "displayNameEs": "Estiramiento de piriforme sentado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1587",
+      "sourceId": "1587",
+      "name": "seated wide angle pose sequence",
+      "displayNameEs": "Secuencia sentada en ángulo amplio",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3222",
+      "sourceId": "3222",
+      "name": "semi squat jump (male)",
+      "displayNameEs": "Salto desde media sentadilla",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:3656",
+      "sourceId": "3656",
+      "name": "short stride run",
+      "displayNameEs": "Carrera con zancada corta",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:0699",
+      "sourceId": "0699",
+      "name": "shoulder tap push-up",
+      "displayNameEs": "Flexión de brazos con toque de hombros",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1774",
+      "sourceId": "1774",
+      "name": "side bridge hip abduction",
+      "displayNameEs": "Puente lateral con abducción de cadera",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abductors",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0709",
+      "sourceId": "0709",
+      "name": "side hip (on parallel bars)",
+      "displayNameEs": "Elevación lateral de cadera en barras paralelas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1775",
+      "sourceId": "1775",
+      "name": "side plank hip adduction",
+      "displayNameEs": "Plancha lateral con aducción de cadera",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "adductors",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0720",
+      "sourceId": "0720",
+      "name": "side-to-side chin",
+      "displayNameEs": "Dominada supina de lado a lado",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:3645",
+      "sourceId": "3645",
+      "name": "single leg bridge with outstretched leg",
+      "displayNameEs": "Puente a una pierna con la pierna extendida",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1759",
+      "sourceId": "1759",
+      "name": "single leg squat (pistol) male",
+      "displayNameEs": "Sentadilla pistol a una pierna",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:2142",
+      "sourceId": "2142",
+      "name": "ski ergometer",
+      "displayNameEs": "SkiErg",
+      "translationStatus": "EXCEPTION",
+      "equipment": "skierg machine",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1425",
+      "sourceId": "1425",
+      "name": "sled 45 degrees one leg press",
+      "displayNameEs": "Prensa a 45° a una pierna con trineo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "sled machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0738",
+      "sourceId": "0738",
+      "name": "sled 45в° calf press",
+      "displayNameEs": "Press de gemelos a 45° con trineo",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "sled machine",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:0739",
+      "sourceId": "0739",
+      "name": "sled 45в° leg press",
+      "displayNameEs": "Prensa de piernas a 45° con trineo",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "sled machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1464",
+      "sourceId": "1464",
+      "name": "sled 45в° leg press (back pov)",
+      "displayNameEs": "Prensa de piernas a 45° con trineo",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "sled machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0740",
+      "sourceId": "0740",
+      "name": "sled 45в° leg wide press",
+      "displayNameEs": "Prensa a 45° con postura amplia y trineo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "sled machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1391",
+      "sourceId": "1391",
+      "name": "sled calf press on leg press",
+      "displayNameEs": "Press de gemelos en prensa con trineo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "sled machine",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:0741",
+      "sourceId": "0741",
+      "name": "sled closer hack squat",
+      "displayNameEs": "Sentadilla hack cerrada con trineo",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "sled machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0742",
+      "sourceId": "0742",
+      "name": "sled forward angled calf raise",
+      "displayNameEs": "Elevación de gemelos inclinado hacia adelante con trineo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "sled machine",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1392",
+      "sourceId": "1392",
+      "name": "sled one leg calf press on leg press",
+      "displayNameEs": "Press de gemelo a una pierna en prensa con trineo",
+      "translationStatus": "EXCEPTION",
+      "equipment": "sled machine",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1433",
+      "sourceId": "1433",
+      "name": "smith front squat (clean grip)",
+      "displayNameEs": "Sentadilla frontal con agarre de cargada en multipower",
+      "translationStatus": "EXCEPTION",
+      "equipment": "smith machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0769",
+      "sourceId": "0769",
+      "name": "smith sprint lunge",
+      "displayNameEs": "Zancada sprint en multipower",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "smith machine",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0777",
+      "sourceId": "0777",
+      "name": "spell caster",
+      "displayNameEs": "Spell caster con mancuernas",
+      "translationStatus": "EXCEPTION",
+      "equipment": "dumbbell",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1362",
+      "sourceId": "1362",
+      "name": "sphinx",
+      "displayNameEs": "Postura de esfinge",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "spine",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0778",
+      "sourceId": "0778",
+      "name": "spider crawl push up",
+      "displayNameEs": "Flexión de brazos con gateo de araña",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1363",
+      "sourceId": "1363",
+      "name": "spine stretch",
+      "displayNameEs": "Estiramiento de columna con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "spine",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:2329",
+      "sourceId": "2329",
+      "name": "spine twist",
+      "displayNameEs": "Giro de columna con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0786",
+      "sourceId": "0786",
+      "name": "squat jerk",
+      "displayNameEs": "Envión en sentadilla con barra",
+      "translationStatus": "EXCEPTION",
+      "equipment": "barbell",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1685",
+      "sourceId": "1685",
+      "name": "squat to overhead reach",
+      "displayNameEs": "Sentadilla con alcance sobre la cabeza",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1686",
+      "sourceId": "1686",
+      "name": "squat to overhead reach with twist",
+      "displayNameEs": "Sentadilla con alcance sobre la cabeza y rotación",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "quads",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:2297",
+      "sourceId": "2297",
+      "name": "stability ball crunch (full range hands behind head)",
+      "displayNameEs": "Crunch con recorrido completo manos detrás de la cabeza en pelota de estabilidad",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "stability ball",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3291",
+      "sourceId": "3291",
+      "name": "stalder press",
+      "displayNameEs": "Press Stalder con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1490",
+      "sourceId": "1490",
+      "name": "standing calf raise (on a staircase)",
+      "displayNameEs": "Elevación de gemelos de pie en escalón con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1398",
+      "sourceId": "1398",
+      "name": "standing calves calf stretch",
+      "displayNameEs": "Estiramiento de gemelos de pie",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "calves",
+      "bodyPart": "lower legs"
+    },
+    {
+      "id": "dataset:1599",
+      "sourceId": "1599",
+      "name": "standing hamstring and calf stretch with strap",
+      "displayNameEs": "Estiramiento de isquiotibiales y gemelos de pie con correa",
+      "translationStatus": "EXCEPTION",
+      "equipment": "rope",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3223",
+      "sourceId": "3223",
+      "name": "star jump (male)",
+      "displayNameEs": "Salto estrella con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:3314",
+      "sourceId": "3314",
+      "name": "straddle maltese",
+      "displayNameEs": "Maltés gimnástico straddle con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3298",
+      "sourceId": "3298",
+      "name": "straddle planche",
+      "displayNameEs": "Plancha gimnástica straddle con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:1427",
+      "sourceId": "1427",
+      "name": "straight leg outer hip abductor",
+      "displayNameEs": "Abducción de cadera con pierna recta hacia afuera",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abductors",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0803",
+      "sourceId": "0803",
+      "name": "superman push-up",
+      "displayNameEs": "Flexión de brazos superman con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:0805",
+      "sourceId": "0805",
+      "name": "suspended abdominal fallout",
+      "displayNameEs": "Fallout abdominal suspendido",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3433",
+      "sourceId": "3433",
+      "name": "swimmer kicks v. 2 (male)",
+      "displayNameEs": "Patadas de nadador",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:1753",
+      "sourceId": "1753",
+      "name": "three bench dip",
+      "displayNameEs": "Fondos entre tres bancos con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0813",
+      "sourceId": "0813",
+      "name": "triceps dip (between benches)",
+      "displayNameEs": "Fondos de tríceps entre bancos con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:0871",
+      "sourceId": "0871",
+      "name": "tuck crunch",
+      "displayNameEs": "Crunch encogido con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:0818",
+      "sourceId": "0818",
+      "name": "twin handle parallel grip lat pulldown",
+      "displayNameEs": "Jalón al pecho con agarre paralelo y manija doble",
+      "translationStatus": "EXCEPTION",
+      "equipment": "cable",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1466",
+      "sourceId": "1466",
+      "name": "twist hip lift",
+      "displayNameEs": "Elevación de cadera con giro con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:3231",
+      "sourceId": "3231",
+      "name": "two toe touch (male)",
+      "displayNameEs": "Toque de ambas puntas de pie",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "spine",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1365",
+      "sourceId": "1365",
+      "name": "upper back stretch",
+      "displayNameEs": "Estiramiento de espalda alta",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "upper back",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:1366",
+      "sourceId": "1366",
+      "name": "upward facing dog",
+      "displayNameEs": "Postura del perro boca arriba",
+      "translationStatus": "EXCEPTION",
+      "equipment": "body weight",
+      "targetMuscle": "spine",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:2141",
+      "sourceId": "2141",
+      "name": "walk elliptical cross trainer",
+      "displayNameEs": "Caminata en bicicleta elíptica",
+      "translationStatus": "EXCEPTION",
+      "equipment": "elliptical machine",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:3666",
+      "sourceId": "3666",
+      "name": "walking on incline treadmill",
+      "displayNameEs": "Caminata en cinta inclinada",
+      "translationStatus": "EXCEPTION",
+      "equipment": "leverage machine",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:2311",
+      "sourceId": "2311",
+      "name": "walking on stepmill",
+      "displayNameEs": "Caminata en escaladora",
+      "translationStatus": "EXCEPTION",
+      "equipment": "stepmill machine",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio"
+    },
+    {
+      "id": "dataset:2987",
+      "sourceId": "2987",
+      "name": "weighted close grip chin-up on dip cage",
+      "displayNameEs": "Dominada supina con agarre cerrado en estación de dominadas y fondos, con carga",
+      "translationStatus": "EXCEPTION",
+      "equipment": "weighted",
+      "targetMuscle": "lats",
+      "bodyPart": "back"
+    },
+    {
+      "id": "dataset:0866",
+      "sourceId": "0866",
+      "name": "weighted hanging leg-hip raise",
+      "displayNameEs": "Elevación de piernas y cadera colgado con carga",
+      "translationStatus": "EXCEPTION",
+      "equipment": "weighted",
+      "targetMuscle": "abs",
+      "bodyPart": "waist"
+    },
+    {
+      "id": "dataset:3641",
+      "sourceId": "3641",
+      "name": "weighted kneeling step with swing",
+      "displayNameEs": "Paso de rodillas con swing y carga",
+      "translationStatus": "EXCEPTION",
+      "equipment": "weighted",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:3644",
+      "sourceId": "3644",
+      "name": "weighted lunge with swing",
+      "displayNameEs": "Zancada con swing y carga",
+      "translationStatus": "EXCEPTION",
+      "equipment": "weighted",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0844",
+      "sourceId": "0844",
+      "name": "weighted round arm",
+      "displayNameEs": "Círculos de brazos con carga",
+      "translationStatus": "EXCEPTION",
+      "equipment": "weighted",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders"
+    },
+    {
+      "id": "dataset:3642",
+      "sourceId": "3642",
+      "name": "weighted stretch lunge",
+      "displayNameEs": "Zancada con estiramiento y carga",
+      "translationStatus": "EXCEPTION",
+      "equipment": "weighted",
+      "targetMuscle": "glutes",
+      "bodyPart": "upper legs"
+    },
+    {
+      "id": "dataset:0856",
+      "sourceId": "0856",
+      "name": "weighted svend press",
+      "displayNameEs": "Press Svend con carga",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "weighted",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest"
+    },
+    {
+      "id": "dataset:1754",
+      "sourceId": "1754",
+      "name": "weighted three bench dips",
+      "displayNameEs": "Fondos entre tres bancos con carga",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "weighted",
+      "targetMuscle": "triceps",
+      "bodyPart": "upper arms"
+    },
+    {
+      "id": "dataset:1604",
+      "sourceId": "1604",
+      "name": "world greatest stretch",
+      "displayNameEs": "El mejor estiramiento del mundo con peso corporal",
+      "translationStatus": "AUTOMATIC",
+      "equipment": "body weight",
+      "targetMuscle": "hamstrings",
+      "bodyPart": "upper legs"
+    }
+  ],
+  "pending": [
+    {
+      "id": "dataset:0316",
+      "sourceId": "0316",
+      "name": "dumbbell incline breeding",
+      "displayNameEs": "dumbbell incline breeding",
+      "equipment": "dumbbell",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest",
+      "reason": "NO_MOVEMENT_PATTERN",
+      "firstPassReason": "NO_MOVEMENT_PATTERN",
+      "untranslatedTokens": [
+        "incline",
+        "breeding"
+      ],
+      "suggestion": "Definir el nombre canónico manualmente después de revisar el GIF y las instrucciones."
+    },
+    {
+      "id": "dataset:3292",
+      "sourceId": "3292",
+      "name": "elevator",
+      "displayNameEs": "elevator",
+      "equipment": "body weight",
+      "targetMuscle": "upper back",
+      "bodyPart": "back",
+      "reason": "NO_MOVEMENT_PATTERN",
+      "firstPassReason": "NO_MOVEMENT_PATTERN",
+      "untranslatedTokens": [
+        "elevator"
+      ],
+      "suggestion": "Definir el nombre canónico manualmente después de revisar el GIF y las instrucciones."
+    },
+    {
+      "id": "dataset:0543",
+      "sourceId": "0543",
+      "name": "kettlebell pirate supper legs",
+      "displayNameEs": "kettlebell pirate supper legs",
+      "equipment": "kettlebell",
+      "targetMuscle": "delts",
+      "bodyPart": "shoulders",
+      "reason": "NO_MOVEMENT_PATTERN",
+      "firstPassReason": "NO_MOVEMENT_PATTERN",
+      "untranslatedTokens": [
+        "pirate",
+        "supper",
+        "legs"
+      ],
+      "suggestion": "Definir el nombre canónico manualmente después de revisar el GIF y las instrucciones."
+    },
+    {
+      "id": "dataset:0609",
+      "sourceId": "0609",
+      "name": "london bridge",
+      "displayNameEs": "london bridge",
+      "equipment": "rope",
+      "targetMuscle": "upper back",
+      "bodyPart": "back",
+      "reason": "UNKNOWN_QUALIFIERS",
+      "firstPassReason": "UNKNOWN_QUALIFIERS",
+      "untranslatedTokens": [
+        "london"
+      ],
+      "suggestion": "Revisar manualmente el contexto de: london."
+    },
+    {
+      "id": "dataset:1355",
+      "sourceId": "1355",
+      "name": "one arm against wall",
+      "displayNameEs": "one arm against wall",
+      "equipment": "body weight",
+      "targetMuscle": "lats",
+      "bodyPart": "back",
+      "reason": "NO_MOVEMENT_PATTERN",
+      "firstPassReason": "NO_MOVEMENT_PATTERN",
+      "untranslatedTokens": [
+        "one",
+        "arm",
+        "against",
+        "wall"
+      ],
+      "suggestion": "Definir el nombre canónico manualmente después de revisar el GIF y las instrucciones."
+    },
+    {
+      "id": "dataset:0666",
+      "sourceId": "0666",
+      "name": "raise single arm push-up",
+      "displayNameEs": "raise single arm push-up",
+      "equipment": "body weight",
+      "targetMuscle": "pectorals",
+      "bodyPart": "chest",
+      "reason": "UNKNOWN_QUALIFIERS",
+      "firstPassReason": "MULTIPLE_MOVEMENTS",
+      "untranslatedTokens": [
+        "raise"
+      ],
+      "suggestion": "Revisar manualmente el contexto de: raise."
+    },
+    {
+      "id": "dataset:3669",
+      "sourceId": "3669",
+      "name": "standing archer",
+      "displayNameEs": "standing archer",
+      "equipment": "body weight",
+      "targetMuscle": "upper back",
+      "bodyPart": "back",
+      "reason": "NO_MOVEMENT_PATTERN",
+      "firstPassReason": "NO_MOVEMENT_PATTERN",
+      "untranslatedTokens": [
+        "standing",
+        "archer"
+      ],
+      "suggestion": "Definir el nombre canónico manualmente después de revisar el GIF y las instrucciones."
+    },
+    {
+      "id": "dataset:0798",
+      "sourceId": "0798",
+      "name": "stationary bike walk",
+      "displayNameEs": "stationary bike walk",
+      "equipment": "leverage machine",
+      "targetMuscle": "cardiovascular system",
+      "bodyPart": "cardio",
+      "reason": "UNKNOWN_QUALIFIERS",
+      "firstPassReason": "MULTIPLE_MOVEMENTS",
+      "untranslatedTokens": [
+        "stationary",
+        "bike"
+      ],
+      "suggestion": "Revisar manualmente el contexto de: stationary, bike."
+    }
+  ]
+}

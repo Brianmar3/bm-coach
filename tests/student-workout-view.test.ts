@@ -1,24 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { cleanRoutineDisplayName, completedExerciseCount, getMuscleGroupEmoji, initialOpenExerciseId, usefulDayName } from "../lib/workout-presentation.ts";
+import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName } from "../lib/workout-presentation.ts";
 
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const finalModal = source.slice(source.indexOf("{finalOpen &&"), source.indexOf("function WorkoutHistoryView"));
 
-test("las zonas musculares usan emojis centralizados, claros y normalizados", () => {
-  for (const value of ["gluteo", "glúteo", "glúteos", "GLUTEOS"]) assert.equal(getMuscleGroupEmoji(value), "🍑");
-  for (const value of ["Cuádriceps", "cuadriceps", "isquios", "isquiotibiales", "gemelo", "gemelos", "piernas", "Aductores", "Tren inferior"]) assert.equal(getMuscleGroupEmoji(value), "🦵🏽");
-  assert.equal(getMuscleGroupEmoji("Pecho"), "🏋🏽");
-  assert.equal(getMuscleGroupEmoji("Espalda"), "💪🏽");
-  assert.equal(getMuscleGroupEmoji("Hombros y brazos"), "💪🏽");
-  assert.equal(getMuscleGroupEmoji("Core abdominal"), "🔥");
-  assert.equal(getMuscleGroupEmoji("Full body"), "🏋🏽");
-  assert.equal(getMuscleGroupEmoji("Cardio y condicionamiento"), "⚡");
-  assert.equal(getMuscleGroupEmoji("Movilidad"), "🤸🏽");
-  assert.equal(getMuscleGroupEmoji("Zona desconocida"), "🏋🏽");
-  assert.match(source, /getMuscleGroupEmoji/);
-  assert.doesNotMatch(source, /function WorkoutAreaIcon/);
+test("la rutina del alumno no renderiza emojis decorativos", () => {
+  assert.doesNotMatch(source, /[🔥💪🏽🏋🏽🍑🦵🏽⚡🤸🏽]/u);
+  assert.doesNotMatch(source, /getMuscleGroupEmoji/);
+  assert.match(source, /viewBox="0 0 24 24"/);
 });
 
 test("dolor o molestias es un bloque visual propio sin cambiar su comportamiento", () => {
@@ -59,16 +50,14 @@ test("el resumen usa actividades reales, duración, estado y progreso", () => {
   assert.match(source, /min duración/);
 });
 
-test("el hero elige un contexto visual según la zona muscular", () => {
-  assert.equal(getMuscleGroupEmoji("Glúteos y cuádriceps"), "🍑");
-  assert.equal(getMuscleGroupEmoji("Espalda y dorsales"), "💪🏽");
-  assert.equal(getMuscleGroupEmoji("Movilidad general"), "🤸🏽");
-  assert.match(source, /\{muscleGroupEmoji\}/);
+test("el hero usa iconografía lineal neutral", () => {
+  assert.doesNotMatch(source, /muscleGroupEmoji/);
+  assert.match(source, /<svg viewBox="0 0 24 24"/);
 });
 
 test("la entrada en calor aparece solo cuando existe y abre un modal accesible", () => {
   assert.match(source, /selectedDay\.warmup\.trim\(\) && <button/);
-  assert.match(source, /🔥 Ver entrada en calor/);
+  assert.match(source, />Ver entrada en calor</);
   assert.match(source, /setWarmupOpen\(true\)/);
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
@@ -117,10 +106,12 @@ test("las instrucciones estructurales quedan visibles y no se duplican en técni
   assert.match(source, /separateWorkoutInstructions\(programmed\?\.observations\)/);
   assert.match(source, /data-structural-instructions/);
   assert.match(source, /instructions\.structural\.map/);
-  assert.match(source, /instructions\.technicalText \|\| programmed\?\.videoUrl/);
-  assert.match(source, /Ver técnica/);
+  assert.match(source, /instructions\.technicalText && <details/);
+  assert.match(source, />Ver técnica<\/summary>/);
+  assert.match(source, /data-exercise-video-action/);
   assert.match(source, /instructions\.technicalText/);
-  assert.match(source, /Abrir video técnico/);
+  assert.match(source, /RoutineExerciseMediaButton/);
+  assert.doesNotMatch(source, /Abrir video técnico/);
   assert.doesNotMatch(source, /programmed\.observations && <p/);
   assert.doesNotMatch(source, /autoPlay/);
 });
