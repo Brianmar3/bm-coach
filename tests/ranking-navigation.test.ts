@@ -1,15 +1,25 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { RANKING_SECTION_ID, RANKING_TOP5_HREF, topFiveEntries } from "../lib/ranking-navigation.ts";
+import { RANKING_PAGE_HREF, RANKING_SECTION_ID, RANKING_TOP5_HREF, topFiveEntries } from "../lib/ranking-navigation.ts";
 
-test("Top 5 usa el ancla estable de la vista real del dashboard", () => {
+test("Top 5 usa el ancla estable de la página real de ranking", () => {
   assert.equal(RANKING_SECTION_ID, "ranking");
-  assert.equal(RANKING_TOP5_HREF, "/dashboard#ranking");
+  assert.equal(RANKING_PAGE_HREF, "/ranking");
+  assert.equal(RANKING_TOP5_HREF, "/ranking#ranking");
   const source = readFileSync(new URL("../componentes/points-ranking.tsx", import.meta.url), "utf8");
   assert.match(source, /id=\{RANKING_SECTION_ID\}/);
   assert.match(source, /href=\{RANKING_TOP5_HREF\}/);
   assert.doesNotMatch(source, /window\.scrollTo/);
+});
+
+test("el Dashboard enlaza el Top 3 con la página completa sin sumar controles avanzados", () => {
+  const dashboard = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/ranking/page.tsx", import.meta.url), "utf8");
+  assert.match(dashboard, /Ver ranking completo/);
+  assert.match(dashboard, /href=\{RANKING_PAGE_HREF\}/);
+  assert.doesNotMatch(dashboard, /Recalcular puntos|Últimos 30 días|Histórico/);
+  assert.match(page, /<PointsRanking \/>/);
 });
 
 test("muestra exactamente cinco alumnos cuando hay más", () => {

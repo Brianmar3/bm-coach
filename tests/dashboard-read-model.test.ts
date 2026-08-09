@@ -42,6 +42,7 @@ test("el Dashboard respeta la jerarquía compacta y elimina los bloques pesados"
   assert.match(page, /Prioridades de hoy/);
   assert.match(page, /Agenda de hoy/);
   assert.match(page, /Ranking por puntos/);
+  assert.match(page, /Ver ranking completo/);
   assert.match(page, /Actividad semanal/);
   assert.doesNotMatch(page, /PaymentSummary|PointsRanking|QuickAccess|Accesos rápidos/);
   assert.match(page, /grid-cols-2 gap-2\.5 lg:grid-cols-4/);

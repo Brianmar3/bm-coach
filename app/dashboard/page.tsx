@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { DashboardFloatingActions } from "@/componentes/dashboard-floating-actions";
 import { useBrowserStore } from "@/lib/browser-store";
+import { RANKING_PAGE_HREF } from "@/lib/ranking-navigation";
 import type { DashboardData, DashboardPriority } from "@/types/dashboard";
 import type { CoachSettings, PaymentAccountStatus } from "@/types/gestion";
 
@@ -120,7 +121,7 @@ function Panel({ title, subtitle, action, children, className = "", id }: { titl
 }
 
 function SectionLink({ href, children }: { href: string; children: ReactNode }) {
-  return <Link href={href} className="shrink-0 text-xs font-bold text-yellow-400 transition hover:text-yellow-300">{children} →</Link>;
+  return <Link href={href} className="inline-flex min-h-10 shrink-0 items-center text-xs font-bold text-yellow-300/80 transition hover:text-yellow-300 focus-visible:text-yellow-300">{children} →</Link>;
 }
 
 function PrioritiesPanel({ priorities }: { priorities: DashboardPriority[] }) {
@@ -166,11 +167,12 @@ function RankingPanel({ items }: { items: DashboardData["ranking"] }) {
     <div className="mt-3 divide-y divide-zinc-800">{items.length ? items.map((item, index) => <div key={item.studentId} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
       <span className="w-4 text-center text-sm font-bold text-yellow-300">{index + 1}</span><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/10 text-xs font-bold text-yellow-200">{initials(item.studentName)}</span><span className="min-w-0 flex-1 truncate text-sm font-semibold">{item.studentName}</span><strong className="text-sm text-yellow-300">{item.points.toLocaleString("es-AR")} pts</strong>
     </div>) : <p className="py-4 text-sm text-zinc-500">Todavía no hay puntos registrados este mes.</p>}</div>
+    <div className="mt-2 flex justify-end"><SectionLink href={RANKING_PAGE_HREF}>Ver ranking completo</SectionLink></div>
   </Panel>;
 }
 
 function RecentStudents({ items }: { items: DashboardData["recentStudents"] }) {
-  return <Panel title="Alumnos recientes" subtitle="Últimas altas activas" action={<div className="flex gap-3"><SectionLink href="/alumnos">Ver todos</SectionLink><Link href="/alumnos?accion=nuevo" aria-label="Agregar alumno" className="text-xs font-bold text-yellow-400">+ Agregar</Link></div>}>
+  return <Panel title="Alumnos recientes" subtitle="Últimas altas activas" action={<div className="flex items-center gap-2 sm:gap-3"><SectionLink href="/alumnos">Ver todos</SectionLink><Link href="/alumnos?accion=nuevo" aria-label="Agregar alumno" className="inline-flex min-h-10 items-center text-xs font-semibold text-zinc-500 transition hover:text-yellow-300">+ Agregar</Link></div>}>
     <div className="mt-3 divide-y divide-zinc-800">{items.length ? items.map((item) => <Link href="/alumnos" key={item.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-yellow-400/10 text-xs font-bold text-yellow-200">{initials(item.studentName)}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{item.studentName}</strong><span className="block truncate text-xs text-zinc-500">{item.plan || "Plan sin configurar"}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${accountStyle[item.status].className}`}>{accountStyle[item.status].label}</span><span className="text-zinc-600">›</span>
     </Link>) : <p className="py-4 text-sm text-zinc-500">Todavía no hay alumnos activos.</p>}</div>
