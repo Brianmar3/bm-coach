@@ -169,11 +169,9 @@ export default function ClasesPage() {
     >
       {error && !editorOpen && <p className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
 
-      <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Horarios activos" value={activeCount} />
-        <Metric label="Alumnos con horario" value={assignedCount} />
-        <Metric label="Bloques semanales" value={schedules.length} />
-        <button onClick={() => begin()} className="rounded-2xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300">+ Crear horario</button>
+      <section className="mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
+        <div className="grid grid-cols-3 divide-x divide-zinc-800"><Metric label="Horarios activos" value={activeCount} /><Metric label="Alumnos con horario" value={assignedCount} /><Metric label="Bloques semanales" value={schedules.length} /></div>
+        <div className="mt-3 flex justify-end border-t border-zinc-800 pt-3"><button onClick={() => begin()} className="min-h-10 rounded-xl border border-yellow-400/35 px-4 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/10">+ Crear horario →</button></div>
       </section>
 
       <ClassOccurrenceAdmin />
@@ -210,23 +208,23 @@ export default function ClasesPage() {
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><p className="text-xs uppercase tracking-wide text-zinc-500">{label}</p><p className="mt-1 text-2xl font-bold text-yellow-400">{value}</p></div>;
+  return <div className="min-w-0 px-2 py-1 text-center"><p className="text-[9px] uppercase leading-tight tracking-wide text-zinc-500 sm:text-[10px]">{label}</p><p className="mt-1 text-xl font-bold text-yellow-400">{value}</p></div>;
 }
 
 function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void }) {
   const attendanceDate = nextScheduleDate(schedule.dayOfWeek);
   return (
-    <article className={`w-full rounded-xl border p-3 text-left transition hover:border-yellow-400/70 ${schedule.active ? "border-yellow-400/25 bg-yellow-400/5" : "border-zinc-700 bg-zinc-950/70 opacity-65"}`}>
+    <article className={`w-full rounded-xl border p-3 text-left transition ${schedule.active ? "border-zinc-800 bg-zinc-950/80" : "border-zinc-800 bg-zinc-950/60 opacity-65"}`}>
       <button onClick={() => open(schedule)} className="w-full text-left">
         <div className="flex items-start justify-between gap-2">
           <span className="text-xs font-bold text-yellow-400">{schedule.startTime} – {schedule.endTime}</span>
           <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${schedule.active ? "bg-emerald-400" : "bg-zinc-600"}`} title={schedule.active ? "Activo" : "Inactivo"} />
         </div>
-        <p className="mt-2 font-semibold leading-tight text-white">{schedule.classType}</p>
-        <p className="mt-2 text-xs text-zinc-400">{occupancy(schedule)}</p>
+        <p className="mt-1 font-semibold leading-tight text-white">{schedule.classType}</p>
+        <p className="mt-1.5 text-xs text-zinc-400">{occupancy(schedule)}</p>
         {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-zinc-500">{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
       </button>
-      <Link href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-3 block rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
+      <Link href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-2.5 block min-h-10 rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
     </article>
   );
 }
@@ -238,7 +236,7 @@ function DayColumn({ day, schedules, open, create }: { day: (typeof days)[number
 
 function MobileDay({ day, schedules, open, create }: { day: (typeof days)[number]; schedules: WeeklyClassSchedule[]; open: (schedule: WeeklyClassSchedule) => void; create: () => void }) {
   const ordered = [...schedules].sort((left, right) => left.startTime.localeCompare(right.startTime));
-  return <section className="p-4"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold text-yellow-400">{day.label}</h3><button onClick={create} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300">+ Agregar</button></div>{ordered.length ? <div className="grid gap-3 sm:grid-cols-2">{ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} />)}</div> : <p className="rounded-xl border border-dashed border-zinc-800 p-5 text-center text-sm text-zinc-600">Sin horarios</p>}</section>;
+  return <section className="p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-yellow-400">{day.label}</h3><button onClick={create} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300">+ Agregar</button></div>{ordered.length ? <div className="grid gap-2 sm:grid-cols-2">{ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} />)}</div> : <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-sm text-zinc-600">Sin horarios</p>}</section>;
 }
 
 function LoadingCalendar() {

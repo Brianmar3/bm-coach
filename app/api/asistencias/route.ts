@@ -143,8 +143,8 @@ export async function PUT(request: Request) {
     const body = await request.json() as { date?: string; scheduleId?: string | null; records?: Array<{ studentId?: string; status?: unknown }> };
     const date = attendanceDate(body.date ?? "");
     if (!date || !Array.isArray(body.records) || body.records.length === 0) return Response.json({ error: "Seleccioná fecha y al menos una asistencia." }, { status: 400 });
-    const parsedRecords = body.records.map((record) => ({ studentId: record.studentId?.trim() ?? "", status: attendanceStatus(record.status) }));
-    if (parsedRecords.some((record) => !record.studentId || !record.status)) return Response.json({ error: "Todos los registros deben tener alumno y estado válido." }, { status: 400 });
+    const parsedRecords = body.records.map((record) => ({ studentId: record.studentId?.trim() ?? "", status: record.status === null ? null : attendanceStatus(record.status), clear: record.status === null }));
+    if (parsedRecords.some((record) => !record.studentId || (!record.clear && !record.status))) return Response.json({ error: "Todos los registros deben tener alumno y estado válido." }, { status: 400 });
     if (new Set(parsedRecords.map((record) => record.studentId)).size !== parsedRecords.length) return Response.json({ error: "Un alumno no puede repetirse en la misma clase y fecha." }, { status: 400 });
 
     const result = await prisma.$transaction(async (transaction) => {
@@ -165,6 +165,16 @@ export async function PUT(request: Request) {
         : null;
       for (const record of parsedRecords) {
         if (body.scheduleId) {
+          if (record.status === null) {
+            await transaction.classAttendance.deleteMany({ where: { scheduleId: body.scheduleId, studentId: record.studentId, date } });
+            if (occurrence) {
+              await transaction.classOccurrenceAttendance.updateMany({
+                where: { occurrenceId: occurrence.id, studentId: record.studentId },
+                data: { actualAttendance: "UNKNOWN", checkedInAt: null },
+              });
+            }
+            continue;
+          }
           await transaction.classAttendance.upsert({
             where: { scheduleId_studentId_date: { scheduleId: body.scheduleId, studentId: record.studentId, date } },
             create: { scheduleId: body.scheduleId, studentId: record.studentId, date, status: databaseAttendanceStatus(record.status!), scheduleLabel: label, scheduleStartTime: startTime },
@@ -190,6 +200,10 @@ export async function PUT(request: Request) {
               },
             });
           }
+          continue;
+        }
+        if (record.status === null) {
+          await transaction.classAttendance.deleteMany({ where: { studentId: record.studentId, date, scheduleId: null } });
           continue;
         }
         const existingAttendance = await transaction.classAttendance.findFirst({
