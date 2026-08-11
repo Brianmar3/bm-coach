@@ -29,6 +29,18 @@ test("el registro abre con tres opciones simples", () => {
   assert.doesNotMatch(source.slice(source.indexOf("!category &&"), source.indexOf("category === \"circuit\"")), /FOR_TIME|ROUNDS|INTERVALS|CONDITIONING/);
 });
 
+test("el flujo guiado es independiente de clases presenciales y asistencias", () => {
+  const component = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
+  const guidedFlow = component.slice(component.indexOf("const CATEGORY_LABEL"), component.indexOf("export function QuickLogHistory"));
+  const api = readFileSync(new URL("../app/api/portal/quick-logs/route.ts", import.meta.url), "utf8");
+
+  assert.match(guidedFlow, /Ejercicio de fuerza/);
+  assert.match(guidedFlow, /Circuito o desafío/);
+  assert.match(guidedFlow, /Otro registro/);
+  assert.doesNotMatch(guidedFlow, /clase presencial|ClassAttendance|classAttendance/i);
+  assert.doesNotMatch(api, /ClassAttendance|classAttendance/);
+});
+
 test("el autocompletado ignora acentos, prioriza recientes y limita a seis", () => {
   const options = [
     { name: "Press militar", recent: false },

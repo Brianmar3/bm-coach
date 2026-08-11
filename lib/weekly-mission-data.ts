@@ -142,6 +142,11 @@ async function createCurrentMission(studentId: string, referenceDate: string) {
 export async function resolveCurrentWeeklyMission(studentId: string, referenceDate = argentinaDateKey()) {
   const range = weekRange(referenceDate);
   if (!range) return null;
+  const studentRecord = await prisma.studentRecord.findUnique({
+    where: { id: studentId },
+    select: { serviceType: true },
+  });
+  if (!studentRecord || !hasGroupClasses(studentRecord.serviceType)) return null;
   const activeMissions = await prisma.studentWeeklyMission.findMany({ where: { studentId, state: "ACTIVE" }, orderBy: { weekStart: "asc" } });
   for (const mission of activeMissions) await settleMission(mission);
   const existing = await prisma.studentWeeklyMission.findUnique({

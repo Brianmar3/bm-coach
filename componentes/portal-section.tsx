@@ -134,7 +134,7 @@ function HomeQuickStats({ data, plan }: { data: PortalData; plan: PersonalizedHo
 
 function WeeklyMissionAchievement({ data }: { data: PortalData }) {
   const mission = data.home.weeklyMission;
-  if (!mission) return <section className="rounded-2xl border border-white/[.07] bg-[#101010] px-4 py-3"><p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Misión semanal</p><p className="mt-1.5 text-xs text-zinc-500">No tenés una misión semanal disponible en este momento.</p></section>;
+  if (!mission) return null;
   const completed = mission.state === "COMPLETED";
   const expired = mission.state === "EXPIRED";
   const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";

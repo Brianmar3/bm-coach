@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildValidPointEvents, POINT_RULES } from "../lib/point-event-rules.ts";
+import { hasGroupClasses } from "../lib/student-service.ts";
 import { argentinaDateKey, weekRange } from "../lib/weekly-attendance.ts";
 import {
   getWeeklyMissionProgress,
@@ -75,6 +76,29 @@ test("sólo PRESENT suma; ausente, justificada y confirmación no cuentan", () =
 
 test("sin horarios asignados no existe target ni misión posible", () => {
   assert.deepEqual(scheduled({ assignments: [] }), []);
+});
+
+test("Personalizado puro no puede resolver una misión basada en clases", () => {
+  assert.equal(hasGroupClasses("PERSONALIZED"), false);
+  assert.equal(hasGroupClasses("CLASSES"), true);
+  assert.equal(hasGroupClasses("MIXED"), true);
+
+  const source = readFileSync(new URL("../lib/weekly-mission-data.ts", import.meta.url), "utf8");
+  const resolver = source.slice(source.indexOf("export async function resolveCurrentWeeklyMission"), source.indexOf("export async function loadCurrentWeeklyMission"));
+  assert.match(resolver, /select: \{ serviceType: true \}/);
+  assert.match(resolver, /!hasGroupClasses\(studentRecord\.serviceType\)\) return null/);
+  assert.ok(resolver.indexOf("!hasGroupClasses") < resolver.indexOf("studentWeeklyMission.findMany"));
+});
+
+test("Puntos oculta por completo la misión inexistente y conserva puntos y logros", () => {
+  const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
+  const missionCard = source.slice(source.indexOf("function WeeklyMissionAchievement"), source.indexOf("function PointsSummary"));
+  const pointsView = source.slice(source.indexOf("function PointsAndAchievementsView"), source.indexOf("function RoutineView"));
+  assert.match(missionCard, /if \(!mission\) return null/);
+  assert.doesNotMatch(missionCard, /No tenés una misión semanal disponible/);
+  assert.match(pointsView, /<PointsSummary data=\{data\} \/>/);
+  assert.match(pointsView, /<AchievementsSpotlight data=\{data\} \/>/);
+  assert.match(pointsView, /<AchievementsOverview data=\{data\} \/>/);
 });
 
 test("la oferta general no contamina el target: cinco turnos disponibles y dos asignados dan target 2", () => {
