@@ -1,4 +1,4 @@
-import { libraryExerciseReferenceUrl } from "./routine-exercise-media.ts";
+import { libraryExerciseIdFromMediaUrl, libraryExerciseReferenceUrl } from "./routine-exercise-media.ts";
 import type { BMExercise } from "../types/exercise-library.ts";
 import type { TrainingBlockType, TrainingExercise } from "../types/gestion.ts";
 
@@ -52,4 +52,19 @@ export function applyLibraryExerciseSelection(
     equipment: item.equipmentLabelEs,
     videoUrl: libraryExerciseReferenceUrl(item.id),
   } : exercise);
+}
+
+export function persistedRoutineExerciseVideoUrl(exercise: RoutineExerciseDraft) {
+  const libraryExerciseId = exercise.libraryExerciseId ?? libraryExerciseIdFromMediaUrl(exercise.videoUrl);
+  return libraryExerciseId ? libraryExerciseReferenceUrl(libraryExerciseId) : exercise.videoUrl.trim();
+}
+
+export function unlinkLibraryExercise(exercise: RoutineExerciseDraft): RoutineExerciseDraft {
+  return { ...exercise, libraryExerciseId: undefined, videoUrl: "" };
+}
+
+export function removeRoutineExerciseDraft(exercises: RoutineExerciseDraft[], targetClientId: string) {
+  return exercises
+    .filter((exercise) => exercise.clientId !== targetClientId)
+    .map((exercise, index) => ({ ...exercise, order: index + 1 }));
 }

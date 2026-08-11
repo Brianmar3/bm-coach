@@ -266,7 +266,7 @@ test("una rutina legacy sigue funcionando y la referencia BM persiste en videoUr
   const payload = editor.slice(editor.indexOf("const payload ="), editor.indexOf("setSaving(true)"));
   assert.doesNotMatch(payload, /libraryExerciseId:/);
   assert.match(payload, /name: exercise\.name/);
-  assert.match(payload, /videoUrl: exercise\.videoUrl/);
+  assert.match(payload, /videoUrl: persistedRoutineExerciseVideoUrl\(exercise\)/);
 });
 
 test("rutas de media no dependen de C:\\ ni cargan archivos en el bundle", () => {

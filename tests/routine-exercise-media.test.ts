@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { applyLibraryExerciseSelection, createEmptyRoutineExerciseDraft } from "../lib/routine-exercise-draft.ts";
+import { applyLibraryExerciseSelection, createEmptyRoutineExerciseDraft, persistedRoutineExerciseVideoUrl, removeRoutineExerciseDraft, unlinkLibraryExercise } from "../lib/routine-exercise-draft.ts";
 import { isValidRoutineVideoUrl, libraryExerciseMediaUrl, libraryExerciseReferenceUrl, resolveManualVideoPlayback, resolveRoutineExerciseMedia } from "../lib/routine-exercise-media.ts";
 import { validateExercise } from "../lib/rutinas.ts";
 import type { BMExercise } from "../types/exercise-library.ts";
@@ -10,6 +10,7 @@ const editor = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url),
 const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const mediaComponent = readFileSync(new URL("../componentes/routine-exercise-media.tsx", import.meta.url), "utf8");
 const updateApi = readFileSync(new URL("../app/api/rutinas/[id]/route.ts", import.meta.url), "utf8");
+const routinesPersistence = readFileSync(new URL("../lib/rutinas.ts", import.meta.url), "utf8");
 const globalStyles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
 const libraryExercise: BMExercise = {
@@ -101,6 +102,7 @@ test("seleccionar biblioteca modifica sólo la tarjeta destinataria", () => {
   const second = createEmptyRoutineExerciseDraft(2, "STRENGTH", () => "second");
   first.name = "Ejercicio manual existente";
   first.videoUrl = "https://cdn.example.com/manual.mp4";
+  second.observations = "No cierres las rodillas y controlá la bajada.";
   const updated = applyLibraryExerciseSelection([first, second], second.clientId, libraryExercise);
   assert.equal(updated[0], first);
   assert.equal(updated[0].name, "Ejercicio manual existente");
@@ -110,14 +112,19 @@ test("seleccionar biblioteca modifica sólo la tarjeta destinataria", () => {
   assert.equal(updated[1].muscleGroup, libraryExercise.targetMuscleLabelEs);
   assert.equal(updated[1].equipment, libraryExercise.equipmentLabelEs);
   assert.equal(updated[1].videoUrl, libraryExerciseReferenceUrl(libraryExercise.id));
+  assert.equal(updated[1].observations, "No cierres las rodillas y controlá la bajada.");
 });
 
-test("el payload de guardar o activar conserva ejercicios independientes", () => {
+test("Biblioteca sin media conserva identidad, carga e indicaciones al guardar o activar", () => {
   const first = applyLibraryExerciseSelection(
     [createEmptyRoutineExerciseDraft(1, "STRENGTH", () => "first")],
     "first",
     libraryExercise,
   )[0];
+  first.sets = 4;
+  first.repetitions = "8-10";
+  first.restSeconds = 120;
+  first.observations = "Controlá la bajada y mantené las rodillas alineadas.";
   const second = createEmptyRoutineExerciseDraft(2, "STRENGTH", () => "second");
   second.name = "Sentadilla goblet";
   second.muscleGroup = "Piernas";
@@ -125,11 +132,50 @@ test("el payload de guardar o activar conserva ejercicios independientes", () =>
   second.videoUrl = "https://cdn.example.com/goblet.mp4";
   assert.equal(validateExercise(first, "STRENGTH"), null);
   assert.equal(validateExercise(second, "STRENGTH"), null);
-  const persisted = JSON.parse(JSON.stringify([first, second])) as typeof first[];
+  const persisted = JSON.parse(JSON.stringify([
+    { ...first, videoUrl: persistedRoutineExerciseVideoUrl(first) },
+    { ...second, videoUrl: persistedRoutineExerciseVideoUrl(second) },
+  ])) as typeof first[];
   assert.equal(persisted.length, 2);
   assert.equal(persisted[0].videoUrl, libraryExerciseReferenceUrl(libraryExercise.id));
+  assert.equal(resolveRoutineExerciseMedia(persisted[0].videoUrl, false).hasMedia, false);
+  assert.equal(resolveRoutineExerciseMedia(persisted[0].videoUrl, false).source, "LIBRARY");
+  assert.equal(persisted[0].sets, 4);
+  assert.equal(persisted[0].repetitions, "8-10");
+  assert.equal(persisted[0].restSeconds, 120);
+  assert.equal(persisted[0].observations, "Controlá la bajada y mantené las rodillas alineadas.");
   assert.equal(persisted[1].name, "Sentadilla goblet");
   assert.equal(persisted[1].videoUrl, "https://cdn.example.com/goblet.mp4");
+});
+
+test("la referencia de Biblioteca se consolida desde sourceId aunque la media no esté disponible", () => {
+  const exercise = createEmptyRoutineExerciseDraft(1, "STRENGTH", () => "library");
+  exercise.libraryExerciseId = libraryExercise.id;
+  exercise.videoUrl = "";
+  exercise.name = libraryExercise.displayNameEs;
+  exercise.muscleGroup = libraryExercise.targetMuscleLabelEs;
+  assert.equal(persistedRoutineExerciseVideoUrl(exercise), libraryExerciseReferenceUrl(libraryExercise.id));
+  assert.equal(validateExercise({ ...exercise, videoUrl: persistedRoutineExerciseVideoUrl(exercise) }, "STRENGTH"), null);
+});
+
+test("quitar el vínculo conserva la fila y las indicaciones", () => {
+  const selected = applyLibraryExerciseSelection([createEmptyRoutineExerciseDraft(1, "STRENGTH", () => "library")], "library", libraryExercise)[0];
+  selected.observations = "Mantené el abdomen firme.";
+  const unlinked = unlinkLibraryExercise(selected);
+  assert.equal(unlinked.clientId, selected.clientId);
+  assert.equal(unlinked.name, selected.name);
+  assert.equal(unlinked.observations, selected.observations);
+  assert.equal(unlinked.libraryExerciseId, undefined);
+  assert.equal(unlinked.videoUrl, "");
+});
+
+test("eliminar funciona igual para ejercicios manuales y de Biblioteca y reordena", () => {
+  const library = applyLibraryExerciseSelection([createEmptyRoutineExerciseDraft(1, "STRENGTH", () => "library")], "library", libraryExercise)[0];
+  const manual = createEmptyRoutineExerciseDraft(2, "STRENGTH", () => "manual");
+  manual.name = "Peso muerto manual";
+  const withoutLibrary = removeRoutineExerciseDraft([library, manual], "library");
+  assert.deepEqual(withoutLibrary.map(({ clientId, order }) => ({ clientId, order })), [{ clientId: "manual", order: 1 }]);
+  assert.deepEqual(removeRoutineExerciseDraft([library, manual], "manual").map((exercise) => exercise.clientId), ["library"]);
 });
 
 test("el aislamiento también se aplica a todas las estaciones de circuitos", () => {
@@ -151,20 +197,42 @@ test("el editor integra Biblioteca BM por ejercicio y reinicia su selección", (
   assert.match(editor, /createEmptyRoutineExerciseDraft\(order, type\)/);
   assert.match(editor, /name="intent" value="draft"/);
   assert.match(editor, /name="intent" value="activate"/);
-  assert.match(editor, /videoUrl: exercise\.videoUrl/);
+  assert.match(editor, /videoUrl: persistedRoutineExerciseVideoUrl\(exercise\)/);
+  assert.match(editor, /removeRoutineExerciseDraft\(current\.exercises, clientId\)/);
+  assert.match(updateApi, /!retainedExerciseIds\.has\(exercise\.id\)/);
+  assert.match(updateApi, /trainingRoutineExercise\.(?:update|delete)/);
 });
 
 test("el entrenador ve estado vinculado y nunca el identificador interno", () => {
-  assert.match(editor, /Video de Biblioteca BM vinculado/);
+  assert.match(editor, /"Biblioteca BM"/);
+  assert.match(editor, /Ejercicio vinculado/);
+  assert.match(editor, /media\.hasMedia && .*Demostración disponible/);
   assert.match(editor, /Ver demostración/);
   assert.match(editor, /Cambiar desde Biblioteca/);
+  assert.match(editor, /Quitar vínculo/);
   assert.match(editor, /URL manual opcional o Biblioteca BM/);
   assert.match(editor, /input type="url"/);
   assert.match(editor, /library-video-linked/);
   assert.match(editor, /onMediaAvailabilityChange=\{setLibraryMediaEnabled\}/);
-  assert.match(editor, /libraryMediaEnabled=\{libraryMediaEnabled\} label="Ver demostraci.n"/);
+  assert.match(editor, /libraryExerciseId && media\.hasMedia && <RoutineExerciseMediaButton/);
   assert.match(globalStyles, /\.library-video-linked label:has\(> input\[type="url"\]\)/);
+  assert.doesNotMatch(editor, /Video de Biblioteca BM vinculado/);
   assert.doesNotMatch(editor, /https:\/\/bm-training\.local\/api\/exercise-library\/media/);
+});
+
+test("la persistencia y el portal mantienen Observaciones como Indicaciones sin depender de media", () => {
+  assert.match(routinesPersistence, /observations: input\.observations\?\.trim\(\) \?\? ""/);
+  assert.match(routinesPersistence, /videoUrl: input\.videoUrl\?\.trim\(\) \|\| null/);
+  assert.match(portal, /separateWorkoutInstructions\(programmed\?\.observations\)/);
+  assert.match(portal, />Indicaciones<\/summary>/);
+  assert.ok(portal.indexOf("programmed?.observations") < portal.indexOf("RoutineExerciseMediaButton exercise={programmed}"));
+  assert.match(mediaComponent, /if \(!media\.hasMedia\) return null/);
+});
+
+test("Crear rutina usa la acción compacta oscura con borde dorado", () => {
+  assert.match(editor, /border border-yellow-400\/35 bg-black\/25/);
+  assert.match(editor, /"Crear rutina"\} →/);
+  assert.doesNotMatch(editor, />\+ \{activeTab === "plantillas" \? "Crear plantilla" : "Crear rutina"\}<\/button>/);
 });
 
 test("actualizar usa un timeout explícito y reporta expiración transaccional", () => {
