@@ -171,13 +171,17 @@ export default function PagosPage() {
       const response = await fetch(form.paymentId ? `/api/pagos/${form.paymentId}` : "/api/pagos", {
         method: form.paymentId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(form.paymentId ? form : { ...form, nextDueDate: form.dueDate, dueDate: undefined }),
       });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar el pago."));
       const saved = await response.json() as { dashboard: PaymentDashboard; payment: Payment };
       setData(saved.dashboard);
       setForm(null);
       setNotice(form.paymentId ? "Pago actualizado correctamente." : `Pago de ${account.student} registrado correctamente.`);
+      if (!form.paymentId) {
+        const refreshed = await fetch("/api/pagos", { cache: "no-store" });
+        if (refreshed.ok) setData(await refreshed.json() as PaymentDashboard);
+      }
       if (historyAccount?.studentId === account.studentId) await loadHistory(account);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudo guardar el pago.");

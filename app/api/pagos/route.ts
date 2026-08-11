@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { dateKeyToDatabase, isDateKey, nextPaymentDueDate } from "@/lib/payment-dates";
+import { dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
 import { PAYMENT_METHODS, paymentDashboard, serializePayment, storedStudent } from "@/lib/payments";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ type PaymentInput = {
   paidDate: string;
   billingPeriod: string;
   method: string;
-  dueDate?: string;
+  nextDueDate: string;
   notes?: string;
   requestKey?: string;
 };
@@ -24,7 +24,8 @@ function validate(input: PaymentInput) {
   if (!isDateKey(input.paidDate)) return "Ingresá una fecha de pago válida.";
   if (!isDateKey(input.billingPeriod) || !input.billingPeriod.endsWith("-01")) return "Seleccioná un período válido.";
   if (!PAYMENT_METHODS.includes(input.method as (typeof PAYMENT_METHODS)[number])) return "Seleccioná un medio de pago válido.";
-  if (input.dueDate && !isDateKey(input.dueDate)) return "Ingresá un próximo vencimiento válido.";
+  if (!isDateKey(input.nextDueDate)) return "Ingresá un próximo vencimiento válido.";
+  if (input.nextDueDate < input.paidDate) return "El próximo vencimiento no puede ser anterior a la fecha de pago.";
   if ((input.notes?.length ?? 0) > 1000) return "La nota es demasiado extensa.";
   if (input.requestKey && input.requestKey.length > 100) return "La identificación de la solicitud no es válida.";
   return null;
@@ -81,8 +82,6 @@ export async function POST(request: Request) {
       });
       if (duplicate) throw new Error("DUPLICATE_PAYMENT");
 
-      const nextDueDate = input.dueDate || nextPaymentDueDate(student.dueDate ?? "", input.paidDate);
-      if (!isDateKey(nextDueDate)) throw new Error("INVALID_DUE_DATE");
       const payment = await transaction.studentPayment.create({
         data: {
           studentId: input.studentId,
@@ -90,7 +89,7 @@ export async function POST(request: Request) {
           concept: `Cuota mensual · ${student.plan || "Plan"}`,
           billingPeriod,
           dueDate: dateKeyToDatabase(student.dueDate || input.paidDate),
-          nextDueDateSnapshot: dateKeyToDatabase(nextDueDate),
+          nextDueDateSnapshot: dateKeyToDatabase(input.nextDueDate),
           paidDate,
           method: input.method,
           status: "PAGADO",
@@ -101,7 +100,7 @@ export async function POST(request: Request) {
       });
       await transaction.studentRecord.update({
         where: { id: input.studentId },
-        data: { data: { ...(student as unknown as Prisma.InputJsonObject), dueDate: nextDueDate } },
+        data: { data: { ...(student as unknown as Prisma.InputJsonObject), dueDate: input.nextDueDate } },
       });
       return { payment, duplicate: false };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -116,7 +115,6 @@ export async function POST(request: Request) {
     if (message === "STUDENT_INACTIVE") return Response.json({ error: "El alumno ya no está activo." }, { status: 409 });
     if (message === "DUPLICATE_PAYMENT") return Response.json({ error: "Ese pago ya fue registrado para el alumno, fecha y período seleccionados." }, { status: 409 });
     if (message === "INVALID_REQUEST_KEY") return Response.json({ error: "La solicitud de pago no corresponde al alumno seleccionado." }, { status: 409 });
-    if (message === "INVALID_DUE_DATE") return Response.json({ error: "No se pudo calcular el próximo vencimiento." }, { status: 400 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
       return Response.json({ error: "El estado de pagos cambió mientras guardabas. Recargá e intentá nuevamente." }, { status: 409 });
     }
