@@ -92,7 +92,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
 
     <section className="grid gap-4 xl:grid-cols-2">
       <TodayClasses items={data.todayClasses} total={metrics.classesToday} />
-      <PaymentsPanel data={data.income} dailyPayments={data.dailyPayments} metrics={metrics} />
+      <PaymentsPanel data={data.income} metrics={metrics} />
     </section>
 
     <section className="grid gap-4 xl:grid-cols-2">
@@ -150,37 +150,16 @@ function TodayClasses({ items, total }: { items: DashboardData["todayClasses"]; 
   </Panel>;
 }
 
-function PaymentsPanel({ data, dailyPayments, metrics }: { data: DashboardData["income"]; dailyPayments: DashboardData["dailyPayments"]; metrics: DashboardData["metrics"] }) {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+function PaymentsPanel({ data, metrics }: { data: DashboardData["income"]; metrics: DashboardData["metrics"] }) {
   const max = Math.max(...data.map((item) => item.amount), 1);
-  const selectedPayments = selectedDate ? dailyPayments[selectedDate] ?? [] : [];
   return <Panel title="Cobros" subtitle="Resumen del mes actual" action={<SectionLink href="/pagos">Ver pagos</SectionLink>}>
     <div className="mt-3 grid grid-cols-3 gap-2">
       <CompactMetric label="Cobrado" value={money(metrics.monthIncome)} tone="text-emerald-300" />
       <CompactMetric label="Pendiente" value={money(metrics.pendingAmount)} tone="text-yellow-300" />
       <CompactMetric label="Vencidas" value={String(metrics.overdueCount)} tone="text-red-300" />
     </div>
-    <div className="mt-4 flex h-20 items-end gap-1" role="group" aria-label="Cobros diarios del mes">{data.map((item) => {
-      const count = dailyPayments[item.date]?.length ?? 0;
-      return <button key={item.date} type="button" onClick={() => setSelectedDate(item.date)} aria-label={`${showDate(item.date, true)}: ${money(item.amount)}, ${count} ${count === 1 ? "pago" : "pagos"}`} className="group flex h-full min-w-0 flex-1 cursor-pointer items-end rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" title={`${item.label}: ${money(item.amount)}`}><span className="block w-full rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300 transition group-hover:brightness-125 group-active:brightness-150" style={{ height: `${item.amount ? Math.max(8, (item.amount / max) * 100) : 2}%` }} /></button>;
-    })}</div>
-    {selectedDate && <DailyPaymentsDialog date={selectedDate} payments={selectedPayments} close={() => setSelectedDate(null)} />}
+    <div className="mt-4 flex h-20 items-end gap-1" role="img" aria-label="Cobros diarios del mes">{data.map((item) => <div key={item.date} className="flex h-full min-w-0 flex-1 items-end"><span className="block w-full rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${item.amount ? Math.max(8, (item.amount / max) * 100) : 2}%` }} title={`${item.label}: ${money(item.amount)}`} /></div>)}</div>
   </Panel>;
-}
-
-function DailyPaymentsDialog({ date, payments, close }: { date: string; payments: DashboardData["dailyPayments"][string]; close: () => void }) {
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) { if (event.key === "Escape") close(); }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [close]);
-  const total = payments.reduce((sum, payment) => sum + payment.amount, 0);
-  return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => { if (event.currentTarget === event.target) close(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="daily-payments-title" className="max-h-[82dvh] w-full overflow-hidden rounded-t-2xl border border-zinc-700 bg-zinc-950 shadow-2xl sm:max-w-lg sm:rounded-2xl">
-      <header className="flex items-start justify-between gap-4 border-b border-zinc-800 p-4 sm:p-5"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-yellow-400">Detalle de cobros</p><h3 id="daily-payments-title" className="mt-1 text-lg font-bold capitalize">{showDate(date, true)}</h3><p className="mt-1 text-sm text-zinc-400">{money(total)} cobrados · {payments.length} {payments.length === 1 ? "pago" : "pagos"}</p></div><button type="button" onClick={close} aria-label="Cerrar detalle de cobros" autoFocus className="grid min-h-10 min-w-10 place-items-center rounded-xl border border-zinc-700 text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300">×</button></header>
-      <div className="max-h-[60dvh] overflow-y-auto p-4 sm:p-5">{payments.length ? <div className="divide-y divide-zinc-800">{payments.map((payment) => <article key={payment.id} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 py-3 first:pt-0 last:pb-0"><strong className="min-w-0 truncate text-sm">{payment.studentName}</strong><strong className="text-sm text-emerald-300">{money(payment.amount)}</strong><p className="text-xs text-zinc-500">{payment.paymentMethod} · {showDate(payment.paidAt)}</p>{payment.period && <p className="text-right text-[11px] text-zinc-600">Período {payment.period.slice(0, 7)}</p>}</article>)}</div> : <p className="rounded-xl border border-dashed border-zinc-700 px-4 py-6 text-center text-sm text-zinc-500">No se registraron pagos este día.</p>}</div>
-    </section>
-  </div>;
 }
 
 function RankingPanel({ items }: { items: DashboardData["ranking"] }) {

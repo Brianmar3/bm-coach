@@ -81,8 +81,7 @@ export async function POST(request: Request) {
       });
       if (duplicate) throw new Error("DUPLICATE_PAYMENT");
 
-      const calculatedNextDueDate = nextPaymentDueDate(student.dueDate ?? "", input.paidDate);
-      const nextDueDate = [input.dueDate ?? "", calculatedNextDueDate].filter(isDateKey).sort().at(-1) ?? "";
+      const nextDueDate = input.dueDate || nextPaymentDueDate(student.dueDate ?? "", input.paidDate);
       if (!isDateKey(nextDueDate)) throw new Error("INVALID_DUE_DATE");
       const payment = await transaction.studentPayment.create({
         data: {

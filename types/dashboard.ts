@@ -27,14 +27,6 @@ export type DashboardData = {
     newStudents: number;
   };
   income: Array<{ date: string; label: string; amount: number }>;
-  dailyPayments: Record<string, Array<{
-    id: string;
-    studentName: string;
-    amount: number;
-    paymentMethod: string;
-    paidAt: string;
-    period: string;
-  }>>;
   priorities: DashboardPriority[];
   ranking: Array<{
     studentId: string;

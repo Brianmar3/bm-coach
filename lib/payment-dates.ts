@@ -41,26 +41,6 @@ export function nextPaymentDueDate(currentDueDate: string, paidDate: string) {
   return addMonthsToDateKey(isDateKey(currentDueDate) ? currentDueDate : paidDate);
 }
 
-export function effectiveNextDueDate(studentDueDate: string, payments: Array<{
-  status: string;
-  paidDate: Date | null;
-  dueDate: Date;
-  nextDueDateSnapshot: Date | null;
-}>) {
-  const candidates = payments
-    .filter((payment) => payment.status === "PAGADO" && payment.paidDate)
-    .flatMap((payment) => {
-      const coveredDueDate = databaseDateKey(payment.dueDate);
-      const derivedNextDueDate = addMonthsToDateKey(coveredDueDate);
-      const snapshot = payment.nextDueDateSnapshot ? databaseDateKey(payment.nextDueDateSnapshot) : "";
-      return [derivedNextDueDate, snapshot > coveredDueDate ? snapshot : ""];
-    })
-    .concat(studentDueDate)
-    .filter(Boolean)
-    .sort();
-  return candidates.at(-1) ?? "";
-}
-
 function utcDayNumber(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   return Date.UTC(year, month - 1, day) / 86_400_000;
@@ -70,11 +50,13 @@ type PaymentAccountStatusInput = {
   dueDate: string;
   monthlyFee: number;
   validPaymentCount: number;
+  hasOutstandingDebt?: boolean;
 };
 
 export function paymentAccountStatus(input: PaymentAccountStatusInput, today = argentinaDateKey()): PaymentAccountStatus {
   if (!isDateKey(input.dueDate) || !Number.isFinite(input.monthlyFee) || input.monthlyFee <= 0) return "SIN_CONFIGURAR";
   if (!Number.isInteger(input.validPaymentCount) || input.validPaymentCount <= 0) return "SIN_PAGOS";
+  if (input.hasOutstandingDebt) return "VENCIDA";
   const days = utcDayNumber(input.dueDate) - utcDayNumber(today);
   if (days < 0) return "VENCIDA";
   if (days <= 5) return "VENCE_PRONTO";
