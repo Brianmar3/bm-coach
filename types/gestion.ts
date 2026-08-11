@@ -335,4 +335,12 @@ export type TrainingRoutine = {
   students: Array<{ id: string; name: string }>;
   historicalStudents: Array<{ id: string; name: string }>;
   days: TrainingRoutineDay[];
+  managementSummary?: {
+    completedSessions: number;
+    latestSessionDate: string;
+    averageDurationMinutes: number | null;
+    recentWeeklySessions: number[];
+    latestPainReport: { date: string; details: string } | null;
+    progressPercentage: number | null;
+  };
 };

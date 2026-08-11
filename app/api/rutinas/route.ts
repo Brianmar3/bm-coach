@@ -24,7 +24,44 @@ export async function GET(request: Request) {
       include: routineInclude,
       orderBy: { createdAt: "desc" },
     });
-    return Response.json(records.map(serializeRoutine));
+    const routineIds = records.map((record) => record.id);
+    const sessions = routineIds.length ? await prisma.workoutSession.findMany({
+      where: { routineId: { in: routineIds }, status: "COMPLETED" },
+      select: { routineId: true, date: true, durationMinutes: true, hasPain: true, painDetails: true },
+      orderBy: { date: "asc" },
+    }) : [];
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setUTCHours(0, 0, 0, 0);
+    weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+    const sessionsByRoutine = new Map<string, typeof sessions>();
+    for (const session of sessions) {
+      if (!session.routineId) continue;
+      const related = sessionsByRoutine.get(session.routineId) ?? [];
+      related.push(session);
+      sessionsByRoutine.set(session.routineId, related);
+    }
+    const summaries = new Map(routineIds.map((routineId) => {
+      const related = sessionsByRoutine.get(routineId) ?? [];
+      const durations = related.flatMap((session) => session.durationMinutes === null ? [] : [session.durationMinutes]);
+      const pain = [...related].reverse().find((session) => session.hasPain);
+      const recentWeeklySessions = [3, 2, 1, 0].map((weeksAgo) => {
+        const start = new Date(weekStart);
+        start.setUTCDate(start.getUTCDate() - weeksAgo * 7);
+        const end = new Date(start);
+        end.setUTCDate(end.getUTCDate() + 7);
+        return related.filter((session) => session.date >= start && session.date < end).length;
+      });
+      return [routineId, {
+        completedSessions: related.length,
+        latestSessionDate: related.at(-1)?.date.toISOString() ?? "",
+        averageDurationMinutes: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null,
+        recentWeeklySessions,
+        latestPainReport: pain ? { date: pain.date.toISOString(), details: pain.painDetails } : null,
+        progressPercentage: null,
+      }] as const;
+    }));
+    return Response.json(records.map((record) => ({ ...serializeRoutine(record), managementSummary: summaries.get(record.id) })));
   } catch (error) {
     console.error("Error al consultar rutinas", error);
     const unavailable = databaseUnavailable(error);

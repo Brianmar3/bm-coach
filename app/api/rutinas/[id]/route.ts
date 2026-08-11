@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { blockData, databaseUnavailable, exerciseData, normalizedBlocks, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
+import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -364,22 +365,22 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
 
 export async function DELETE(_request: Request, context: RouteContext<"/api/rutinas/[id]">) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
     const { id } = await context.params;
     const result = await prisma.$transaction(async (transaction) => {
       const routine = await transaction.trainingRoutine.findUnique({
         where: { id },
-        select: { id: true, status: true, _count: { select: { workoutSessions: true } } },
+        select: { id: true, _count: { select: { workoutSessions: true, assignments: true } } },
       });
       if (!routine) return null;
-      if (routine.status !== "ARCHIVADA") throw new Error("ARCHIVE_FIRST");
       await transaction.trainingRoutine.delete({ where: { id } });
-      return { deletedSessionsPreserved: routine._count.workoutSessions };
+      return { deletedSessionsPreserved: routine._count.workoutSessions, removedAssignments: routine._count.assignments };
     });
     if (!result) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
-    return Response.json({ action: "deleted", message: "Rutina eliminada definitivamente", preservedWorkoutSessions: result.deletedSessionsPreserved });
+    return Response.json({ action: "deleted", message: "Rutina eliminada. El historial de entrenamiento fue preservado.", preservedWorkoutSessions: result.deletedSessionsPreserved, removedAssignments: result.removedAssignments });
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
-    if (error instanceof Error && error.message === "ARCHIVE_FIRST") return Response.json({ error: "Archivá la rutina antes de eliminarla definitivamente." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError) console.error("Error Prisma al eliminar rutina", { code: error.code, message: error.message, meta: error.meta });
     else console.error("Error al eliminar rutina", error);
     const unavailable = databaseUnavailable(error);

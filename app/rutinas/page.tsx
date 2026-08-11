@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import { RoutineTableView } from "@/componentes/routine-table-view";
+import { RoutineManagementPanel } from "@/componentes/routine-management-panel";
 import { ExerciseLibraryPicker } from "@/componentes/exercise-library";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { ContextualSuggestion, RoutineEvaluationPanel, useRoutineEvaluation } from "@/componentes/routine-evaluation-panel";
@@ -106,7 +107,6 @@ function routineDraft(routine: TrainingRoutine): RoutineDraft {
   };
 }
 
-function showDate(value: string) { return new Date(value).toLocaleDateString("es-AR"); }
 function label(value: string) { return value.charAt(0).toUpperCase() + value.slice(1); }
 
 async function responseError(response: Response, fallback: string) {
@@ -166,6 +166,7 @@ export default function RutinasPage() {
   }, [requestedStudentView, trackingStudentId]);
 
   const objectiveOptions = useMemo(() => [...new Set([...objectives, ...items.map((item) => item.objective)])].sort((a, b) => a.localeCompare(b, "es")), [items]);
+  const assignmentStudents = useMemo(() => students.filter((student) => student.serviceType === "PERSONALIZED" || student.serviceType === "MIXED"), [students]);
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es");
     return items.filter((routine) =>
@@ -295,7 +296,6 @@ export default function RutinasPage() {
   }
 
   async function remove(routine: TrainingRoutine) {
-    if (!window.confirm("Esta acción eliminará definitivamente la rutina. No se puede deshacer.")) return;
     setActionId(routine.id); setError(""); setNotice("");
     try {
       const response = await fetch(`/api/rutinas/${routine.id}`, { method: "DELETE" });
@@ -304,7 +304,8 @@ export default function RutinasPage() {
       setItems((current) => current.filter((item) => item.id !== routine.id));
       if (viewing?.id === routine.id) setViewing(null);
       setNotice(result.message);
-    } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar la rutina de Neon."); }
+      return true;
+    } catch (deleteError) { setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar la rutina de Neon."); return false; }
     finally { setActionId(""); }
   }
 
@@ -364,13 +365,13 @@ export default function RutinasPage() {
     finally { setActionId(""); }
   }
 
-  return <ModuleShell title="Rutinas" subtitle="Diseñá, reutilizá y asigná planes independientes sin alterar el historial." action={activeTab === "seguimiento" || activeTab === "asignaciones" ? null : <button onClick={() => begin()} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300">+ {activeTab === "plantillas" ? "Crear plantilla" : "Crear rutina"}</button>}>
-    {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
-    {notice && !open && <p role="status" className="mb-5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-200">{notice}</p>}
-    <nav className="mb-6 flex gap-2 overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-2">{([["rutinas", "Rutinas"], ["plantillas", "Plantillas de rutinas"], ["asignaciones", "Asignaciones"], ["seguimiento", "Seguimiento de alumnos"]] as const).map(([value, title]) => <button key={value} onClick={() => { setActiveTab(value); if (value !== "seguimiento") setTrackingRoutineId(""); }} className={`shrink-0 rounded-xl px-4 py-3 text-sm font-bold ${activeTab === value ? "bg-yellow-400 text-zinc-950" : "text-zinc-400 hover:bg-zinc-800"}`}>{title}</button>)}</nav>
+  return <ModuleShell title="Rutinas" subtitle="Diseñá, asigná y monitoreá planes de entrenamiento personalizados." action={activeTab === "seguimiento" || activeTab === "asignaciones" ? null : <button onClick={() => begin()} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 transition hover:bg-yellow-300">+ {activeTab === "plantillas" ? "Crear plantilla" : "Crear rutina"}</button>}>
+    {error && !open && <p role="alert" className="mb-3 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
+    {notice && !open && <p role="status" className="mb-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[.07] px-4 py-2.5 text-xs text-emerald-200">{notice}</p>}
+    <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 bg-black/20 px-1">{([["rutinas", "Rutinas"], ["plantillas", "Plantillas"], ["asignaciones", "Asignaciones"], ["seguimiento", "Seguimiento"]] as const).map(([value, title]) => <button key={value} onClick={() => { setActiveTab(value); if (value !== "seguimiento") setTrackingRoutineId(""); }} className={`relative min-h-12 shrink-0 px-4 text-sm font-bold transition ${activeTab === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}</nav>
     {activeTab === "seguimiento" ? <RoutineFollowUp initialRoutineId={trackingRoutineId} initialStudentId={trackingStudentId} /> : <>
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina, objetivo o alumno" className={inputClass} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={inputClass}><option value="activas">Activas</option><option value="borradores">Borradores</option><option value="finalizadas">Finalizadas</option><option value="archivadas">Archivadas</option><option value="todas">Todas</option></select><select value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
-    <section className="mt-6 grid gap-4 lg:grid-cols-2">{!ready ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando rutinas…</p> : visible.length === 0 ? <p className="col-span-full rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">{activeTab === "plantillas" ? "No hay plantillas que coincidan con los filtros." : statusFilter === "archivadas" ? "No hay rutinas archivadas." : "No hay rutinas que coincidan con los filtros."}</p> : visible.map((routine) => <RoutineCard key={routine.id} routine={routine} view={() => setViewing(routine)} tracking={() => { setTrackingRoutineId(routine.id); setActiveTab("seguimiento"); }} edit={() => begin(routine)} duplicate={() => duplicate(routine)} saveAsTemplate={() => setCopyFlow({ source: routine, mode: "saveAsTemplate" })} useTemplate={() => setCopyFlow({ source: routine, mode: "useTemplate" })} copyToStudent={() => setCopyFlow({ source: routine, mode: "copyToStudent" })} archive={() => archive(routine)} remove={() => remove(routine)} restore={() => restore(routine)} duplicating={duplicatingId === routine.id} busy={actionId === routine.id} />)}</section>
+    <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_minmax(145px,.7fr)_minmax(150px,.8fr)_minmax(170px,.9fr)]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === "asignaciones" ? "Buscar alumno o rutina…" : "Buscar rutina o alumno…"} className={inputClass} /><select aria-label="Estado" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={inputClass}><option value="todas">Todos los estados</option><option value="activas">Activas</option><option value="borradores">Borradores</option><option value="finalizadas">Finalizadas</option><option value="archivadas">Archivadas</option></select><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{(activeTab === "asignaciones" ? assignmentStudents : students).map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
+    <RoutineManagementPanel routines={visible} mode={activeTab} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: (routine) => { setTrackingRoutineId(routine.id); setActiveTab("seguimiento"); }, edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
     </>}
     {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editingStatus={editing?.status ?? null} saving={saving} />}
     {viewing && <RoutineTableView
@@ -432,55 +433,6 @@ function RoutineCopyDialog({ flow, students, routines, busy, close, submit }: {
       <div className="mt-6 flex flex-wrap justify-end gap-3"><button type="button" onClick={close} disabled={busy} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-bold disabled:opacity-50">Cancelar</button><button type="submit" disabled={busy || !name.trim() || (needsStudent && (!studentId || Boolean(activeRoutine) && !replaceActive))} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 disabled:opacity-50">{busy ? "Activando…" : flow.mode === "saveAsTemplate" ? "Crear plantilla" : "Activar rutina"}</button></div>
     </form>
   </div>;
-}
-
-function RoutineCard({ routine, view, tracking, edit, duplicate, saveAsTemplate, useTemplate, copyToStudent, archive, remove, restore, duplicating, busy }: {
-  routine: TrainingRoutine;
-  view: () => void;
-  tracking: () => void;
-  edit: () => void;
-  duplicate: () => void;
-  saveAsTemplate: () => void;
-  useTemplate: () => void;
-  copyToStudent: () => void;
-  archive: () => void;
-  remove: () => void;
-  restore: () => void;
-  duplicating: boolean;
-  busy: boolean;
-}) {
-  const archived = routine.status === "archivada";
-  return <article className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 transition hover:border-yellow-400/40">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-bold">{routine.name}</h2>
-          <span className={`rounded-full px-2 py-1 text-xs font-bold ${archived ? "bg-zinc-700 text-zinc-300" : "bg-emerald-400/10 text-emerald-300"}`}>{label(routine.status)}</span>
-        </div>
-        <p className="mt-1 text-sm text-yellow-400">{routine.objective}</p>
-      </div>
-      <span className="text-xs text-zinc-500">{showDate(routine.createdAt)}</span>
-    </div>
-    <p className="mt-3 truncate text-sm text-zinc-400">{(archived ? routine.historicalStudents : routine.students).map((student) => student.name).join(" · ") || "Sin alumnos asignados"}</p>
-    {archived && routine.archivedAt && <p className="mt-2 text-xs text-zinc-500">Archivada el {showDate(routine.archivedAt)}</p>}
-    <div className="mt-5 grid grid-cols-2 gap-2 text-sm font-semibold">
-      <button type="button" onClick={view} className="min-h-11 rounded-xl bg-yellow-400 px-3 text-zinc-950">Ver contenido</button>
-      {routine.kind === "assigned" && <button type="button" onClick={tracking} className="min-h-11 rounded-xl border border-yellow-400/30 px-3 text-yellow-300">Ver seguimiento</button>}
-      {!archived && <button type="button" onClick={edit} className="min-h-11 rounded-xl border border-zinc-700 px-3 text-zinc-200">Editar</button>}
-      {routine.kind === "template" && !archived && <button type="button" onClick={useTemplate} disabled={duplicating} className="min-h-11 rounded-xl border border-yellow-400/30 px-3 text-yellow-300 disabled:opacity-50">Usar plantilla</button>}
-    </div>
-    <details className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/50">
-      <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-semibold text-zinc-400">Más acciones</summary>
-      <div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-3 text-xs font-semibold">
-        <button type="button" onClick={duplicate} disabled={duplicating} className="min-h-10 rounded-lg bg-zinc-800 px-2 text-sky-300 disabled:opacity-50">{duplicating ? "Duplicando…" : "Duplicar"}</button>
-        {routine.kind === "assigned" && <button type="button" onClick={saveAsTemplate} disabled={duplicating} className="min-h-10 rounded-lg bg-zinc-800 px-2 text-sky-300 disabled:opacity-50">Guardar plantilla</button>}
-        {routine.kind === "assigned" && <button type="button" onClick={copyToStudent} disabled={duplicating} className="min-h-10 rounded-lg bg-zinc-800 px-2 text-sky-300 disabled:opacity-50">Copiar a alumno</button>}
-        {!archived && <button type="button" onClick={archive} disabled={busy} className="min-h-10 rounded-lg bg-orange-400/10 px-2 text-orange-300 disabled:opacity-50">{busy ? "Archivando…" : "Archivar"}</button>}
-        {archived && <button type="button" onClick={restore} disabled={busy} className="min-h-10 rounded-lg bg-emerald-400/10 px-2 text-emerald-300 disabled:opacity-50">{busy ? "Restaurando…" : "Restaurar"}</button>}
-        {archived && <button type="button" onClick={remove} disabled={busy} className="min-h-10 rounded-lg bg-red-400/10 px-2 text-red-300 disabled:opacity-50">{busy ? "Eliminando…" : "Eliminar definitivamente"}</button>}
-      </div>
-    </details>
-  </article>;
 }
 
 function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, close, submit, editingStatus, saving }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean }) {

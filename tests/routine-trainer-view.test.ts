@@ -28,26 +28,27 @@ const api = readFileSync(new URL("../app/api/rutinas/[id]/route.ts", import.meta
 const routinesLib = readFileSync(new URL("../lib/rutinas.ts", import.meta.url), "utf8");
 const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../prisma/migrations/20260802120000_add_routine_day_warmup/migration.sql", import.meta.url), "utf8");
-const card = page.slice(page.indexOf("function RoutineCard"), page.indexOf("function Info"));
+const management = readFileSync(new URL("../componentes/routine-management-panel.tsx", import.meta.url), "utf8");
+const followUp = readFileSync(new URL("../componentes/routine-follow-up.tsx", import.meta.url), "utf8");
 const editor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("function ExerciseEditor"));
 const submitFlow = page.slice(page.indexOf("async function submit"), page.indexOf("async function duplicate"));
 const editorActions = editor.slice(editor.lastIndexOf('<div className="mt-6 flex flex-wrap justify-end gap-3">'));
 const activeActions = editorActions.slice(editorActions.indexOf("{updatingActiveRoutine ?"), editorActions.indexOf(": <>"));
 const draftActions = editorActions.slice(editorActions.indexOf(": <>"));
 
-test("la tarjeta principal es compacta y delega las métricas a Ver contenido", () => {
-  assert.doesNotMatch(card, /routineSeriesMetrics|Series totales|Días con ejercicios/);
-  assert.match(card, /routine\.name/);
-  assert.match(card, /routine\.students/);
-  assert.match(card, /Ver contenido/);
+test("Rutinas usa un listado compacto de gestión y conserva el editor separado", () => {
+  assert.match(page, /<RoutineManagementPanel/);
+  assert.doesNotMatch(page, /function RoutineCard/);
+  for (const heading of ["Rutina", "Alumno", "Objetivo", "Estado", "Volumen", "Última sesión", "Progreso", "Acciones"]) assert.match(management, new RegExp(heading));
+  assert.match(management, /min-h-\[78px\]/);
 });
 
-test("la tarjeta principal ya no ofrece historial y mantiene acciones importantes", () => {
-  assert.doesNotMatch(card, /Ver historial/);
-  for (const action of ["Ver contenido", "Ver seguimiento", "Editar", "Duplicar", "Guardar plantilla", "Copiar a alumno", "Archivar"]) {
-    assert.match(card, new RegExp(action));
-  }
-  assert.match(card, /Más acciones/);
+test("las acciones visibles son Abrir plan, seguimiento y menú contextual", () => {
+  assert.match(management, /Abrir plan/);
+  assert.match(management, /aria-label="Abrir seguimiento"/);
+  assert.match(management, /aria-label="Más acciones"/);
+  for (const action of ["Editar", "Duplicar", "Usar como plantilla", "Cambiar asignación", "Archivar", "Eliminar rutina"]) assert.match(management, new RegExp(action));
+  assert.doesNotMatch(management, /Ver contenido/);
 });
 
 test("Ver contenido separa series de fuerza, bloques, circuitos y distribución semanal", () => {
@@ -154,7 +155,31 @@ test("un error conserva el formulario abierto y sus datos", () => {
 });
 
 test("las rutinas archivadas continúan sin acceso de edición", () => {
-  assert.match(card, /\{!archived && <button type="button" onClick=\{edit\}/);
+  assert.match(management, /disabled=\{routine\.status === "archivada"\}/);
+});
+
+test("la eliminación directa usa modal propio, protege doble toque y preserva historial", () => {
+  assert.match(management, /role="dialog"/);
+  assert.match(management, /Las sesiones realizadas, cargas, marcas, puntos y datos del alumno se conservarán/);
+  assert.doesNotMatch(page.slice(page.indexOf("async function remove"), page.indexOf("async function archive")), /window\.confirm/);
+  assert.match(api, /requireAdminApiResponse/);
+  assert.doesNotMatch(api, /ARCHIVE_FIRST/);
+  assert.match(schema, /routine\s+TrainingRoutine\?\s+@relation\(fields: \[routineId\], references: \[id\], onDelete: SetNull\)/);
+  assert.match(schema, /exercise\s+TrainingRoutineExercise\?\s+@relation\(fields: \[exerciseId\], references: \[id\], onDelete: SetNull\)/);
+  assert.doesNotMatch(api, /workoutSession\.(?:delete|deleteMany)/);
+});
+
+test("el panel lateral muestra datos reales, tendencia y molestias sin inventar porcentaje", () => {
+  for (const content of ["Sesiones completadas", "Última sesión", "Duración promedio", "Progreso general", "Progreso reciente", "Molestia reportada", "Abrir seguimiento completo"]) assert.match(management, new RegExp(content));
+  assert.match(management, /progressPercentage/);
+  assert.match(management, /Sin métrica válida/);
+});
+
+test("Seguimiento usa una bandeja compacta y prioriza molestias o ausencia de registros", () => {
+  assert.match(followUp, /Necesitan atención/);
+  assert.match(followUp, /student\.latestPainReport \|\| student\.sessionCount === 0/);
+  assert.match(followUp, /grid-cols-\[1\.2fr_1\.2fr_100px_80px_90px_90px_110px\]/);
+  assert.doesNotMatch(followUp, /grid items-stretch gap-4/);
 });
 
 test("la vista de escritorio conserva la tabla completa", () => {
