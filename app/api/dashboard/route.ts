@@ -6,6 +6,7 @@ import {
   argentinaDateTimeBoundary,
   databaseDateKey,
   dateKeyToDatabase,
+  effectiveNextDueDate,
   paymentAccountStatus,
 } from "@/lib/payment-dates";
 import type { DashboardData } from "@/types/dashboard";
@@ -76,14 +77,14 @@ export async function GET() {
           id: true,
           data: true,
           createdAt: true,
-          payments: { select: { status: true, paidDate: true } },
+          payments: { select: { status: true, paidDate: true, dueDate: true, nextDueDateSnapshot: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
       prisma.studentPayment.findMany({
         where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
-        select: { amount: true, paidDate: true },
-        orderBy: { paidDate: "asc" },
+        select: { id: true, amount: true, paidDate: true, method: true, billingPeriod: true, createdAt: true, student: { select: { data: true } } },
+        orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       }),
       weekday ? prisma.classOccurrence.findMany({
         where: { date: todayDate },
@@ -132,19 +133,21 @@ export async function GET() {
     const active = students.filter(({ student }) => student.status !== "inactivo");
     const activeStudentIds = new Set(active.map(({ id }) => id));
     const namesByStudent = new Map(active.map(({ id, student }) => [id, studentName(student)]));
-    const accounts = active.map(({ id, student, payments }) => ({
-      studentId: id,
-      studentName: studentName(student),
-      plan: student.plan ?? "",
-      dueDate: student.dueDate ?? "",
-      amount: Number(student.monthlyFee ?? 0),
-      status: paymentAccountStatus({
-        dueDate: student.dueDate ?? "",
-        monthlyFee: Number(student.monthlyFee ?? 0),
-        validPaymentCount: payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length,
-        hasOutstandingDebt: payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
-      }, today),
-    }));
+    const accounts = active.map(({ id, student, payments }) => {
+      const dueDate = effectiveNextDueDate(student.dueDate ?? "", payments);
+      return {
+        studentId: id,
+        studentName: studentName(student),
+        plan: student.plan ?? "",
+        dueDate,
+        amount: Number(student.monthlyFee ?? 0),
+        status: paymentAccountStatus({
+          dueDate,
+          monthlyFee: Number(student.monthlyFee ?? 0),
+          validPaymentCount: payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length,
+        }, today),
+      };
+    });
     const actionableAccounts = accounts
       .filter((account) => account.status === "VENCIDA" || account.status === "VENCE_PRONTO" || account.status === "SIN_PAGOS")
       .sort((left, right) => STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.dueDate.localeCompare(right.dueDate));
@@ -178,10 +181,20 @@ export async function GET() {
     const monthIncome = currentPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const previousIncome = previousPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const incomeByDate = new Map<string, number>();
+    const dailyPayments: DashboardData["dailyPayments"] = {};
     for (const payment of currentPayments) {
       if (!payment.paidDate) continue;
       const key = databaseDateKey(payment.paidDate);
       incomeByDate.set(key, (incomeByDate.get(key) ?? 0) + Number(payment.amount));
+      const paymentStudent = studentData(payment.student.data);
+      (dailyPayments[key] ??= []).push({
+        id: payment.id,
+        studentName: studentName(paymentStudent),
+        amount: Number(payment.amount),
+        paymentMethod: payment.method,
+        paidAt: key,
+        period: payment.billingPeriod ? databaseDateKey(payment.billingPeriod) : "",
+      });
     }
     const elapsedDays = Number(today.slice(8, 10));
     const income = Array.from({ length: elapsedDays }, (_, index) => {
@@ -241,23 +254,26 @@ export async function GET() {
         newStudents: currentNewStudents,
       },
       income,
+      dailyPayments,
       priorities,
       ranking,
       todayClasses: todayClasses.slice(0, 3),
       upcomingPayments: actionableAccounts.slice(0, 3),
-      recentStudents: active.slice(0, 3).map(({ id, student, payments }) => ({
-        id,
-        studentName: studentName(student),
-        plan: student.plan ?? "",
-        days: planDays(student.plan ?? ""),
-        dueDate: student.dueDate ?? "",
-      status: paymentAccountStatus({
-        dueDate: student.dueDate ?? "",
-        monthlyFee: Number(student.monthlyFee ?? 0),
-        validPaymentCount: payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length,
-        hasOutstandingDebt: payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
-      }, today),
-      })),
+      recentStudents: active.slice(0, 3).map(({ id, student, payments }) => {
+        const dueDate = effectiveNextDueDate(student.dueDate ?? "", payments);
+        return {
+          id,
+          studentName: studentName(student),
+          plan: student.plan ?? "",
+          days: planDays(student.plan ?? ""),
+          dueDate,
+          status: paymentAccountStatus({
+            dueDate,
+            monthlyFee: Number(student.monthlyFee ?? 0),
+            validPaymentCount: payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length,
+          }, today),
+        };
+      }),
       weeklyAttendance,
       attendanceSummary: {
         weeklyAverage: weeklyTotal ? Math.round((weeklyPresent / weeklyTotal) * 100) : 0,

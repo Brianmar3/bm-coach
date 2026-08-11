@@ -5,6 +5,7 @@ import {
   argentinaMonthBounds,
   databaseDateKey,
   dateKeyToDatabase,
+  effectiveNextDueDate,
   paymentAccountStatus,
 } from "@/lib/payment-dates";
 import type { Payment, PaymentDashboard, PaymentStatus, PaymentStudentAccount, PortalPaymentAccount, Student } from "@/types/gestion";
@@ -54,14 +55,14 @@ export function serializePayment(record: PaymentWithStudent): Payment {
   };
 }
 
-type PaymentAccountRecord = Pick<Prisma.StudentPaymentGetPayload<object>, "amount" | "paidDate" | "status">;
+type PaymentAccountRecord = Pick<Prisma.StudentPaymentGetPayload<object>, "amount" | "paidDate" | "status" | "dueDate" | "nextDueDateSnapshot">;
 
 export function portalPaymentAccount(student: Student, payments: PaymentAccountRecord[], asOf = argentinaDateKey()): PortalPaymentAccount {
   const lastPayment = payments
     .filter((payment) => payment.status === "PAGADO" && payment.paidDate)
     .sort((left, right) => (right.paidDate?.getTime() ?? 0) - (left.paidDate?.getTime() ?? 0))[0];
   const monthlyFee = Math.max(Number(student.monthlyFee ?? 0), 0);
-  const nextDueDate = student.dueDate ?? "";
+  const nextDueDate = effectiveNextDueDate(student.dueDate ?? "", payments);
   const validPaymentCount = payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate).length;
   return {
     configured: monthlyFee > 0 && Boolean(nextDueDate),
@@ -69,7 +70,6 @@ export function portalPaymentAccount(student: Student, payments: PaymentAccountR
       dueDate: nextDueDate,
       monthlyFee,
       validPaymentCount,
-      hasOutstandingDebt: payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
     }, asOf),
     monthlyFee,
     nextDueDate,
@@ -102,11 +102,11 @@ export async function paymentDashboard(): Promise<PaymentDashboard> {
       const validPayments = record.payments.filter((payment) => payment.status === "PAGADO" && payment.paidDate);
       const lastPayment = validPayments[0];
       const monthlyFee = Number(student.monthlyFee ?? 0);
+      const nextDueDate = effectiveNextDueDate(student.dueDate ?? "", record.payments);
       const status = paymentAccountStatus({
-        dueDate: student.dueDate ?? "",
+        dueDate: nextDueDate,
         monthlyFee,
         validPaymentCount: validPayments.length,
-        hasOutstandingDebt: record.payments.some((payment) => payment.status === "PENDIENTE" || payment.status === "VENCIDO"),
       }, asOf);
       return {
         studentId: record.id,
@@ -118,7 +118,7 @@ export async function paymentDashboard(): Promise<PaymentDashboard> {
         paidThisMonth: validPayments.some((payment) => payment.paidDate && payment.paidDate >= start && payment.paidDate < end),
         lastPaymentDate: lastPayment?.paidDate ? databaseDateKey(lastPayment.paidDate) : "",
         lastPaymentAmount: lastPayment ? Number(lastPayment.amount) : null,
-        nextDueDate: student.dueDate ?? "",
+        nextDueDate,
         status,
       };
     })
