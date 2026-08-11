@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { ClassOccurrenceAdmin } from "@/componentes/class-occurrence-admin";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
 
@@ -171,7 +172,6 @@ export default function ClasesPage() {
 
       <section className="mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
         <div className="grid grid-cols-3 divide-x divide-zinc-800"><Metric label="Horarios activos" value={activeCount} /><Metric label="Alumnos con horario" value={assignedCount} /><Metric label="Bloques semanales" value={schedules.length} /></div>
-        <div className="mt-3 flex justify-end border-t border-zinc-800 pt-3"><button onClick={() => begin()} className="min-h-10 rounded-xl border border-yellow-400/35 px-4 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/10">+ Crear horario →</button></div>
       </section>
 
       <ClassOccurrenceAdmin />
@@ -203,6 +203,7 @@ export default function ClasesPage() {
 
       {viewing && <ScheduleDetail schedule={viewing} close={() => setViewing(null)} edit={() => begin(viewing)} changeActive={() => changeActive(viewing)} remove={() => remove(viewing)} />}
       {editorOpen && <ScheduleEditor form={form} setForm={setForm} students={students} studentQuery={studentQuery} setStudentQuery={setStudentQuery} error={error} saving={saving} editing={Boolean(editing)} close={closeEditor} save={save} />}
+      <TrainerFloatingActions enabled={!editorOpen && !viewing} actions={[{ label: "Crear horario", symbol: "+", onSelect: () => begin() }, { label: "Tomar asistencia", symbol: "✓", href: "/asistencias" }]} />
     </ModuleShell>
   );
 }

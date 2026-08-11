@@ -229,10 +229,11 @@ test("la persistencia y el portal mantienen Observaciones como Indicaciones sin 
   assert.match(mediaComponent, /if \(!media\.hasMedia\) return null/);
 });
 
-test("Crear rutina usa la acción compacta oscura con borde dorado", () => {
-  assert.match(editor, /border border-yellow-400\/35 bg-black\/25/);
-  assert.match(editor, /"Crear rutina"\} →/);
-  assert.doesNotMatch(editor, />\+ \{activeTab === "plantillas" \? "Crear plantilla" : "Crear rutina"\}<\/button>/);
+test("Crear rutina se abre desde el acceso flotante y no desde el hero", () => {
+  assert.match(editor, /<TrainerFloatingActions/);
+  assert.match(editor, /label: "Crear rutina"/);
+  assert.match(editor, /begin\(undefined, "assigned"\)/);
+  assert.doesNotMatch(editor, /action=\{activeTab/);
 });
 
 test("actualizar usa un timeout explícito y reporta expiración transaccional", () => {

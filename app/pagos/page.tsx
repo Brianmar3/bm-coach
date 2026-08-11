@@ -4,6 +4,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
 import type { Payment, PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
 
@@ -230,10 +231,6 @@ export default function PagosPage() {
       <p className="text-[10px] font-bold uppercase tracking-[.24em] text-yellow-400">Gestión BM Training</p>
       <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Pagos</h1>
       <p className="mt-1 text-sm text-zinc-400 sm:text-base">Cuotas, cobros e historial.</p>
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        <Link href="/resumen-mensual" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-yellow-400/35 px-2.5 text-[13px] font-bold text-yellow-300 transition hover:border-yellow-400/60 hover:bg-yellow-400/5 sm:gap-2 sm:px-3 sm:text-sm"><PaymentIcon name="summary" />Resumen mensual</Link>
-        <button onClick={() => begin()} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-yellow-400 px-2.5 text-[13px] font-bold text-zinc-950 shadow-lg shadow-yellow-400/10 transition hover:bg-yellow-300 sm:gap-2 sm:px-3 sm:text-sm"><span className="text-lg font-light" aria-hidden="true">+</span>Agregar pago</button>
-      </div>
     </header>
     {(error || notice) && !form && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
 
@@ -263,6 +260,7 @@ export default function PagosPage() {
 
     {form && <PaymentModal form={form} accounts={data.students} setForm={setForm} error={error} saving={Boolean(savingId)} close={() => { setForm(null); setError(""); }} submit={submit} />}
     {historyAccount && <HistoryModal account={historyAccount} payments={history} loading={historyLoading} savingId={savingId} close={() => setHistoryAccount(null)} edit={editPayment} voidPayment={voidPayment} />}
+    <TrainerFloatingActions enabled={!form && !historyAccount} actions={[{ label: "Registrar pago", symbol: "+", onSelect: () => begin() }, { label: "Resumen mensual", symbol: <PaymentIcon name="summary" />, href: "/resumen-mensual" }]} />
   </ModuleShell>;
 }
 

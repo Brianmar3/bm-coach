@@ -5,6 +5,7 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import { RoutineTableView } from "@/componentes/routine-table-view";
 import { RoutineManagementPanel } from "@/componentes/routine-management-panel";
+import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { ExerciseLibraryPicker } from "@/componentes/exercise-library";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { ContextualSuggestion, RoutineEvaluationPanel, useRoutineEvaluation } from "@/componentes/routine-evaluation-panel";
@@ -182,9 +183,9 @@ export default function RutinasPage() {
       && (studentFilter === "todos" || (routine.status === "archivada" ? routine.historicalStudents.some((student) => student.id === studentFilter) : routine.studentIds.includes(studentFilter))));
   }, [activeTab, items, objectiveFilter, query, statusFilter, studentFilter]);
 
-  function begin(routine?: TrainingRoutine) {
+  function begin(routine?: TrainingRoutine, kind?: TrainingRoutineKind) {
     setEditing(routine ?? null);
-    setForm(routine ? routineDraft(routine) : blankRoutine(activeTab === "plantillas" ? "template" : "assigned"));
+    setForm(routine ? routineDraft(routine) : blankRoutine(kind ?? (activeTab === "plantillas" ? "template" : "assigned")));
     setActiveDay(1);
     setError("");
     setReplaceOnActivate(false);
@@ -365,7 +366,7 @@ export default function RutinasPage() {
     finally { setActionId(""); }
   }
 
-  return <ModuleShell title="Rutinas" subtitle="Diseñá, asigná y monitoreá planes de entrenamiento personalizados." action={activeTab === "seguimiento" || activeTab === "asignaciones" ? null : <button onClick={() => begin()} className="min-h-10 rounded-xl border border-yellow-400/35 bg-black/25 px-3.5 py-2 text-sm font-bold text-yellow-300 transition hover:border-yellow-300/60 hover:bg-yellow-400/[.06] hover:text-yellow-200">+ {activeTab === "plantillas" ? "Crear plantilla" : "Crear rutina"} →</button>}>
+  return <ModuleShell title="Rutinas" subtitle="Diseñá, asigná y monitoreá planes de entrenamiento personalizados.">
     {error && !open && <p role="alert" className="mb-3 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
     {notice && !open && <p role="status" className="mb-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[.07] px-4 py-2.5 text-xs text-emerald-200">{notice}</p>}
     <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 bg-black/20 px-1">{([["rutinas", "Rutinas"], ["plantillas", "Plantillas"], ["asignaciones", "Asignaciones"], ["seguimiento", "Seguimiento"]] as const).map(([value, title]) => <button key={value} onClick={() => { setActiveTab(value); if (value !== "seguimiento") setTrackingRoutineId(""); }} className={`relative min-h-12 shrink-0 px-4 text-sm font-bold transition ${activeTab === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}</nav>
@@ -386,6 +387,7 @@ export default function RutinasPage() {
     />}
     {copyFlow && <RoutineCopyDialog flow={copyFlow} students={students} routines={items} busy={duplicatingId === copyFlow.source.id} close={() => setCopyFlow(null)} submit={createCopy} />}
     {historyRoutine && <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><section className="mx-auto my-10 max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">Historial de {historyRoutine.name}</h2><p className="text-sm text-zinc-400">Las versiones más recientes aparecen primero.</p></div><button onClick={() => setHistoryRoutine(null)} className="text-zinc-400">Cerrar</button></div><div className="mt-5 space-y-3">{versions.length === 0 ? <p className="rounded-xl bg-zinc-950 p-5 text-sm text-zinc-500">Todavía no hay versiones guardadas.</p> : versions.map((version) => <article key={version.id} className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold">Versión {version.version}</p><p className="text-sm text-zinc-400">{version.summary} · {new Date(version.createdAt).toLocaleString("es-AR")}</p></div><button disabled={actionId === historyRoutine.id} onClick={() => restoreVersion(version.id)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300 disabled:opacity-50">Restaurar versión</button></article>)}</div></section></div>}
+    <TrainerFloatingActions enabled={!open && !viewing && !copyFlow && !historyRoutine} actions={[{ label: "Crear rutina", symbol: "+", onSelect: () => { setActiveTab("rutinas"); begin(undefined, "assigned"); } }, ...(activeTab === "plantillas" ? [{ label: "Crear plantilla", symbol: "P", onSelect: () => begin(undefined, "template") }] : [])]} />
   </ModuleShell>;
 }
 

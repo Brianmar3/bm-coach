@@ -59,11 +59,13 @@ test("el endpoint recorta listados, agrupa puntos y evita consultas por fila", (
 });
 
 test("el acceso flotante ofrece seis acciones y un diálogo interno responsive", () => {
-  const source = readFileSync(new URL("../componentes/dashboard-floating-actions.tsx", import.meta.url), "utf8");
+  const dashboardActions = readFileSync(new URL("../componentes/dashboard-floating-actions.tsx", import.meta.url), "utf8");
+  const sharedActions = readFileSync(new URL("../componentes/trainer-floating-actions.tsx", import.meta.url), "utf8");
+  const source = `${dashboardActions}\n${sharedActions}`;
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /Nuevo alumno/);
   assert.match(source, /Agregar evento/);
-  assert.match(source, /grid grid-cols-2/);
+  assert.match(source, /sm:grid-cols-2/);
   assert.doesNotMatch(source, /window\.open|target="_blank"/);
 });

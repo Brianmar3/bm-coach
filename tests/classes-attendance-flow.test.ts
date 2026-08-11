@@ -42,7 +42,10 @@ test("la UI revierte ante error y bloquea doble interacción mientras guarda", (
 
 test("calendario, métricas y tabs usan estructura compacta mobile-first", () => {
   assert.match(classes, /grid grid-cols-3 divide-x/);
-  assert.match(classes, /\+ Crear horario →/);
+  assert.doesNotMatch(classes, /\+ Crear horario →/);
+  assert.match(classes, /<TrainerFloatingActions/);
+  assert.match(classes, /label: "Crear horario"/);
+  assert.match(classes, /label: "Tomar asistencia"/);
   assert.match(classes, /grid gap-2 sm:grid-cols-2/);
   assert.match(tabs, /overflow-x-auto/);
   assert.match(tabs, /shrink-0/);
