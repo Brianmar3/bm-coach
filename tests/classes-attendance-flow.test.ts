@@ -45,7 +45,7 @@ test("calendario, métricas y tabs usan estructura compacta mobile-first", () =>
   assert.doesNotMatch(classes, /\+ Crear horario →/);
   assert.match(classes, /<TrainerFloatingActions/);
   assert.match(classes, /label: "Crear horario"/);
-  assert.match(classes, /label: "Tomar asistencia"/);
+  assert.doesNotMatch(classes, /<TrainerFloatingActions[^\n]+Tomar asistencia/);
   assert.match(classes, /grid gap-2 sm:grid-cols-2/);
   assert.match(tabs, /overflow-x-auto/);
   assert.match(tabs, /shrink-0/);

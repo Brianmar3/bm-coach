@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = readFileSync(new URL("../app/pagos/page.tsx", import.meta.url), "utf8");
+const sidebar = readFileSync(new URL("../componentes/sidebar.tsx", import.meta.url), "utf8");
 
 test("Pagos usa un hero propio y limpio; las acciones pasan al acceso flotante", () => {
   const hero = source.slice(source.indexOf('<header className="admin-welcome'), source.indexOf("</header>"));
@@ -11,7 +12,8 @@ test("Pagos usa un hero propio y limpio; las acciones pasan al acceso flotante",
   assert.doesNotMatch(hero, /Resumen mensual|Agregar pago|Registrar pago/);
   assert.match(source, /<TrainerFloatingActions/);
   assert.match(source, /label: "Registrar pago"/);
-  assert.match(source, /label: "Resumen mensual"/);
+  assert.doesNotMatch(source, /<TrainerFloatingActions[^\n]+Resumen mensual/);
+  assert.match(sidebar, /\["Resumen mensual", "\/resumen-mensual"/);
   assert.match(source, /hideHeader flushTop/);
   assert.doesNotMatch(source, /kettlebell|pesa rusa/i);
 });

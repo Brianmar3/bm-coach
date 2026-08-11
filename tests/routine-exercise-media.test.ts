@@ -231,6 +231,7 @@ test("la persistencia y el portal mantienen Observaciones como Indicaciones sin 
 
 test("Crear rutina se abre desde el acceso flotante y no desde el hero", () => {
   assert.match(editor, /<TrainerFloatingActions/);
+  assert.match(editor, /mode="direct"/);
   assert.match(editor, /label: "Crear rutina"/);
   assert.match(editor, /begin\(undefined, "assigned"\)/);
   assert.doesNotMatch(editor, /action=\{activeTab/);
