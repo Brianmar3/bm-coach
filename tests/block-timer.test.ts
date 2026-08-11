@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { blockTimerView, elapsedBlockSeconds, formatTimerClock, initialBlockTimer, intervalSegments, parseBlockTimer, reduceBlockTimer, serializeBlockTimer, type BlockTimerConfiguration } from "../lib/block-timer.ts";
-import { bellStrikes } from "../lib/block-timer-sounds.ts";
+import { BLOCK_TIMER_AUDIO, phaseTransitionSound } from "../lib/block-timer-sounds.ts";
 
 const timerComponent = readFileSync(new URL("../componentes/workout-block-timer.tsx", import.meta.url), "utf8");
 const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
@@ -119,26 +119,54 @@ test("INTERVAL no se marca completo antes de confirmar y revierte a pausa si fal
   assert.doesNotMatch(portal, /autosaveSignature\.current = signature;\s*setDraft\(next\)/);
 });
 
-test("los sonidos diferencian trabajo, descanso y final doble", () => {
-  const work = bellStrikes("work");
-  const rest = bellStrikes("rest");
-  const finish = bellStrikes("finish");
-  assert.equal(work.length, 1);
-  assert.equal(rest.length, 1);
-  assert.ok(rest[0].volume < work[0].volume);
-  assert.ok(work[0].durationSeconds >= 0.5 && work[0].durationSeconds <= 0.8);
-  assert.ok(rest[0].durationSeconds >= 0.3 && rest[0].durationSeconds <= 0.5);
-  assert.equal(finish.length, 2);
-  assert.ok(finish[1].delaySeconds >= 0.25 && finish[1].delaySeconds <= 0.4);
+test("los sonidos usan los tres archivos de audio finales", () => {
+  assert.deepEqual(BLOCK_TIMER_AUDIO, {
+    work: "/audio/workout-start.mp4",
+    rest: "/audio/rest-start.m4a",
+    finish: "/audio/workout-finish.m4a",
+  });
   assert.match(timerComponent, /feedback\("work"\)/);
   assert.match(timerComponent, /feedback\("finish"\)/);
+  assert.match(timerComponent, /phaseTransitionSound/);
 });
 
-test("sin Web Audio continúa y limpia contexto y avisos", () => {
-  assert.match(timerComponent, /if \(!AudioConstructor\) return/);
-  assert.match(timerComponent, /context\.close\(\)\.catch/);
+test("precarga, reproduce y limpia los audios sin bloquear el cronómetro", () => {
+  assert.match(timerComponent, /new Audio\(source\)/);
+  assert.match(timerComponent, /item\.preload = "auto"/);
+  assert.match(timerComponent, /selected\.play\(\)\.catch/);
+  assert.match(timerComponent, /item\.removeAttribute\("src"\)/);
   assert.match(timerComponent, /clearTimeout\(noticeTimerRef\.current\)/);
   assert.match(timerComponent, /catch \{/);
+});
+
+test("cada cambio real de fase dispara una sola señal", () => {
+  assert.equal(phaseTransitionSound("0", "1", true), "rest");
+  assert.equal(phaseTransitionSound("1", "2", false), "work");
+  assert.equal(phaseTransitionSound("2", "2", false), null);
+  assert.equal(phaseTransitionSound("", "0", false), null);
+});
+
+test("pausa, reanudación y renders extra no vuelven a disparar inicio", () => {
+  assert.equal(phaseTransitionSound("3", "3", false), null);
+  assert.match(timerComponent, /if \(timer\.status !== "running"\) return/);
+  assert.match(timerComponent, /previousStepRef\.current = step/);
+  assert.doesNotMatch(timerComponent, /action === "RESUME"[^\n]+feedback/);
+});
+
+test("terminar una fase no usa el audio final; finalizar el timer sí", () => {
+  assert.equal(phaseTransitionSound("4", "5", true), "rest");
+  const finishBody = timerComponent.slice(timerComponent.indexOf("const finish = useCallback"), timerComponent.indexOf("useEffect(() =>", timerComponent.indexOf("const finish = useCallback")));
+  assert.match(finishBody, /finishingRef\.current/);
+  assert.match(finishBody, /feedback\("finish"\)/);
+  assert.equal((finishBody.match(/feedback\("finish"\)/g) ?? []).length, 1);
+});
+
+test("simulación 10 s trabajo, 5 s descanso y 2 vueltas conserva la secuencia pedida", () => {
+  const shortTimer = { ...configuration, rounds: 2, workSeconds: 10, restSeconds: 5, restBetweenRoundsSeconds: 5, exercises: [exercises[0]] };
+  const segments = intervalSegments(shortTimer);
+  assert.deepEqual(segments.map((segment) => [segment.kind, segment.durationSeconds]), [["WORK", 10], ["ROUND_REST", 5], ["WORK", 10]]);
+  const phaseSounds = segments.slice(1).map((segment, index) => phaseTransitionSound(String(index), String(index + 1), segment.kind !== "WORK"));
+  assert.deepEqual(["work", ...phaseSounds, "finish"], ["work", "rest", "work", "finish"]);
 });
 
 test("el ejercicio actual, objetivo, siguiente y lista tienen jerarquía móvil", () => {
@@ -155,7 +183,7 @@ test("la vista móvil evita overflow y deja controles fuera de la navegación in
 
 test("avisos, sonido y vibración son progresivos y no usan APIs experimentales", () => {
   assert.match(timerComponent, /role="status"/);
-  assert.match(timerComponent, /AudioContext/);
+  assert.match(timerComponent, /new Audio/);
   assert.match(timerComponent, /navigator\.vibrate\?\./);
   assert.match(timerComponent, /catch \{/);
   assert.doesNotMatch(timerComponent, /wakeLock|Notification|serviceWorker|PushManager/);

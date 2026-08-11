@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalWorkoutBlock } from "@/types/portal";
 import type { TrainingRoutineBlock } from "@/types/gestion";
 import { blockTimerView, elapsedBlockSeconds, formatTimerClock, initialBlockTimer, parseBlockTimer, reduceBlockTimer, serializeBlockTimer, type BlockTimerAction, type BlockTimerState, type TimedTrainingBlockType } from "@/lib/block-timer";
-import { bellStrikes, type BlockTimerSound } from "@/lib/block-timer-sounds";
+import { BLOCK_TIMER_AUDIO, phaseTransitionSound, type BlockTimerSound } from "@/lib/block-timer-sounds";
 
 type TimerProps = {
   block: PortalWorkoutBlock;
@@ -20,12 +20,11 @@ function stateFromResult(block: PortalWorkoutBlock): BlockTimerState {
   return { ...initial, status: "finished", elapsedSeconds: block.result.durationSeconds ?? (block.result.minutesCompleted ?? 0) * 60 };
 }
 
-export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, complete: _complete }: TimerProps) {
+export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }: TimerProps) {
   const [timer, setTimer] = useState(() => stateFromResult(block));
   const [nowMs, setNowMs] = useState(Date.now);
   const [notice, setNotice] = useState("");
-  const audioRef = useRef<AudioContext | null>(null);
-  const audioUnlockedRef = useRef(false);
+  const audioRef = useRef<Partial<Record<BlockTimerSound, HTMLAudioElement>>>({});
   const previousStepRef = useRef("");
   const finishingRef = useRef(false);
   const roundTapRef = useRef(0);
@@ -49,39 +48,39 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, c
 
   useEffect(() => { window.localStorage.setItem(persistenceKey, serializeBlockTimer(timer)); }, [persistenceKey, timer]);
   useEffect(() => {
+    const audio = Object.entries(BLOCK_TIMER_AUDIO).reduce<Partial<Record<BlockTimerSound, HTMLAudioElement>>>((result, [sound, source]) => {
+      const item = new Audio(source);
+      item.preload = "auto";
+      item.volume = 1;
+      item.load();
+      result[sound as BlockTimerSound] = item;
+      return result;
+    }, {});
+    audioRef.current = audio;
+    return () => {
+      Object.values(audio).forEach((item) => { item.pause(); item.removeAttribute("src"); item.load(); });
+      audioRef.current = {};
+    };
+  }, []);
+  useEffect(() => {
     if (timer.status !== "running") return;
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 250);
     return () => window.clearInterval(intervalId);
   }, [timer.status]);
   useEffect(() => () => {
     if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
-    const context = audioRef.current;
-    audioRef.current = null;
-    if (context && context.state !== "closed") void context.close().catch(() => undefined);
   }, []);
 
   const feedback = useCallback((sound: BlockTimerSound) => {
     try {
-      const context = audioRef.current;
-      if (audioUnlockedRef.current && context?.state === "running") {
-        for (const strike of bellStrikes(sound)) {
-          const start = context.currentTime + strike.delaySeconds;
-          const master = context.createGain();
-          master.gain.setValueAtTime(strike.volume, start);
-          master.gain.exponentialRampToValueAtTime(0.001, start + strike.durationSeconds);
-          master.connect(context.destination);
-          const harmonics = [[880, 1], [1320, 0.42], [1760, 0.18]] as const;
-          harmonics.forEach(([frequency, level], harmonicIndex) => {
-            const oscillator = context.createOscillator();
-            const harmonic = context.createGain();
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(frequency, start);
-            harmonic.gain.setValueAtTime(level, start);
-            oscillator.connect(harmonic); harmonic.connect(master);
-            oscillator.start(start); oscillator.stop(start + strike.durationSeconds);
-            oscillator.addEventListener("ended", () => { oscillator.disconnect(); harmonic.disconnect(); if (harmonicIndex === harmonics.length - 1) master.disconnect(); }, { once: true });
-          });
-        }
+      const selected = audioRef.current[sound];
+      if (selected) {
+        Object.values(audioRef.current).forEach((item) => {
+          if (item !== selected) { item.pause(); item.currentTime = 0; }
+        });
+        selected.pause();
+        selected.currentTime = 0;
+        void selected.play().catch(() => undefined);
       }
     } catch { /* El cronómetro funciona aunque el navegador rechace audio. */ }
     try { navigator.vibrate?.(sound === "finish" ? [45, 250, 45] : sound === "work" ? 45 : 25); } catch { /* La vibración es opcional. */ }
@@ -90,10 +89,11 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, c
   useEffect(() => {
     if (timer.status !== "running") return;
     const step = timer.blockType === "INTERVAL" && "segment" in view ? `${view.segmentIndex}` : timer.blockType === "EMOM" && "minute" in view ? `${view.minute}` : "";
-    if (previousStepRef.current && step && previousStepRef.current !== step) {
+    const transitionSound = phaseTransitionSound(previousStepRef.current, step, timer.blockType === "INTERVAL" && "segment" in view && view.segment.kind !== "WORK");
+    if (transitionSound) {
       const isInterval = timer.blockType === "INTERVAL" && "segment" in view;
       setNotice(isInterval ? view.segment.kind === "WORK" ? `Ronda ${view.segment.round}: empieza ${configuration.exercises[view.segment.exerciseIndex]?.name ?? "el trabajo"}` : view.segment.kind === "ROUND_REST" ? "Cambio de ronda" : "Descanso" : `Minuto ${"minute" in view ? view.minute : ""}`);
-      feedback(isInterval && view.segment.kind !== "WORK" ? "rest" : "work");
+      feedback(transitionSound);
       if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
       noticeTimerRef.current = window.setTimeout(() => setNotice(""), 1800);
     }
@@ -133,25 +133,13 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update, c
     return () => window.clearTimeout(scheduled);
   }, [timer.status, view.finished]);
 
-  async function prepareAudio() {
-    try {
-      const AudioConstructor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioConstructor) return false;
-      audioRef.current ??= new AudioConstructor();
-      audioUnlockedRef.current = true;
-      await audioRef.current.resume();
-      return true;
-    } catch { return false; /* Sin audio sigue funcionando. */ }
-  }
-
   function act(action: BlockTimerAction) {
     if (action === "FINISH") { finish(false); return; }
-    const audioReady = prepareAudio();
     const actionTime = Date.now();
     const next = reduceBlockTimer(timer, action, actionTime);
     if (next === timer) return;
     setTimer(next); setNowMs(actionTime);
-    if (action === "START") void audioReady.then((ready) => { if (ready) feedback("work"); });
+    if (action === "START") feedback("work");
     if (action === "RESET") {
       finishingRef.current = false;
       previousStepRef.current = "";
