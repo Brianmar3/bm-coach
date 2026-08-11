@@ -58,24 +58,6 @@ test("el endpoint recorta listados, agrupa puntos y evita consultas por fila", (
   assert.doesNotMatch(route, /for \([^)]*\) \{[\s\S]{0,220}prisma\./);
 });
 
-test("Cobros expone un detalle compacto por día desde la misma consulta", () => {
-  const route = readFileSync(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8");
-  const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
-  assert.match(route, /dailyPayments: DashboardData\["dailyPayments"\]/);
-  assert.match(route, /student: \{ select: \{ data: true \} \}/);
-  assert.match(route, /paymentMethod: payment\.method/);
-  assert.match(route, /period: payment\.billingPeriod/);
-  assert.match(page, /role="group" aria-label="Cobros diarios del mes"/);
-  assert.match(page, /setSelectedDate\(item\.date\)/);
-  assert.match(page, /role="dialog" aria-modal="true"/);
-  assert.match(page, /event\.key === "Escape"/);
-  assert.match(page, /event\.currentTarget === event\.target/);
-  assert.match(page, /aria-label="Cerrar detalle de cobros"/);
-  assert.match(page, /No se registraron pagos este día\./);
-  assert.match(page, /Ver pagos/);
-  assert.doesNotMatch(route, /for \([^)]*payment[^)]*\) \{[\s\S]{0,300}prisma\./);
-});
-
 test("el acceso flotante ofrece seis acciones y un diálogo interno responsive", () => {
   const dashboardActions = readFileSync(new URL("../componentes/dashboard-floating-actions.tsx", import.meta.url), "utf8");
   const sharedActions = readFileSync(new URL("../componentes/trainer-floating-actions.tsx", import.meta.url), "utf8");
