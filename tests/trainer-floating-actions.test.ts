@@ -8,6 +8,8 @@ const students = readFileSync(new URL("../app/alumnos/page.tsx", import.meta.url
 const classes = readFileSync(new URL("../app/clases/page.tsx", import.meta.url), "utf8");
 const routines = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
 const payments = readFileSync(new URL("../app/pagos/page.tsx", import.meta.url), "utf8");
+const evaluations = readFileSync(new URL("../componentes/professional-evaluations-dashboard.tsx", import.meta.url), "utf8");
+const sidebar = readFileSync(new URL("../componentes/sidebar.tsx", import.meta.url), "utf8");
 
 function componentCount(source: string) {
   return source.match(/<TrainerFloatingActions/g)?.length ?? 0;
@@ -31,41 +33,77 @@ test("el sheet cierra por overlay, botón y Escape y administra el foco", () => 
   assert.match(component, /aria-modal="true"/);
 });
 
+test("el modo directo ejecuta una sola acción sin overlay ni segundo toque", () => {
+  const directMode = component.slice(component.indexOf('if (mode === "direct")'), component.indexOf("return <>", component.indexOf('if (mode === "direct")') + 30));
+  assert.match(component, /mode\?: "direct" \| "menu"/);
+  assert.match(directMode, /onClick=\{directAction\.onSelect\}/);
+  assert.doesNotMatch(directMode, /role="dialog"|aria-modal|setOpen/);
+});
+
 test("Alumnos tiene hero limpio y abre Nuevo alumno desde un único acceso flotante", () => {
   const shell = students.slice(students.indexOf("return <ModuleShell"), students.indexOf("{error && !open"));
   assert.doesNotMatch(shell, /action=|\+ Nuevo alumno/);
   assert.equal(componentCount(students), 1);
+  assert.match(students, /<TrainerFloatingActions mode="direct"/);
   assert.match(students, /label: "Nuevo alumno"/);
   assert.match(students, /onSelect: \(\) => void begin\(\)/);
+  assert.match(students, /enabled=\{!open && !viewing\}/);
 });
 
 test("Clases expone Crear horario y Tomar asistencia sin repetir el CTA grande", () => {
   assert.equal(componentCount(classes), 1);
   assert.doesNotMatch(classes, /\+ Crear horario →/);
-  assert.match(classes, /label: "Crear horario"/);
-  assert.match(classes, /label: "Tomar asistencia"/);
-  assert.match(classes, /href: "\/asistencias"/);
+  const floatingAction = classes.slice(classes.indexOf("<TrainerFloatingActions"), classes.indexOf("/>", classes.indexOf("<TrainerFloatingActions")));
+  assert.match(floatingAction, /mode="direct"/);
+  assert.match(floatingAction, /label: "Crear horario"/);
+  assert.doesNotMatch(floatingAction, /Tomar asistencia|\/asistencias/);
+  assert.match(classes, /Tomar asistencia/);
+  assert.match(classes, /scheduleId=.*attendanceDate/);
+  assert.match(classes, /enabled=\{!editorOpen && !viewing\}/);
 });
 
 test("Rutinas conserva creación y plantillas en un único acceso flotante", () => {
   const shell = routines.slice(routines.indexOf("return <ModuleShell"), routines.indexOf("{error && !open"));
   assert.doesNotMatch(shell, /action=/);
   assert.equal(componentCount(routines), 1);
-  assert.match(routines, /label: "Crear rutina"/);
-  assert.match(routines, /label: "Crear plantilla"/);
+  const floatingAction = routines.slice(routines.indexOf("<TrainerFloatingActions"), routines.indexOf("/>", routines.indexOf("<TrainerFloatingActions")));
+  assert.match(floatingAction, /mode="direct"/);
+  assert.match(floatingAction, /label: "Crear rutina"/);
+  assert.doesNotMatch(floatingAction, /Crear plantilla/);
+  assert.match(routines, /activeTab === "plantillas"/);
+  assert.match(routines, /onClick=\{\(\) => begin\(undefined, "template"\)\}/);
+  assert.match(routines, />\+ Crear plantilla<\/button>/);
+  assert.match(routines, /enabled=\{!open && !viewing && !copyFlow && !historyRoutine\}/);
 });
 
 test("Pagos deja el hero limpio y ofrece Registrar pago y Resumen mensual", () => {
   const hero = payments.slice(payments.indexOf('<header className="admin-welcome'), payments.indexOf("</header>"));
   assert.doesNotMatch(hero, /Agregar pago|Registrar pago|Resumen mensual/);
   assert.equal(componentCount(payments), 1);
-  assert.match(payments, /label: "Registrar pago"/);
-  assert.match(payments, /label: "Resumen mensual"/);
-  assert.match(payments, /href: "\/resumen-mensual"/);
+  const floatingAction = payments.slice(payments.indexOf("<TrainerFloatingActions"), payments.indexOf("/>", payments.indexOf("<TrainerFloatingActions")));
+  assert.match(floatingAction, /mode="direct"/);
+  assert.match(floatingAction, /label: "Registrar pago"/);
+  assert.doesNotMatch(floatingAction, /Resumen mensual|\/resumen-mensual/);
+  assert.match(sidebar, /\["Resumen mensual", "\/resumen-mensual"/);
+  assert.match(payments, /enabled=\{!form && !historyAccount\}/);
+});
+
+test("Evaluaciones inicia el flujo directo o enfoca el selector de alumno", () => {
+  assert.equal(componentCount(evaluations), 1);
+  assert.match(evaluations, /<TrainerFloatingActions mode="direct"/);
+  assert.match(evaluations, /label: "Nueva evaluación"/);
+  assert.match(evaluations, /if \(studentId\)[\s\S]{0,80}createEvaluation\(\)/);
+  assert.match(evaluations, /getElementById\("evaluation-student-search"\)/);
+  assert.match(evaluations, /enabled=\{!editor && !selectedEvaluation && !deleteTarget && !creating\}/);
+});
+
+test("Dashboard conserva explícitamente el modo menú", () => {
+  assert.match(dashboardWrapper, /mode="menu"/);
+  assert.match(component, /role="dialog"/);
 });
 
 test("ningún panel agrega navegación inferior nueva", () => {
-  for (const source of [students, classes, routines, payments, component]) {
+  for (const source of [students, classes, routines, payments, evaluations, component]) {
     assert.doesNotMatch(source, /BottomNavigation|bottom navigation|<nav[^>]+fixed[^>]+bottom/i);
   }
 });

@@ -260,7 +260,7 @@ export default function PagosPage() {
 
     {form && <PaymentModal form={form} accounts={data.students} setForm={setForm} error={error} saving={Boolean(savingId)} close={() => { setForm(null); setError(""); }} submit={submit} />}
     {historyAccount && <HistoryModal account={historyAccount} payments={history} loading={historyLoading} savingId={savingId} close={() => setHistoryAccount(null)} edit={editPayment} voidPayment={voidPayment} />}
-    <TrainerFloatingActions enabled={!form && !historyAccount} actions={[{ label: "Registrar pago", symbol: "+", onSelect: () => begin() }, { label: "Resumen mensual", symbol: <PaymentIcon name="summary" />, href: "/resumen-mensual" }]} />
+    <TrainerFloatingActions mode="direct" enabled={!form && !historyAccount} actions={[{ label: "Registrar pago", symbol: "+", onSelect: () => begin() }]} />
   </ModuleShell>;
 }
 

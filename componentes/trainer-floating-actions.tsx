@@ -13,11 +13,13 @@ export type TrainerFloatingAction = {
 export function TrainerFloatingActions({
   actions,
   enabled = true,
+  mode = "menu",
   title = "Acciones rápidas",
   description = "Elegí una acción para continuar.",
 }: {
   actions: TrainerFloatingAction[];
   enabled?: boolean;
+  mode?: "direct" | "menu";
   title?: string;
   description?: string;
 }) {
@@ -47,9 +49,17 @@ export function TrainerFloatingActions({
   }, [open]);
 
   if (!enabled || actions.length === 0) return null;
+  const directAction = actions[0];
+  const floatingClassName = "fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[65] grid h-14 w-14 place-items-center rounded-full border border-yellow-100/30 bg-yellow-400 text-3xl font-light text-zinc-950 shadow-[0_10px_35px_rgba(250,204,21,.28)] transition hover:bg-yellow-300 active:scale-95 md:bottom-6 md:right-6 md:h-16 md:w-16";
+  if (mode === "direct") return <>
+    <div className="h-20" aria-hidden="true" />
+    {directAction.href
+      ? <Link href={directAction.href} data-trainer-floating-trigger aria-label={directAction.label} className={floatingClassName}><span aria-hidden="true">+</span></Link>
+      : <button type="button" data-trainer-floating-trigger aria-label={directAction.label} onClick={directAction.onSelect} className={floatingClassName}><span aria-hidden="true">+</span></button>}
+  </>;
   return <>
     <div className="h-20" aria-hidden="true" />
-    <button ref={triggerRef} type="button" data-trainer-floating-trigger aria-label={open ? "Cerrar acciones rápidas" : "Abrir acciones rápidas"} aria-expanded={open} aria-controls={dialogId} onClick={() => setOpen((value) => !value)} className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[65] grid h-14 w-14 place-items-center rounded-full border border-yellow-100/30 bg-yellow-400 text-3xl font-light text-zinc-950 shadow-[0_10px_35px_rgba(250,204,21,.28)] transition hover:bg-yellow-300 active:scale-95 md:bottom-6 md:right-6 md:h-16 md:w-16">
+    <button ref={triggerRef} type="button" data-trainer-floating-trigger aria-label={open ? "Cerrar acciones rápidas" : "Abrir acciones rápidas"} aria-expanded={open} aria-controls={dialogId} onClick={() => setOpen((value) => !value)} className={floatingClassName}>
       <span aria-hidden="true" className={`transition-transform ${open ? "rotate-45" : ""}`}>+</span>
     </button>
     {open && <div className="fixed inset-0 z-[60] flex items-end bg-black/70 backdrop-blur-sm md:items-center md:justify-center md:p-6" onPointerDown={() => close()}>

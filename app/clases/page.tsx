@@ -203,7 +203,7 @@ export default function ClasesPage() {
 
       {viewing && <ScheduleDetail schedule={viewing} close={() => setViewing(null)} edit={() => begin(viewing)} changeActive={() => changeActive(viewing)} remove={() => remove(viewing)} />}
       {editorOpen && <ScheduleEditor form={form} setForm={setForm} students={students} studentQuery={studentQuery} setStudentQuery={setStudentQuery} error={error} saving={saving} editing={Boolean(editing)} close={closeEditor} save={save} />}
-      <TrainerFloatingActions enabled={!editorOpen && !viewing} actions={[{ label: "Crear horario", symbol: "+", onSelect: () => begin() }, { label: "Tomar asistencia", symbol: "✓", href: "/asistencias" }]} />
+      <TrainerFloatingActions mode="direct" enabled={!editorOpen && !viewing} actions={[{ label: "Crear horario", symbol: "+", onSelect: () => begin() }]} />
     </ModuleShell>
   );
 }

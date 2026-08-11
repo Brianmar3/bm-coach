@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { EvaluationBodyMap, EvaluationLineChart, EvaluationStatusSummary, EvaluationTests } from "@/componentes/evaluation-insights";
 import { BMProgressCard, EvaluationComparisonPanel, EvaluationSymmetryPanel } from "@/componentes/evaluation-progress-panels";
 import { EvaluationWizard } from "@/componentes/student-evaluations";
@@ -174,6 +175,18 @@ export function ProfessionalEvaluationsDashboard() {
     await Promise.all([loadSummary(), loadDetail(studentId)]).catch(() => undefined);
   }
 
+  function startNewEvaluation() {
+    if (studentId) {
+      void createEvaluation();
+      return;
+    }
+    requestAnimationFrame(() => {
+      const search = document.getElementById("evaluation-student-search");
+      search?.scrollIntoView({ block: "center", behavior: "smooth" });
+      search?.focus();
+    });
+  }
+
   if (loading) return <ModuleShell title="Evaluaciones" subtitle="Alumnos personalizados y mixtos"><Card className="p-5"><p className="text-sm text-zinc-400">Cargando fichas de alumnos…</p></Card></ModuleShell>;
 
   return <ModuleShell title="Evaluaciones" subtitle="Alumnos personalizados y mixtos">
@@ -184,6 +197,7 @@ export function ProfessionalEvaluationsDashboard() {
     {selectedEvaluation && <EvaluationDetail evaluation={selectedEvaluation} history={history} onClose={() => setSelectedEvaluationId("")} onEdit={() => void openEditor(selectedEvaluation.id)} />}
     {deleteTarget && <Overlay title="Eliminar evaluación" close={() => !deleting && setDeleteTarget(null)}><p className="mt-5 text-sm leading-6 text-zinc-300">¿Querés eliminar la evaluación del <strong className="text-white">{showDate(deleteTarget.date)}</strong>?</p><p className="mt-3 rounded-xl border border-red-400/15 bg-red-400/[.05] p-3 text-sm text-zinc-400">Se eliminarán los datos asociados exclusivamente a esta evaluación. Esta acción no se puede deshacer.</p><div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><ActionButton onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancelar</ActionButton><button type="button" disabled={deleting} onClick={() => void deleteEvaluation()} className="min-h-11 rounded-xl border border-red-400/35 bg-red-400/10 px-4 text-sm font-bold text-red-200 disabled:opacity-50">{deleting ? "Eliminando…" : "Eliminar evaluación"}</button></div></Overlay>}
     {editor && <EvaluationWizard initial={editor} baseUrl={`/api/admin/alumnos/${editor.studentId}/evaluaciones`} profileWeight={0} profileHeight={0} birthDate={student?.birthDate ?? ""} onClose={() => void closeEditor()} />}
+    <TrainerFloatingActions mode="direct" enabled={!editor && !selectedEvaluation && !deleteTarget && !creating} actions={[{ label: "Nueva evaluación", symbol: "+", onSelect: startNewEvaluation }]} />
   </ModuleShell>;
 }
 

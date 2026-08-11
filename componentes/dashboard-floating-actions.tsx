@@ -12,5 +12,5 @@ const actions = [
 ] as const;
 
 export function DashboardFloatingActions({ enabled = true }: { enabled?: boolean }) {
-  return <TrainerFloatingActions enabled={enabled} title="Agregar rápido" actions={[...actions]} />;
+  return <TrainerFloatingActions enabled={enabled} mode="menu" title="Agregar rápido" actions={[...actions]} />;
 }
