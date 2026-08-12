@@ -169,6 +169,44 @@ test("simulación 10 s trabajo, 5 s descanso y 2 vueltas conserva la secuencia p
   assert.deepEqual(["work", ...phaseSounds, "finish"], ["work", "rest", "work", "finish"]);
 });
 
+test("3 ejercicios de 30 s, 3 rondas y descanso no duplican el último ejercicio", () => {
+  const exact = { ...configuration, rounds: 3, workSeconds: 30, restSeconds: 0, restBetweenRoundsSeconds: 15, exercises: [...exercises, { exerciseId: "c", name: "Dead bug", order: 3 }] };
+  const sequence = intervalSegments(exact).map((segment) => `${segment.kind}:R${segment.round}:E${segment.exerciseIndex + 1}`);
+  assert.deepEqual(sequence, [
+    "WORK:R1:E1", "WORK:R1:E2", "WORK:R1:E3", "ROUND_REST:R1:E3",
+    "WORK:R2:E1", "WORK:R2:E2", "WORK:R2:E3", "ROUND_REST:R2:E3",
+    "WORK:R3:E1", "WORK:R3:E2", "WORK:R3:E3",
+  ]);
+  assert.equal(sequence.some((step, index) => step === "WORK:R1:E3" && sequence[index + 1] === "WORK:R1:E3"), false);
+
+  const paused = { ...initialBlockTimer("exact", "INTERVAL"), status: "paused" as const };
+  const endRoundOne = blockTimerView({ ...paused, elapsedSeconds: 90 }, exact, 0);
+  assert.equal(endRoundOne.segment.kind, "ROUND_REST");
+  assert.equal(endRoundOne.segment.exerciseIndex, 2);
+  const startRoundTwo = blockTimerView({ ...paused, elapsedSeconds: 105 }, exact, 0);
+  assert.equal(startRoundTwo.segment.kind, "WORK");
+  assert.equal(startRoundTwo.segment.round, 2);
+  assert.equal(startRoundTwo.segment.exerciseIndex, 0);
+  assert.equal(blockTimerView({ ...paused, elapsedSeconds: 300 }, exact, 0).finished, true);
+});
+
+test("fin de ronda usa descanso, nueva ronda usa trabajo y el final total usa finish", () => {
+  assert.equal(phaseTransitionSound("2", "3", true), "rest");
+  assert.equal(phaseTransitionSound("3", "4", false), "work");
+  assert.match(timerComponent, /window\.setTimeout\(\(\) => finish\(true\), 0\)/);
+  assert.match(timerComponent, /const currentExercise = resting \? null/);
+  assert.match(timerComponent, /resting \? "Descanso"/);
+  assert.match(timerComponent, /const current = !resting && index === exerciseIndex/);
+});
+
+test("casos borde mantienen una secuencia sin rondas ni ejercicios extra", () => {
+  const oneExercise = [exercises[0]];
+  assert.deepEqual(intervalSegments({ ...configuration, rounds: 1, exercises: oneExercise }).map((item) => item.kind), ["WORK"]);
+  assert.deepEqual(intervalSegments({ ...configuration, rounds: 3, exercises: oneExercise, restBetweenRoundsSeconds: 5 }).map((item) => item.kind), ["WORK", "ROUND_REST", "WORK", "ROUND_REST", "WORK"]);
+  assert.deepEqual(intervalSegments({ ...configuration, rounds: 1, restSeconds: 0, restBetweenRoundsSeconds: 0 }).map((item) => item.kind), ["WORK", "WORK"]);
+  assert.deepEqual(intervalSegments({ ...configuration, rounds: 3, exercises: oneExercise, restSeconds: 0, restBetweenRoundsSeconds: 0 }).map((item) => item.kind), ["WORK", "WORK", "WORK"]);
+});
+
 test("el ejercicio actual, objetivo, siguiente y lista tienen jerarquía móvil", () => {
   for (const text of ["Ejercicio actual", "Ejercicio {exerciseIndex + 1} de", "Siguiente:", "Ejercicios del circuito", "data-exercise-state"]) assert.match(timerComponent, new RegExp(text.replace(/[{}+]/g, "\\$&")));
   assert.match(timerComponent, /text-2xl/);
