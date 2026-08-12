@@ -9,6 +9,9 @@ import {
   type PortalAttendancePeriod,
   type PortalAttendanceRecord,
 } from "@/lib/portal-attendance";
+import { addDateDays, weekRange } from "@/lib/weekly-attendance";
+import { weeklyCompliance } from "@/lib/weekly-compliance";
+import { hasGroupClasses } from "@/lib/student-service";
 
 export async function loadPortalAttendanceRange(studentId: string, start: string, endExclusive: string) {
   const range = { gte: dateKeyToDatabase(start), lt: dateKeyToDatabase(endExclusive) };
@@ -64,6 +67,60 @@ export async function loadPortalAttendanceRange(studentId: string, start: string
 
 export async function loadPortalAttendance(studentId: string, periodKey: PortalAttendancePeriod, todayKey: string) {
   const period = portalAttendancePeriod(periodKey, todayKey);
-  const records = await loadPortalAttendanceRange(studentId, period.start, period.endExclusive);
+  const firstWeek = weekRange(period.start);
+  const lastWeek = weekRange(addDateDays(period.endExclusive, -1));
+  const expandedStart = firstWeek?.start ?? period.start;
+  const expandedEnd = lastWeek?.endExclusive ?? period.endExclusive;
+  const [rawRecords, student] = await Promise.all([
+    loadPortalAttendanceRange(studentId, expandedStart, expandedEnd),
+    prisma.studentRecord.findUnique({
+      where: { id: studentId },
+      select: {
+        membershipHistory: {
+          where: {
+            startDate: { lt: dateKeyToDatabase(expandedEnd) },
+            OR: [{ endDate: null }, { endDate: { gte: dateKeyToDatabase(expandedStart) } }],
+          },
+          select: { startDate: true, endDate: true, frequencyDays: true, serviceType: true },
+          orderBy: { startDate: "asc" },
+        },
+      },
+    }),
+  ]);
+  const currentWeek = weekRange(todayKey)?.start ?? todayKey;
+  const derived: PortalAttendanceRecord[] = [];
+  if (student) {
+    for (let weekStart = expandedStart; weekStart < expandedEnd; weekStart = addDateDays(weekStart, 7)) {
+      if (weekStart >= currentWeek) continue;
+      const range = weekRange(weekStart);
+      if (!range) continue;
+      const membership = student.membershipHistory.filter((item) => {
+        const start = item.startDate.toISOString().slice(0, 10);
+        const end = item.endDate?.toISOString().slice(0, 10) ?? null;
+        return start < range.endExclusive && (!end || end >= range.start);
+      }).at(-1);
+      if (!membership) continue;
+      const serviceType = membership.serviceType;
+      const expected = membership.frequencyDays ?? 0;
+      if (!hasGroupClasses(serviceType) || expected <= 0) continue;
+      const weekRecords = rawRecords.filter((record) => record.date >= range.start && record.date < range.endExclusive);
+      const closure = weeklyCompliance(expected, weekRecords, true);
+      for (let index = 0; index < closure.automaticAbsent; index += 1) {
+        derived.push({
+          id: `weekly-closure:${studentId}:${range.start}:${index + 1}`,
+          date: range.end,
+          className: "Cierre semanal automático",
+          startTime: "",
+          endTime: "",
+          status: "ABSENT",
+          source: "weekly-closure",
+          scheduleId: null,
+        });
+      }
+    }
+  }
+  const records = [...rawRecords, ...derived]
+    .filter((record) => record.date >= period.start && record.date < period.endExclusive)
+    .sort((left, right) => right.date.localeCompare(left.date) || right.startTime.localeCompare(left.startTime));
   return { period, ...summarizePortalAttendance(records), records };
 }

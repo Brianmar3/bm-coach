@@ -10,7 +10,7 @@ export type PortalAttendanceRecord = {
   startTime: string;
   endTime: string;
   status: PortalAttendanceStatus;
-  source: "current" | "legacy";
+  source: "current" | "legacy" | "weekly-closure";
   scheduleId: string | null;
 };
 

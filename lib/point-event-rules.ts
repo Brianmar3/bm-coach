@@ -44,22 +44,20 @@ export function effectivePointDate(value: Date | string) {
 
 export function buildValidPointEvents(input: PointEventInputs): ValidPointEvent[] {
   const events: ValidPointEvent[] = [];
-  for (const item of input.legacyAttendances ?? []) {
-    events.push({
-      eventKey: `attendance:legacy:${item.id}`,
-      eventType: "ATTENDANCE",
-      sourceType: "LEGACY_ATTENDANCE",
-      sourceId: item.id,
-      points: POINT_RULES.ATTENDANCE,
-      description: item.description,
-      occurredAt: effectivePointDate(item.date),
-    });
+  const attendanceByDate = new Map<string, { item: AttendanceInput; sourceType: "CLASS_OCCURRENCE_ATTENDANCE" | "LEGACY_ATTENDANCE"; prefix: "occurrence" | "legacy" }>();
+  for (const item of [...(input.occurrenceAttendances ?? [])].sort((left, right) => left.id.localeCompare(right.id))) {
+    const date = effectivePointDate(item.date).toISOString().slice(0, 10);
+    if (!attendanceByDate.has(date)) attendanceByDate.set(date, { item, sourceType: "CLASS_OCCURRENCE_ATTENDANCE", prefix: "occurrence" });
   }
-  for (const item of input.occurrenceAttendances ?? []) {
+  for (const item of [...(input.legacyAttendances ?? [])].sort((left, right) => left.id.localeCompare(right.id))) {
+    const date = effectivePointDate(item.date).toISOString().slice(0, 10);
+    if (!attendanceByDate.has(date)) attendanceByDate.set(date, { item, sourceType: "LEGACY_ATTENDANCE", prefix: "legacy" });
+  }
+  for (const { item, sourceType, prefix } of attendanceByDate.values()) {
     events.push({
-      eventKey: `attendance:occurrence:${item.id}`,
+      eventKey: `attendance:${prefix}:${item.id}`,
       eventType: "ATTENDANCE",
-      sourceType: "CLASS_OCCURRENCE_ATTENDANCE",
+      sourceType,
       sourceId: item.id,
       points: POINT_RULES.ATTENDANCE,
       description: item.description,

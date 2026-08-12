@@ -1,3 +1,5 @@
+import { weeklyCompliance } from "./weekly-compliance.ts";
+
 export const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 
 export type WeeklyAttendanceState =
@@ -33,6 +35,10 @@ export type WeeklyAttendanceStudent = {
   absent: number;
   justified: number;
   percentage: number | null;
+  expected: number;
+  completedDays: number;
+  automaticAbsent: number;
+  weekClosed: boolean;
 };
 
 export type WeeklyAttendanceResponse = {
@@ -152,8 +158,8 @@ export function weeklyAttendanceDisplayDays<T extends { date: string }>(days: T[
   return days.filter((day) => isWeeklyAttendanceDisplayDate(day.date));
 }
 
-export function attendancePercentage(present: number, absent: number) {
-  const denominator = present + absent;
+export function attendancePercentage(present: number, absent: number, justified = 0) {
+  const denominator = present + absent + justified;
   return denominator ? Math.round((present / denominator) * 1000) / 10 : null;
 }
 
@@ -172,11 +178,20 @@ export function assignmentCoversDateKeys(assignedAt: string, endedAt: string | n
   return assignedAt <= date && (!endedAt || endedAt >= date);
 }
 
-export function summarizeStudent(student: Omit<WeeklyAttendanceStudent, "present" | "absent" | "justified" | "percentage">): WeeklyAttendanceStudent {
-  const present = student.entries.filter((entry) => entry.status === "PRESENT").length;
-  const absent = student.entries.filter((entry) => entry.status === "ABSENT").length;
-  const justified = student.entries.filter((entry) => entry.status === "JUSTIFIED").length;
-  return { ...student, present, absent, justified, percentage: attendancePercentage(present, absent) };
+export function summarizeStudent(student: Omit<WeeklyAttendanceStudent, "present" | "absent" | "justified" | "percentage" | "expected" | "completedDays" | "automaticAbsent" | "weekClosed"> & { expected?: number; weekClosed?: boolean }): WeeklyAttendanceStudent {
+  const compliance = weeklyCompliance(student.expected, student.entries, student.weekClosed ?? false);
+  const absent = compliance.manualAbsent + compliance.automaticAbsent;
+  return {
+    ...student,
+    present: compliance.presentDays,
+    absent,
+    justified: compliance.justified,
+    percentage: attendancePercentage(compliance.presentDays, absent, compliance.justified),
+    expected: compliance.expected,
+    completedDays: compliance.presentDays,
+    automaticAbsent: compliance.automaticAbsent,
+    weekClosed: compliance.closed,
+  };
 }
 
 export function filterWeeklyStudents(students: WeeklyAttendanceStudent[], filters: WeeklyAttendanceFilters) {
@@ -208,16 +223,29 @@ const CSV_STATUS: Record<WeeklyAttendanceState, string> = {
 
 export function weeklyAttendanceCsv(data: WeeklyAttendanceResponse, students = data.students) {
   const header = ["Semana", "Alumno", "Disciplina", "Fecha", "Horario", "Estado", "Observación", "Servicio", "Porcentaje semanal"];
-  const rows = students.flatMap((student) => student.entries.map((entry) => [
-    data.metadata.label,
-    student.name,
-    entry.discipline,
-    entry.date,
-    entry.startTime && entry.endTime ? `${entry.startTime}-${entry.endTime}` : entry.startTime,
-    CSV_STATUS[entry.status],
-    entry.observation ?? "No disponible",
-    student.service ?? "No disponible",
-    student.percentage === null ? "No disponible" : student.percentage,
-  ]));
+  const rows = students.flatMap((student) => [
+    ...student.entries.map((entry) => [
+      data.metadata.label,
+      student.name,
+      entry.discipline,
+      entry.date,
+      entry.startTime && entry.endTime ? `${entry.startTime}-${entry.endTime}` : entry.startTime,
+      CSV_STATUS[entry.status],
+      entry.observation ?? "No disponible",
+      student.service ?? "No disponible",
+      student.percentage === null ? "No disponible" : student.percentage,
+    ]),
+    ...Array.from({ length: student.automaticAbsent }, () => [
+      data.metadata.label,
+      student.name,
+      "Cierre semanal",
+      data.metadata.end,
+      "",
+      "Ausente",
+      "Automático por cierre semanal",
+      student.service ?? "No disponible",
+      student.percentage === null ? "No disponible" : student.percentage,
+    ]),
+  ]);
   return `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 }

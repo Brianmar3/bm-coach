@@ -32,7 +32,7 @@ export type WeeklyMissionAssignment = {
 const WEEKDAY = { MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5 } as const;
 
 export function weeklyMissionTitle(target: number) {
-  return target === 1 ? "Completá tu clase programada" : `Completá tus ${target} clases programadas`;
+  return target === 1 ? "Completá tu entrenamiento semanal" : `Completá tus ${target} entrenamientos semanales`;
 }
 
 export function weeklyMissionMessage(progress: number, target: number, state: WeeklyMissionState) {
@@ -76,8 +76,10 @@ export function getWeeklyMissionProgress(input: {
   };
 }
 
-export function weeklyMissionAttendanceProgress(records: Array<{ status: string }>) {
-  return records.filter((record) => record.status === "PRESENT").length;
+export function weeklyMissionAttendanceProgress(records: Array<{ status: string; date?: string }>) {
+  const present = records.filter((record) => record.status === "PRESENT");
+  const dated = present.filter((record): record is { status: string; date: string } => Boolean(record.date));
+  return dated.length === present.length ? new Set(dated.map((record) => record.date)).size : present.length;
 }
 
 export function scheduledWeeklyMissionClasses(input: {

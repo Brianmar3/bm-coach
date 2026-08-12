@@ -19,6 +19,8 @@ import {
   type WeeklyAttendanceEntry,
   type WeeklyAttendanceResponse,
 } from "../lib/weekly-attendance.ts";
+import { weeklyCompliance } from "../lib/weekly-compliance.ts";
+import { hasGroupClasses } from "../lib/student-service.ts";
 
 function entry(status: WeeklyAttendanceEntry["status"], date = "2026-07-27", id: string = status): WeeklyAttendanceEntry {
   return { id, occurrenceId: `occ-${id}`, scheduleId: "functional-18", date, startTime: "18:00", endTime: "19:00", discipline: "Funcional", status, recordedAt: null, observation: null, recordedBy: null, method: null };
@@ -66,10 +68,10 @@ test("presentes y ausentes forman el porcentaje esperado", () => {
   assert.equal(student.percentage, 66.7);
 });
 
-test("justificadas no se confunden con presentes y se excluyen del porcentaje", () => {
+test("justificadas no se confunden con presentes y forman parte del porcentaje", () => {
   const result = summarizeStudent({ ...student, entries: [entry("PRESENT"), entry("JUSTIFIED", "2026-07-29")] });
   assert.equal(result.justified, 1);
-  assert.equal(result.percentage, 100);
+  assert.equal(result.percentage, 50);
 });
 
 test("canceladas y sin registro no crean faltas", () => {
@@ -102,10 +104,50 @@ test("la asignación solo cubre su intervalo fechado", () => {
   assert.equal(assignmentCoversDateKeys("2026-07-27", "2026-07-29", "2026-07-30"), false);
 });
 
-test("dos clases del mismo día se conservan por separado", () => {
+test("dos clases del mismo día se conservan en historial pero cumplen una sola vez", () => {
   const result = summarizeStudent({ ...student, entries: [entry("PRESENT", "2026-07-27", "functional"), { ...entry("PRESENT", "2026-07-27", "gap"), discipline: "GAP", scheduleId: "gap-19" }] });
   assert.equal(result.entries.length, 2);
-  assert.equal(result.present, 2);
+  assert.equal(result.present, 1);
+});
+
+test("el cierre semanal usa frecuencia y presentes reales sin depender del horario", () => {
+  const records = [
+    { date: "2026-08-03", status: "PRESENT" },
+    { date: "2026-08-05", status: "PRESENT" },
+  ];
+  assert.deepEqual(weeklyCompliance(3, records, true), {
+    expected: 3, presentDays: 2, manualAbsent: 0, justified: 0,
+    automaticAbsent: 1, resolved: 2, closed: true,
+  });
+  assert.equal(weeklyCompliance(3, [...records, { date: "2026-08-07", status: "PRESENT" }], true).automaticAbsent, 0);
+  assert.equal(weeklyCompliance(5, [...records, { date: "2026-08-06", status: "PRESENT" }, { date: "2026-08-07", status: "PRESENT" }], true).automaticAbsent, 1);
+  assert.equal(weeklyCompliance(2, [
+    { date: "2026-08-03", status: "PRESENT" },
+    { date: "2026-08-03", status: "PRESENT" },
+  ], true).automaticAbsent, 1);
+});
+
+test("ausente y justificado manuales resuelven cupos sin ser sobrescritos", () => {
+  const result = weeklyCompliance(3, [
+    { date: "2026-08-03", status: "PRESENT" },
+    { date: "2026-08-05", status: "ABSENT" },
+    { date: "2026-08-07", status: "JUSTIFIED" },
+  ], true);
+  assert.equal(result.manualAbsent, 1);
+  assert.equal(result.justified, 1);
+  assert.equal(result.automaticAbsent, 0);
+});
+
+test("la semana actual no cierra y el cálculo repetido es idempotente", () => {
+  const records = [{ date: "2026-08-10", status: "PRESENT" }];
+  assert.equal(weeklyCompliance(3, records, false).automaticAbsent, 0);
+  assert.deepEqual(weeklyCompliance(3, records, true), weeklyCompliance(3, records, true));
+});
+
+test("Personalizado puro queda fuera; Clases y Mixto participan", () => {
+  assert.equal(hasGroupClasses("PERSONALIZED"), false);
+  assert.equal(hasGroupClasses("CLASSES"), true);
+  assert.equal(hasGroupClasses("MIXED"), true);
 });
 
 test("los filtros combinan disciplina, estado, servicio, faltas y asistencia baja", () => {

@@ -16,6 +16,8 @@ import {
   type WeeklyAttendanceState,
 } from "@/lib/weekly-attendance";
 import type { Student } from "@/types/gestion";
+import { planDays } from "@/lib/student-enrollment";
+import { hasGroupClasses } from "@/lib/student-service";
 
 const SERVICE_LABEL = {
   CLASSES: "Clases",
@@ -125,7 +127,7 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
         startDate: { lt: endDate },
         OR: [{ endDate: null }, { endDate: { gte: startDate } }],
       },
-      select: { studentId: true, startDate: true, endDate: true, planName: true, serviceType: true },
+      select: { studentId: true, startDate: true, endDate: true, planName: true, serviceType: true, frequencyDays: true, status: true },
       orderBy: { startDate: "asc" },
     }),
     prisma.studentStatusEvent.findMany({
@@ -226,6 +228,22 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
   }
 
   const historical = range.start < mondayForCurrentWeek();
+  for (const student of students) {
+    const data = studentData(student.data);
+    const events = eventsByStudent.get(student.id) ?? [];
+    const activeDuringWeek = weekDays(range.start).some((day) => historicalStatusAllowsClass(day.date, data, events));
+    const membershipsForWeek = (membershipByStudent.get(student.id) ?? []).filter((membership) => {
+      const start = databaseDateKey(membership.startDate);
+      const end = membership.endDate ? databaseDateKey(membership.endDate) : null;
+      return start < range.endExclusive && (!end || end >= range.start);
+    });
+    const currentMembership = membershipsForWeek.at(-1);
+    const serviceType = currentMembership?.serviceType ?? (!historical ? student.serviceType : null);
+    const expected = currentMembership?.frequencyDays ?? (!historical ? planDays(data.plan ?? "") : null) ?? 0;
+    if (activeDuringWeek && serviceType && hasGroupClasses(serviceType) && expected > 0 && !entriesByStudent.has(student.id)) {
+      entriesByStudent.set(student.id, new Map());
+    }
+  }
   const weeklyStudents = [...entriesByStudent].flatMap(([studentId, entryMap]) => {
     const student = studentById.get(studentId);
     if (!student) return [];
@@ -237,6 +255,8 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
     });
     const serviceSet = new Set(membershipsForWeek.map((membership) => SERVICE_LABEL[membership.serviceType]));
     const planSet = new Set(membershipsForWeek.map((membership) => membership.planName).filter(Boolean));
+    const currentMembership = membershipsForWeek.at(-1);
+    const expected = currentMembership?.frequencyDays ?? (!historical ? planDays(studentData(student.data).plan ?? "") : null) ?? 0;
     if (historical && membershipsForWeek.length === 0) missingMembership = true;
     return [summarizeStudent({
       id: student.id,
@@ -245,14 +265,16 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
       service: serviceSet.size > 1 ? "Varios" : [...serviceSet][0] ?? (historical ? null : SERVICE_LABEL[student.serviceType]),
       plan: planSet.size > 1 ? "Varios" : [...planSet][0] ?? null,
       entries,
+      expected,
+      weekClosed: historical,
     })];
   }).sort((left, right) => left.name.localeCompare(right.name, "es"));
 
   const allEntries = weeklyStudents.flatMap((student) => student.entries);
-  const present = allEntries.filter((entry) => entry.status === "PRESENT").length;
-  const absent = allEntries.filter((entry) => entry.status === "ABSENT").length;
-  const justified = allEntries.filter((entry) => entry.status === "JUSTIFIED").length;
-  const attendanceDenominator = present + absent;
+  const present = weeklyStudents.reduce((sum, student) => sum + student.present, 0);
+  const absent = weeklyStudents.reduce((sum, student) => sum + student.absent, 0);
+  const justified = weeklyStudents.reduce((sum, student) => sum + student.justified, 0);
+  const attendanceDenominator = present + absent + justified;
   const studentsWithRecordedState = weeklyStudents.filter((student) => student.present + student.absent + student.justified > 0).length;
   const completedClassKeys = new Set<string>();
   for (const occurrence of occurrences) {
@@ -270,7 +292,9 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
   );
 
   const warnings = [
-    "Las asistencias, faltas y justificadas mostradas provienen de registros persistidos. Un horario sin estado se muestra como Sin registro y nunca se convierte automáticamente en ausencia.",
+    historical
+      ? "Los estados manuales provienen de registros persistidos. Los faltantes se derivan al consultar la semana cerrada y no crean filas en la base de datos."
+      : "La semana actual permanece abierta: Sin registro sigue pendiente y no genera ausencias anticipadas.",
     "Los registros actuales no guardan observación, actor ni método de carga; esos campos figuran como No disponible.",
   ];
   if (historical && inferredAssignmentOpportunity) warnings.push("Las asistencias registradas son reales. Algunas oportunidades se obtienen de intervalos de asignación; las reasignaciones antiguas pueden no estar completas.");

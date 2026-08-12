@@ -50,6 +50,17 @@ test("el total del desglose coincide con la suma de movimientos", () => {
   assert.equal(events.reduce((sum, item) => sum + item.points, 0), 8);
 });
 
+test("dos presentes del mismo día generan un solo evento de puntos", () => {
+  const events = buildValidPointEvents({
+    occurrenceAttendances: [
+      { id: "morning", date: "2026-08-03", description: "Clase 07:00" },
+      { id: "afternoon", date: "2026-08-03", description: "Clase 15:30" },
+    ],
+  });
+  assert.equal(events.filter((event) => event.eventType === "ATTENDANCE").length, 1);
+  assert.equal(events.reduce((sum, event) => sum + event.points, 0), 5);
+});
+
 test("el recálculo previene doble toque y conserva el desempate existente", () => {
   const component = readFileSync(new URL("../componentes/points-ranking.tsx", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/admin/ranking/route.ts", import.meta.url), "utf8");

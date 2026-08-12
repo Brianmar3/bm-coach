@@ -74,6 +74,14 @@ test("sólo PRESENT suma; ausente, justificada y confirmación no cuentan", () =
   ]), 1);
 });
 
+test("la misión cuenta presentes fuera de horario y máximo una vez por día", () => {
+  assert.equal(weeklyMissionAttendanceProgress([
+    { status: "PRESENT", date: "2026-08-03" },
+    { status: "PRESENT", date: "2026-08-03" },
+    { status: "PRESENT", date: "2026-08-05" },
+  ]), 2);
+});
+
 test("sin horarios asignados no existe target ni misión posible", () => {
   assert.deepEqual(scheduled({ assignments: [] }), []);
 });
@@ -85,9 +93,9 @@ test("Personalizado puro no puede resolver una misión basada en clases", () => 
 
   const source = readFileSync(new URL("../lib/weekly-mission-data.ts", import.meta.url), "utf8");
   const resolver = source.slice(source.indexOf("export async function resolveCurrentWeeklyMission"), source.indexOf("export async function loadCurrentWeeklyMission"));
-  assert.match(resolver, /select: \{ serviceType: true \}/);
-  assert.match(resolver, /!hasGroupClasses\(studentRecord\.serviceType\)\) return null/);
-  assert.ok(resolver.indexOf("!hasGroupClasses") < resolver.indexOf("studentWeeklyMission.findMany"));
+  assert.match(source, /if \(!hasGroupClasses\(serviceType\) \|\| target <= 0\) return null/);
+  assert.match(resolver, /const configuration = await missionConfiguration/);
+  assert.ok(resolver.indexOf("if (!configuration) return null") < resolver.indexOf("studentWeeklyMission.findMany"));
 });
 
 test("Puntos oculta por completo la misión inexistente y conserva puntos y logros", () => {
@@ -109,18 +117,19 @@ test("la oferta general no contamina el target: cinco turnos disponibles y dos a
   assert.equal(scheduled({ assignments: [] }).length, 0);
 });
 
-test("la misión usa asignaciones persistidas y no inventa clases para completar la frecuencia del plan", () => {
-  const onlyTwoRealAssignments = assignments.slice(0, 2);
-  assert.equal(scheduled({ assignments: onlyTwoRealAssignments }).length, 2);
+test("la misión nueva usa frecuencia histórica o plan y no exige matching de horario", () => {
   const source = readFileSync(new URL("../lib/weekly-mission-data.ts", import.meta.url), "utf8");
-  assert.match(source, /weeklyClasses: \{ include: \{ schedule: true \} \}/);
-  assert.doesNotMatch(source, /weeklyFrequency|planDays|frequencyDays/);
+  assert.match(source, /membershipHistory/);
+  assert.match(source, /frequencyDays/);
+  assert.match(source, /planDays/);
+  assert.doesNotMatch(source, /allowed\.has/);
 });
 
-test("los horarios legacy no se infieren: sólo una WeeklyClassAssignment vigente crea target", () => {
+test("los horarios legacy no se infieren ni limitan el cumplimiento real", () => {
   const source = readFileSync(new URL("../lib/weekly-mission-data.ts", import.meta.url), "utf8");
-  assert.match(source, /studentRecord\.weeklyClasses\.map/);
   assert.doesNotMatch(source, /primaryScheduleId|flexibleSchedule/);
+  assert.doesNotMatch(source, /studentRecord\.weeklyClasses\.map/);
+  assert.match(source, /loadPortalAttendanceRange/);
 });
 
 test("un alumno inactivo no acumula clases programadas", () => {

@@ -55,4 +55,7 @@ test("Home y detalle comparten el mismo resumen y nunca consultan confirmaciones
   assert.match(endpoint, /getPortalSession/);
   assert.match(endpoint, /session\.studentId/);
   assert.doesNotMatch(endpoint, /searchParams\.get\("studentId"\)/);
+  assert.match(detail, /weeklyCompliance/);
+  assert.match(detail, /source: "weekly-closure"/);
+  assert.match(detail, /hasGroupClasses/);
 });
