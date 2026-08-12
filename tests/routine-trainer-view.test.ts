@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { searchStudents } from "../lib/student-search.ts";
 import { isActivePainReport, routineTrainingLocation } from "../lib/routine-follow-up-filters.ts";
+import { routineArrowDirection, routineControlNeedsScroll } from "../lib/routine-keyboard-navigation.ts";
 
 const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
 
@@ -33,6 +34,7 @@ const management = readFileSync(new URL("../componentes/routine-management-panel
 const followUp = readFileSync(new URL("../componentes/routine-follow-up.tsx", import.meta.url), "utf8");
 const followUpApi = readFileSync(new URL("../app/api/seguimiento/route.ts", import.meta.url), "utf8");
 const routinesApi = readFileSync(new URL("../app/api/rutinas/route.ts", import.meta.url), "utf8");
+const keyboardNavigation = readFileSync(new URL("../componentes/use-routine-keyboard-navigation.ts", import.meta.url), "utf8");
 const editor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("function ExerciseEditor"));
 const submitFlow = page.slice(page.indexOf("async function submit"), page.indexOf("async function duplicate"));
 const editorActions = editor.slice(editor.lastIndexOf('<div className="mt-6 flex flex-wrap justify-end gap-3">'));
@@ -198,11 +200,60 @@ test("Plantillas muestra sólo búsqueda y objetivo y no aplica estado ni alumno
   assert.match(page, /activeTab !== "plantillas" && <select aria-label="Alumno"/);
 });
 
-test("el editor permite recorrer días sin reordenar ni descartar el borrador", () => {
-  assert.match(editor, /Día anterior/);
-  assert.match(editor, /Día siguiente/);
-  assert.match(editor, /setActiveDay\(form\.days\[currentDayIndex - 1\]\.dayNumber\)/);
-  assert.match(editor, /setActiveDay\(form\.days\[currentDayIndex \+ 1\]\.dayNumber\)/);
+test("el editor elimina la navegación visual adicional y conserva las tarjetas de días", () => {
+  assert.doesNotMatch(editor, /Día anterior|Día siguiente|Día \{currentDayIndex \+ 1\} de/);
+  assert.match(editor, /aria-label="Días de la rutina"/);
+  assert.match(editor, /setActiveDay\(day\.dayNumber\)/);
+});
+
+test("ArrowRight y ArrowLeft recorren controles en orden DOM sin alterar el formulario", () => {
+  assert.equal(routineArrowDirection("ArrowRight", { tagName: "INPUT", selectionStart: 4, selectionEnd: 4, valueLength: 4 }), 1);
+  assert.equal(routineArrowDirection("ArrowLeft", { tagName: "INPUT", selectionStart: 0, selectionEnd: 0, valueLength: 4 }), -1);
+  assert.match(page, /onKeyDownCapture=\{handleKeyboardNavigation\}/);
+  assert.match(keyboardNavigation, /querySelectorAll<HTMLElement>\(navigableControlSelector\)/);
+  assert.match(keyboardNavigation, /controls\[currentIndex \+ direction\]/);
+  assert.doesNotMatch(keyboardNavigation, /setForm|clientId|submit|requestSubmit|click\(/);
+});
+
+test("las flechas horizontales respetan el cursor y la selección en texto", () => {
+  assert.equal(routineArrowDirection("ArrowRight", { tagName: "INPUT", selectionStart: 2, selectionEnd: 2, valueLength: 4 }), null);
+  assert.equal(routineArrowDirection("ArrowLeft", { tagName: "INPUT", selectionStart: 2, selectionEnd: 2, valueLength: 4 }), null);
+  assert.equal(routineArrowDirection("ArrowRight", { tagName: "INPUT", selectionStart: 1, selectionEnd: 3, valueLength: 4 }), null);
+});
+
+test("textarea sólo navega desde sus límites", () => {
+  assert.equal(routineArrowDirection("ArrowDown", { tagName: "TEXTAREA", selectionStart: 3, selectionEnd: 3, valueLength: 6 }), null);
+  assert.equal(routineArrowDirection("ArrowDown", { tagName: "TEXTAREA", selectionStart: 6, selectionEnd: 6, valueLength: 6 }), 1);
+  assert.equal(routineArrowDirection("ArrowUp", { tagName: "TEXTAREA", selectionStart: 0, selectionEnd: 0, valueLength: 6 }), -1);
+});
+
+test("selects, fechas y flechas verticales numéricas conservan su comportamiento nativo", () => {
+  assert.equal(routineArrowDirection("ArrowDown", { tagName: "SELECT" }), null);
+  assert.equal(routineArrowDirection("ArrowRight", { tagName: "SELECT" }), 1);
+  assert.equal(routineArrowDirection("ArrowRight", { tagName: "INPUT", inputType: "date" }), null);
+  assert.equal(routineArrowDirection("ArrowUp", { tagName: "INPUT", inputType: "number" }), null);
+  assert.equal(routineArrowDirection("ArrowRight", { tagName: "INPUT", inputType: "number" }), 1);
+  assert.equal(routineArrowDirection("ArrowDown", { tagName: "INPUT", hasList: true, selectionStart: 2, selectionEnd: 2, valueLength: 2 }), null);
+});
+
+test("Tab, Shift Tab y Enter nunca son capturados por la navegación", () => {
+  for (const key of ["Tab", "Enter", " "]) assert.equal(routineArrowDirection(key, { tagName: "INPUT", selectionStart: 0, selectionEnd: 0, valueLength: 0 }), null);
+  assert.match(keyboardNavigation, /event\.shiftKey/);
+  assert.match(keyboardNavigation, /if \(direction === null\) return/);
+});
+
+test("el orden DOM continúa entre ejercicios y bloques sin incluir botones de acción", () => {
+  assert.equal(keyboardNavigation.includes("button"), false);
+  assert.match(keyboardNavigation, /input:not\(\[type="hidden"\]\):not\(\[disabled\]\), select:not\(\[disabled\]\), textarea:not\(\[disabled\]\)/);
+  assert.ok(editor.indexOf("currentDay.blocks") < editor.indexOf("<BlockEditor"));
+  assert.match(page, /block\.exercises\.map/);
+});
+
+test("el foco evita saltos y sólo desplaza controles fuera del viewport", () => {
+  assert.equal(routineControlNeedsScroll({ top: 20, left: 20, right: 300, bottom: 100 }, { width: 390, height: 844 }), false);
+  assert.equal(routineControlNeedsScroll({ top: 20, left: 20, right: 300, bottom: 850 }, { width: 390, height: 844 }), true);
+  assert.match(keyboardNavigation, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(keyboardNavigation, /scrollIntoView\(\{ behavior: "smooth", block: "nearest", inline: "nearest" \}\)/);
 });
 
 test("Seguimiento reemplaza rutina por lugar estructurado y molestia activa", () => {
