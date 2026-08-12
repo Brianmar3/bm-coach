@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { searchStudents } from "../lib/student-search.ts";
+import { isActivePainReport, routineTrainingLocation } from "../lib/routine-follow-up-filters.ts";
 
 const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
 
@@ -30,6 +31,8 @@ const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url),
 const migration = readFileSync(new URL("../prisma/migrations/20260802120000_add_routine_day_warmup/migration.sql", import.meta.url), "utf8");
 const management = readFileSync(new URL("../componentes/routine-management-panel.tsx", import.meta.url), "utf8");
 const followUp = readFileSync(new URL("../componentes/routine-follow-up.tsx", import.meta.url), "utf8");
+const followUpApi = readFileSync(new URL("../app/api/seguimiento/route.ts", import.meta.url), "utf8");
+const routinesApi = readFileSync(new URL("../app/api/rutinas/route.ts", import.meta.url), "utf8");
 const editor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("function ExerciseEditor"));
 const submitFlow = page.slice(page.indexOf("async function submit"), page.indexOf("async function duplicate"));
 const editorActions = editor.slice(editor.lastIndexOf('<div className="mt-6 flex flex-wrap justify-end gap-3">'));
@@ -180,6 +183,51 @@ test("Seguimiento usa una bandeja compacta y prioriza molestias o ausencia de re
   assert.match(followUp, /student\.latestPainReport \|\| student\.sessionCount === 0/);
   assert.match(followUp, /grid-cols-\[1\.2fr_1\.2fr_100px_80px_90px_90px_110px\]/);
   assert.doesNotMatch(followUp, /grid items-stretch gap-4/);
+});
+
+test("la navegación principal de Rutinas queda en tres pestañas sin perder las acciones de asignación", () => {
+  const navigation = page.slice(page.indexOf('<nav className="mb-4'), page.indexOf('{activeTab === "seguimiento"'));
+  for (const tab of ["Rutinas", "Plantillas", "Seguimiento"]) assert.match(navigation, new RegExp(`"${tab}"`));
+  assert.doesNotMatch(navigation, /Asignaciones/);
+  for (const action of ["Usar plantilla", "Cambiar asignación"]) assert.match(management, new RegExp(action));
+});
+
+test("Plantillas muestra sólo búsqueda y objetivo y no aplica estado ni alumno", () => {
+  assert.match(page, /activeTab === "plantillas"\) return routine\.kind === "template" && matchesQuery && \(objectiveFilter/);
+  assert.match(page, /activeTab !== "plantillas" && <select aria-label="Estado"/);
+  assert.match(page, /activeTab !== "plantillas" && <select aria-label="Alumno"/);
+});
+
+test("el editor permite recorrer días sin reordenar ni descartar el borrador", () => {
+  assert.match(editor, /Día anterior/);
+  assert.match(editor, /Día siguiente/);
+  assert.match(editor, /setActiveDay\(form\.days\[currentDayIndex - 1\]\.dayNumber\)/);
+  assert.match(editor, /setActiveDay\(form\.days\[currentDayIndex \+ 1\]\.dayNumber\)/);
+});
+
+test("Seguimiento reemplaza rutina por lugar estructurado y molestia activa", () => {
+  assert.doesNotMatch(followUp, /Todas las rutinas/);
+  for (const option of ["Todos los lugares", "Gimnasio", "Salón", "Casa", "Con molestia activa"]) assert.match(followUp, new RegExp(option));
+  assert.match(followUp, /student\.activeRoutine\?\.location/);
+  assert.match(followUpApi, /location: assignment\.routine\.location/);
+});
+
+test("el lugar se clasifica sólo desde valores estructurados reconocidos", () => {
+  assert.equal(routineTrainingLocation("Gimnasio completo"), "gym");
+  assert.equal(routineTrainingLocation("Salón BM Training"), "studio");
+  assert.equal(routineTrainingLocation("Casa"), "home");
+  assert.equal(routineTrainingLocation("Rutina de gimnasio en casa"), null);
+});
+
+test("una molestia es activa hasta siete días y deja de alertar desde el octavo", () => {
+  const today = new Date("2026-08-12T12:00:00Z");
+  assert.equal(isActivePainReport("2026-08-12", today), true);
+  assert.equal(isActivePainReport("2026-08-06", today), true);
+  assert.equal(isActivePainReport("2026-08-05", today), true);
+  assert.equal(isActivePainReport("2026-08-04", today), false);
+  assert.equal(isActivePainReport("2026-08-05", new Date("2026-08-13T02:30:00Z")), true);
+  assert.match(followUpApi, /isActivePainReport\(latestPain\.date\)/);
+  assert.match(routinesApi, /isActivePainReport\(pain\.date, now\)/);
 });
 
 test("la vista de escritorio conserva la tabla completa", () => {

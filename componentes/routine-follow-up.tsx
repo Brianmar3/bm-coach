@@ -4,6 +4,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { inputClass } from "@/componentes/module-shell";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
+import { routineTrainingLocation, type RoutineTrainingLocation } from "@/lib/routine-follow-up-filters";
 import type { AdminFollowUpData, AdminStudentFollowUp, AdminWorkoutExercise, AdminWorkoutSession } from "@/types/follow-up";
 
 const emptyData: AdminFollowUpData = { sessions: [], students: [], classSessions: [], routines: [], studentsWithoutTraining: [] };
@@ -11,14 +12,14 @@ const moneyNumber = (value: number | null, suffix = "") => value === null ? "—
 const showDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR");
 const statusLabel = { pending: "Pendiente", in_progress: "En progreso", completed: "Finalizado" } as const;
 
-export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }: { initialRoutineId?: string; initialStudentId?: string }) {
+export function RoutineFollowUp({ initialStudentId = "" }: { initialStudentId?: string }) {
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("todos");
   const [dateFilter, setDateFilter] = useState("");
-  const [routineId, setRoutineId] = useState(initialRoutineId);
+  const [trainingLocation, setTrainingLocation] = useState<"all" | RoutineTrainingLocation>("all");
   const [painOnly, setPainOnly] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<AdminStudentFollowUp | null>(null);
   const [detailTab, setDetailTab] = useState<"resumen" | "sesiones" | "progreso" | "molestias">("resumen");
@@ -55,14 +56,14 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
       const sessions = data.sessions.filter((session) => session.studentId === student.studentId);
       const matchingSessions = sessions.filter((session) =>
         (status === "todos" || session.status === status) &&
-        (!dateFilter || session.date === dateFilter) &&
-        (!routineId || session.routineId === routineId) &&
-        (!painOnly || session.hasPain));
-      const hasSessionFilter = status !== "todos" || Boolean(dateFilter) || Boolean(routineId) || painOnly;
+        (!dateFilter || session.date === dateFilter));
+      const hasSessionFilter = status !== "todos" || Boolean(dateFilter);
       return (!normalized || student.studentName.toLocaleLowerCase("es").includes(normalized))
-        && (!hasSessionFilter || matchingSessions.length > 0);
+        && (!hasSessionFilter || matchingSessions.length > 0)
+        && (trainingLocation === "all" || routineTrainingLocation(student.activeRoutine?.location ?? "") === trainingLocation)
+        && (!painOnly || Boolean(student.latestPainReport));
     });
-  }, [data.sessions, data.students, dateFilter, painOnly, query, routineId, status]);
+  }, [data.sessions, data.students, dateFilter, painOnly, query, status, trainingLocation]);
   const attention = visible.filter((student) => student.latestPainReport || student.sessionCount === 0).slice(0, 5);
 
   async function sendFeedback(event: FormEvent) {
@@ -123,8 +124,8 @@ export function RoutineFollowUp({ initialRoutineId = "", initialStudentId = "" }
       <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alumno" className={inputClass} />
       <select value={status} onChange={(event) => setStatus(event.target.value)} className={inputClass}><option value="todos">Todos los estados</option><option value="in_progress">En progreso</option><option value="completed">Finalizados</option><option value="pending">Pendientes</option></select>
       <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className={inputClass} />
-      <select value={routineId} onChange={(event) => setRoutineId(event.target.value)} className={inputClass}><option value="">Todas las rutinas</option>{data.routines.map((routine) => <option key={routine.id} value={routine.id}>{routine.name}</option>)}</select>
-      <label className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm"><input type="checkbox" checked={painOnly} onChange={(event) => setPainOnly(event.target.checked)} className="accent-yellow-400" /> Con dolor o molestias</label>
+      <select aria-label="Lugar de entrenamiento" value={trainingLocation} onChange={(event) => setTrainingLocation(event.target.value as "all" | RoutineTrainingLocation)} className={inputClass}><option value="all">Todos los lugares</option><option value="gym">Gimnasio</option><option value="studio">Salón</option><option value="home">Casa</option></select>
+      <label className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm"><input type="checkbox" checked={painOnly} onChange={(event) => setPainOnly(event.target.checked)} className="accent-yellow-400" /> Con molestia activa</label>
     </div>
     {!loading && attention.length > 0 && <section className="mt-4 rounded-2xl border border-red-400/15 bg-red-400/[.035] p-3"><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black text-zinc-100">Necesitan atención · {attention.length}</h2><span className="text-[10px] text-zinc-500">Prioridades reales</span></div><div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{attention.map((student) => <button key={student.studentId} type="button" onClick={() => { setSelectedStudent(student); setDetailTab(student.latestPainReport ? "molestias" : "resumen"); }} className="min-h-11 rounded-xl border border-zinc-800 bg-black/25 px-3 py-2 text-left text-xs"><strong className="text-zinc-200">{student.studentName}</strong><span className="ml-2 text-zinc-500">— {student.latestPainReport ? "molestia reportada" : "sin registros"}</span></button>)}</div></section>}
     <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-[#111]">{loading ? <p className="p-10 text-center text-zinc-500">Cargando seguimiento…</p> : visible.length ? <><div className="hidden grid-cols-[1.2fr_1.2fr_100px_80px_90px_90px_110px] gap-3 border-b border-zinc-800 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500 lg:grid"><span>Alumno</span><span>Rutina</span><span>Última sesión</span><span>Sesiones</span><span>Duración</span><span>Series</span><span>Estado</span></div><div className="divide-y divide-zinc-800">{visible.map((student) => <StudentFollowUpCard key={student.studentId} student={student} open={() => { setSelectedStudent(student); setDetailTab("resumen"); }} />)}</div></> : <p className="p-10 text-center text-zinc-500">No hay alumnos que coincidan con los filtros.</p>}</div>

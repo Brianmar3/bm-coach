@@ -56,6 +56,7 @@ export type AdminStudentFollowUp = {
   activeRoutine: {
     id: string;
     name: string;
+    location: string;
     status: string;
     startDate: string;
   } | null;

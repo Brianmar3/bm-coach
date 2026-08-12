@@ -4,6 +4,7 @@ import { validRequestOrigin } from "@/lib/portal-auth";
 import type { Student } from "@/types/gestion";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
+import { isActivePainReport } from "@/lib/routine-follow-up-filters";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,7 +115,7 @@ export async function GET(request: Request) {
       const completed = studentSessions.filter((session) => session.status === "completed");
       const latestSession = studentSessions[0] ?? null;
       const durations = completed.flatMap((session) => session.durationMinutes === null ? [] : [session.durationMinutes]);
-      const latestPain = studentSessions.find((session) => session.hasPain);
+      const latestPain = studentSessions.filter((session) => session.hasPain).sort((left, right) => right.date.localeCompare(left.date))[0];
       const assignment = assignedByStudent.get(id);
       const recentLimit = new Date();
       recentLimit.setDate(recentLimit.getDate() - 28);
@@ -134,6 +135,7 @@ export async function GET(request: Request) {
         activeRoutine: assignment ? {
           id: assignment.routine.id,
           name: assignment.routine.name,
+          location: assignment.routine.location,
           status: assignment.routine.status.toLowerCase(),
           startDate: assignment.routine.startDate?.toISOString().slice(0, 10) ?? "",
         } : null,
@@ -143,7 +145,7 @@ export async function GET(request: Request) {
         exerciseCount: completed.reduce((sum, session) => sum + session.exerciseCount, 0),
         completedSets: completed.reduce((sum, session) => sum + session.completedSets, 0),
         recentSessionCount: completed.filter((session) => new Date(`${session.date}T12:00:00`) >= recentLimit).length,
-        latestPainReport: latestPain ? { date: latestPain.date, details: latestPain.painDetails || "Sin detalle informado." } : null,
+        latestPainReport: latestPain && isActivePainReport(latestPain.date) ? { date: latestPain.date, details: latestPain.painDetails || "Sin detalle informado." } : null,
         recentProgress: latestProgress,
         hasClassStrength: classStudentIds.has(id),
       };

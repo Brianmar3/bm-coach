@@ -1,6 +1,7 @@
 import { createRoutineDays, databaseUnavailable, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { isActivePainReport } from "@/lib/routine-follow-up-filters";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export async function GET(request: Request) {
         latestSessionDate: related.at(-1)?.date.toISOString() ?? "",
         averageDurationMinutes: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null,
         recentWeeklySessions,
-        latestPainReport: pain ? { date: pain.date.toISOString(), details: pain.painDetails } : null,
+        latestPainReport: pain && isActivePainReport(pain.date, now) ? { date: pain.date.toISOString(), details: pain.painDetails } : null,
         progressPercentage: null,
       }] as const;
     }));
