@@ -6,6 +6,7 @@ import { AdminTopbar } from "@/componentes/admin-topbar";
 import { BmTrainingSplash } from "@/componentes/bm-training-splash";
 import { ClassesModuleHeader } from "@/componentes/classes-module-header";
 import { Sidebar } from "@/componentes/sidebar";
+import { TrainerCommandPalette } from "@/componentes/trainer-command-palette";
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -17,6 +18,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <div className="admin-panel min-h-full max-w-full overflow-x-clip bg-black text-white">
           <AdminTopbar />
           <Sidebar />
+          <TrainerCommandPalette />
           <div className="min-h-full min-w-0 max-w-full pt-[calc(env(safe-area-inset-top)+4.5rem)] lg:pl-64">
             {classesModule && <ClassesModuleHeader />}
             {children}

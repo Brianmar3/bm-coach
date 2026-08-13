@@ -82,7 +82,12 @@ export default function ClasesPage() {
         return response.json() as Promise<Student[]>;
       }),
     ])
-      .then(([weeklySchedules, realStudents]) => { setSchedules(weeklySchedules); setStudents(realStudents); })
+      .then(([weeklySchedules, realStudents]) => {
+        setSchedules(weeklySchedules); setStudents(realStudents);
+        if (new URLSearchParams(window.location.search).get("accion") === "nueva") {
+          setEditing(null); setForm(emptySchedule()); setStudentQuery(""); setEditorOpen(true);
+        }
+      })
       .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); })
       .finally(() => setReady(true));
     return () => controller.abort();

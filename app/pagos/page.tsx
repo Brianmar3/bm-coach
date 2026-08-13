@@ -96,7 +96,15 @@ export default function PagosPage() {
         if (!response.ok) throw new Error(await responseError(response, "No se pudo cargar el panel de pagos."));
         return response.json() as Promise<PaymentDashboard>;
       })
-      .then(setData)
+      .then((dashboard) => {
+        setData(dashboard);
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("accion") === "nuevo") {
+          const account = dashboard.students.find((item) => item.studentId === params.get("studentId"));
+          const paidDate = dashboard.asOf;
+          setForm({ studentId: account?.studentId ?? "", amount: account?.monthlyFee ?? 0, paidDate, billingPeriod: currentPeriod(paidDate), method: "Transferencia", dueDate: addMonthsToDateKey(account?.nextDueDate || paidDate), notes: "", requestKey: crypto.randomUUID(), mode: "create" });
+        }
+      })
       .catch((loadError: unknown) => {
         if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message);
       })

@@ -103,14 +103,21 @@ export function ProfessionalEvaluationsDashboard() {
   }, []);
 
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get("studentId") ?? "";
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("studentId") ?? "";
+    const requestedAction = params.get("accion");
     const timer = window.setTimeout(() => {
       loadSummary().then((payload) => {
-        if (requested && payload.students.some((student) => student.id === requested)) setStudentId(requested);
+        if (requested && payload.students.some((student) => student.id === requested)) {
+          setStudentId(requested);
+          if (requestedAction === "nueva") window.setTimeout(() => void createEvaluation("", requested), 0);
+        }
         setError("");
       }).catch((cause: Error) => setError(cause.message)).finally(() => setLoading(false));
     }, 0);
     return () => window.clearTimeout(timer);
+  // La creación usa el flujo actual después de resolver el alumno inicial desde la URL.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadSummary]);
 
   useEffect(() => {
