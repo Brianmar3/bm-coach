@@ -27,7 +27,6 @@ type ClassData = {
     occurrenceIds: string[];
   };
   summary: PortalClassAgendaSummary<PortalClassOccurrence>;
-  attendance?: { present: number; completedDays?: number; absent: number; percentage: number | null };
 };
 
 const noClassesMessage = "No hay clases disponibles durante los próximos 7 días.";
@@ -85,7 +84,7 @@ function RecordsIcon() {
   );
 }
 
-export function PortalClasses({ compact = false, classesOnly = false }: { compact?: boolean; classesOnly?: boolean }) {
+export function PortalClasses({ compact = false }: { compact?: boolean }) {
   const [data, setData] = useState<ClassData | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -95,10 +94,7 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
   const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    const [response, attendanceResponse] = await Promise.all([
-      fetch(endpoint, { cache: "no-store", signal }),
-      compact ? Promise.resolve(null) : fetch("/api/portal/asistencias?period=current-month", { cache: "no-store", signal }),
-    ]);
+    const response = await fetch(endpoint, { cache: "no-store", signal });
     const body = (await response.json()) as ClassData & { error?: string };
     if (response.status === 401) {
       window.location.href = "/portal/login";
@@ -106,12 +102,9 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
     }
     if (!response.ok)
       throw new Error(body.error ?? "No se pudieron cargar las clases.");
-    const attendance = attendanceResponse?.ok
-      ? await attendanceResponse.json() as { present: number; completedDays?: number; absent: number; percentage: number | null }
-      : undefined;
-    setData({ ...body, attendance });
+    setData(body);
     setError("");
-  }, [compact, endpoint]);
+  }, [endpoint]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -209,23 +202,19 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
 
   if (compact)
     return (
-      <section className={`h-full overflow-hidden border bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.055),transparent_34%),linear-gradient(145deg,#151515,#090909)] shadow-[0_14px_35px_rgba(0,0,0,.28)] ${classesOnly ? "rounded-[26px] border-white/[.1] p-4 sm:p-6" : "rounded-[22px] border-white/[.07] p-3.5 sm:p-4"}`}>
+      <section className="h-full overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className={`min-w-0 ${classesOnly ? "flex items-center gap-3" : ""}`}>
-            {classesOnly && <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-yellow-400/25 bg-yellow-400/[.07] text-yellow-300"><CalendarIcon /></span>}
-            <div className="min-w-0">
+          <div className="min-w-0">
             <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">
-              {!classesOnly && <span aria-hidden="true">▣</span>}{data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.mode === "NEXT_DAY" ? "Próximo día" : "Agenda de clases"}
+              <span aria-hidden="true">▣</span>{data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.mode === "NEXT_DAY" ? "Próximo día" : "Agenda de clases"}
             </p>
-            <h2 className={`${classesOnly ? "mt-1 text-xl" : "mt-1.5 text-lg"} font-black leading-tight text-zinc-50`}>
-              {classesOnly && data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.total
+            <h2 className="mt-1.5 text-lg font-black leading-tight text-zinc-50">
+              {data.summary.total
                 ? `${data.summary.total} ${data.summary.total === 1 ? "clase disponible" : "clases disponibles"}`
                 : "Sin próximas clases"}
             </h2>
-            </div>
           </div>
           <div className="shrink-0 text-right">
-            {classesOnly && data.summary.total > 0 && <span className="inline-flex rounded-full border border-yellow-400/30 bg-yellow-400/[.04] px-3 py-1 text-[11px] font-black text-yellow-300">{data.summary.total} {data.summary.total === 1 ? "clase" : "clases"}</span>}
             {data.summary.dateLabel && <span className="block max-w-32 text-[10px] font-medium leading-tight text-zinc-500">{data.summary.dateLabel}</span>}
             <Link href="/portal/clases" className="mt-2 inline-flex min-h-7 items-center text-[10px] font-black text-yellow-300 transition hover:text-yellow-200">Ver agenda completa ›</Link>
           </div>
@@ -238,18 +227,16 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
               )}
               <span>· {data.summary.mode === "TODAY" ? "Elegí tu horario." : "Tu próximo día con actividad."}</span>
             </div>
-            <div className={`${classesOnly ? "mt-4 space-y-2.5" : "mt-3 space-y-2"}`}>
+            <div className="mt-3 space-y-2">
               {data.summary.preview.map((item) => (
                 <CompactClassRow
                   key={item.id}
                   item={item}
                   saving={savingId === item.id}
                   respond={respond}
-                  premium={classesOnly}
                 />
               ))}
             </div>
-            {classesOnly && <p className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500"><span aria-hidden="true" className="text-yellow-400">ⓘ</span>Confirmá tu asistencia para ayudarnos a organizar mejor tu clase.</p>}
           </>
         ) : (
           <div className="mt-3 rounded-xl border border-dashed border-zinc-800 bg-black/25 p-3.5">
@@ -265,13 +252,13 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-4">
-      <header className="px-2 pt-1 sm:px-3">
+      <header className="px-1">
         <p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Agenda presencial</p>
-        <h1 className="mt-1.5 text-3xl font-black leading-tight tracking-[-.035em] text-zinc-50 sm:text-4xl">Tus <span className="text-yellow-300">próximas</span> clases</h1>
+        <h1 className="mt-1.5 text-2xl font-black leading-tight tracking-[-.03em] text-zinc-50 sm:text-4xl">Tus próximas clases</h1>
         <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p>
       </header>
 
-      <nav aria-label="Vista de clases" className="mt-6 grid grid-cols-2 overflow-hidden rounded-[22px] border border-white/[.12] bg-[linear-gradient(145deg,#151515,#0a0a0a)] shadow-[inset_0_1px_rgba(255,255,255,.03)]">
+      <nav aria-label="Vista de clases" className="mt-5 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]">
         <button
           type="button"
           aria-pressed={!showWeek}
@@ -321,7 +308,7 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
           </div>
         </section>
       ) : (
-        <section id="clases-del-dia" className="mt-5 overflow-hidden rounded-[26px] border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_18px_50px_rgba(0,0,0,.28)]">
+        <section id="clases-del-dia" className="mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_18px_50px_rgba(0,0,0,.28)] sm:rounded-3xl">
           <div className="flex items-center justify-between gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
             <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.09] text-yellow-300 sm:size-11 sm:rounded-2xl"><CalendarIcon /></span>
@@ -340,12 +327,12 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
         </section>
       )}
 
-      <details className="group mt-4 overflow-hidden rounded-[24px] border border-white/[.09] bg-[linear-gradient(145deg,#171717,#0c0c0c)] shadow-[0_14px_36px_rgba(0,0,0,.2)] sm:mt-5">
+      <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0c0c0c)] shadow-[0_14px_36px_rgba(0,0,0,.2)] sm:mt-5 sm:rounded-3xl">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2.5 px-3 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:min-h-16 sm:px-6 sm:py-4">
-          <div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"><CalendarIcon /></span><div className="min-w-0">
+          <div className="min-w-0">
             <h2 className="font-black text-zinc-100">Mis horarios semanales</h2>
             <p className="mt-0.5 text-[11px] text-zinc-500 sm:mt-1 sm:text-xs">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
-          </div></div>
+          </div>
           <span className="flex shrink-0 items-center gap-1 text-[11px] font-black text-yellow-300 sm:gap-2 sm:text-xs">Ver semana <span aria-hidden="true" className="text-lg transition group-open:rotate-90">›</span></span>
         </summary>
         <div className="border-t border-white/[.07] px-3 py-1 sm:px-6 sm:py-2">
@@ -373,17 +360,18 @@ export function PortalClasses({ compact = false, classesOnly = false }: { compac
         </div>
       </details>
 
-      <section className="relative mt-4 overflow-hidden rounded-[24px] border border-yellow-400/15 bg-[linear-gradient(135deg,#181818,#090909)] p-4 shadow-[0_16px_42px_rgba(0,0,0,.22)] sm:mt-5 sm:p-6">
+      <section className="relative mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[linear-gradient(135deg,#181818,#090909)] p-4 shadow-[0_16px_42px_rgba(0,0,0,.22)] sm:mt-5 sm:rounded-3xl sm:p-6">
         <span aria-hidden="true" className="absolute -right-10 -top-12 size-36 rounded-full border border-yellow-400/10 bg-yellow-400/[.035]" />
         <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.08] text-yellow-300 sm:size-11 sm:rounded-2xl"><RecordsIcon /></span>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Mis registros</p>
-              <div className="mt-2 grid grid-cols-3 divide-x divide-white/[.08]"><ClassRecordMetric value={String(data.attendance?.completedDays ?? data.attendance?.present ?? 0)} label="Presentes" tone="text-emerald-300" /><ClassRecordMetric value={String(data.attendance?.absent ?? 0)} label="Faltas" tone="text-red-300" /><ClassRecordMetric value={data.attendance?.percentage === null || data.attendance?.percentage === undefined ? "—" : `${data.attendance.percentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`} label="Asistencia" tone="text-yellow-300" /></div>
+              <h2 className="mt-0.5 text-base font-black text-zinc-100 sm:mt-1 sm:text-lg">Ejercicios, cargas y marcas</h2>
+              <p className="mt-0.5 text-xs leading-relaxed text-zinc-400 sm:mt-1 sm:text-sm">Consultá tus ejercicios, cargas y marcas registradas.</p>
             </div>
           </div>
-          <Link href="/portal/asistencias" className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl px-3 py-2 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:min-h-11 sm:text-sm">Ver historial ›</Link>
+          <Link href="/portal/registro" className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-yellow-400/30 bg-yellow-400/[.07] px-4 py-2 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:min-h-11 sm:text-sm">Ver mis registros</Link>
         </div>
       </section>
     </div>
@@ -394,7 +382,6 @@ function CompactClassRow({
   item,
   saving,
   respond,
-  premium = false,
 }: {
   item: PortalClassOccurrence;
   saving: boolean;
@@ -402,12 +389,11 @@ function CompactClassRow({
     item: PortalClassOccurrence,
     value: "GOING" | "NOT_GOING",
   ) => void;
-  premium?: boolean;
 }) {
   const discipline = disciplineLabel(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border border-white/[.07] bg-black/35 sm:grid-cols-[minmax(0,1fr)_auto_auto] ${premium ? "rounded-2xl p-3" : "rounded-xl p-2"}`}>
+    <article className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.065] bg-black/35 p-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
       <div className="min-w-0">
         <p className="truncate text-[11px] font-black tabular-nums text-zinc-100">{item.startTime}–{item.endTime}</p>
         <p className="mt-0.5 truncate text-[10px] text-zinc-500">{discipline}</p>
@@ -416,10 +402,6 @@ function CompactClassRow({
       {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`min-h-9 shrink-0 rounded-lg border px-2.5 text-[10px] font-bold transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/35 bg-yellow-400/[.055] text-yellow-200" : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-yellow-400/25"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
     </article>
   );
-}
-
-function ClassRecordMetric({ value, label, tone }: { value: string; label: string; tone: string }) {
-  return <span className="px-2 text-center first:pl-0 last:pr-0"><strong className={`block text-lg font-black ${tone}`}>{value}</strong><span className="mt-0.5 block text-[9px] text-zinc-500">{label}</span></span>;
 }
 
 function ClassRow({

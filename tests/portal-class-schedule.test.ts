@@ -292,10 +292,9 @@ test("Inicio usa total y preview del servidor sin recortar la fuente completa", 
 
 test("la vista de clases usa jerarquia premium y selector segmentado", () => {
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
-  for (const text of ["Agenda presencial", "Consultá tus horarios y confirmá tu asistencia.", "Clases de hoy", "Próximos 7 días"]) {
+  for (const text of ["Agenda presencial", "Tus próximas clases", "Consultá tus horarios y confirmá tu asistencia.", "Clases de hoy", "Próximos 7 días"]) {
     assert.match(source, new RegExp(text));
   }
-  assert.match(source, /Tus <span className="text-yellow-300">próximas<\/span> clases/);
   assert.match(source, /aria-label="Vista de clases"/);
   assert.match(source, /focusSectionLabel\(data\)/);
   assert.match(source, /aria-pressed=\{!showWeek\}/);
@@ -329,8 +328,8 @@ test("horarios semanales y registros conservan acceso y presentación móvil com
   assert.match(source, /Mis horarios semanales/);
   assert.match(source, /Ver semana/);
   assert.match(source, /data\.scheduleLabels/);
-  assert.match(source, /href="\/portal\/asistencias"/);
-  assert.match(source, /Ver historial/);
+  assert.match(source, /href="\/portal\/registro"/);
+  assert.match(source, /Ver mis registros/);
   assert.match(source, /function RecordsIcon/);
   assert.match(source, /grid-cols-2/);
   assert.match(source, /min-w-0/);
@@ -399,29 +398,6 @@ test("Inicio replica la jerarquía compacta y conecta todos los accesos de la re
   for (const label of ["Inicio", "Rutina", "Clases", "Nutrición", "Evaluación"]) assert.match(shell, new RegExp(label));
   assert.match(home, /grid grid-cols-3/);
   assert.doesNotMatch(overview, /overflow-x-auto/);
-});
-
-test("solo CLASSES recibe la jerarquía presencial ampliada sin cambiar Personalizado o Mixto", () => {
-  const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
-  const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
-  const page = readFileSync(new URL("../app/portal/(student)/clases/page.tsx", import.meta.url), "utf8");
-  const overview = home.slice(home.indexOf("function PortalOverview"), home.indexOf("type PersonalizedHomePlan"));
-  assert.match(overview, /const classesOnly = data\.profile\.serviceType === "CLASSES"/);
-  assert.match(overview, /<PortalClasses compact classesOnly=\{classesOnly\}/);
-  assert.match(overview, /Cada clase suma constancia/);
-  assert.match(classes, /classesOnly = false/);
-  assert.match(classes, /Confirmá tu asistencia para ayudarnos a organizar mejor tu clase/);
-  assert.match(page, /serviceType === "CLASSES"/);
-});
-
-test("la agenda muestra registros reales desde la fuente compartida de asistencias", () => {
-  const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
-  assert.match(classes, /fetch\("\/api\/portal\/asistencias\?period=current-month"/);
-  assert.match(classes, /data\.attendance\?\.completedDays \?\? data\.attendance\?\.present/);
-  assert.match(classes, /data\.attendance\?\.absent/);
-  assert.match(classes, /data\.attendance\.percentage/);
-  assert.match(classes, /href="\/portal\/asistencias"/);
-  assert.match(classes, /Ver historial/);
 });
 
 test("la confirmación del servidor admite clases generales elegibles y conserva cupo atómico", () => {
