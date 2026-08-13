@@ -77,18 +77,18 @@ export function PortalAttendanceView() {
     {!loading && data && <>
       <section className="grid gap-4 rounded-3xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0a0a0a] p-4 shadow-[0_14px_35px_rgba(0,0,0,.24)] sm:grid-cols-[auto_1fr] sm:items-center sm:p-6">
         <div className="grid h-28 w-28 place-items-center rounded-full border border-yellow-400/20 bg-[radial-gradient(circle,rgba(250,204,21,.1),transparent_65%)] shadow-[inset_0_0_0_7px_rgba(250,204,21,.04)]"><div className="text-center"><strong className="block text-3xl font-black text-yellow-300">{formatPercentage(data.percentage)}</strong><span className="text-[9px] font-bold uppercase tracking-[.12em] text-zinc-500">Asistencia</span></div></div>
-        <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Asistencia del período</p><h2 className="mt-1 text-xl font-black text-white">{data.period.label}</h2>{data.total > 0 ? <p className="mt-2 text-sm text-zinc-400">{data.present} {data.present === 1 ? "asistencia" : "asistencias"} · {data.absent} {data.absent === 1 ? "falta" : "faltas"} · {data.justified} {data.justified === 1 ? "justificada" : "justificadas"}</p> : <p className="mt-2 text-sm text-zinc-400">Aún no hay asistencias registradas {period === "current-month" ? "este mes" : "en este período"}.</p>}</div>
+        <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Asistencia del período</p><h2 className="mt-1 text-xl font-black text-white">{data.period.label}</h2>{data.total > 0 ? <><p className="mt-2 text-sm text-zinc-300">{data.completedDays ?? data.present} de {data.total} realizadas {period === "previous-month" ? "en el período" : "hasta hoy"}</p><p className="mt-1 text-xs text-zinc-500">{data.present} {data.present === 1 ? "registro presente" : "registros presentes"} · {data.absent} {data.absent === 1 ? "falta" : "faltas"} · {data.justified} {data.justified === 1 ? "justificada" : "justificadas"}</p></> : <p className="mt-2 text-sm text-zinc-400">No hay sesiones esperadas {period === "current-month" ? "hasta hoy" : "en este período"}.</p>}</div>
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Resumen de asistencias">
-        <SummaryCard label="Presentes" value={data.present} tone="text-emerald-300" />
+        <SummaryCard label="Presentes" value={data.completedDays ?? data.present} tone="text-emerald-300" />
         <SummaryCard label="Ausentes" value={data.absent} tone="text-red-300" />
         <SummaryCard label="Justificadas" value={data.justified} tone="text-amber-200" />
-        <SummaryCard label="Total de clases" value={data.total} tone="text-yellow-300" />
+        <SummaryCard label="Sesiones esperadas" value={data.total} tone="text-yellow-300" />
       </section>
 
       <section>
-        <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Detalle</p><h2 className="mt-1 text-lg font-black">Historial de asistencias</h2></div><span className="text-xs text-zinc-500">{data.total} registros</span></div>
+        <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Detalle</p><h2 className="mt-1 text-lg font-black">Historial de asistencias</h2></div><span className="text-xs text-zinc-500">{data.records.length} registros</span></div>
         {data.records.length > 0 ? <div className="mt-3 space-y-2">{data.records.map((record) => {
           const state = statusStyle[record.status];
           const schedule = record.startTime ? `${record.startTime}${record.endTime ? `–${record.endTime}` : ""}` : "Horario no registrado";

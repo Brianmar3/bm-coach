@@ -20,6 +20,20 @@ export type PortalAttendanceSummary = {
   justified: number;
   total: number;
   percentage: number | null;
+  completedDays?: number;
+};
+
+export type PortalAttendanceMembership = {
+  start: string;
+  end: string | null;
+  frequencyDays: number | null;
+  serviceType: string;
+};
+
+export type PortalAttendanceScheduleAssignment = {
+  dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY";
+  assignedAt: string;
+  endedAt: string | null;
 };
 
 export type PortalAttendancePeriodDefinition = {
@@ -46,6 +60,10 @@ function shiftDate(date: Date, days: number) {
   return shifted;
 }
 
+function addDateDays(value: string, days: number) {
+  return dateKey(shiftDate(utcDate(value), days));
+}
+
 export function portalAttendancePeriod(period: PortalAttendancePeriod, todayKey: string): PortalAttendancePeriodDefinition {
   const today = utcDate(todayKey);
   if (period === "last-30-days") {
@@ -62,11 +80,72 @@ export function portalAttendancePeriod(period: PortalAttendancePeriod, todayKey:
   };
 }
 
-export function summarizePortalAttendance(records: Pick<PortalAttendanceRecord, "status">[]): PortalAttendanceSummary {
+export function summarizePortalAttendance(records: Pick<PortalAttendanceRecord, "status" | "date">[], expectedSessions?: number): PortalAttendanceSummary {
   const present = records.filter((record) => record.status === "PRESENT").length;
   const absent = records.filter((record) => record.status === "ABSENT").length;
   const justified = records.filter((record) => record.status === "JUSTIFIED").length;
-  return { present, absent, justified, total: present + absent + justified, percentage: attendancePercentage(present, absent, justified) };
+  if (expectedSessions === undefined) return { present, absent, justified, total: present + absent + justified, percentage: attendancePercentage(present, absent, justified) };
+  const total = Math.max(0, Math.trunc(expectedSessions));
+  const effectivePresent = new Set(records.filter((record) => record.status === "PRESENT").map((record) => record.date)).size;
+  return { present, absent, justified, total, percentage: total ? Math.round((Math.min(effectivePresent, total) / total) * 1000) / 10 : 0, completedDays: effectivePresent };
+}
+
+const WEEKDAY_NUMBER = { SUNDAY: 0, MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6 } as const;
+
+function weekday(date: string) {
+  return new Date(`${date}T12:00:00.000Z`).getUTCDay();
+}
+
+function membershipForDate(memberships: PortalAttendanceMembership[], date: string) {
+  return memberships.filter((item) => item.start <= date && (!item.end || item.end >= date)).at(-1) ?? null;
+}
+
+function scheduleCoversDate(assignment: PortalAttendanceScheduleAssignment, date: string) {
+  return assignment.assignedAt <= date && (!assignment.endedAt || assignment.endedAt >= date);
+}
+
+function groupClassService(serviceType: string) {
+  return serviceType === "CLASSES" || serviceType === "MIXED";
+}
+
+export function expectedPortalAttendanceSessions(input: {
+  start: string;
+  endExclusive: string;
+  today: string;
+  memberships: PortalAttendanceMembership[];
+  assignments: PortalAttendanceScheduleAssignment[];
+}) {
+  const effectiveEnd = input.endExclusive < addDateDays(input.today, 1) ? input.endExclusive : addDateDays(input.today, 1);
+  if (input.start >= effectiveEnd) return 0;
+  let expected = 0;
+  for (let weekStart = mondayForDate(input.start); weekStart < effectiveEnd; weekStart = addDateDays(weekStart, 7)) {
+    const weekEnd = addDateDays(weekStart, 7);
+    const rangeStart = input.start > weekStart ? input.start : weekStart;
+    const rangeEnd = effectiveEnd < weekEnd ? effectiveEnd : weekEnd;
+    const dates: string[] = [];
+    for (let date = rangeStart; date < rangeEnd; date = addDateDays(date, 1)) dates.push(date);
+    const eligibleDates = dates.filter((date) => {
+      const membership = membershipForDate(input.memberships, date);
+      return membership && groupClassService(membership.serviceType) && (membership.frequencyDays ?? 0) > 0 && weekday(date) >= 1 && weekday(date) <= 5;
+    });
+    if (!eligibleDates.length) continue;
+    const referenceMembership = membershipForDate(input.memberships, eligibleDates.at(-1) ?? rangeStart);
+    const frequency = Math.max(0, Math.trunc(referenceMembership?.frequencyDays ?? 0));
+    if (!frequency) continue;
+    const activeAssignments = input.assignments.filter((assignment) => eligibleDates.some((date) => scheduleCoversDate(assignment, date)));
+    const activeWeekdays = new Set(activeAssignments.map((assignment) => WEEKDAY_NUMBER[assignment.dayOfWeek]));
+    if (activeWeekdays.size === frequency) {
+      expected += eligibleDates.filter((date) => activeAssignments.some((assignment) => WEEKDAY_NUMBER[assignment.dayOfWeek] === weekday(date) && scheduleCoversDate(assignment, date))).length;
+    } else {
+      expected += Math.min(frequency, Math.ceil((frequency * eligibleDates.length) / 5));
+    }
+  }
+  return expected;
+}
+
+function mondayForDate(value: string) {
+  const day = weekday(value);
+  return addDateDays(value, -(day === 0 ? 6 : day - 1));
 }
 
 function attendanceIdentity(record: PortalAttendanceRecord) {

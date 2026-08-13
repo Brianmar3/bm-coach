@@ -1,9 +1,10 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { dateKeyToDatabase } from "@/lib/payment-dates";
+import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import {
   mergePortalAttendanceRecords,
+  expectedPortalAttendanceSessions,
   portalAttendancePeriod,
   summarizePortalAttendance,
   type PortalAttendancePeriod,
@@ -12,6 +13,8 @@ import {
 import { addDateDays, weekRange } from "@/lib/weekly-attendance";
 import { weeklyCompliance } from "@/lib/weekly-compliance";
 import { hasGroupClasses } from "@/lib/student-service";
+import { planDays } from "@/lib/student-enrollment";
+import type { Student } from "@/types/gestion";
 
 export async function loadPortalAttendanceRange(studentId: string, start: string, endExclusive: string) {
   const range = { gte: dateKeyToDatabase(start), lt: dateKeyToDatabase(endExclusive) };
@@ -71,11 +74,13 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
   const lastWeek = weekRange(addDateDays(period.endExclusive, -1));
   const expandedStart = firstWeek?.start ?? period.start;
   const expandedEnd = lastWeek?.endExclusive ?? period.endExclusive;
-  const [rawRecords, student] = await Promise.all([
+  const [rawRecords, student, assignments] = await Promise.all([
     loadPortalAttendanceRange(studentId, expandedStart, expandedEnd),
     prisma.studentRecord.findUnique({
       where: { id: studentId },
       select: {
+        serviceType: true,
+        data: true,
         membershipHistory: {
           where: {
             startDate: { lt: dateKeyToDatabase(expandedEnd) },
@@ -85,6 +90,15 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
           orderBy: { startDate: "asc" },
         },
       },
+    }),
+    prisma.weeklyClassAssignment.findMany({
+      where: {
+        studentId,
+        assignedAt: { lt: dateKeyToDatabase(period.endExclusive) },
+        OR: [{ endedAt: null }, { endedAt: { gte: dateKeyToDatabase(period.start) } }],
+      },
+      select: { assignedAt: true, endedAt: true, schedule: { select: { dayOfWeek: true } } },
+      orderBy: { assignedAt: "asc" },
     }),
   ]);
   const currentWeek = weekRange(todayKey)?.start ?? todayKey;
@@ -120,7 +134,33 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
     }
   }
   const records = [...rawRecords, ...derived]
-    .filter((record) => record.date >= period.start && record.date < period.endExclusive)
+    .filter((record) => record.date >= period.start && record.date < period.endExclusive && record.date <= todayKey)
     .sort((left, right) => right.date.localeCompare(left.date) || right.startTime.localeCompare(left.startTime));
-  return { period, ...summarizePortalAttendance(records), records };
+  const membershipTimeline = student?.membershipHistory.map((item) => ({
+    start: item.startDate.toISOString().slice(0, 10),
+    end: item.endDate?.toISOString().slice(0, 10) ?? null,
+    frequencyDays: item.frequencyDays,
+    serviceType: item.serviceType,
+  })) ?? [];
+  const currentStudent = student?.data as unknown as Partial<Student> | undefined;
+  if (student && period.start <= todayKey && period.endExclusive > todayKey && !membershipTimeline.some((item) => item.start <= todayKey && (!item.end || item.end >= todayKey))) {
+    membershipTimeline.push({
+      start: period.start,
+      end: null,
+      frequencyDays: planDays(currentStudent?.plan ?? ""),
+      serviceType: student.serviceType,
+    });
+  }
+  const expected = expectedPortalAttendanceSessions({
+    start: period.start,
+    endExclusive: period.endExclusive,
+    today: todayKey,
+    memberships: membershipTimeline,
+    assignments: assignments.map((assignment) => ({
+      dayOfWeek: assignment.schedule.dayOfWeek,
+      assignedAt: argentinaDateKey(assignment.assignedAt),
+      endedAt: assignment.endedAt ? argentinaDateKey(assignment.endedAt) : null,
+    })),
+  });
+  return { period, ...summarizePortalAttendance(records, expected), records };
 }
