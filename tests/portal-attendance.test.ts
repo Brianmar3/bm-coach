@@ -5,6 +5,7 @@ import {
   expectedPortalAttendanceSessions,
   mergePortalAttendanceRecords,
   portalAttendancePeriod,
+  summarizeExpectedPortalAttendancePeriod,
   summarizePortalAttendance,
   type PortalAttendanceRecord,
 } from "../lib/portal-attendance.ts";
@@ -62,9 +63,92 @@ test("dos presentes el mismo día cuentan una sola vez para cumplimiento", () =>
   assert.equal(summary.percentage, 40);
 });
 
+test("Home y detalle reciben el mismo 75 por ciento con tres días presentes y una ausencia", () => {
+  const summary = summarizeExpectedPortalAttendancePeriod({
+    start: "2026-08-01",
+    endExclusive: "2026-09-01",
+    today: "2026-08-12",
+    memberships: [{ start: "2026-08-01", end: null, frequencyDays: 2, serviceType: "CLASSES", status: "ACTIVE" }],
+    assignments: [
+      { dayOfWeek: "TUESDAY", assignedAt: "2026-08-01", endedAt: null },
+      { dayOfWeek: "THURSDAY", assignedAt: "2026-08-01", endedAt: null },
+    ],
+    records: [
+      record({ id: "p1", status: "PRESENT", date: "2026-08-03" }),
+      record({ id: "p2", status: "PRESENT", date: "2026-08-05" }),
+      record({ id: "p3", status: "PRESENT", date: "2026-08-10" }),
+      record({ id: "a1", status: "ABSENT", date: "2026-08-11" }),
+    ],
+  });
+  assert.equal(summary.total, 4);
+  assert.equal(summary.completedDays, 3);
+  assert.equal(summary.percentage, 75);
+});
+
+test("una ausencia manual amplía el mínimo transcurrido si la proyección la omitió", () => {
+  const summary = summarizePortalAttendance([
+    record({ id: "p1", status: "PRESENT", date: "2026-08-03" }),
+    record({ id: "p2", status: "PRESENT", date: "2026-08-04" }),
+    record({ id: "p3", status: "PRESENT", date: "2026-08-06" }),
+    record({ id: "a1", status: "ABSENT", date: "2026-08-11" }),
+  ], 3);
+  assert.deepEqual(summary, { present: 3, absent: 1, justified: 0, total: 4, percentage: 75, completedDays: 3 });
+});
+
 test("una clase futura de la semana actual no reduce el porcentaje", () => {
   const expected = expectedPortalAttendanceSessions({ start: "2026-08-10", endExclusive: "2026-08-17", today: "2026-08-12", memberships, assignments });
   assert.equal(expected, 2);
+});
+
+test("una membresía iniciada a mitad de mes no espera sesiones anteriores", () => {
+  const expected = expectedPortalAttendanceSessions({
+    start: "2026-08-01",
+    endExclusive: "2026-09-01",
+    today: "2026-08-12",
+    memberships: [{ start: "2026-08-10", end: null, frequencyDays: 3, serviceType: "CLASSES", status: "ACTIVE" }],
+    assignments,
+  });
+  assert.equal(expected, 2);
+});
+
+test("una presencia en otro horario cumple el día asignado", () => {
+  const summary = summarizeExpectedPortalAttendancePeriod({
+    start: "2026-08-03",
+    endExclusive: "2026-08-10",
+    today: "2026-08-03",
+    memberships,
+    assignments,
+    records: [record({ id: "p1", status: "PRESENT", date: "2026-08-03", startTime: "15:30", scheduleId: "otro-horario" })],
+  });
+  assert.equal(summary.total, 1);
+  assert.equal(summary.completedDays, 1);
+  assert.equal(summary.percentage, 100);
+});
+
+test("una semana cerrada conserva tres esperadas y dos presentes equivalen a 66,7", () => {
+  const summary = summarizeExpectedPortalAttendancePeriod({
+    start: "2026-08-03",
+    endExclusive: "2026-08-10",
+    today: "2026-08-09",
+    memberships,
+    assignments,
+    records: [
+      record({ id: "p1", status: "PRESENT", date: "2026-08-03" }),
+      record({ id: "p2", status: "PRESENT", date: "2026-08-05" }),
+    ],
+  });
+  assert.equal(summary.total, 3);
+  assert.equal(summary.percentage, 66.7);
+});
+
+test("una membresía inactiva no genera sesiones esperadas", () => {
+  assert.equal(expectedPortalAttendanceSessions({
+    start: "2026-08-03",
+    endExclusive: "2026-08-10",
+    today: "2026-08-09",
+    memberships: [{ ...memberships[0], status: "INACTIVE" }],
+    assignments,
+  }), 0);
 });
 
 test("un mes cerrado evalúa el período completo", () => {
@@ -102,8 +186,8 @@ test("Home y detalle comparten el mismo resumen y nunca consultan confirmaciones
   const home = readFileSync(new URL("../app/api/portal/data/route.ts", import.meta.url), "utf8");
   const detail = readFileSync(new URL("../lib/portal-attendance-data.ts", import.meta.url), "utf8");
   const endpoint = readFileSync(new URL("../app/api/portal/asistencias/route.ts", import.meta.url), "utf8");
-  assert.match(home, /summarizePortalAttendance/);
-  assert.match(detail, /summarizePortalAttendance/);
+  assert.match(home, /summarizeExpectedPortalAttendancePeriod/);
+  assert.match(detail, /summarizeExpectedPortalAttendancePeriod/);
   assert.doesNotMatch(detail, /\bresponse\b/);
   assert.match(detail, /actualAttendance/);
   assert.match(endpoint, /getPortalSession/);
@@ -112,7 +196,7 @@ test("Home y detalle comparten el mismo resumen y nunca consultan confirmaciones
   assert.match(detail, /weeklyCompliance/);
   assert.match(detail, /source: "weekly-closure"/);
   assert.match(detail, /hasGroupClasses/);
-  assert.match(detail, /expectedPortalAttendanceSessions/);
+  assert.match(detail, /summarizeExpectedPortalAttendancePeriod/);
   assert.match(detail, /membershipHistory/);
   assert.match(detail, /weeklyClassAssignment\.findMany/);
   assert.match(detail, /record\.date <= todayKey/);

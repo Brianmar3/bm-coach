@@ -4,9 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import {
   mergePortalAttendanceRecords,
-  expectedPortalAttendanceSessions,
   portalAttendancePeriod,
-  summarizePortalAttendance,
+  summarizeExpectedPortalAttendancePeriod,
   type PortalAttendancePeriod,
   type PortalAttendanceRecord,
 } from "@/lib/portal-attendance";
@@ -86,8 +85,8 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
             startDate: { lt: dateKeyToDatabase(expandedEnd) },
             OR: [{ endDate: null }, { endDate: { gte: dateKeyToDatabase(expandedStart) } }],
           },
-          select: { startDate: true, endDate: true, frequencyDays: true, serviceType: true },
-          orderBy: { startDate: "asc" },
+          select: { startDate: true, endDate: true, frequencyDays: true, serviceType: true, status: true, createdAt: true },
+          orderBy: [{ startDate: "asc" }, { createdAt: "asc" }],
         },
       },
     }),
@@ -141,6 +140,8 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
     end: item.endDate?.toISOString().slice(0, 10) ?? null,
     frequencyDays: item.frequencyDays,
     serviceType: item.serviceType,
+    status: item.status,
+    recordedAt: item.createdAt.toISOString(),
   })) ?? [];
   const currentStudent = student?.data as unknown as Partial<Student> | undefined;
   if (student && period.start <= todayKey && period.endExclusive > todayKey && !membershipTimeline.some((item) => item.start <= todayKey && (!item.end || item.end >= todayKey))) {
@@ -149,9 +150,11 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
       end: null,
       frequencyDays: planDays(currentStudent?.plan ?? ""),
       serviceType: student.serviceType,
+      status: "ACTIVE",
+      recordedAt: new Date(0).toISOString(),
     });
   }
-  const expected = expectedPortalAttendanceSessions({
+  const summary = summarizeExpectedPortalAttendancePeriod({
     start: period.start,
     endExclusive: period.endExclusive,
     today: todayKey,
@@ -161,6 +164,7 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
       assignedAt: argentinaDateKey(assignment.assignedAt),
       endedAt: assignment.endedAt ? argentinaDateKey(assignment.endedAt) : null,
     })),
+    records,
   });
-  return { period, ...summarizePortalAttendance(records, expected), records };
+  return { period, ...summary, records };
 }
