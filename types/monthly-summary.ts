@@ -1,5 +1,57 @@
 export type AvailableNumber = number | null;
 
+export type MonthlyPaymentMovement = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  amount: number;
+  status: string;
+  billingPeriod: string | null;
+  paidDate: string | null;
+  createdAt: string;
+  method: string;
+};
+
+export type MonthlyCollectionWeek = {
+  key: string;
+  label: string;
+  startDate: string | null;
+  endDate: string | null;
+  total: number;
+  paymentCount: number;
+  payments: MonthlyPaymentMovement[];
+  kind: "CALENDAR" | "OUTSIDE_PERIOD" | "MISSING_DATE";
+};
+
+export type MonthlyReviewCause = "NO_MEMBERSHIP" | "INVALID_MEMBERSHIP_AMOUNT" | "MEMBERSHIP_NOT_ACTIVE" | "OBLIGATION_NOT_GENERATED";
+
+export type MonthlyMembershipReview = {
+  membershipId: string;
+  studentId: string;
+  studentName: string;
+  serviceType: "CLASSES" | "PERSONALIZED" | "MIXED";
+  planName: string;
+  frequencyDays: number | null;
+  startDate: string;
+  endDate: string | null;
+  amount: number | null;
+  reason: string;
+};
+
+export type MonthlyMissingObligationReview = {
+  studentId: string;
+  studentName: string;
+  serviceType: "CLASSES" | "PERSONALIZED" | "MIXED" | null;
+  studentStatus: string | null;
+  membershipStatus: string | null;
+  membershipAmount: number | null;
+  membershipStartDate: string | null;
+  membershipEndDate: string | null;
+  activity: string[];
+  cause: MonthlyReviewCause;
+  reason: string;
+};
+
 export type MonthlyDetailRow = {
   studentId: string;
   studentName: string;
@@ -64,6 +116,33 @@ export type MonthlySummaryData = {
   expenses: {
     operatingResult: null;
     message: string;
+  };
+  today: {
+    dateKey: string;
+    isCurrentPeriod: boolean;
+    registeredTotal: number;
+    registeredCount: number;
+    selectedPeriodImpactTotal: number;
+    selectedPeriodImpactCount: number;
+    totalBeforeToday: number;
+    currentTotal: number;
+    movements: MonthlyPaymentMovement[];
+  };
+  weeklyCollections: MonthlyCollectionWeek[];
+  reconciliation: {
+    expectedTotal: number;
+    collectedTotal: number;
+    appliedToObligations: number;
+    paymentsWithoutObligation: number;
+    overpaymentsOnObligations: number;
+    pendingTotal: number;
+    simpleDifference: number;
+    unreconciledCollected: number;
+  } | null;
+  dataReview: {
+    membershipsWithoutAmount: MonthlyMembershipReview[];
+    activityWithoutObligation: MonthlyMissingObligationReview[];
+    missingObligationCauses: Array<{ cause: MonthlyReviewCause; label: string; count: number }>;
   };
   warnings: string[];
   detailRows: MonthlyDetailRow[];

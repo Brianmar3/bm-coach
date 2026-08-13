@@ -3,7 +3,8 @@ import "server-only";
 import { Prisma, type MonthlyObligationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { attendancePercentage, closedMonthlySnapshot, hasHistoricalMembershipCoverage, obligationStatus } from "@/lib/monthly-calculations";
-import { argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { activityEvidenceLabels, emptyActivityEvidence, missingObligationCause, reconcileMonthlyFinances, registeredTodaySummary, weeklyCollections, type TraceablePayment } from "@/lib/monthly-traceability";
+import { argentinaDateKey, argentinaDateTimeBoundary, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { dueDateForPeriod, monthDatabaseBounds, monthKey, monthLabel, type MonthSelection } from "@/lib/monthly-period";
 import type { Student } from "@/types/gestion";
 import type { MonthlyDetailRow, MonthlySummaryData } from "@/types/monthly-summary";
@@ -91,12 +92,23 @@ export async function buildMonthlySummary(selection: MonthSelection, allowClosed
   const savedSummary = await prisma.monthlySummary.findUnique({ where: { year_month: selection } });
   if (allowClosedSnapshot && savedSummary?.status === "CLOSED") return savedSummary.snapshot as unknown as MonthlySummaryData;
 
-  const [students, payments, obligations, attendances, evaluations, workouts, events, memberships] = await Promise.all([
-    prisma.studentRecord.findMany({ select: { id: true, data: true } }),
+  const todayKey = argentinaDateKey();
+  const tomorrow = new Date(`${todayKey}T12:00:00.000Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowKey = tomorrow.toISOString().slice(0, 10);
+  const paymentSelection = { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true, method: true, status: true, createdAt: true } as const;
+
+  const [students, payments, todayPayments, obligations, attendances, evaluations, workouts, events, memberships] = await Promise.all([
+    prisma.studentRecord.findMany({ select: { id: true, data: true, serviceType: true } }),
     prisma.studentPayment.findMany({
       where: { billingPeriod: bounds.startDate },
-      select: { studentId: true, amount: true, paidDate: true, method: true, status: true },
+      select: paymentSelection,
       orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.studentPayment.findMany({
+      where: { status: "PAGADO", createdAt: { gte: argentinaDateTimeBoundary(todayKey), lt: argentinaDateTimeBoundary(tomorrowKey) } },
+      select: paymentSelection,
+      orderBy: [{ createdAt: "desc" }],
     }),
     prisma.monthlyStudentObligation.findMany({ where: { period: bounds.startDate } }),
     prisma.classAttendance.findMany({
@@ -122,17 +134,34 @@ export async function buildMonthlySummary(selection: MonthSelection, allowClosed
   ]);
 
   const studentById = new Map(students.map((student) => [student.id, student]));
+  const studentNames = new Map(students.map((student) => [student.id, studentName(student.data)]));
   const obligationByStudent = new Map(obligations.map((item) => [item.studentId, item]));
   const membershipByStudent = new Map<string, typeof memberships[number]>();
   memberships.forEach((membership) => {
     if (!membershipByStudent.has(membership.studentId)) membershipByStudent.set(membership.studentId, membership);
   });
+  const serializeTraceablePayment = (payment: typeof payments[number]): TraceablePayment => ({
+    id: payment.id,
+    studentId: payment.studentId,
+    amount: Number(payment.amount),
+    status: payment.status,
+    billingPeriod: payment.billingPeriod ? databaseDateKey(payment.billingPeriod) : null,
+    paidDate: payment.paidDate ? databaseDateKey(payment.paidDate) : null,
+    createdAt: payment.createdAt.toISOString(),
+    method: payment.method,
+  });
+  const traceablePayments = payments.map(serializeTraceablePayment);
+  const traceableTodayPayments = todayPayments.map(serializeTraceablePayment);
   const validPayments = payments.filter((payment) => payment.status === "PAGADO");
   const collectedTotal = validPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
   const expectedTotal = obligations.length ? obligations.reduce((sum, item) => sum + Number(item.expectedAmount), 0) : null;
   const validPaidByStudent = new Map<string, number>();
   validPayments.forEach((payment) => validPaidByStudent.set(payment.studentId, (validPaidByStudent.get(payment.studentId) ?? 0) + Number(payment.amount)));
-  const pendingTotal = expectedTotal === null ? null : obligations.reduce((sum, item) => sum + Math.max(Number(item.expectedAmount) - (validPaidByStudent.get(item.studentId) ?? 0), 0), 0);
+  const reconciliation = obligations.length ? reconcileMonthlyFinances(
+    traceablePayments,
+    obligations.map((item) => ({ studentId: item.studentId, expectedAmount: Number(item.expectedAmount) })),
+  ) : null;
+  const pendingTotal = reconciliation?.pendingTotal ?? null;
   const collectionPercentage = expectedTotal === null || expectedTotal <= 0 ? null : Math.round((collectedTotal / expectedTotal) * 1000) / 10;
   const present = attendances.filter((item) => item.status === "PRESENT").length;
   const absent = attendances.filter((item) => item.status === "ABSENT").length;
@@ -145,12 +174,77 @@ export async function buildMonthlySummary(selection: MonthSelection, allowClosed
 
   const activityIds = new Set<string>();
   [...payments, ...attendances, ...evaluations, ...workouts, ...events, ...obligations].forEach((item) => activityIds.add(item.studentId));
-  const membershipsWithoutAmount = memberships.filter((item) => item.status === "ACTIVE" && (item.monthlyAmount === null || Number(item.monthlyAmount) <= 0)).length;
-  if (membershipsWithoutAmount) warnings.add(`${membershipsWithoutAmount} membresías activas no tienen un importe histórico válido.`);
+  const activityByStudent = new Map<string, ReturnType<typeof emptyActivityEvidence>>();
+  const evidenceFor = (studentId: string) => {
+    const existing = activityByStudent.get(studentId);
+    if (existing) return existing;
+    const created = emptyActivityEvidence();
+    activityByStudent.set(studentId, created);
+    return created;
+  };
+  payments.forEach((item) => {
+    const evidence = evidenceFor(item.studentId);
+    if (item.status === "PAGADO") evidence.validPayments += 1;
+    else if (item.status === "ANULADO") evidence.voidedPayments += 1;
+  });
+  attendances.forEach((item) => {
+    const evidence = evidenceFor(item.studentId);
+    if (item.status === "PRESENT") evidence.presentAttendances += 1;
+    else if (item.status === "ABSENT") evidence.absentAttendances += 1;
+    else evidence.justifiedAttendances += 1;
+  });
+  evaluations.forEach((item) => { evidenceFor(item.studentId).evaluations += 1; });
+  workouts.forEach((item) => {
+    const evidence = evidenceFor(item.studentId);
+    if (item.status === "COMPLETED") evidence.completedWorkouts += 1;
+    else evidence.otherWorkouts += 1;
+  });
+  events.forEach((item) => {
+    const evidence = evidenceFor(item.studentId);
+    if (item.type === "ENROLLMENT") evidence.enrollments += 1;
+    else if (item.type === "DEACTIVATION") evidence.deactivations += 1;
+    else if (item.type === "REACTIVATION") evidence.reactivations += 1;
+    else evidence.suspensions += 1;
+  });
+
+  const membershipsWithoutAmount = memberships
+    .filter((item) => item.status === "ACTIVE" && (item.monthlyAmount === null || Number(item.monthlyAmount) <= 0))
+    .map((item) => ({
+      membershipId: item.id,
+      studentId: item.studentId,
+      studentName: studentNames.get(item.studentId) ?? "Alumno",
+      serviceType: item.serviceType,
+      planName: item.planName,
+      frequencyDays: item.frequencyDays,
+      startDate: databaseDateKey(item.startDate),
+      endDate: item.endDate ? databaseDateKey(item.endDate) : null,
+      amount: item.monthlyAmount === null ? null : Number(item.monthlyAmount),
+      reason: item.monthlyAmount === null ? "No hay un importe guardado en este tramo histórico." : "El importe histórico no es mayor que cero.",
+    }));
+  if (membershipsWithoutAmount.length) warnings.add(`${membershipsWithoutAmount.length} membresías activas no tienen un importe histórico válido.`);
   const paymentsWithoutDate = payments.filter((item) => item.status === "PAGADO" && !item.paidDate).length;
   if (paymentsWithoutDate) warnings.add(`${paymentsWithoutDate} pagos válidos no tienen fecha real de pago.`);
-  const studentsWithoutObligation = [...activityIds].filter((studentId) => !obligationByStudent.has(studentId)).length;
-  if (historicalCoverage && studentsWithoutObligation) warnings.add(`${studentsWithoutObligation} alumnos con actividad no tienen obligación para el período.`);
+  const activityWithoutObligation = [...activityIds].filter((studentId) => !obligationByStudent.has(studentId)).map((studentId) => {
+    const student = studentById.get(studentId);
+    const membership = membershipByStudent.get(studentId);
+    const cause = missingObligationCause(membership ? { status: membership.status, monthlyAmount: membership.monthlyAmount === null ? null : Number(membership.monthlyAmount) } : null);
+    return {
+      studentId,
+      studentName: studentNames.get(studentId) ?? "Alumno",
+      serviceType: membership?.serviceType ?? student?.serviceType ?? null,
+      studentStatus: student ? storedStudent(student.data).status ?? null : null,
+      membershipStatus: membership?.status ?? null,
+      membershipAmount: membership?.monthlyAmount === null || membership?.monthlyAmount === undefined ? null : Number(membership.monthlyAmount),
+      membershipStartDate: membership ? databaseDateKey(membership.startDate) : null,
+      membershipEndDate: membership?.endDate ? databaseDateKey(membership.endDate) : null,
+      activity: activityEvidenceLabels(activityByStudent.get(studentId) ?? emptyActivityEvidence()),
+      cause: cause.code,
+      reason: cause.label,
+    };
+  }).sort((left, right) => left.studentName.localeCompare(right.studentName, "es"));
+  if (historicalCoverage && activityWithoutObligation.length) warnings.add(`${activityWithoutObligation.length} alumnos con actividad no tienen obligación para el período.`);
+  const causeLabels = new Map(activityWithoutObligation.map((item) => [item.cause, item.reason]));
+  const missingObligationCauses = [...causeLabels].map(([cause, label]) => ({ cause, label, count: activityWithoutObligation.filter((item) => item.cause === cause).length }));
   const rows: MonthlyDetailRow[] = [...activityIds].map((studentId) => {
     const student = studentById.get(studentId);
     const obligation = obligationByStudent.get(studentId);
@@ -194,6 +288,8 @@ export async function buildMonthlySummary(selection: MonthSelection, allowClosed
     databaseDateKey(item.dueDate),
     argentinaDateKey(),
   ));
+  const today = registeredTodaySummary(traceableTodayPayments, monthKey(selection), collectedTotal, studentNames);
+  const collectionsByWeek = weeklyCollections(traceablePayments, monthKey(selection), studentNames);
   const data: MonthlySummaryData = {
     metadata: {
       year: selection.year,
@@ -230,6 +326,14 @@ export async function buildMonthlySummary(selection: MonthSelection, allowClosed
       registeredWorkoutSessions: workouts.length,
     },
     expenses: { operatingResult: null, message: "Resultado operativo: No disponible. Todavía no se registran gastos." },
+    today,
+    weeklyCollections: collectionsByWeek,
+    reconciliation,
+    dataReview: {
+      membershipsWithoutAmount,
+      activityWithoutObligation,
+      missingObligationCauses,
+    },
     warnings: [...warnings],
     detailRows: rows,
   };

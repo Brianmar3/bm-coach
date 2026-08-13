@@ -5,6 +5,7 @@ import { createAdminSessionValue, verifyAdminSessionValue } from "../lib/admin-a
 import { attendancePercentage, closedMonthlySnapshot, hasHistoricalMembershipCoverage, membershipConfigurationChanged, obligationStatus } from "../lib/monthly-calculations.ts";
 import { monthlyGeneralCsv, monthlySummaryCsv } from "../lib/monthly-csv.ts";
 import { currentArgentinaMonth, monthDatabaseBounds, monthLabel, shiftMonth } from "../lib/monthly-period.ts";
+import { activityEvidenceLabels, emptyActivityEvidence, missingObligationCause, reconcileMonthlyFinances, registeredTodaySummary, weeklyCollections, type TraceablePayment } from "../lib/monthly-traceability.ts";
 import { argentinaDateKey } from "../lib/payment-dates.ts";
 import type { MonthlySummaryData } from "../types/monthly-summary.ts";
 
@@ -16,6 +17,10 @@ function sampleSummary(): MonthlySummaryData {
     attendance: { present: 1, absent: 1, justified: 0, totalRecords: 2, percentageFormula: "Presentes / total × 100" },
     activity: { evaluations: 0, completedWorkoutSessions: 0, registeredWorkoutSessions: 0 },
     expenses: { operatingResult: null, message: "Resultado operativo: No disponible. Todavía no se registran gastos." },
+    today: { dateKey: "2026-08-01", isCurrentPeriod: false, registeredTotal: 0, registeredCount: 0, selectedPeriodImpactTotal: 0, selectedPeriodImpactCount: 0, totalBeforeToday: 15000, currentTotal: 15000, movements: [] },
+    weeklyCollections: [],
+    reconciliation: null,
+    dataReview: { membershipsWithoutAmount: [], activityWithoutObligation: [], missingObligationCauses: [] },
     warnings: ["No disponible: este dato no se registraba históricamente."],
     detailRows: [{ studentId: "a", studentName: "Ana, Pérez", collectedAmount: 15000, expectedAmount: null, balance: null, paymentStatus: "Sin obligación", paymentDates: ["2026-08-02"], paymentMethods: ["Transferencia"], attendancePresent: 1, attendanceAbsent: 1, attendanceJustified: 0, planName: null, serviceType: null, frequencyDays: null, joinedAt: null, deactivatedAt: null, warnings: ["Sin plan histórico"] }],
   };
@@ -83,6 +88,75 @@ test("inicio y fin mensual respetan America/Argentina/Buenos_Aires", () => {
   assert.equal(bounds.endInstant.toISOString(), "2026-09-01T03:00:00.000Z");
   assert.equal(argentinaDateKey(new Date("2026-08-01T02:30:00.000Z")), "2026-07-31");
   assert.deepEqual(currentArgentinaMonth(new Date("2026-08-01T02:30:00.000Z")), { year: 2026, month: 7 });
+});
+
+function payment(overrides: Partial<TraceablePayment> & Pick<TraceablePayment, "id" | "amount" | "createdAt">): TraceablePayment {
+  return { studentId: "student-a", status: "PAGADO", billingPeriod: "2026-08-01", paidDate: "2026-08-12", method: "Transferencia", ...overrides };
+}
+
+test("movimientos de hoy usa createdAt en Argentina y suma pagos sin duplicarlos", () => {
+  const payments = [
+    payment({ id: "a", amount: 25000, createdAt: "2026-08-12T12:00:00.000Z" }),
+    payment({ id: "b", amount: 30000, createdAt: "2026-08-13T01:30:00.000Z" }),
+    payment({ id: "b", amount: 30000, createdAt: "2026-08-13T01:30:00.000Z" }),
+  ];
+  const result = registeredTodaySummary(payments, "2026-08", 100000, new Map([["student-a", "Ana"]]), new Date("2026-08-13T02:00:00.000Z"));
+  assert.equal(result.dateKey, "2026-08-12");
+  assert.equal(result.registeredTotal, 55000);
+  assert.equal(result.registeredCount, 2);
+  assert.equal(result.totalBeforeToday, 45000);
+});
+
+test("fecha efectiva de hoy no convierte en registrado hoy un pago creado ayer", () => {
+  const result = registeredTodaySummary([
+    payment({ id: "a", amount: 25000, createdAt: "2026-08-11T15:00:00.000Z", paidDate: "2026-08-12" }),
+  ], "2026-08", 25000, new Map(), new Date("2026-08-12T15:00:00.000Z"));
+  assert.equal(result.registeredCount, 0);
+  assert.equal(result.registeredTotal, 0);
+});
+
+test("un pago creado hoy para julio aparece hoy pero no impacta agosto", () => {
+  const result = registeredTodaySummary([
+    payment({ id: "a", amount: 30000, createdAt: "2026-08-12T15:00:00.000Z", billingPeriod: "2026-07-01" }),
+  ], "2026-08", 100000, new Map(), new Date("2026-08-12T16:00:00.000Z"));
+  assert.equal(result.registeredTotal, 30000);
+  assert.equal(result.selectedPeriodImpactTotal, 0);
+  assert.equal(result.totalBeforeToday, 100000);
+});
+
+test("cobros semanales reconcilian exactamente con el total del período", () => {
+  const payments = [
+    payment({ id: "a", amount: 100000, createdAt: "2026-08-02T12:00:00.000Z", paidDate: "2026-08-02" }),
+    payment({ id: "b", amount: 150000, createdAt: "2026-08-10T12:00:00.000Z", paidDate: "2026-08-10" }),
+    payment({ id: "c", amount: 50000, createdAt: "2026-08-18T12:00:00.000Z", paidDate: "2026-08-18" }),
+  ];
+  const weeks = weeklyCollections(payments, "2026-08", new Map(), new Date("2026-09-01T12:00:00.000Z"));
+  assert.equal(weeks.reduce((sum, week) => sum + week.total, 0), 300000);
+  assert.deepEqual(weeks.slice(0, 3).map((week) => week.total), [100000, 150000, 50000]);
+});
+
+test("reconciliación explica por qué pendiente puede diferir de esperado menos cobrado", () => {
+  const payments = [
+    payment({ id: "a", studentId: "student-a", amount: 30000, createdAt: "2026-08-02T12:00:00.000Z" }),
+    payment({ id: "b", studentId: "student-b", amount: 25000, createdAt: "2026-08-02T12:00:00.000Z" }),
+  ];
+  const result = reconcileMonthlyFinances(payments, [{ studentId: "student-a", expectedAmount: 25000 }, { studentId: "student-c", expectedAmount: 30000 }]);
+  assert.equal(result.expectedTotal, 55000);
+  assert.equal(result.collectedTotal, 55000);
+  assert.equal(result.pendingTotal, 30000);
+  assert.equal(result.paymentsWithoutObligation, 25000);
+  assert.equal(result.overpaymentsOnObligations, 5000);
+  assert.equal(result.unreconciledCollected, 30000);
+});
+
+test("diagnóstico distingue membresía sin importe de actividad sin obligación", () => {
+  assert.deepEqual(missingObligationCause({ status: "ACTIVE", monthlyAmount: null }).code, "INVALID_MEMBERSHIP_AMOUNT");
+  assert.deepEqual(missingObligationCause({ status: "ACTIVE", monthlyAmount: 30000 }).code, "OBLIGATION_NOT_GENERATED");
+  assert.deepEqual(missingObligationCause(null).code, "NO_MEMBERSHIP");
+  const activity = emptyActivityEvidence();
+  activity.validPayments = 1;
+  activity.presentAttendances = 3;
+  assert.deepEqual(activityEvidenceLabels(activity), ["1 pago válido", "3 asistencias (3 presentes, 0 faltas, 0 justificadas)"]);
 });
 
 test("CSV usa UTF-8, español, importes numéricos y No disponible", () => {
