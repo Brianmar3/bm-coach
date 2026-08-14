@@ -39,13 +39,20 @@ test("el ranking mensual conserva sólo activos, ordena empates y limita a tres"
 
 test("el Dashboard respeta la jerarquía compacta y elimina los bloques pesados", () => {
   const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
+  const summary = page.slice(page.indexOf('aria-label="Resumen general"'), page.indexOf("<PrioritiesPanel"));
   assert.match(page, /Prioridades de hoy/);
   assert.match(page, /Agenda de hoy/);
-  assert.match(page, /Ranking por puntos/);
-  assert.match(page, /Ver ranking completo/);
+  assert.match(page, /Ranking mensual/);
+  assert.match(page, /Ver ranking/);
   assert.match(page, /Actividad semanal/);
+  assert.match(summary, /Alumnos activos/);
+  assert.match(summary, /Cuotas pendientes/);
+  assert.doesNotMatch(summary, /Cobrado este mes/);
+  assert.doesNotMatch(summary, /Clases hoy/);
+  assert.match(page, /title="Cobros"/);
+  assert.match(page, /<EventsPanel events=/);
   assert.doesNotMatch(page, /PaymentSummary|PointsRanking|QuickAccess|Accesos rápidos/);
-  assert.match(page, /grid-cols-2 gap-2\.5 lg:grid-cols-4/);
+  assert.match(page, /aria-label="Resumen general" className="grid grid-cols-2 gap-2\.5"/);
   assert.match(page, /overflow-x-clip/);
 });
 

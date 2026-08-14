@@ -16,7 +16,7 @@ test("Top 5 usa el ancla estable de la página real de ranking", () => {
 test("el Dashboard enlaza el Top 3 con la página completa sin sumar controles avanzados", () => {
   const dashboard = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
   const page = readFileSync(new URL("../app/ranking/page.tsx", import.meta.url), "utf8");
-  assert.match(dashboard, /Ver ranking completo/);
+  assert.match(dashboard, /Ver ranking/);
   assert.match(dashboard, /href=\{RANKING_PAGE_HREF\}/);
   assert.doesNotMatch(dashboard, /Recalcular puntos|Últimos 30 días|Histórico/);
   assert.match(page, /<PointsRanking \/>/);

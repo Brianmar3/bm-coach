@@ -55,7 +55,7 @@ export default function Home() {
     return () => controller.abort();
   }, [reload]);
 
-  return <main className="admin-page min-h-screen overflow-x-clip px-3 pb-24 pt-4 text-white sm:px-6 sm:pt-6 md:pb-10 xl:px-8">
+  return <main className="admin-page min-h-screen overflow-x-clip px-3 pb-24 pt-3 text-white sm:px-5 sm:pt-5 md:pb-10 xl:px-6">
     <div className="mx-auto min-w-0 max-w-[1440px]">
       <Hero data={data} coachName={coachName} />
       {error && <section role="alert" className="mb-4 flex flex-col gap-3 rounded-2xl border border-red-400/30 bg-red-400/10 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-red-200">{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="rounded-lg bg-red-300 px-3 py-2 text-sm font-bold text-zinc-950">Reintentar</button></section>}
@@ -66,55 +66,52 @@ export default function Home() {
 }
 
 function Hero({ data, coachName }: { data: DashboardData | null; coachName: string }) {
-  return <header className="admin-welcome mb-4 rounded-2xl px-4 py-5 sm:px-6 sm:py-6">
-    <p className="text-[10px] font-bold uppercase tracking-[.24em] text-yellow-400">Panel general</p>
-    <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
-        <p className="mt-1 text-sm text-zinc-400">{data ? `${data.metrics.activeStudents} alumnos activos · Estado general de BM Training hoy` : "Preparando el estado general de BM Training"}</p>
-      </div>
-      <p className="flex items-center gap-2 text-xs font-semibold capitalize text-zinc-300"><DashboardIcon name="calendar" />{data ? showDate(data.today, true) : "—"}</p>
-    </div>
+  return <header className="admin-welcome mb-3 rounded-2xl px-4 py-4 sm:px-5 sm:py-4">
+    <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
+    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400 sm:text-sm">
+      <span className="inline-flex items-center gap-1.5 font-medium capitalize text-zinc-300"><DashboardIcon name="calendar" />{data ? showDate(data.today, true) : "—"}</span>
+      {data && <><span aria-hidden="true">·</span><span>{data.metrics.activeStudents} alumnos activos</span><span aria-hidden="true">·</span><span className={data.metrics.pendingCount ? "text-red-300" : "text-zinc-400"}>{data.metrics.pendingCount} pendientes</span></>}
+    </p>
   </header>;
 }
 
 function DashboardContent({ data }: { data: DashboardData }) {
   const metrics = data.metrics;
-  return <div className="space-y-4">
-    <section aria-label="Resumen general" className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+  return <div className="space-y-3">
+    <section aria-label="Resumen general" className="grid grid-cols-2 gap-2.5">
       <MetricCard label="Alumnos activos" value={String(metrics.activeStudents)} href="/alumnos?estado=activo" icon="students" />
-      <MetricCard label="Cobrado este mes" value={money(metrics.monthIncome)} href="/pagos" icon="money" tone="green" />
       <MetricCard label="Cuotas pendientes" value={String(metrics.pendingCount)} href="/pagos" icon="warning" tone={metrics.overdueCount ? "red" : "yellow"} />
-      <MetricCard label="Clases hoy" value={String(metrics.classesToday)} href="/clases" icon="calendar" />
     </section>
 
     <PrioritiesPanel priorities={data.priorities} />
 
-    <section className="grid gap-4 xl:grid-cols-2">
+    <section className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <TodayClasses items={data.todayClasses} total={metrics.classesToday} />
       <PaymentsPanel data={data.income} metrics={metrics} />
     </section>
 
-    <section className="grid gap-4 xl:grid-cols-2">
-      <RankingPanel items={data.ranking} />
+    <section className="grid gap-3 lg:grid-cols-2">
+      <AttendancePanel data={data.weeklyAttendance} summary={data.attendanceSummary} />
       <RecentStudents items={data.recentStudents} />
     </section>
 
-    <AttendancePanel data={data.weeklyAttendance} summary={data.attendanceSummary} />
-    <EventsPanel events={data.upcomingEvents} />
+    <section className="grid gap-3 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <RankingPanel items={data.ranking} />
+      <EventsPanel events={data.upcomingEvents} />
+    </section>
   </div>;
 }
 
 function MetricCard({ label, value, href, icon, tone = "yellow" }: { label: string; value: string; href: string; icon: IconName; tone?: "yellow" | "green" | "red" }) {
   const colors = { yellow: "bg-yellow-400/10 text-yellow-300", green: "bg-emerald-400/10 text-emerald-300", red: "bg-red-400/10 text-red-300" }[tone];
-  return <Link href={href} className="group flex min-h-24 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3.5 shadow-lg shadow-black/10 transition hover:border-yellow-400/35 sm:min-h-28 sm:p-5">
+  return <Link href={href} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3.5 shadow-lg shadow-black/10 transition hover:border-yellow-400/35 sm:min-h-20 sm:p-4">
     <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${colors}`}><DashboardIcon name={icon} /></span>
     <span className="min-w-0"><span className="block text-[11px] text-zinc-500 sm:text-sm">{label}</span><strong className="mt-1 block truncate text-lg tracking-tight text-white sm:text-2xl">{value}</strong></span>
   </Link>;
 }
 
 function Panel({ title, subtitle, action, children, className = "", id }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode; className?: string; id?: string }) {
-  return <article id={id} className={`min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-lg shadow-black/10 sm:p-5 ${className}`}>
+  return <article id={id} className={`min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3.5 shadow-lg shadow-black/10 sm:p-4 ${className}`}>
     <div className="flex items-start justify-between gap-3"><div><h2 className="text-base font-bold sm:text-lg">{title}</h2>{subtitle && <p className="mt-0.5 text-xs text-zinc-500 sm:text-sm">{subtitle}</p>}</div>{action}</div>
     {children}
   </article>;
@@ -132,8 +129,8 @@ function PrioritiesPanel({ priorities }: { priorities: DashboardPriority[] }) {
     info: "bg-sky-400/10 text-sky-300",
     neutral: "bg-zinc-700/60 text-zinc-300",
   };
-  return <Panel title="Prioridades de hoy" subtitle="Lo que necesita atención inmediata">
-    {priorities.length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{priorities.map((priority) => <Link key={priority.id} href={priority.href} className="flex min-h-12 items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 px-3 py-2.5 transition hover:border-yellow-400/30">
+  return <Panel title="Prioridades de hoy">
+    {priorities.length ? <div className="mt-2.5 grid gap-2 lg:grid-cols-3">{priorities.map((priority) => <Link key={priority.id} href={priority.href} className="flex min-h-12 items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 px-3 py-2 transition hover:border-yellow-400/30">
       <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-black ${styles[priority.tone]}`}>{priority.count}</span>
       <span className="min-w-0 flex-1 text-sm font-medium">{priority.label}</span><span aria-hidden="true" className="text-zinc-500">›</span>
     </Link>)}</div> : <p className="mt-3 rounded-xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200">No hay prioridades pendientes para hoy.</p>}
@@ -142,8 +139,8 @@ function PrioritiesPanel({ priorities }: { priorities: DashboardPriority[] }) {
 
 function TodayClasses({ items, total }: { items: DashboardData["todayClasses"]; total: number }) {
   return <Panel title="Agenda de hoy" subtitle={total ? `${total} ${total === 1 ? "clase programada" : "clases programadas"}` : "Tu jornada de clases"} action={<SectionLink href="/clases">Ver agenda</SectionLink>}>
-    <div className="mt-3 space-y-2">{items.length ? items.map((item) => <Link href="/clases" key={item.id} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 p-3 transition hover:border-yellow-400/30">
-      <div className="w-20 shrink-0 border-r border-zinc-800 pr-3"><p className="text-sm font-bold text-yellow-300">{item.startTime}</p><p className="text-[10px] text-zinc-600">{item.endTime}</p></div>
+    <div className="mt-2.5 divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800 bg-black/20">{items.length ? items.map((item) => <Link href="/clases" key={item.id} className="flex min-h-14 items-center gap-3 px-3 py-2 transition hover:bg-yellow-400/[.03]">
+      <div className="w-[4.5rem] shrink-0 border-r border-zinc-800 pr-3"><p className="text-sm font-bold text-yellow-300">{item.startTime}</p><p className="text-[10px] text-zinc-600">{item.endTime}</p></div>
       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.name}</p><p className="mt-0.5 text-xs text-zinc-500">{item.confirmed} confirmados · {item.attendance} presentes</p></div><span className="text-zinc-600">›</span>
     </Link>) : <EmptyState text="No hay clases programadas para hoy." href="/clases" action="Crear clase" />}</div>
     {total > items.length && <p className="mt-2 text-right text-[11px] text-zinc-500">+{total - items.length} más en la agenda</p>}
@@ -158,16 +155,15 @@ function PaymentsPanel({ data, metrics }: { data: DashboardData["income"]; metri
       <CompactMetric label="Pendiente" value={money(metrics.pendingAmount)} tone="text-yellow-300" />
       <CompactMetric label="Vencidas" value={String(metrics.overdueCount)} tone="text-red-300" />
     </div>
-    <div className="mt-4 flex h-20 items-end gap-1" role="img" aria-label="Cobros diarios del mes">{data.map((item) => <div key={item.date} className="flex h-full min-w-0 flex-1 items-end"><span className="block w-full rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${item.amount ? Math.max(8, (item.amount / max) * 100) : 2}%` }} title={`${item.label}: ${money(item.amount)}`} /></div>)}</div>
+    <div className="mt-3 flex h-16 items-end gap-1" role="img" aria-label="Cobros diarios del mes">{data.map((item) => <div key={item.date} className="flex h-full min-w-0 flex-1 items-end"><span className="block w-full rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${item.amount ? Math.max(8, (item.amount / max) * 100) : 2}%` }} title={`${item.label}: ${money(item.amount)}`} /></div>)}</div>
   </Panel>;
 }
 
 function RankingPanel({ items }: { items: DashboardData["ranking"] }) {
-  return <Panel id="ranking" title="Ranking por puntos" subtitle="Top 3 del mes">
-    <div className="mt-3 divide-y divide-zinc-800">{items.length ? items.map((item, index) => <div key={item.studentId} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-      <span className="w-4 text-center text-sm font-bold text-yellow-300">{index + 1}</span><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/10 text-xs font-bold text-yellow-200">{initials(item.studentName)}</span><span className="min-w-0 flex-1 truncate text-sm font-semibold">{item.studentName}</span><strong className="text-sm text-yellow-300">{item.points.toLocaleString("es-AR")} pts</strong>
-    </div>) : <p className="py-4 text-sm text-zinc-500">Todavía no hay puntos registrados este mes.</p>}</div>
-    <div className="mt-2 flex justify-end"><SectionLink href={RANKING_PAGE_HREF}>Ver ranking completo</SectionLink></div>
+  return <Panel id="ranking" title="Ranking mensual" subtitle="Top 3 del mes" action={<SectionLink href={RANKING_PAGE_HREF}>Ver ranking</SectionLink>}>
+    <div className="mt-2.5 grid grid-cols-3 gap-2">{items.length ? items.map((item, index) => <div key={item.studentId} className="min-w-0 rounded-xl border border-zinc-800 bg-black/20 px-2 py-2 text-center">
+      <div className="mx-auto flex items-center justify-center gap-1.5"><span className="text-xs font-bold text-yellow-300">{index + 1}</span><span className="grid h-7 w-7 place-items-center rounded-full bg-yellow-400/10 text-[10px] font-bold text-yellow-200">{initials(item.studentName)}</span></div><span className="mt-1 block truncate text-[11px] text-zinc-300">{item.studentName}</span><strong className="mt-0.5 block text-xs text-yellow-300">{item.points.toLocaleString("es-AR")} pts</strong>
+    </div>) : <p className="col-span-3 py-3 text-sm text-zinc-500">Todavía no hay puntos registrados este mes.</p>}</div>
   </Panel>;
 }
 
@@ -182,18 +178,18 @@ function RecentStudents({ items }: { items: DashboardData["recentStudents"] }) {
 function AttendancePanel({ data, summary }: { data: DashboardData["weeklyAttendance"]; summary: DashboardData["attendanceSummary"] }) {
   const max = Math.max(...data.map((item) => item.present), 1);
   return <Panel title="Actividad semanal" subtitle="Asistencias de lunes a domingo" action={<SectionLink href="/asistencias">Ver detalle</SectionLink>}>
-    <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-      <div className="flex h-28 items-end gap-2" role="img" aria-label="Asistencias de la semana">{data.map((day) => <div key={day.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"><span className="mb-1 text-[10px] font-bold text-zinc-300">{day.present}</span><span className="block w-full max-w-10 rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${day.present ? Math.max(8, (day.present / max) * 100) : 2}%` }} /><span className="mt-1 text-[10px] text-zinc-500">{day.label}</span></div>)}</div>
-      <div className="grid grid-cols-3 gap-2 lg:min-w-80"><CompactMetric label="Promedio" value={`${summary.weeklyAverage}%`} tone="text-emerald-300" /><CompactMetric label="Mejor día" value={summary.bestDay} tone="text-yellow-300" /><CompactMetric label="Asistencias" value={String(summary.totalAttendance)} tone="text-sky-300" /></div>
+    <div className="mt-3 grid gap-3">
+      <div className="flex h-24 items-end gap-2" role="img" aria-label="Asistencias de la semana">{data.map((day) => <div key={day.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"><span className="mb-1 text-[10px] font-bold text-zinc-300">{day.present}</span><span className="block w-full max-w-10 rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${day.present ? Math.max(8, (day.present / max) * 100) : 2}%` }} /><span className="mt-1 text-[10px] text-zinc-500">{day.label}</span></div>)}</div>
+      <div className="grid grid-cols-3 gap-2"><CompactMetric label="Promedio" value={`${summary.weeklyAverage}%`} tone="text-emerald-300" /><CompactMetric label="Mejor día" value={summary.bestDay} tone="text-yellow-300" /><CompactMetric label="Asistencias" value={String(summary.totalAttendance)} tone="text-sky-300" /></div>
     </div>
   </Panel>;
 }
 
 function EventsPanel({ events }: { events: DashboardData["upcomingEvents"] }) {
   return <Panel title="Próximos eventos" subtitle="Hasta 3 eventos pendientes" action={<SectionLink href="/eventos">Ver agenda</SectionLink>}>
-    <div className="mt-3 grid gap-2 lg:grid-cols-3">{events.length ? events.map((event) => <Link key={event.id} href="/eventos" className="flex min-h-16 items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 p-3 transition hover:border-yellow-400/30">
+    <div className="mt-2.5 grid gap-2 sm:grid-cols-3">{events.length ? events.map((event) => <Link key={event.id} href="/eventos" className="flex min-h-14 items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 px-3 py-2 transition hover:border-yellow-400/30">
       <span className="h-10 w-1 shrink-0 rounded-full" style={{ backgroundColor: event.color }} /><span className="min-w-0 flex-1"><strong className="block truncate text-sm">{event.title}</strong><span className="mt-0.5 block truncate text-xs capitalize text-zinc-500">{showDate(event.date)} · {event.time}</span></span><span className="text-zinc-600">›</span>
-    </Link>) : <div className="lg:col-span-3"><EmptyState text="No hay eventos programados." href="/eventos" action="Agregar evento" /></div>}</div>
+    </Link>) : <div className="sm:col-span-3"><EmptyState text="No hay eventos programados." href="/eventos" action="Agregar evento" /></div>}</div>
   </Panel>;
 }
 
@@ -222,5 +218,5 @@ function DashboardIcon({ name }: { name: IconName }) {
 }
 
 function DashboardSkeleton() {
-  return <div className="animate-pulse space-y-4"><section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 rounded-2xl bg-zinc-900 sm:h-28" />)}</section><div className="h-40 rounded-2xl bg-zinc-900" /><section className="grid gap-4 xl:grid-cols-2">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-64 rounded-2xl bg-zinc-900" />)}</section><div className="h-64 rounded-2xl bg-zinc-900" /></div>;
+  return <div className="animate-pulse space-y-3"><section className="grid grid-cols-2 gap-2.5">{Array.from({ length: 2 }, (_, index) => <div key={index} className="h-20 rounded-2xl bg-zinc-900" />)}</section><div className="h-36 rounded-2xl bg-zinc-900" /><section className="grid gap-3 lg:grid-cols-2">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-56 rounded-2xl bg-zinc-900" />)}</section></div>;
 }
