@@ -25,7 +25,7 @@ test("el acceso flotante reutiliza exactamente el lenguaje del Dashboard", () =>
 });
 
 test("el sheet cierra por overlay, botón y Escape y administra el foco", () => {
-  assert.match(component, /event\.key === "Escape"/);
+  assert.match(component, /useEscapeLayer\(open, \(\) => close\(\), \{ priority: 60, triggerRef \}\)/);
   assert.match(component, /onPointerDown=\{\(\) => close\(\)\}/);
   assert.match(component, /aria-label="Cerrar acciones rápidas"/);
   assert.match(component, /firstActionRef\.current\?\.focus\(\)/);

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { filterTrainerCommands, nextCommandIndex, shouldIgnoreGlobalShortcut, studentCommandIntent, studentSearchTerms, trainerCommands, type StudentCommandIntent } from "@/lib/trainer-commands";
+import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 
 type StudentResult = { id: string; name: string; serviceType: "CLASSES" | "PERSONALIZED" | "MIXED"; status: string; plan: string; frequency: string };
 type PaletteItem = { id: string; label: string; detail: string; symbol: string; href: string; category: "Acciones" | "Navegación" | "Alumnos"; shortcut?: string };
@@ -58,11 +59,13 @@ export function TrainerCommandPalette() {
     router.push(item.href);
   }
 
+  useEscapeLayer(open, close, { priority: 100 });
+
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       const paletteShortcut = (event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase("es") === "k";
       if (paletteShortcut) { event.preventDefault(); if (open) close(); else showPalette(); return; }
-      if (event.key === "Escape" && open) { event.preventDefault(); close(); return; }
       if (event.key === "Tab" && open) {
         const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('input, button, [href], [tabindex]:not([tabindex="-1"])') ?? []).filter((item) => !item.hasAttribute("disabled"));
         if (!controls.length) return;

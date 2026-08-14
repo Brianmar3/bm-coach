@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 
 const links = [
   ["Dashboard", "/dashboard", "dashboard"],
@@ -21,14 +22,7 @@ export function Sidebar() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
-  }, [open]);
+  useEscapeLayer(open, () => setOpen(false), { priority: 50 });
 
   async function logout() {
     await fetch("/api/admin/auth/logout", { method: "POST" });

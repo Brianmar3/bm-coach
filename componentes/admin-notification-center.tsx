@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 import { useRouter } from "next/navigation";
 import { openNotificationSafely } from "@/lib/trainer-notification-destination";
 
@@ -75,6 +76,8 @@ function NotificationCenter({ audience }: { audience: Audience }) {
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   }, [setOpen]);
 
+  useEscapeLayer(open, close, { priority: 70, triggerRef });
+
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
@@ -88,15 +91,10 @@ function NotificationCenter({ audience }: { audience: Audience }) {
         close();
       }
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
     };
   }, [close, open]);
 

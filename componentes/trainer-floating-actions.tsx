@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 
 export type TrainerFloatingAction = {
   label: string;
@@ -33,18 +34,15 @@ export function TrainerFloatingActions({
     if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
   }
 
+  useEscapeLayer(open, () => close(), { priority: 60, triggerRef });
+
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     requestAnimationFrame(() => firstActionRef.current?.focus());
-    const closeEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    document.addEventListener("keydown", closeEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", closeEscape);
     };
   }, [open]);
 

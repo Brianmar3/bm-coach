@@ -4,6 +4,7 @@ import test from "node:test";
 import { searchStudents } from "../lib/student-search.ts";
 import { isActivePainReport, routineTrainingLocation } from "../lib/routine-follow-up-filters.ts";
 import { routineArrowDirection, routineControlNeedsScroll } from "../lib/routine-keyboard-navigation.ts";
+import { shouldEnterAdvance } from "../lib/trainer-keyboard-interactions.ts";
 
 const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
 
@@ -237,9 +238,19 @@ test("selects, fechas y flechas verticales numéricas conservan su comportamient
 });
 
 test("Tab, Shift Tab y Enter nunca son capturados por la navegación", () => {
-  for (const key of ["Tab", "Enter", " "]) assert.equal(routineArrowDirection(key, { tagName: "INPUT", selectionStart: 0, selectionEnd: 0, valueLength: 0 }), null);
+  for (const key of ["Tab", " "]) assert.equal(routineArrowDirection(key, { tagName: "INPUT", selectionStart: 0, selectionEnd: 0, valueLength: 0 }), null);
   assert.match(keyboardNavigation, /event\.shiftKey/);
   assert.match(keyboardNavigation, /if \(direction === null\) return/);
+});
+
+test("Enter avanza entre campos de rutina sin incluir controles de acción", () => {
+  assert.equal(shouldEnterAdvance({ tagName: "INPUT", inputType: "number" }), true);
+  assert.equal(shouldEnterAdvance({ tagName: "SELECT" }), true);
+  assert.equal(shouldEnterAdvance({ tagName: "TEXTAREA" }), false);
+  assert.equal(shouldEnterAdvance({ tagName: "BUTTON" }), false);
+  assert.equal(shouldEnterAdvance({ tagName: "INPUT", inputType: "checkbox" }), false);
+  assert.match(keyboardNavigation, /event\.key === "Enter"/);
+  assert.doesNotMatch(keyboardNavigation, /requestSubmit|\.click\(/);
 });
 
 test("el orden DOM continúa entre ejercicios y bloques sin incluir botones de acción", () => {

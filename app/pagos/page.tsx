@@ -1,10 +1,11 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
+import { useEnterFieldNavigation, useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
 import type { Payment, PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
 
@@ -374,7 +375,7 @@ function PaymentIcon({ name }: { name: PaymentIconName }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">{paths[name]}</svg>;
 }
 
-function StudentCombobox({ form, accounts, setForm, disabled }: { form: PaymentForm; accounts: PaymentStudentAccount[]; setForm: (form: PaymentForm) => void; disabled: boolean }) {
+function StudentCombobox({ form, accounts, setForm, disabled, inputRef, onSelected }: { form: PaymentForm; accounts: PaymentStudentAccount[]; setForm: (form: PaymentForm) => void; disabled: boolean; inputRef: RefObject<HTMLInputElement | null>; onSelected: () => void }) {
   const selected = accounts.find((account) => account.studentId === form.studentId);
   const [query, setQuery] = useState(selected?.student ?? "");
   const [open, setOpen] = useState(false);
@@ -399,6 +400,7 @@ function StudentCombobox({ form, accounts, setForm, disabled }: { form: PaymentF
       amount: account.monthlyFee,
       dueDate: addMonthsToDateKey(account.nextDueDate || form.paidDate),
     });
+    requestAnimationFrame(onSelected);
   }
   function clear() {
     setQuery("");
@@ -409,7 +411,7 @@ function StudentCombobox({ form, accounts, setForm, disabled }: { form: PaymentF
   return <div ref={rootRef} className="relative sm:col-span-2">
     <label htmlFor="payment-student-search" className="text-sm">Alumno</label>
     <div className="relative mt-1">
-      <input id="payment-student-search" role="combobox" aria-expanded={open} aria-controls="payment-student-options" aria-autocomplete="list" aria-activedescendant={open && results[activeIndex] ? `payment-student-${results[activeIndex].studentId}` : undefined} disabled={disabled} value={query} onFocus={() => !disabled && setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); if (form.studentId) setForm({ ...form, studentId: "" }); }} onKeyDown={(event) => {
+      <input ref={inputRef} id="payment-student-search" data-enter-next="false" role="combobox" aria-expanded={open} aria-controls="payment-student-options" aria-autocomplete="list" aria-activedescendant={open && results[activeIndex] ? `payment-student-${results[activeIndex].studentId}` : undefined} disabled={disabled} value={query} onFocus={() => !disabled && setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); if (form.studentId) setForm({ ...form, studentId: "" }); }} onKeyDown={(event) => {
         if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, results.length - 1)); }
         if (event.key === "ArrowUp") { event.preventDefault(); setActiveIndex((index) => Math.max(index - 1, 0)); }
         if (event.key === "Enter" && open && results[activeIndex]) { event.preventDefault(); choose(results[activeIndex]); }
@@ -427,12 +429,23 @@ function StudentCombobox({ form, accounts, setForm, disabled }: { form: PaymentF
 function PaymentModal({ form, accounts, setForm, error, saving, close, submit }: { form: PaymentForm; accounts: PaymentStudentAccount[]; setForm: (form: PaymentForm) => void; error: string; saving: boolean; close: () => void; submit: (event: FormEvent<HTMLFormElement>) => void }) {
   const account = accounts.find((item) => item.studentId === form.studentId);
   const title = form.mode === "edit" ? "Editar pago" : form.mode === "quick" ? "Confirmar “Pagó hoy”" : "Agregar pago";
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3"><form onSubmit={submit} className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10">
-    <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-yellow-400">{title}</p><h2 className="mt-1 text-lg font-bold">{account?.student ?? "Seleccioná un alumno"}</h2>{form.mode === "quick" && <p className="mt-1 text-xs text-zinc-400">Revisá importe y fecha antes de confirmar.</p>}</div><button type="button" onClick={close} disabled={saving} className="p-2 text-zinc-400">Cerrar</button></div>
+  const formRef = useRef<HTMLFormElement>(null);
+  const studentInputRef = useRef<HTMLInputElement>(null);
+  const handleEnterNavigation = useEnterFieldNavigation();
+  useEscapeLayer(true, close, { priority: 80 });
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (!form.studentId) studentInputRef.current?.focus();
+      else formRef.current?.querySelector<HTMLInputElement>('input[name="payment-amount"]')?.focus();
+    });
+  }, [form.studentId]);
+  function focusAmount() { formRef.current?.querySelector<HTMLInputElement>('input[name="payment-amount"]')?.focus(); }
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3"><form ref={formRef} onSubmit={submit} onKeyDownCapture={handleEnterNavigation} role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10">
+    <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-yellow-400">{title}</p><h2 id="payment-modal-title" className="mt-1 text-lg font-bold">{account?.student ?? "Seleccioná un alumno"}</h2>{form.mode === "quick" && <p className="mt-1 text-xs text-zinc-400">Revisá importe y fecha antes de confirmar.</p>}</div><button type="button" onClick={close} disabled={saving} className="p-2 text-zinc-400">Cerrar</button></div>
     {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     <div className="mt-5 grid gap-4 sm:grid-cols-2">
-      <StudentCombobox form={form} accounts={accounts} setForm={setForm} disabled={form.mode === "edit"} />
-      <label className="text-sm">Importe<input required type="number" min="1" step="0.01" inputMode="decimal" value={form.amount || ""} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} className={`${inputClass} mt-1`} /></label>
+      <StudentCombobox form={form} accounts={accounts} setForm={setForm} disabled={form.mode === "edit"} inputRef={studentInputRef} onSelected={focusAmount} />
+      <label className="text-sm">Importe<input name="payment-amount" required type="number" min="1" step="0.01" inputMode="decimal" value={form.amount || ""} onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })} className={`${inputClass} mt-1`} /></label>
       <label className="text-sm">Fecha de pago<input required type="date" value={form.paidDate} onChange={(event) => setForm({ ...form, paidDate: event.target.value })} className={`${inputClass} mt-1`} /></label>
       <label className="text-sm">Período abonado<input required type="month" value={form.billingPeriod.slice(0, 7)} onChange={(event) => setForm({ ...form, billingPeriod: `${event.target.value}-01` })} className={`${inputClass} mt-1`} /></label>
       <label className="text-sm">Medio de pago<select value={form.method} onChange={(event) => setForm({ ...form, method: event.target.value })} className={`${inputClass} mt-1`}>{paymentMethods.map((method) => <option key={method}>{method}</option>)}</select></label>

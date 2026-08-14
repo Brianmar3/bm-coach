@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { WeeklyAttendanceHistory } from "@/componentes/weekly-attendance-history";
 import { toggledAttendanceStatus } from "@/lib/attendance-state";
+import { nextRosterIndex, rosterStatusForKey } from "@/lib/trainer-keyboard-interactions";
 import type { AttendanceGeneralSummary, AttendanceRoster, AttendanceRosterStudent, AttendanceStatus, Student, WeeklyClassDay, WeeklyClassSchedule } from "@/types/gestion";
 
 const DAY_FROM_JS: Partial<Record<number, WeeklyClassDay>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
@@ -49,6 +50,8 @@ function AttendancePageContent() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const savingLock = useRef(false);
+  const rosterRefs = useRef(new Map<string, HTMLElement>());
+  const [activeRosterIndex, setActiveRosterIndex] = useState(-1);
 
   useEffect(() => {
     if (historyMode) return;
@@ -183,6 +186,20 @@ function AttendancePageContent() {
   }
   function changeDate(value: string) { setDate(value); setError(""); setSaved(false); setLoadingRoster(true); }
   function changeSchedule(value: string) { setScheduleId(value); setError(""); setSaved(false); setLoadingRoster(true); }
+  function handleRosterKey(index: number, event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || savingLock.current) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const nextIndex = nextRosterIndex(index, event.key, rosterStudents.length);
+      setActiveRosterIndex(nextIndex);
+      rosterRefs.current.get(rosterStudents[nextIndex]?.id ?? "")?.focus();
+      return;
+    }
+    const status = rosterStatusForKey(event.key);
+    if (!status) return;
+    event.preventDefault();
+    setStatus(rosterStudents[index].id, status);
+  }
 
   return (
     <ModuleShell title="" subtitle="" hideHeader flushTop>
@@ -193,7 +210,7 @@ function AttendancePageContent() {
         <div className="grid gap-3 border-b border-zinc-800 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><label className="text-xs text-zinc-400">Fecha<input type="date" value={date} onChange={(event) => changeDate(event.target.value)} className={`${inputClass} mt-1`} /></label><button disabled={saving || !roster.some((student) => student.assigned)} onClick={markAllPresent} className="min-h-11 rounded-xl border border-emerald-400/40 px-4 text-sm font-bold text-emerald-300 disabled:opacity-50">Marcar todos presentes</button></div>
         <div className="border-b border-zinc-800 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-end"><label className="min-w-0 flex-1 text-sm">Buscar alumno<input value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Nombre o apellido" className={`${inputClass} mt-1`} /></label><button type="button" onClick={() => setAddingStudent((value) => !value)} className="min-h-11 shrink-0 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-yellow-300">+ Agregar alumno</button></div>{addingStudent && <div className="mt-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3"><label className="text-xs text-zinc-400">Buscar alumno activo<input autoFocus value={addStudentQuery} onChange={(event) => setAddStudentQuery(event.target.value)} placeholder="Nombre, apellido o teléfono" className={`${inputClass} mt-1`} /></label>{addStudentQuery.trim() && <div className="mt-2 overflow-hidden rounded-lg border border-zinc-800">{!ready ? <p className="p-3 text-sm text-zinc-500">Buscando alumnos…</p> : addableStudents.length ? addableStudents.map((student) => <button key={student.id} type="button" onClick={() => addExceptional(student)} className="flex w-full items-center justify-between gap-3 border-b border-zinc-800 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-zinc-900"><span>{student.firstName} {student.lastName}</span><span className="text-xs text-zinc-500">{student.phone}</span></button>) : <p className="p-3 text-sm text-zinc-500">No se encontraron alumnos activos.</p>}</div>}</div>}</div>
         {!calendarMode && <div className="border-b border-zinc-800 p-4"><label className="text-sm">Horario o grupo (opcional)<select value={effectiveScheduleId} onChange={(event) => changeSchedule(event.target.value)} className={`${inputClass} mt-1`}><option value="">Sin horario fijo</option>{dateSchedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}</select><span className="mt-1 block text-xs text-zinc-500">Podés usar el registro sin horario y corregirlo después.</span></label></div>}
-        {!ready ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : loadingRoster ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : rosterStudents.length === 0 ? <p className="p-12 text-center text-zinc-500">No hay alumnos para esta fecha. Podés agregarlos con “+ Agregar alumno”.</p> : <div className="grid gap-2 p-3">{rosterStudents.map((student) => <AttendanceStudentCard key={student.id} student={student} highlighted={student.id === targetStudentId} saving={saving} setStatus={(status) => setStatus(student.id, status)} />)}</div>}
+        {!ready ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : loadingRoster ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : rosterStudents.length === 0 ? <p className="p-12 text-center text-zinc-500">No hay alumnos para esta fecha. Podés agregarlos con “+ Agregar alumno”.</p> : <div className="grid gap-2 p-3" aria-label="Lista de asistencia">{rosterStudents.map((student, index) => <AttendanceStudentCard key={student.id} student={student} highlighted={student.id === targetStudentId} keyboardActive={index === activeRosterIndex} saving={saving} setRef={(node) => { if (node) rosterRefs.current.set(student.id, node); else rosterRefs.current.delete(student.id); }} onFocus={() => setActiveRosterIndex(index)} onKeyDown={(event) => handleRosterKey(index, event)} setStatus={(status) => setStatus(student.id, status)} />)}</div>}
       </section>
       <div className={historyMode ? "" : "hidden"}>
         <div className="mb-5 flex w-fit rounded-xl border border-zinc-800 bg-zinc-900 p-1" role="tablist" aria-label="Período del historial">
@@ -215,12 +232,20 @@ function AttendanceHistory({ summary }: { summary: AttendanceGeneralSummary | nu
 function AttendanceStudentCard({
   student,
   highlighted,
+  keyboardActive,
   saving,
+  setRef,
+  onFocus,
+  onKeyDown,
   setStatus,
 }: {
   student: AttendanceRosterStudent;
   highlighted: boolean;
+  keyboardActive: boolean;
   saving: boolean;
+  setRef: (node: HTMLElement | null) => void;
+  onFocus: () => void;
+  onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
   setStatus: (status: AttendanceStatus) => void;
 }) {
   const confirmation = student.confirmation
@@ -235,8 +260,13 @@ function AttendanceStudentCard({
 
   return (
     <article
-      className={`scroll-mt-24 rounded-xl border px-3 py-2.5 ${
-        highlighted
+      ref={setRef}
+      tabIndex={0}
+      onFocus={onFocus}
+      onKeyDown={onKeyDown}
+      aria-label={`${student.name}. ${student.status ? STATUS_LABEL[student.status] : "Sin registrar"}`}
+      className={`scroll-mt-24 rounded-xl border px-3 py-2.5 outline-none transition focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${
+        highlighted || keyboardActive
           ? "border-yellow-300 bg-yellow-400/10 shadow-[0_0_24px_rgba(250,204,21,.08)]"
           : student.assigned
             ? "border-zinc-800 bg-zinc-950"
