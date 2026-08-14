@@ -4,7 +4,9 @@ import test from "node:test";
 import { searchStudents } from "../lib/student-search.ts";
 import { isActivePainReport, routineTrainingLocation } from "../lib/routine-follow-up-filters.ts";
 import { routineArrowDirection, routineControlNeedsScroll } from "../lib/routine-keyboard-navigation.ts";
+import { routineStatusCounts, routinesForStatusSection } from "../lib/routine-list-organization.ts";
 import { shouldEnterAdvance } from "../lib/trainer-keyboard-interactions.ts";
+import type { TrainingRoutine } from "../types/gestion.ts";
 
 const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
 
@@ -190,15 +192,55 @@ test("Seguimiento usa una bandeja compacta y prioriza molestias o ausencia de re
 
 test("la navegación principal de Rutinas queda en tres pestañas sin perder las acciones de asignación", () => {
   const navigation = page.slice(page.indexOf('<nav className="mb-4'), page.indexOf('{activeTab === "seguimiento"'));
-  for (const tab of ["Rutinas", "Plantillas", "Seguimiento"]) assert.match(navigation, new RegExp(`"${tab}"`));
+  for (const tab of ["Rutinas", "Biblioteca", "Seguimiento"]) assert.match(navigation, new RegExp(`"${tab}"`));
   assert.doesNotMatch(navigation, /Asignaciones/);
   for (const action of ["Usar plantilla", "Cambiar asignación"]) assert.match(management, new RegExp(action));
 });
 
-test("Plantillas muestra sólo búsqueda y objetivo y no aplica estado ni alumno", () => {
+test("Biblioteca reutiliza Plantillas y muestra sólo búsqueda y objetivo", () => {
   assert.match(page, /activeTab === "plantillas"\) return routine\.kind === "template" && matchesQuery && \(objectiveFilter/);
-  assert.match(page, /activeTab !== "plantillas" && <select aria-label="Estado"/);
+  assert.doesNotMatch(page, /<select aria-label="Estado"/);
   assert.match(page, /activeTab !== "plantillas" && <select aria-label="Alumno"/);
+});
+
+function routineListItem(id: string, kind: TrainingRoutine["kind"], status: TrainingRoutine["status"], updatedAt: string) {
+  return { id, kind, status, updatedAt } as TrainingRoutine;
+}
+
+test("Rutinas expone navegación visible para Activas, Borradores y Archivadas con contadores reales", () => {
+  assert.match(page, /aria-label="Estado de las rutinas"/);
+  for (const section of ["Activas", "Borradores", "Archivadas"]) assert.match(page, new RegExp(`"${section}"`));
+  assert.match(page, /statusCounts\[value\]/);
+  assert.match(page, /grid grid-cols-3/);
+  assert.doesNotMatch(page, /Todos los estados/);
+
+  const routines = [
+    routineListItem("active", "assigned", "activa", "2026-08-10T10:00:00.000Z"),
+    routineListItem("draft", "assigned", "borrador", "2026-08-11T10:00:00.000Z"),
+    routineListItem("archived", "assigned", "archivada", "2026-08-12T10:00:00.000Z"),
+    routineListItem("template", "template", "borrador", "2026-08-13T10:00:00.000Z"),
+  ];
+  assert.deepEqual(routineStatusCounts(routines), { activas: 1, borradores: 1, archivadas: 1 });
+  assert.deepEqual(routinesForStatusSection(routines, "activas").map((routine) => routine.id), ["active"]);
+  assert.deepEqual(routinesForStatusSection(routines, "borradores").map((routine) => routine.id), ["draft"]);
+  assert.deepEqual(routinesForStatusSection(routines, "archivadas").map((routine) => routine.id), ["archived"]);
+});
+
+test("los borradores asignados se ordenan por última modificación sin mezclarse con plantillas", () => {
+  const routines = [
+    routineListItem("older", "assigned", "borrador", "2026-08-10T10:00:00.000Z"),
+    routineListItem("template", "template", "borrador", "2026-08-14T10:00:00.000Z"),
+    routineListItem("newer", "assigned", "borrador", "2026-08-13T10:00:00.000Z"),
+  ];
+  assert.deepEqual(routinesForStatusSection(routines, "borradores").map((routine) => routine.id), ["newer", "older"]);
+});
+
+test("cada estado conserva sus acciones y mensajes contextuales", () => {
+  assert.match(management, /Continuar editando/);
+  assert.match(management, /isDraft \? \(\) => actions\.edit\(routine\)/);
+  for (const message of ["No hay rutinas activas.", "No tenés borradores pendientes.", "No hay rutinas archivadas."]) assert.match(management, new RegExp(message));
+  assert.match(management, /label="Restaurar"/);
+  assert.match(management, /Duplicar/);
 });
 
 test("el editor elimina la navegación visual adicional y conserva las tarjetas de días", () => {

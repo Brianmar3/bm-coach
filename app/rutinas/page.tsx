@@ -16,6 +16,7 @@ import { searchStudents } from "@/lib/student-search";
 import { applyLibraryExerciseSelection, createEmptyRoutineExerciseDraft, persistedRoutineExerciseVideoUrl, removeRoutineExerciseDraft, unlinkLibraryExercise, type RoutineExerciseDraft } from "@/lib/routine-exercise-draft";
 import { libraryExerciseIdFromMediaUrl, resolveRoutineExerciseMedia } from "@/lib/routine-exercise-media";
 import { numericDraftValue, repetitionRangeDraft, serializedRepetitionRange } from "@/lib/routine-numeric-draft";
+import { routineStatusCounts, routinesForStatusSection, type RoutineStatusSection } from "@/lib/routine-list-organization";
 import type { Student, TrainingBlockType, TrainingEffortType, TrainingRoutine, TrainingRoutineBlock, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 import type { BMExercise } from "@/types/exercise-library";
 
@@ -127,7 +128,7 @@ export default function RutinasPage() {
   const [items, setItems] = useState<TrainingRoutine[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"activas" | "borradores" | "finalizadas" | "archivadas" | "todas">("activas");
+  const [routineSection, setRoutineSection] = useState<RoutineStatusSection>("activas");
   const [objectiveFilter, setObjectiveFilter] = useState("todos");
   const [studentFilter, setStudentFilter] = useState(trackingStudentId || "todos");
   const [form, setForm] = useState<RoutineDraft>(blankRoutine());
@@ -168,21 +169,18 @@ export default function RutinasPage() {
   }, [requestedStudentView, trackingStudentId]);
 
   const objectiveOptions = useMemo(() => [...new Set([...objectives, ...items.map((item) => item.objective)])].sort((a, b) => a.localeCompare(b, "es")), [items]);
+  const statusCounts = useMemo(() => routineStatusCounts(items), [items]);
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es");
-    return items.filter((routine) => {
+    const candidates = activeTab === "plantillas" ? items : routinesForStatusSection(items, routineSection);
+    return candidates.filter((routine) => {
       const matchesQuery = !normalized || `${routine.name} ${routine.description} ${routine.objective} ${routine.tags.join(" ")} ${routine.equipment.join(" ")} ${activeTab === "plantillas" ? "" : routine.historicalStudents.map((student) => student.name).join(" ")}`.toLocaleLowerCase("es").includes(normalized);
       if (activeTab === "plantillas") return routine.kind === "template" && matchesQuery && (objectiveFilter === "todos" || routine.objective === objectiveFilter);
-      return routine.kind === "assigned" && (statusFilter === "todas"
-        || (statusFilter === "activas" && routine.status === "activa")
-        || (statusFilter === "borradores" && routine.status === "borrador")
-        || (statusFilter === "finalizadas" && routine.status === "finalizada")
-        || (statusFilter === "archivadas" && routine.status === "archivada"))
-      && matchesQuery
+      return matchesQuery
       && (objectiveFilter === "todos" || routine.objective === objectiveFilter)
       && (studentFilter === "todos" || (routine.status === "archivada" ? routine.historicalStudents.some((student) => student.id === studentFilter) : routine.studentIds.includes(studentFilter)));
     });
-  }, [activeTab, items, objectiveFilter, query, statusFilter, studentFilter]);
+  }, [activeTab, items, objectiveFilter, query, routineSection, studentFilter]);
 
   function begin(routine?: TrainingRoutine, kind?: TrainingRoutineKind) {
     setEditing(routine ?? null);
@@ -370,11 +368,12 @@ export default function RutinasPage() {
   return <ModuleShell title="Rutinas" subtitle="Diseñá, asigná y monitoreá planes de entrenamiento personalizados.">
     {error && !open && <p role="alert" className="mb-3 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
     {notice && !open && <p role="status" className="mb-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[.07] px-4 py-2.5 text-xs text-emerald-200">{notice}</p>}
-    <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 bg-black/20 px-1">{([["rutinas", "Rutinas"], ["plantillas", "Plantillas"], ["seguimiento", "Seguimiento"]] as const).map(([value, title]) => <button key={value} onClick={() => setActiveTab(value)} className={`relative min-h-12 shrink-0 px-4 text-sm font-bold transition ${activeTab === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}</nav>
+    <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 bg-black/20 px-1">{([["rutinas", "Rutinas"], ["plantillas", "Biblioteca"], ["seguimiento", "Seguimiento"]] as const).map(([value, title]) => <button key={value} onClick={() => setActiveTab(value)} className={`relative min-h-12 shrink-0 px-4 text-sm font-bold transition ${activeTab === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}</nav>
     {activeTab === "seguimiento" ? <RoutineFollowUp initialStudentId={trackingStudentId} /> : <>
     {activeTab === "plantillas" && <div className="mb-3 flex justify-end"><button type="button" onClick={() => begin(undefined, "template")} className="min-h-10 rounded-xl border border-yellow-400/30 bg-black/20 px-3.5 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]">+ Crear plantilla</button></div>}
-    <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className={`grid gap-2 sm:grid-cols-2 ${activeTab === "plantillas" ? "xl:grid-cols-[minmax(260px,1.5fr)_minmax(180px,.8fr)]" : "xl:grid-cols-[minmax(220px,1.4fr)_minmax(145px,.7fr)_minmax(150px,.8fr)_minmax(170px,.9fr)]"}`}><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === "plantillas" ? "Buscar plantilla…" : "Buscar rutina o alumno…"} className={inputClass} />{activeTab !== "plantillas" && <select aria-label="Estado" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className={inputClass}><option value="todas">Todos los estados</option><option value="activas">Activas</option><option value="borradores">Borradores</option><option value="finalizadas">Finalizadas</option><option value="archivadas">Archivadas</option></select>}<select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select>{activeTab !== "plantillas" && <select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select>}</div></section>
-    <RoutineManagementPanel routines={visible} mode={activeTab} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
+    {activeTab === "rutinas" && <nav aria-label="Estado de las rutinas" className="mb-3 grid grid-cols-3 border-b border-zinc-800 bg-black/10">{([["activas", "Activas"], ["borradores", "Borradores"], ["archivadas", "Archivadas"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={routineSection === value ? "page" : undefined} onClick={() => setRoutineSection(value)} className={`relative min-h-11 min-w-0 px-1 text-xs font-bold transition sm:px-3 sm:text-sm ${routineSection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:bg-yellow-400 sm:after:inset-x-3" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}><span className="truncate">{title}</span> <span className="text-[10px] tabular-nums text-zinc-500 sm:text-xs">{statusCounts[value]}</span></button>)}</nav>}
+    <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className={`grid gap-2 sm:grid-cols-2 ${activeTab === "plantillas" ? "xl:grid-cols-[minmax(260px,1.5fr)_minmax(180px,.8fr)]" : "xl:grid-cols-[minmax(240px,1.4fr)_minmax(170px,.8fr)_minmax(190px,.9fr)]"}`}><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === "plantillas" ? "Buscar plantilla…" : "Buscar rutina o alumno…"} className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select>{activeTab !== "plantillas" && <select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select>}</div></section>
+    <RoutineManagementPanel routines={visible} mode={activeTab} routineSection={activeTab === "rutinas" ? routineSection : undefined} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
     </>}
     {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editingStatus={editing?.status ?? null} saving={saving} />}
     {viewing && <RoutineTableView
