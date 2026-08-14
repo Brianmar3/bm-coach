@@ -200,7 +200,9 @@ test("la navegación principal de Rutinas queda en tres pestañas sin perder las
 test("Biblioteca reutiliza Plantillas y muestra sólo búsqueda y objetivo", () => {
   assert.match(page, /activeTab === "plantillas"\) return routine\.kind === "template" && matchesQuery && \(objectiveFilter/);
   assert.doesNotMatch(page, /<select aria-label="Estado"/);
-  assert.match(page, /activeTab !== "plantillas" && <select aria-label="Alumno"/);
+  assert.match(page, /librarySection === "classes"/);
+  assert.match(page, /<select aria-label="Alumno"/);
+  assert.match(page, /mode="plantillas"/);
 });
 
 function routineListItem(id: string, kind: TrainingRoutine["kind"], status: TrainingRoutine["status"], updatedAt: string) {

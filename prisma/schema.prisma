@@ -910,6 +910,11 @@ enum TrainingBlockType {
   FREE
 }
 
+enum TrainingLibraryItemStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 enum TrainingExerciseTargetType {
   TIME
   REPS
@@ -1006,6 +1011,62 @@ model TrainingRoutineBlock {
   @@index([routineDayId, order])
   @@index([routineDayId, active])
   @@map("training_routine_blocks")
+}
+
+model TrainingLibraryFolder {
+  id             String                    @id @default(cuid())
+  name           String
+  normalizedName String                    @unique
+  status         TrainingLibraryItemStatus @default(ACTIVE)
+  archivedAt     DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  blockTemplates TrainingBlockTemplate[]
+
+  @@index([status, name])
+  @@map("training_library_folders")
+}
+
+model TrainingLibraryTag {
+  id             String                     @id @default(cuid())
+  name           String
+  normalizedName String                     @unique
+  createdAt      DateTime                   @default(now())
+  blockTemplates TrainingBlockTemplateTag[]
+
+  @@map("training_library_tags")
+}
+
+model TrainingBlockTemplate {
+  id         String                     @id @default(cuid())
+  name       String
+  type       TrainingBlockType
+  content    Json
+  folderId   String?
+  status     TrainingLibraryItemStatus  @default(ACTIVE)
+  isFavorite Boolean                    @default(false)
+  lastUsedAt DateTime?
+  archivedAt DateTime?
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+  folder     TrainingLibraryFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  tags       TrainingBlockTemplateTag[]
+
+  @@index([status, updatedAt])
+  @@index([folderId, status])
+  @@index([type, status])
+  @@map("training_block_templates")
+}
+
+model TrainingBlockTemplateTag {
+  blockTemplateId String
+  tagId           String
+  blockTemplate   TrainingBlockTemplate @relation(fields: [blockTemplateId], references: [id], onDelete: Cascade)
+  tag             TrainingLibraryTag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([blockTemplateId, tagId])
+  @@index([tagId])
+  @@map("training_block_template_tags")
 }
 
 model TrainingRoutineExercise {

@@ -6,6 +6,7 @@ import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import { RoutineTableView } from "@/componentes/routine-table-view";
 import { RoutineManagementPanel } from "@/componentes/routine-management-panel";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
+import { TrainingLibraryBlocksPanel } from "@/componentes/training-library-blocks";
 import { ExerciseLibraryPicker } from "@/componentes/exercise-library";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { ContextualSuggestion, RoutineEvaluationPanel, useRoutineEvaluation } from "@/componentes/routine-evaluation-panel";
@@ -19,6 +20,7 @@ import { numericDraftValue, repetitionRangeDraft, serializedRepetitionRange } fr
 import { routineStatusCounts, routinesForStatusSection, type RoutineStatusSection } from "@/lib/routine-list-organization";
 import type { Student, TrainingBlockType, TrainingEffortType, TrainingRoutine, TrainingRoutineBlock, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 import type { BMExercise } from "@/types/exercise-library";
+import type { TrainingLibraryBlock, TrainingLibraryBlockPayload, TrainingLibraryFolder } from "@/types/training-library";
 
 type ExerciseDraft = RoutineExerciseDraft;
 type BlockDraft = Omit<TrainingRoutineBlock, "id" | "exercises"> & { id?: string; clientId: string; exercises: ExerciseDraft[] };
@@ -129,6 +131,18 @@ export default function RutinasPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [query, setQuery] = useState("");
   const [routineSection, setRoutineSection] = useState<RoutineStatusSection>("activas");
+  const [librarySection, setLibrarySection] = useState<"classes" | "blocks">("classes");
+  const [libraryBlocks, setLibraryBlocks] = useState<TrainingLibraryBlock[]>([]);
+  const [libraryFolders, setLibraryFolders] = useState<TrainingLibraryFolder[]>([]);
+  const [libraryReady, setLibraryReady] = useState(false);
+  const [libraryLoadError, setLibraryLoadError] = useState("");
+  const [libraryDialogOpen, setLibraryDialogOpen] = useState(false);
+  const [libraryEditing, setLibraryEditing] = useState<TrainingLibraryBlock | null>(null);
+  const [libraryBlockDraft, setLibraryBlockDraft] = useState<BlockDraft | null>(null);
+  const [libraryFolderId, setLibraryFolderId] = useState("");
+  const [libraryTags, setLibraryTags] = useState("");
+  const [librarySaving, setLibrarySaving] = useState(false);
+  const [libraryError, setLibraryError] = useState("");
   const [objectiveFilter, setObjectiveFilter] = useState("todos");
   const [studentFilter, setStudentFilter] = useState(trackingStudentId || "todos");
   const [form, setForm] = useState<RoutineDraft>(blankRoutine());
@@ -167,6 +181,16 @@ export default function RutinasPage() {
     }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
     return () => controller.abort();
   }, [requestedStudentView, trackingStudentId]);
+
+  useEffect(() => {
+    if (activeTab !== "plantillas") return;
+    const controller = new AbortController();
+    Promise.all([
+      fetch("/api/training-library/blocks", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los bloques.")); return response.json() as Promise<TrainingLibraryBlock[]>; }),
+      fetch("/api/training-library/folders", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar las carpetas.")); return response.json() as Promise<TrainingLibraryFolder[]>; }),
+    ]).then(([blocks, folders]) => { setLibraryBlocks(blocks); setLibraryFolders(folders); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setLibraryLoadError(loadError.message); }).finally(() => setLibraryReady(true));
+    return () => controller.abort();
+  }, [activeTab]);
 
   const objectiveOptions = useMemo(() => [...new Set([...objectives, ...items.map((item) => item.objective)])].sort((a, b) => a.localeCompare(b, "es")), [items]);
   const statusCounts = useMemo(() => routineStatusCounts(items), [items]);
@@ -365,17 +389,81 @@ export default function RutinasPage() {
     finally { setActionId(""); }
   }
 
+  function beginLibraryBlock(block?: TrainingLibraryBlock) {
+    setLibraryEditing(block ?? null);
+    setLibraryBlockDraft(block ? {
+      ...block.content,
+      id: undefined,
+      clientId: crypto.randomUUID(),
+      exercises: block.content.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID(), libraryExerciseId: libraryExerciseIdFromMediaUrl(exercise.videoUrl) ?? undefined })),
+    } : newBlock("STRENGTH", 1));
+    setLibraryFolderId(block?.folder?.id ?? "");
+    setLibraryTags(block?.tags.join(", ") ?? "");
+    setLibraryError("");
+    setLibraryDialogOpen(true);
+  }
+
+  async function saveLibraryBlock(event: FormEvent) {
+    event.preventDefault();
+    if (!libraryBlockDraft || librarySaving) return;
+    const payload: TrainingLibraryBlockPayload = {
+      name: libraryBlockDraft.name,
+      folderId: libraryFolderId,
+      tags: libraryTags.split(",").map((value) => value.trim()).filter(Boolean),
+      block: {
+        type: libraryBlockDraft.type,
+        name: libraryBlockDraft.name,
+        order: 1,
+        rounds: libraryBlockDraft.rounds,
+        durationSeconds: libraryBlockDraft.durationSeconds,
+        workSeconds: libraryBlockDraft.workSeconds,
+        restSeconds: libraryBlockDraft.restSeconds,
+        restBetweenRoundsSeconds: libraryBlockDraft.restBetweenRoundsSeconds,
+        targetRounds: libraryBlockDraft.targetRounds,
+        instructions: libraryBlockDraft.instructions,
+        exercises: libraryBlockDraft.exercises.map((exercise, index) => ({
+          name: exercise.name, muscleGroup: exercise.muscleGroup, sets: exercise.sets, repetitions: exercise.repetitions, weight: exercise.weight,
+          effortType: exercise.effortType, effortValue: exercise.effortValue, restSeconds: exercise.restSeconds, observations: exercise.observations,
+          videoUrl: persistedRoutineExerciseVideoUrl(exercise), tempo: exercise.tempo, alternativeExercise: exercise.alternativeExercise, equipment: exercise.equipment,
+          optional: exercise.optional, targetType: exercise.targetType, targetSeconds: libraryBlockDraft.type === "INTERVAL" && exercise.targetType === "TIME" ? null : exercise.targetSeconds,
+          targetRepetitions: exercise.targetRepetitions, targetDistance: exercise.targetDistance, targetSide: exercise.targetSide, order: index + 1,
+        })),
+      },
+    };
+    setLibrarySaving(true); setLibraryError("");
+    try {
+      const response = await fetch(libraryEditing ? `/api/training-library/blocks/${libraryEditing.id}` : "/api/training-library/blocks", { method: libraryEditing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar el bloque."));
+      const saved = await response.json() as TrainingLibraryBlock;
+      setLibraryBlocks((current) => libraryEditing ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]);
+      setLibraryDialogOpen(false); setLibraryEditing(null); setLibraryBlockDraft(null); setNotice(libraryEditing ? "Bloque de Biblioteca actualizado." : "Bloque guardado en Biblioteca.");
+    } catch (saveError) { setLibraryError(saveError instanceof Error ? saveError.message : "No se pudo guardar el bloque."); }
+    finally { setLibrarySaving(false); }
+  }
+
   return <ModuleShell title="Rutinas" subtitle="Diseñá, asigná y monitoreá planes de entrenamiento personalizados.">
     {error && !open && <p role="alert" className="mb-3 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
     {notice && !open && <p role="status" className="mb-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[.07] px-4 py-2.5 text-xs text-emerald-200">{notice}</p>}
     <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 bg-black/20 px-1">{([["rutinas", "Rutinas"], ["plantillas", "Biblioteca"], ["seguimiento", "Seguimiento"]] as const).map(([value, title]) => <button key={value} onClick={() => setActiveTab(value)} className={`relative min-h-12 shrink-0 px-4 text-sm font-bold transition ${activeTab === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}</nav>
-    {activeTab === "seguimiento" ? <RoutineFollowUp initialStudentId={trackingStudentId} /> : <>
-    {activeTab === "plantillas" && <div className="mb-3 flex justify-end"><button type="button" onClick={() => begin(undefined, "template")} className="min-h-10 rounded-xl border border-yellow-400/30 bg-black/20 px-3.5 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]">+ Crear plantilla</button></div>}
-    {activeTab === "rutinas" && <nav aria-label="Estado de las rutinas" className="mb-3 grid grid-cols-3 border-b border-zinc-800 bg-black/10">{([["activas", "Activas"], ["borradores", "Borradores"], ["archivadas", "Archivadas"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={routineSection === value ? "page" : undefined} onClick={() => setRoutineSection(value)} className={`relative min-h-11 min-w-0 px-1 text-xs font-bold transition sm:px-3 sm:text-sm ${routineSection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:bg-yellow-400 sm:after:inset-x-3" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}><span className="truncate">{title}</span> <span className="text-[10px] tabular-nums text-zinc-500 sm:text-xs">{statusCounts[value]}</span></button>)}</nav>}
-    <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className={`grid gap-2 sm:grid-cols-2 ${activeTab === "plantillas" ? "xl:grid-cols-[minmax(260px,1.5fr)_minmax(180px,.8fr)]" : "xl:grid-cols-[minmax(240px,1.4fr)_minmax(170px,.8fr)_minmax(190px,.9fr)]"}`}><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === "plantillas" ? "Buscar plantilla…" : "Buscar rutina o alumno…"} className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select>{activeTab !== "plantillas" && <select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select>}</div></section>
-    <RoutineManagementPanel routines={visible} mode={activeTab} routineSection={activeTab === "rutinas" ? routineSection : undefined} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
+    {activeTab === "seguimiento" ? <RoutineFollowUp initialStudentId={trackingStudentId} /> : activeTab === "plantillas" ? <>
+      <nav aria-label="Contenido de la Biblioteca" className="mb-4 grid grid-cols-2 border-b border-zinc-800 bg-black/10">
+        {([["classes", "Clases completas"], ["blocks", "Bloques"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={librarySection === value ? "page" : undefined} onClick={() => setLibrarySection(value)} className={`relative min-h-11 min-w-0 px-2 text-xs font-bold transition sm:text-sm ${librarySection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}
+      </nav>
+      {librarySection === "classes" ? <>
+        <div className="mb-3 flex justify-end"><button type="button" onClick={() => begin(undefined, "template")} className="min-h-10 rounded-xl border border-yellow-400/30 bg-black/20 px-3.5 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]">+ Crear clase completa</button></div>
+        <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.5fr)_minmax(180px,.8fr)]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar clase completa…" className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select></div></section>
+        <RoutineManagementPanel routines={visible} mode="plantillas" ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
+      </> : <>
+        {libraryLoadError && <p role="alert" className="mb-3 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{libraryLoadError}</p>}
+        <TrainingLibraryBlocksPanel blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} onNew={() => beginLibraryBlock()} onEdit={beginLibraryBlock} onBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} onFoldersChanged={setLibraryFolders} />
+      </>}
+    </> : <>
+      <nav aria-label="Estado de las rutinas" className="mb-3 grid grid-cols-3 border-b border-zinc-800 bg-black/10">{([["activas", "Activas"], ["borradores", "Borradores"], ["archivadas", "Archivadas"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={routineSection === value ? "page" : undefined} onClick={() => setRoutineSection(value)} className={`relative min-h-11 min-w-0 px-1 text-xs font-bold transition sm:px-3 sm:text-sm ${routineSection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:bg-yellow-400 sm:after:inset-x-3" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}><span className="truncate">{title}</span> <span className="text-[10px] tabular-nums text-zinc-500 sm:text-xs">{statusCounts[value]}</span></button>)}</nav>
+      <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_minmax(170px,.8fr)_minmax(190px,.9fr)]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina o alumno…" className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
+      <RoutineManagementPanel routines={visible} mode="rutinas" routineSection={routineSection} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
     </>}
     {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editingStatus={editing?.status ?? null} saving={saving} />}
+    {libraryDialogOpen && libraryBlockDraft && <LibraryBlockDialog block={libraryBlockDraft} setBlock={setLibraryBlockDraft} folders={libraryFolders} folderId={libraryFolderId} setFolderId={setLibraryFolderId} tags={libraryTags} setTags={setLibraryTags} error={libraryError} saving={librarySaving} editing={Boolean(libraryEditing)} close={() => { if (!librarySaving) { setLibraryDialogOpen(false); setLibraryEditing(null); setLibraryBlockDraft(null); } }} submit={saveLibraryBlock} />}
     {viewing && <RoutineTableView
       routine={viewing}
       close={() => setViewing(null)}
@@ -388,8 +476,44 @@ export default function RutinasPage() {
     />}
     {copyFlow && <RoutineCopyDialog flow={copyFlow} students={students} routines={items} busy={duplicatingId === copyFlow.source.id} close={() => setCopyFlow(null)} submit={createCopy} />}
     {historyRoutine && <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><section className="mx-auto my-10 max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">Historial de {historyRoutine.name}</h2><p className="text-sm text-zinc-400">Las versiones más recientes aparecen primero.</p></div><button onClick={() => setHistoryRoutine(null)} className="text-zinc-400">Cerrar</button></div><div className="mt-5 space-y-3">{versions.length === 0 ? <p className="rounded-xl bg-zinc-950 p-5 text-sm text-zinc-500">Todavía no hay versiones guardadas.</p> : versions.map((version) => <article key={version.id} className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold">Versión {version.version}</p><p className="text-sm text-zinc-400">{version.summary} · {new Date(version.createdAt).toLocaleString("es-AR")}</p></div><button disabled={actionId === historyRoutine.id} onClick={() => restoreVersion(version.id)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300 disabled:opacity-50">Restaurar versión</button></article>)}</div></section></div>}
-    <TrainerFloatingActions mode="direct" enabled={!open && !viewing && !copyFlow && !historyRoutine} actions={[{ label: "Crear rutina", symbol: "+", onSelect: () => { setActiveTab("rutinas"); begin(undefined, "assigned"); } }]} />
+    <TrainerFloatingActions mode="direct" enabled={!open && !libraryDialogOpen && !viewing && !copyFlow && !historyRoutine} actions={[{ label: "Crear rutina", symbol: "+", onSelect: () => { setActiveTab("rutinas"); begin(undefined, "assigned"); } }]} />
   </ModuleShell>;
+}
+
+function LibraryBlockDialog({ block, setBlock, folders, folderId, setFolderId, tags, setTags, error, saving, editing, close, submit }: {
+  block: BlockDraft;
+  setBlock: (block: BlockDraft) => void;
+  folders: TrainingLibraryFolder[];
+  folderId: string;
+  setFolderId: (value: string) => void;
+  tags: string;
+  setTags: (value: string) => void;
+  error: string;
+  saving: boolean;
+  editing: boolean;
+  close: () => void;
+  submit: (event: FormEvent) => void;
+}) {
+  const handleKeyboardNavigation = useRoutineKeyboardNavigation();
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && !saving) close(); };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [close, saving]);
+
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-0 sm:p-4">
+    <form onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} className="mx-auto min-h-dvh w-full max-w-6xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
+      <header className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-300">Biblioteca · Bloques</p><h2 className="mt-1 text-xl font-black">{editing ? "Editar bloque reusable" : "Nuevo bloque reusable"}</h2><p className="mt-1 text-sm text-zinc-400">Se guarda como una copia independiente, lista para reutilizar más adelante.</p></div><button type="button" onClick={close} aria-label="Cerrar editor de bloque" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300">×</button></header>
+      {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
+      <section className="mt-5 grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-3 sm:grid-cols-3">
+        <label>Tipo<select disabled={editing} value={block.type} onChange={(event) => setBlock(newBlock(event.target.value as TrainingBlockType, 1))} className={`${inputClass} mt-1 disabled:opacity-60`}>{(Object.keys(blockLabels) as TrainingBlockType[]).map((value) => <option key={value} value={value}>{blockLabels[value]}</option>)}</select></label>
+        <label>Carpeta<select value={folderId} onChange={(event) => setFolderId(event.target.value)} className={`${inputClass} mt-1`}><option value="">Sin carpeta</option>{folders.filter((folder) => folder.status === "active").map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+        <label>Tags<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="fuerza, tren inferior" className={`${inputClass} mt-1`} /></label>
+      </section>
+      <div className="mt-4"><BlockEditor standalone block={block} interpretation={null} update={(updater) => setBlock(updater(block))} move={() => undefined} duplicate={() => undefined} remove={() => undefined} /></div>
+      <footer className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t border-zinc-800 bg-zinc-900 py-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)]"><button type="button" disabled={saving} onClick={close} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50">Cancelar</button><button disabled={saving} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar bloque"}</button></footer>
+    </form>
+  </div>;
 }
 
 function RoutineCopyDialog({ flow, students, routines, busy, close, submit }: {
@@ -479,7 +603,7 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
   </form></div>;
 }
 
-function BlockEditor({ block, interpretation, update, move, duplicate, remove }: { block: BlockDraft; interpretation: import("@/types/evaluation-interpretation").EvaluationInterpretation | null; update: (updater: (block: BlockDraft) => BlockDraft) => void; move: (direction: -1 | 1) => void; duplicate: () => void; remove: () => void }) {
+function BlockEditor({ block, interpretation, update, move, duplicate, remove, standalone = false }: { block: BlockDraft; interpretation: import("@/types/evaluation-interpretation").EvaluationInterpretation | null; update: (updater: (block: BlockDraft) => BlockDraft) => void; move: (direction: -1 | 1) => void; duplicate: () => void; remove: () => void; standalone?: boolean }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryMediaEnabled, setLibraryMediaEnabled] = useState(false);
   const [libraryTargetId, setLibraryTargetId] = useState<string | null>(null);
@@ -492,7 +616,7 @@ function BlockEditor({ block, interpretation, update, move, duplicate, remove }:
   function moveExercise(clientId: string, direction: -1 | 1) { update((current) => { const exercises = [...current.exercises].sort((a, b) => a.order - b.order); const index = exercises.findIndex((exercise) => exercise.clientId === clientId); const target = index + direction; if (index < 0 || target < 0 || target >= exercises.length) return current; [exercises[index], exercises[target]] = [exercises[target], exercises[index]]; return { ...current, exercises: exercises.map((exercise, i) => ({ ...exercise, order: i + 1 })) }; }); }
   function removeExercise(clientId: string) { update((current) => ({ ...current, exercises: removeRoutineExerciseDraft(current.exercises, clientId) })); }
   function unlinkExercise(clientId: string) { update((current) => ({ ...current, exercises: current.exercises.map((exercise) => exercise.clientId === clientId ? unlinkLibraryExercise(exercise) : exercise) })); }
-  return <article className="rounded-2xl border border-yellow-400/15 bg-zinc-900 p-3 sm:p-4"><header className="flex flex-wrap items-center gap-2"><span className="rounded-lg bg-yellow-400 px-2 py-1 text-xs font-black text-zinc-950">{blockLabels[block.type]}</span><input aria-label="Nombre del bloque" value={block.name} onChange={(event) => set("name", event.target.value)} className={`${inputClass} min-w-48 flex-1`} /><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque arriba">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque abajo">↓</button><button type="button" onClick={duplicate} className="rounded bg-zinc-800 px-2 py-2 text-xs">Duplicar</button><button type="button" onClick={remove} className="rounded bg-red-400/10 px-2 py-2 text-xs text-red-300">Eliminar</button></header>
+  return <article className="rounded-2xl border border-yellow-400/15 bg-zinc-900 p-3 sm:p-4"><header className="flex flex-wrap items-center gap-2"><span className="rounded-lg bg-yellow-400 px-2 py-1 text-xs font-black text-zinc-950">{blockLabels[block.type]}</span><input required aria-label="Nombre del bloque" value={block.name} onChange={(event) => set("name", event.target.value)} className={`${inputClass} min-w-48 flex-1`} />{!standalone && <><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque arriba">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-2" aria-label="Mover bloque abajo">↓</button><button type="button" onClick={duplicate} className="rounded bg-zinc-800 px-2 py-2 text-xs">Duplicar</button><button type="button" onClick={remove} className="rounded bg-red-400/10 px-2 py-2 text-xs text-red-300">Eliminar</button></>}</header>
     <details open className="mt-3"><summary className="cursor-pointer text-sm font-bold text-zinc-300">Configuración del bloque</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && <NumberField label="Rondas" value={block.rounds} setValue={(value) => set("rounds", value)} />}{["EMOM", "AMRAP"].includes(block.type) && <NumberField label="Duración total (seg.)" value={block.durationSeconds} setValue={(value) => set("durationSeconds", value)} />}{block.type === "FOR_TIME" && <NumberField label="Límite de tiempo (seg.)" value={block.durationSeconds} setValue={(value) => set("durationSeconds", value)} />}{block.type === "EMOM" && <NumberField label="Estaciones del ciclo" value={block.targetRounds} setValue={(value) => set("targetRounds", value)} />}{block.type === "ROUNDS" && <NumberField label="Descanso entre ejercicios" value={block.restSeconds} setValue={(value) => set("restSeconds", value)} />}{block.type === "INTERVAL" && <><NumberField label="Trabajo (seg.)" value={block.workSeconds} setValue={(value) => set("workSeconds", value)} /><NumberField label="Descanso (seg.)" value={block.restSeconds} setValue={(value) => set("restSeconds", value)} /></>} {["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && <NumberField label="Descanso entre rondas" value={block.restBetweenRoundsSeconds} setValue={(value) => set("restBetweenRoundsSeconds", value)} />}<label className="sm:col-span-2 lg:col-span-4">Instrucciones<textarea rows={2} value={block.instructions} onChange={(event) => set("instructions", event.target.value)} className={`${inputClass} mt-1`} /></label></div></details>
     <div className="mt-4 space-y-3">{block.exercises.map((exercise) => <div key={exercise.clientId} className={libraryExerciseIdFromMediaUrl(persistedRoutineExerciseVideoUrl(exercise)) ? "library-video-linked" : undefined}>{block.type === "STRENGTH" ? <ExerciseEditor exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} /> : <ConditioningExerciseEditor blockType={block.type} exercise={exercise} update={(key, value) => updateExercise(exercise.clientId, key, value)} changeTarget={(targetType) => changeExerciseTarget(exercise.clientId, targetType)} move={(direction) => moveExercise(exercise.clientId, direction)} remove={() => removeExercise(exercise.clientId)} />}<ExerciseMediaEditorActions exercise={exercise} libraryMediaEnabled={libraryMediaEnabled} openLibrary={() => openLibraryFor(exercise.clientId)} unlinkLibrary={() => unlinkExercise(exercise.clientId)} /><ContextualSuggestion messages={contextualExerciseSuggestions(exercise.name, exercise.muscleGroup, interpretation)} /></div>)}</div>
     <div className="mt-3 flex justify-end border-t border-zinc-800 pt-3">
