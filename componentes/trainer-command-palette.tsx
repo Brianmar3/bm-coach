@@ -104,7 +104,7 @@ export function TrainerCommandPalette() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [help, open, query]);
 
-  if (!open) return <button type="button" onClick={() => showPalette()} aria-label="Abrir acciones rápidas" className="fixed right-28 top-[calc(env(safe-area-inset-top)+1rem)] z-50 hidden min-h-10 items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/90 px-3 text-xs text-zinc-400 shadow-xl transition hover:border-yellow-400/30 hover:text-yellow-200 lg:inline-flex"><span>Buscar o ejecutar</span><kbd className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px]">Ctrl K</kbd></button>;
+  if (!open) return null;
 
   return <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/75 p-3 pt-[max(5rem,12vh)] backdrop-blur-sm" onPointerDown={close}>
     <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-title`} className="w-full max-w-2xl overflow-hidden rounded-2xl border border-yellow-400/20 bg-zinc-950 shadow-[0_25px_80px_rgba(0,0,0,.7)]" onPointerDown={(event) => event.stopPropagation()}>

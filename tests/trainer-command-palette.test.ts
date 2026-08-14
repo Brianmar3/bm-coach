@@ -16,6 +16,7 @@ test("Ctrl K abre BM Command y Escape lo cierra desde un único listener global"
   assert.match(palette, /event\.key\.toLocaleLowerCase\("es"\) === "k"/);
   assert.match(palette, /event\.key === "Escape" && open/);
   assert.equal(palette.match(/document\.addEventListener\("keydown"/g)?.length, 1);
+  assert.doesNotMatch(palette, /Buscar o ejecutar/);
 });
 
 test("flechas recorren en ciclo y Enter ejecuta el resultado seleccionado", () => {
