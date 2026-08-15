@@ -65,6 +65,9 @@ test("el selector reutiliza filtros, muestra sólo activos y no inserta con Ente
   assert.match(picker, /event\.key === "Enter"/);
   assert.match(picker, /event\.preventDefault\(\)/);
   assert.match(picker, /Agregar desde Biblioteca/);
+  for (const view of ["Favoritos", "Recientes", "Todos"]) assert.match(picker, new RegExp(view));
+  assert.match(picker, /useState<TrainingLibraryView>\("favorites"\)/);
+  assert.match(picker, /onBlockChanged/);
 });
 
 test("la inserción ocurre en el día actual, al final, sin guardar la rutina", () => {
@@ -76,9 +79,12 @@ test("la inserción ocurre en el día actual, al final, sin guardar la rutina", 
 
 test("lastUsedAt es metadata secundaria y sólo acepta templates activos", () => {
   assert.match(route, /action === "markUsed"/);
-  assert.match(route, /updateMany\(\{ where: \{ id, status: "ACTIVE" \}/);
+  assert.match(route, /findFirst\(\{ where: \{ id, status: "ACTIVE" \}/);
+  assert.match(route, /data: \{ lastUsedAt: new Date\(\) \}/);
+  assert.match(route, /Response\.json\(serializeLibraryBlock\(updated\)\)/);
   const insertion = page.slice(page.indexOf("function BlockAdder"), page.indexOf("function ClassTemplateEditor"));
   assert.ok(insertion.indexOf("addFromLibrary(block)") < insertion.indexOf('action: "markUsed"'));
+  assert.match(insertion, /onBlockChanged\(await response\.json\(\)/);
   assert.match(insertion, /\.catch\(\(\) => undefined\)/);
 });
 
@@ -97,5 +103,5 @@ test("doble inserción y doble guardado quedan bloqueados", () => {
   assert.match(page, /insertionInFlight\.current/);
   assert.match(page, /if \(insertionInFlight\.current \|\| block\.status !== "active"\) return/);
   assert.match(page, /if \(!libraryBlockDraft \|\| librarySaving\) return/);
-  assert.match(picker, /disabled=\{Boolean\(busyId\)\}/);
+  assert.match(picker, /disabled=\{Boolean\(busyId \|\| favoriteBusy\)\}/);
 });

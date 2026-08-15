@@ -2,6 +2,7 @@ import type { BlockInput } from "@/lib/rutinas";
 import type { TrainingBlockType } from "@/types/gestion";
 
 export type TrainingLibraryStatus = "active" | "archived";
+export type TrainingLibraryView = "all" | "favorites" | "recent";
 
 export type TrainingLibraryFolder = {
   id: string;

@@ -1,7 +1,7 @@
 import type { BlockInput } from "./rutinas.ts";
 import { validateBlock } from "./rutinas.ts";
 import { canonicalTrainingLibraryBlock } from "./training-library-block-draft.ts";
-import type { TrainingLibraryBlock, TrainingLibraryBlockPayload, TrainingLibraryFolder, TrainingLibraryStatus } from "../types/training-library.ts";
+import type { TrainingLibraryBlock, TrainingLibraryBlockPayload, TrainingLibraryFolder, TrainingLibraryStatus, TrainingLibraryView } from "../types/training-library.ts";
 
 const maximumTags = 20;
 
@@ -52,18 +52,34 @@ export function cleanLibraryBlockPayload(input: TrainingLibraryBlockPayload): Tr
   };
 }
 
-export function filterTrainingLibraryBlocks(blocks: TrainingLibraryBlock[], filters: { query: string; folderId: string; type: string; tag: string; status: TrainingLibraryStatus }) {
+export function filterTrainingLibraryBlocks(blocks: TrainingLibraryBlock[], filters: { query: string; folderId: string; type: string; tag: string; status: TrainingLibraryStatus; view?: TrainingLibraryView }) {
   const query = normalizeLibraryText(filters.query);
   const tag = filters.tag === "all" ? "" : normalizeLibraryText(filters.tag);
+  const view = filters.view ?? "all";
   return blocks.filter((block) => {
     if (block.status !== filters.status) return false;
+    if (view === "favorites" && !block.isFavorite) return false;
+    if (view === "recent" && !block.lastUsedAt) return false;
     if (filters.folderId === "unfiled" && block.folder) return false;
     if (filters.folderId && filters.folderId !== "all" && filters.folderId !== "unfiled" && block.folder?.id !== filters.folderId) return false;
     if (filters.type && filters.type !== "all" && block.type !== filters.type) return false;
     if (tag && !block.tags.some((value) => normalizeLibraryText(value) === tag)) return false;
     if (!query) return true;
     return normalizeLibraryText(`${block.name} ${block.type} ${block.folder?.name ?? ""} ${block.tags.join(" ")}`).includes(query);
-  }).sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+  }).sort((left, right) => view === "recent"
+    ? Date.parse(right.lastUsedAt) - Date.parse(left.lastUsedAt)
+    : Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
+}
+
+export function trainingLibraryLastUsedLabel(value: string, now = new Date()) {
+  if (!value) return "";
+  const used = new Date(value);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const usedDay = new Date(used.getFullYear(), used.getMonth(), used.getDate());
+  const days = Math.round((today.getTime() - usedDay.getTime()) / 86_400_000);
+  if (days <= 0) return "Usado hoy";
+  if (days === 1) return "Usado ayer";
+  return `Usado hace ${days} días`;
 }
 
 export function serializeLibraryFolder(record: { id: string; name: string; status: "ACTIVE" | "ARCHIVED"; createdAt: Date; updatedAt: Date; _count: { blockTemplates: number } }): TrainingLibraryFolder {

@@ -38,11 +38,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const { id } = await context.params;
     if (!id.trim()) return Response.json({ error: "El bloque seleccionado no es válido." }, { status: 400 });
-    const { action } = await request.json() as { action?: "archive" | "restore" | "markUsed" };
+    const { action, isFavorite } = await request.json() as { action?: "archive" | "restore" | "markUsed"; isFavorite?: boolean };
+    if (typeof isFavorite === "boolean") {
+      const active = await prisma.trainingBlockTemplate.findFirst({ where: { id, status: "ACTIVE" }, select: { id: true } });
+      if (!active) return Response.json({ error: "El bloque no está activo o ya no existe." }, { status: 404 });
+      const record = await prisma.trainingBlockTemplate.update({ where: { id }, data: { isFavorite }, include });
+      return Response.json(serializeLibraryBlock(record));
+    }
     if (action === "markUsed") {
-      const updated = await prisma.trainingBlockTemplate.updateMany({ where: { id, status: "ACTIVE" }, data: { lastUsedAt: new Date() } });
-      if (updated.count !== 1) return Response.json({ error: "El bloque no está activo o ya no existe." }, { status: 404 });
-      return new Response(null, { status: 204 });
+      const active = await prisma.trainingBlockTemplate.findFirst({ where: { id, status: "ACTIVE" }, select: { id: true } });
+      const updated = active ? await prisma.trainingBlockTemplate.update({ where: { id }, data: { lastUsedAt: new Date() }, include }) : null;
+      if (!updated) return Response.json({ error: "El bloque no está activo o ya no existe." }, { status: 404 });
+      return Response.json(serializeLibraryBlock(updated));
     }
     if (action !== "archive" && action !== "restore") return Response.json({ error: "Acción no válida." }, { status: 400 });
     const archived = action === "archive";

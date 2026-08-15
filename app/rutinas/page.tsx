@@ -42,6 +42,7 @@ type EditorLibraryProps = {
   libraryReady: boolean;
   libraryLoadError: string;
   saveBlockToLibrary: (block: BlockDraft) => void;
+  onLibraryBlockChanged: (block: TrainingLibraryBlock) => void;
 };
 
 const RoutineValidationContext = createContext<{ issues: RoutineValidationIssue[]; activeDay: number }>({ issues: [], activeDay: 1 });
@@ -522,8 +523,8 @@ export default function RutinasPage() {
       <RoutineManagementPanel routines={visible} mode="rutinas" routineSection={routineSection} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
     </>}
     {open && <RoutineValidationContext.Provider value={{ issues: validationIssues, activeDay }}>{form.kind === "template" && form.days.length === 1
-      ? <ClassTemplateEditor form={form} setForm={updateEditorForm} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editing={Boolean(editing)} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} />
-      : <RoutineEditor form={form} setForm={updateEditorForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} />}</RoutineValidationContext.Provider>}
+      ? <ClassTemplateEditor form={form} setForm={updateEditorForm} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editing={Boolean(editing)} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />
+      : <RoutineEditor form={form} setForm={updateEditorForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />}</RoutineValidationContext.Provider>}
     {libraryDialogOpen && libraryBlockDraft && <LibraryBlockDialog block={libraryBlockDraft} setBlock={setLibraryBlockDraft} folders={libraryFolders} folderId={libraryFolderId} setFolderId={setLibraryFolderId} tags={libraryTags} setTags={setLibraryTags} error={libraryError} saving={librarySaving} editing={Boolean(libraryEditing)} compact={libraryDialogMode === "saveCopy"} close={() => { if (!librarySaving) { setLibraryDialogOpen(false); setLibraryEditing(null); setLibraryBlockDraft(null); } }} submit={saveLibraryBlock} />}
     {viewing && <RoutineTableView
       routine={viewing}
@@ -646,13 +647,14 @@ function RoutineCopyDialog({ flow, students, routines, busy, close, submit }: {
   </div>;
 }
 
-function BlockAdder({ blocks, folders, ready, error, addNew, addFromLibrary }: {
+function BlockAdder({ blocks, folders, ready, error, addNew, addFromLibrary, onBlockChanged }: {
   blocks: TrainingLibraryBlock[];
   folders: TrainingLibraryFolder[];
   ready: boolean;
   error: string;
   addNew: (type: TrainingBlockType) => void;
   addFromLibrary: (block: TrainingLibraryBlock) => void;
+  onBlockChanged: (block: TrainingLibraryBlock) => void;
 }) {
   const [showTypes, setShowTypes] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -664,15 +666,15 @@ function BlockAdder({ blocks, folders, ready, error, addNew, addFromLibrary }: {
     setBusyId(block.id);
     addFromLibrary(block);
     setPickerOpen(false);
-    void fetch(`/api/training-library/blocks/${block.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "markUsed" }) }).catch(() => undefined).finally(() => { insertionInFlight.current = false; setBusyId(""); });
+    void fetch(`/api/training-library/blocks/${block.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "markUsed" }) }).then(async (response) => { if (response.ok) onBlockChanged(await response.json() as TrainingLibraryBlock); }).catch(() => undefined).finally(() => { insertionInFlight.current = false; setBusyId(""); });
   }
   return <>
     <details aria-label="Agregar bloque" className="mt-3 rounded-xl border border-yellow-400/25 bg-yellow-400/[.04]"><summary className="cursor-pointer list-none px-4 py-3 font-bold text-yellow-300">+ Agregar bloque</summary><div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-3"><button type="button" onClick={() => setShowTypes((value) => !value)} className="min-h-11 rounded-lg bg-zinc-800 px-3 text-sm font-bold text-zinc-100">Crear nuevo</button><button type="button" onClick={() => setPickerOpen(true)} className="min-h-11 rounded-lg border border-yellow-400/25 px-3 text-sm font-bold text-yellow-200">Desde Biblioteca</button>{showTypes && <div className="col-span-2 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3 sm:grid-cols-4">{(Object.keys(blockLabels) as TrainingBlockType[]).map((type) => <button type="button" key={type} onClick={() => { addNew(type); setShowTypes(false); }} className="min-h-11 rounded-lg bg-zinc-800 px-2 text-sm">{blockLabels[type]}</button>)}</div>}</div></details>
-    {pickerOpen && <TrainingLibraryBlockPicker blocks={blocks} folders={folders} ready={ready} error={error} busyId={busyId} close={() => { if (!busyId) setPickerOpen(false); }} add={insert} />}
+    {pickerOpen && <TrainingLibraryBlockPicker blocks={blocks} folders={folders} ready={ready} error={error} busyId={busyId} close={() => { if (!busyId) setPickerOpen(false); }} add={insert} onBlockChanged={onBlockChanged} />}
   </>;
 }
 
-function ClassTemplateEditor({ form, setForm, error, notice, close, submit, editing, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary }: {
+function ClassTemplateEditor({ form, setForm, error, notice, close, submit, editing, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary, onLibraryBlockChanged }: {
   form: RoutineDraft;
   setForm: (form: RoutineDraft) => void;
   error: string;
@@ -728,7 +730,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
 
       <section aria-label="Bloques de la clase" className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/45 p-3 sm:p-4">
         <div><h3 className="text-sm font-black text-zinc-100">Bloques de la clase</h3><p className="mt-1 text-xs text-zinc-500">Ordená la secuencia completa de la sesión.</p></div>
-        <BlockAdder blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} error={libraryLoadError} addNew={addBlock} addFromLibrary={addLibraryBlock} />
+        <BlockAdder blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} error={libraryLoadError} addNew={addBlock} addFromLibrary={addLibraryBlock} onBlockChanged={onLibraryBlockChanged} />
         <div className="mt-4 space-y-4">{currentDay.blocks.length === 0 ? <p className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-500">Agregá el primer bloque de la clase.</p> : [...currentDay.blocks].sort((left, right) => left.order - right.order).map((block) => <BlockEditor key={block.clientId} block={block} interpretation={null} update={(updater) => updateBlock(block.clientId, updater)} move={(direction) => moveBlock(block.clientId, direction)} duplicate={() => duplicateBlock(block.clientId)} remove={() => removeBlock(block.clientId)} saveToLibrary={() => saveBlockToLibrary(block)} />)}</div>
       </section>
 
@@ -739,7 +741,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
   </div>;
 }
 
-function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, notice, close, submit, editingStatus, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; validationIssues: RoutineValidationIssue[]; notice: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean } & EditorLibraryProps) {
+function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, notice, close, submit, editingStatus, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary, onLibraryBlockChanged }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; validationIssues: RoutineValidationIssue[]; notice: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean } & EditorLibraryProps) {
   const updatingActiveRoutine = editingStatus === "activa";
   const legacyMultiDayTemplate = form.kind === "template" && form.days.length > 1;
   const selectedStudent = form.studentIds.length === 1 ? students.find((student) => student.id === form.studentIds[0]) : undefined;
@@ -774,7 +776,7 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
     {form.kind === "assigned" && <RoutineEvaluationPanel student={selectedStudent} context={evaluationContext} loading={evaluationLoading} />}
     <nav aria-label="Días de la rutina" className="-mx-1 mt-5 flex gap-2 overflow-x-auto px-1 pb-2">{form.days.map((day) => <button type="button" key={day.clientId} onClick={() => setActiveDay(day.dayNumber)} className={`min-h-14 w-28 shrink-0 rounded-xl border px-2.5 py-2 text-left text-xs sm:w-32 ${activeDay === day.dayNumber ? "border-yellow-400 bg-yellow-400 font-bold text-zinc-950" : "border-zinc-700 bg-zinc-800 text-zinc-300"}`}><span className="block">Día {day.dayNumber}</span><span className="text-[11px] opacity-70">{day.blocks.length} bloques · {exerciseCount(day)} ejercicios</span></button>)}<button type="button" onClick={addDay} className="min-h-14 w-28 shrink-0 rounded-xl border border-dashed border-zinc-600 text-xs sm:w-32">+ Día</button></nav>
     <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-3 sm:p-4"><div className="grid gap-4 lg:grid-cols-[1fr_auto]"><div className="grid gap-3 sm:grid-cols-2"><label>Nombre del día<input required value={currentDay.name} onChange={(event) => updateDay((day) => ({ ...day, name: event.target.value }))} className={`${inputClass} mt-1`} /></label><label>Duración estimada<input type="number" min="1" value={currentDay.estimatedMinutes ?? ""} onChange={(event) => updateDay((day) => ({ ...day, estimatedMinutes: event.target.value ? Number(event.target.value) : null }))} className={`${inputClass} mt-1`} /></label><label>Objetivo del día<input value={currentDay.objective} onChange={(event) => updateDay((day) => ({ ...day, objective: event.target.value }))} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2">Entrada en calor<textarea rows={3} value={currentDay.warmup} onChange={(event) => updateDay((day) => ({ ...day, warmup: event.target.value }))} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2">Observaciones<textarea value={currentDay.observations} onChange={(event) => updateDay((day) => ({ ...day, observations: event.target.value }))} className={`${inputClass} mt-1`} /></label></div><div className="grid grid-cols-2 gap-2 self-end text-xs"><button type="button" onClick={() => moveDay(-1)} className="rounded-lg bg-zinc-800 p-2">← Día</button><button type="button" onClick={() => moveDay(1)} className="rounded-lg bg-zinc-800 p-2">Día →</button><button type="button" onClick={duplicateDay} className="rounded-lg bg-zinc-800 p-2">Duplicar día</button><button type="button" onClick={removeDay} className="rounded-lg bg-red-400/10 p-2 text-red-300">Eliminar día</button></div></div>
-      <BlockAdder blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} error={libraryLoadError} addNew={addBlock} addFromLibrary={addLibraryBlock} />
+      <BlockAdder blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} error={libraryLoadError} addNew={addBlock} addFromLibrary={addLibraryBlock} onBlockChanged={onLibraryBlockChanged} />
       <div className="mt-4 space-y-4">{currentDay.blocks.length === 0 ? <p className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-zinc-500">Agregá el primer bloque del día.</p> : [...currentDay.blocks].sort((a, b) => a.order - b.order).map((block) => <BlockEditor key={block.clientId} block={block} interpretation={interpretation} update={(updater) => updateBlock(block.clientId, updater)} move={(direction) => moveBlock(block.clientId, direction)} duplicate={() => duplicateBlock(block.clientId)} remove={() => removeBlock(block.clientId)} saveToLibrary={() => saveBlockToLibrary(block)} />)}</div>
     </section>
     {reminders.length > 0 && <section className="mt-5 rounded-xl border border-yellow-400/20 bg-yellow-400/[.04] p-4"><p className="text-sm font-bold text-yellow-300">Recordatorio de prioridades</p><p className="mt-1 text-xs text-zinc-500">Son sugerencias; nunca bloquean el guardado.</p><div className="mt-3 space-y-2">{reminders.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-black/30 p-3 text-sm"><span>{item.message}</span><button type="button" onClick={() => setReviewedReminders((current) => [...current, item.id])} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-300">Marcar revisada</button></div>)}</div></section>}
