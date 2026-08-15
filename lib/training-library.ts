@@ -19,6 +19,13 @@ export function normalizedLibraryTags(values: string[]) {
   return [...unique.entries()].map(([normalizedName, name]) => ({ name, normalizedName }));
 }
 
+export function appendNormalizedLibraryTags(current: string[], input: string, maximum = maximumTags) {
+  return normalizedLibraryTags([...current, ...input.split(",")])
+    .filter((tag) => tag.name.length <= 60)
+    .slice(0, maximum)
+    .map((tag) => tag.name);
+}
+
 export function validateLibraryFolderName(value: unknown) {
   if (typeof value !== "string" || !value.trim() || value.trim().length > 80) return "Ingresá un nombre de carpeta de hasta 80 caracteres.";
   return null;

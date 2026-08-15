@@ -8,6 +8,7 @@ import { RoutineManagementPanel } from "@/componentes/routine-management-panel";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { TrainingLibraryBlocksPanel } from "@/componentes/training-library-blocks";
 import { TrainingLibraryBlockPicker } from "@/componentes/training-library-block-picker";
+import { TrainingTagInput } from "@/componentes/training-tag-input";
 import { ExerciseLibraryPicker } from "@/componentes/exercise-library";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { ContextualSuggestion, RoutineEvaluationPanel, useRoutineEvaluation } from "@/componentes/routine-evaluation-panel";
@@ -166,7 +167,7 @@ export default function RutinasPage() {
   const [libraryEditing, setLibraryEditing] = useState<TrainingLibraryBlock | null>(null);
   const [libraryBlockDraft, setLibraryBlockDraft] = useState<BlockDraft | null>(null);
   const [libraryFolderId, setLibraryFolderId] = useState("");
-  const [libraryTags, setLibraryTags] = useState("");
+  const [libraryTags, setLibraryTags] = useState<string[]>([]);
   const [librarySaving, setLibrarySaving] = useState(false);
   const [libraryError, setLibraryError] = useState("");
   const [editorNotice, setEditorNotice] = useState("");
@@ -424,7 +425,7 @@ export default function RutinasPage() {
     setLibraryEditing(block ?? null);
     setLibraryBlockDraft(block ? librarySnapshotToEditableBlock(block.content, 1) : newBlock("STRENGTH", 1));
     setLibraryFolderId(block?.folder?.id ?? "");
-    setLibraryTags(block?.tags.join(", ") ?? "");
+    setLibraryTags(block?.tags ?? []);
     setLibraryError("");
     setLibraryDialogOpen(true);
   }
@@ -434,7 +435,7 @@ export default function RutinasPage() {
     setLibraryEditing(null);
     setLibraryBlockDraft(librarySnapshotToEditableBlock(editableBlockToLibrarySnapshot(block), 1));
     setLibraryFolderId("");
-    setLibraryTags("");
+    setLibraryTags([]);
     setLibraryError("");
     setLibraryDialogOpen(true);
   }
@@ -447,7 +448,7 @@ export default function RutinasPage() {
     const payload: TrainingLibraryBlockPayload = {
       name: libraryBlockDraft.name,
       folderId: libraryFolderId,
-      tags: libraryTags.split(",").map((value) => value.trim()).filter(Boolean),
+      tags: libraryTags,
       block: editableBlockToLibrarySnapshot(libraryBlockDraft),
     };
     setLibrarySaving(true); setLibraryError("");
@@ -510,8 +511,8 @@ function LibraryBlockDialog({ block, setBlock, folders, folderId, setFolderId, t
   folders: TrainingLibraryFolder[];
   folderId: string;
   setFolderId: (value: string) => void;
-  tags: string;
-  setTags: (value: string) => void;
+  tags: string[];
+  setTags: (value: string[]) => void;
   error: string;
   saving: boolean;
   editing: boolean;
@@ -533,7 +534,7 @@ function LibraryBlockDialog({ block, setBlock, folders, folderId, setFolderId, t
       <section className={`mt-5 grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-3 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
         {compact ? <label className="sm:col-span-2">Nombre<input required maxLength={120} value={block.name} onChange={(event) => setBlock({ ...block, name: event.target.value })} className={`${inputClass} mt-1`} /><span className="mt-1 block text-xs text-zinc-500">Tipo: {blockLabels[block.type]}</span></label> : <label>Tipo<select disabled={editing} value={block.type} onChange={(event) => setBlock(newBlock(event.target.value as TrainingBlockType, 1))} className={`${inputClass} mt-1 disabled:opacity-60`}>{(Object.keys(blockLabels) as TrainingBlockType[]).map((value) => <option key={value} value={value}>{blockLabels[value]}</option>)}</select></label>}
         <label>Carpeta<select value={folderId} onChange={(event) => setFolderId(event.target.value)} className={`${inputClass} mt-1`}><option value="">Sin carpeta</option>{folders.filter((folder) => folder.status === "active").map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
-        <label>Tags<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="fuerza, tren inferior" className={`${inputClass} mt-1`} /></label>
+        <TrainingTagInput value={tags} onChange={setTags} disabled={saving} />
       </section>
       {!compact && <div className="mt-4"><BlockEditor standalone block={block} interpretation={null} update={(updater) => setBlock(updater(block))} move={() => undefined} duplicate={() => undefined} remove={() => undefined} /></div>}
       <footer className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t border-zinc-800 bg-zinc-900 py-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)]"><button type="button" disabled={saving} onClick={close} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50">Cancelar</button><button type="submit" name="intent" value="save-library-block" disabled={saving} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : compact ? "Guardar en Biblioteca" : "Guardar bloque"}</button></footer>
@@ -658,7 +659,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
           <label>Nivel<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as TrainingRoutineLevel })} className={`${inputClass} mt-1`}>{levels.map((level) => <option key={level} value={level}>{label(level)}</option>)}</select></label>
           <label>Objetivo de la clase<input required list="class-objectives" maxLength={100} value={form.objective} onChange={(event) => setForm({ ...form, objective: event.target.value })} className={`${inputClass} mt-1`} /><datalist id="class-objectives">{objectives.map((objective) => <option key={objective} value={objective} />)}</datalist></label>
           <label>Equipamiento<input value={form.equipment.join(", ")} onChange={(event) => setForm({ ...form, equipment: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Mancuernas, bandas, cajón" className={`${inputClass} mt-1`} /></label>
-          <label>Tags / Etiquetas<input value={visibleClassTags(form.tags).join(", ")} onChange={(event) => setForm({ ...form, tags: classTagsWithType(event.target.value.split(",").map((value) => value.trim()).filter(Boolean), classType) })} placeholder="Full body, metabólico" className={`${inputClass} mt-1`} /></label>
+          <TrainingTagInput label="Tags / Etiquetas" value={visibleClassTags(form.tags)} onChange={(tags) => setForm({ ...form, tags: classTagsWithType(tags, classType) })} placeholder="Full body, metabólico" disabled={saving} />
           <label className="sm:col-span-2">Descripción o notas generales<textarea maxLength={1000} rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${inputClass} mt-1`} /></label>
         </div>
         <div className="mt-4 flex flex-wrap gap-x-2 gap-y-1 border-t border-zinc-800 pt-3 text-xs text-zinc-400"><strong className="max-w-full truncate text-zinc-100">{form.name.trim() || "Clase sin nombre"}</strong><span>·</span><span>{currentDay.estimatedMinutes ? `${currentDay.estimatedMinutes} min` : "Duración sin definir"}</span><span>·</span><span>{classType}</span><span>·</span><span>{label(form.level)}</span></div>

@@ -39,6 +39,8 @@ test("los siete tipos reales siguen disponibles y el tipo de clase usa un tag re
   for (const type of ["Funcional", "GAP", "Kids", "Personalizado", "Gimnasio", "Casa", "Otro"]) assert.match(page, new RegExp(`"${type}"`));
   assert.match(page, /classTypeTagPrefix = "Tipo de clase:"/);
   assert.match(submitFlow, /classTagsWithType/);
+  assert.match(classEditor, /value=\{visibleClassTags\(form\.tags\)\}/);
+  assert.match(classEditor, /classTagsWithType\(tags, classType\)/);
 });
 
 test("guardar clase mantiene kind template, un solo día y valores neutrales", () => {

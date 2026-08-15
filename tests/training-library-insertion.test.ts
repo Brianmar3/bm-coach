@@ -87,7 +87,7 @@ test("Guardar en Biblioteca usa formulario corto, evita Enter y conserva el edit
   assert.match(page, /compact \? "Guardar en Biblioteca"/);
   assert.match(page, />Nombre<input/);
   assert.match(page, />Carpeta<select/);
-  assert.match(page, />Tags<input/);
+  assert.match(page, /<TrainingTagInput value=\{tags\}/);
   assert.match(page, /if \(!\(submitter instanceof HTMLButtonElement\)\) return/);
   assert.match(page, /setEditorNotice\("Bloque guardado en Biblioteca\."\)/);
   assert.match(page, /editableBlockToLibrarySnapshot\(libraryBlockDraft\)/);

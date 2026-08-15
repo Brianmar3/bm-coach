@@ -12,6 +12,8 @@ export function useRoutineKeyboardNavigation() {
     const target = event.target;
     if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement)) return;
 
+    if (event.key === "Enter" && target.dataset.enterNext === "tag-input" && target.value.trim()) return;
+
     if (event.key === "Enter" && shouldEnterAdvance({ tagName: target.tagName, inputType: target instanceof HTMLInputElement ? target.type : undefined, hasList: target instanceof HTMLInputElement && Boolean(target.getAttribute("list")), disabled: target.disabled })) {
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(navigableControlSelector))
         .filter((control) => control.getClientRects().length > 0 && control.tabIndex !== -1);
