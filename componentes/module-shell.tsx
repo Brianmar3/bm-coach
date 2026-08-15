@@ -35,4 +35,4 @@ export function ModuleShell({
 }
 
 export const inputClass =
-  "w-full min-h-11 rounded-xl border border-zinc-700/80 bg-black/45 px-3 py-2 text-sm text-white shadow-inner shadow-black/20 outline-none transition placeholder:text-zinc-600 focus:border-yellow-400/70 focus:ring-2 focus:ring-yellow-400/10";
+  "w-full min-h-11 rounded-xl border border-zinc-700/80 bg-black/45 px-3 py-2 text-base text-white shadow-inner shadow-black/20 outline-none transition placeholder:text-zinc-500 focus:border-yellow-400/70 focus:ring-2 focus:ring-yellow-400/10 sm:text-sm";

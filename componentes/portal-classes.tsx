@@ -328,11 +328,11 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         </section>
       )}
 
-      <details className="group mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[#151517] sm:mt-5">
+      <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[#151517] transition hover:border-yellow-400/25 sm:mt-5">
         <summary aria-label="Ver mis horarios semanales" className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300">
           <div className="min-w-0">
             <h2 className="font-black text-zinc-100">Mis horarios semanales</h2>
-            <p className="mt-0.5 text-[11px] text-zinc-500 sm:mt-1 sm:text-xs">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
+            <p className="mt-0.5 text-[11px] text-zinc-400 sm:mt-1 sm:text-xs">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
           </div>
           <span className="flex shrink-0 items-center gap-1 text-[11px] font-black text-yellow-300 sm:gap-2 sm:text-xs">Ver semana <span aria-hidden="true" className="text-lg transition group-open:rotate-90">›</span></span>
         </summary>

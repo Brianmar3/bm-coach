@@ -325,6 +325,7 @@ test("cada clase usa una fila compacta con horario, estado, contador y respuesta
 
 test("horarios semanales y registros conservan acceso y presentación móvil compacta", () => {
   const source = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+  const actionCard = readFileSync(new URL("../componentes/portal-action-card.tsx", import.meta.url), "utf8");
   assert.match(source, /Mis horarios semanales/);
   assert.match(source, /Ver semana/);
   assert.match(source, /data\.scheduleLabels/);
@@ -339,6 +340,10 @@ test("horarios semanales y registros conservan acceso y presentación móvil com
   assert.match(source, /min-w-0/);
   assert.match(source, /min-h-12/);
   assert.match(source, /rounded-2xl/);
+  assert.match(source, /border-white\/\[\.08\]/);
+  assert.match(actionCard, /border-white\/\[\.08\]/);
+  assert.match(actionCard, /focus-visible:ring-offset-2/);
+  assert.match(actionCard, /<svg aria-hidden="true"/);
   assert.doesNotMatch(source, /overflow-x-auto/);
 });
 
