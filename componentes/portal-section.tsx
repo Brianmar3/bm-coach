@@ -24,6 +24,7 @@ import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
 import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-dashboard";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { PortalActionCard } from "@/componentes/portal-action-card";
+import { PasswordField } from "@/componentes/password-field";
 
 type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -715,9 +716,39 @@ const portalInput = "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 p
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="text-xs text-zinc-500">{label}{children}</label>; }
 
 function ChangePasswordCard({ forced = false, onSuccess }: { forced?: boolean; onSuccess?: () => void }) {
-  const [currentPassword, setCurrentPassword] = useState(""); const [newPassword, setNewPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [saving, setSaving] = useState(false);
-  async function submit(event: FormEvent) { event.preventDefault(); if (newPassword !== confirmPassword) { setError("Las contraseñas nuevas no coinciden."); return; } setSaving(true); setError(""); setSuccess(""); try { const response = await fetch("/api/portal/change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword, newPassword }) }); const body = await response.json() as { error?: string }; if (!response.ok) throw new Error(body.error ?? "No se pudo cambiar la contraseña."); setSuccess("Contraseña actualizada correctamente."); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); onSuccess?.(); } catch (changeError) { setError(changeError instanceof Error ? changeError.message : "No se pudo cambiar la contraseña."); } finally { setSaving(false); } }
-  return <section className={`mt-6 rounded-2xl border p-5 ${forced ? "border-yellow-400/40 bg-yellow-400/5" : "border-zinc-800 bg-zinc-900"}`}><h2 className="font-semibold text-yellow-300">{forced ? "Creá tu contraseña personal" : "Cambiar contraseña"}</h2><p className="mt-1 text-sm text-zinc-500">{forced ? "La contraseña temporal debe reemplazarse antes de acceder a tus datos." : "Debe incluir mayúscula, minúscula, número y al menos 10 caracteres."}</p>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}{success && <p className="mt-4 rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-300">{success}</p>}<form onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-3"><label className="text-sm">Contraseña actual<input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 outline-none focus:border-yellow-400" /></label><label className="text-sm">Nueva contraseña<input required type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 outline-none focus:border-yellow-400" /></label><label className="text-sm">Repetir contraseña<input required type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 outline-none focus:border-yellow-400" /></label><button disabled={saving} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:opacity-60 sm:col-span-3">{saving ? "Guardando…" : "Guardar contraseña"}</button></form></section>;
+  type PasswordErrors = { current?: string; next?: string; confirm?: string };
+  const [currentPassword, setCurrentPassword] = useState(""); const [newPassword, setNewPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [saving, setSaving] = useState(false); const [fieldErrors, setFieldErrors] = useState<PasswordErrors>({});
+  const currentRef = useRef<HTMLInputElement>(null); const newRef = useRef<HTMLInputElement>(null); const confirmRef = useRef<HTMLInputElement>(null);
+  function validate() {
+    const nextErrors: PasswordErrors = {};
+    if (!currentPassword) nextErrors.current = "Ingresá tu contraseña actual.";
+    if (!newPassword) nextErrors.next = "Ingresá una contraseña nueva.";
+    else if (newPassword.length < 10 || !/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) nextErrors.next = "Usá al menos 10 caracteres, mayúscula, minúscula y número.";
+    if (!confirmPassword) nextErrors.confirm = "Repetí la contraseña nueva.";
+    else if (newPassword !== confirmPassword) nextErrors.confirm = "Las contraseñas nuevas no coinciden.";
+    setFieldErrors(nextErrors);
+    if (nextErrors.current) currentRef.current?.focus(); else if (nextErrors.next) newRef.current?.focus(); else if (nextErrors.confirm) confirmRef.current?.focus();
+    return Object.keys(nextErrors).length === 0;
+  }
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (saving || !validate()) return;
+    setSaving(true); setError(""); setSuccess("");
+    try {
+      const response = await fetch("/api/portal/change-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword, newPassword }) });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) {
+        const message = body.error ?? "No se pudo cambiar la contraseña.";
+        if (message.toLocaleLowerCase("es").includes("actual")) { setFieldErrors({ current: message }); currentRef.current?.focus(); }
+        else { setFieldErrors({ next: message }); newRef.current?.focus(); }
+        return;
+      }
+      setSuccess("Contraseña actualizada correctamente."); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setFieldErrors({}); onSuccess?.();
+    } catch {
+      setError("No pudimos guardar el cambio. Revisá tu conexión e intentá nuevamente.");
+    } finally { setSaving(false); }
+  }
+  return <section className={`mt-6 rounded-2xl border p-5 ${forced ? "border-yellow-400/40 bg-yellow-400/5" : "border-zinc-800 bg-zinc-900"}`}><h2 className="font-semibold text-yellow-300">{forced ? "Creá tu contraseña personal" : "Cambiar contraseña"}</h2><p className="mt-1 text-sm text-zinc-500">{forced ? "La contraseña temporal debe reemplazarse antes de acceder a tus datos." : "Debe incluir mayúscula, minúscula, número y al menos 10 caracteres."}</p>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}{success && <p role="status" className="mt-4 rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-300">{success}</p>}<form noValidate onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-3"><PasswordField ref={currentRef} id="current-password" label="Contraseña actual" required autoComplete="current-password" value={currentPassword} error={fieldErrors.current} onChange={(event) => { setCurrentPassword(event.target.value); setError(""); if (fieldErrors.current) setFieldErrors((value) => ({ ...value, current: undefined })); }} /><PasswordField ref={newRef} id="new-password" label="Nueva contraseña" required autoComplete="new-password" value={newPassword} error={fieldErrors.next} onChange={(event) => { const value = event.target.value; setNewPassword(value); setError(""); setFieldErrors((errors) => ({ ...errors, next: undefined, confirm: confirmPassword && value === confirmPassword ? undefined : errors.confirm })); }} /><PasswordField ref={confirmRef} id="confirm-password" label="Repetir contraseña" required autoComplete="new-password" value={confirmPassword} error={fieldErrors.confirm} onChange={(event) => { setConfirmPassword(event.target.value); setError(""); if (fieldErrors.confirm) setFieldErrors((value) => ({ ...value, confirm: undefined })); }} /><button type="submit" disabled={saving} aria-busy={saving} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:cursor-wait disabled:opacity-60 sm:col-span-3">{saving ? "Guardando…" : "Guardar contraseña"}</button></form></section>;
 }
 
 function PortalLogoutCard() {
