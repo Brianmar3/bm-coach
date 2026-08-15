@@ -37,7 +37,7 @@ test("la clase conserva entrada en calor, bloques, observaciones y guardado espe
 test("los siete tipos reales siguen disponibles y el tipo de clase usa un tag reservado", () => {
   for (const type of ["STRENGTH", "ROUNDS", "INTERVAL", "EMOM", "AMRAP", "FOR_TIME", "FREE"]) assert.match(page, new RegExp(type));
   for (const type of ["Funcional", "GAP", "Kids", "Personalizado", "Gimnasio", "Casa", "Otro"]) assert.match(page, new RegExp(`"${type}"`));
-  assert.match(page, /classTypeTagPrefix = "Tipo de clase:"/);
+  assert.match(page, /classTypeTagPrefix = CLASS_TYPE_TAG_PREFIX/);
   assert.match(submitFlow, /classTagsWithType/);
   assert.match(classEditor, /value=\{visibleClassTags\(form\.tags\)\}/);
   assert.match(classEditor, /classTagsWithType\(tags, classType\)/);
