@@ -2,7 +2,7 @@
 
 import { createContext, FormEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
-import { RoutineFollowUp } from "@/componentes/routine-follow-up";
+import { RoutineFollowUpDashboard } from "@/componentes/routine-follow-up-dashboard";
 import { RoutineTableView } from "@/componentes/routine-table-view";
 import { RoutineManagementPanel } from "@/componentes/routine-management-panel";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
@@ -505,7 +505,7 @@ export default function RutinasPage() {
     {error && !open && <p role="alert" className="mb-3 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
     {notice && !open && <p role="status" className="mb-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[.07] px-4 py-2.5 text-xs text-emerald-200">{notice}</p>}
     <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 bg-black/20 px-1">{([["rutinas", "Rutinas"], ["plantillas", "Biblioteca"], ["seguimiento", "Seguimiento"]] as const).map(([value, title]) => <button key={value} onClick={() => setActiveTab(value)} className={`relative min-h-12 shrink-0 px-4 text-sm font-bold transition ${activeTab === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}</nav>
-    {activeTab === "seguimiento" ? <RoutineFollowUp initialStudentId={trackingStudentId} /> : activeTab === "plantillas" ? <>
+    {activeTab === "seguimiento" ? <RoutineFollowUpDashboard initialStudentId={trackingStudentId} /> : activeTab === "plantillas" ? <>
       <nav aria-label="Contenido de la Biblioteca" className="mb-4 grid grid-cols-2 border-b border-zinc-800 bg-black/10">
         {([["classes", "Clases completas"], ["blocks", "Bloques"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={librarySection === value ? "page" : undefined} onClick={() => setLibrarySection(value)} className={`relative min-h-11 min-w-0 px-2 text-xs font-bold transition sm:text-sm ${librarySection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}
       </nav>

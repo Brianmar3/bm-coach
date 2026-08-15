@@ -49,6 +49,8 @@ export type AdminWorkoutSession = {
   exercises: AdminWorkoutExercise[];
 };
 
+export type AdminFollowUpState = "on_track" | "attention" | "no_data";
+
 export type AdminStudentFollowUp = {
   studentId: string;
   studentName: string;
@@ -59,6 +61,9 @@ export type AdminStudentFollowUp = {
     location: string;
     status: string;
     startDate: string;
+    assignedAt: string;
+    durationWeeks: number | null;
+    plannedDays: number;
   } | null;
   latestSession: AdminWorkoutSession | null;
   sessionCount: number;
@@ -72,6 +77,32 @@ export type AdminStudentFollowUp = {
   } | null;
   recentProgress: string;
   hasClassStrength: boolean;
+  expectedSessionCount: number;
+  compliancePercentage: number | null;
+  state: AdminFollowUpState;
+  attentionReason: string;
+};
+
+export type AdminBodyEvaluationPoint = {
+  id: string;
+  date: string;
+  weight: number | null;
+  bodyFatPercentage: number | null;
+  muscleMass: number | null;
+};
+
+export type AdminExerciseProgress = {
+  exerciseId: string;
+  name: string;
+  points: Array<{ date: string; weight: number | null; repetitions: number; completedSets: number; effort: number | null }>;
+};
+
+export type AdminFollowUpDetail = {
+  studentId: string;
+  sessions: AdminWorkoutSession[];
+  evaluations: AdminBodyEvaluationPoint[];
+  blockDistribution: Array<{ type: string; label: string; count: number }>;
+  exerciseProgress: AdminExerciseProgress[];
 };
 
 export type AdminFollowUpData = {
@@ -92,4 +123,13 @@ export type AdminFollowUpData = {
   }>;
   routines: Array<{ id: string; name: string }>;
   studentsWithoutTraining: Array<{ id: string; name: string }>;
+  summary?: {
+    trackedStudents: number;
+    onTrack: number;
+    onTrackPercentage: number;
+    attention: number;
+    attentionPercentage: number;
+    averageSessions: number;
+  };
+  detail?: AdminFollowUpDetail | null;
 };
