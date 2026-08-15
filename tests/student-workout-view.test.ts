@@ -168,4 +168,5 @@ test("la pantalla de Rutina termina en Ver mi progreso y el historial vive en su
   assert.doesNotMatch(routineRender, /WorkoutHistoryView|historial-entrenamientos/);
   assert.match(source, /if \(section === "historial"\) return <WorkoutHistoryView data=\{data\} \/>/);
   assert.match(source, /Ver mi progreso/);
+  assert.match(source, /PortalActionCard href="\/portal\/progreso"/);
 });

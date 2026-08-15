@@ -330,6 +330,10 @@ test("horarios semanales y registros conservan acceso y presentación móvil com
   assert.match(source, /data\.scheduleLabels/);
   assert.match(source, /href="\/portal\/registro"/);
   assert.match(source, /Ver mis registros/);
+  assert.match(source, /PortalActionCard href="\/portal\/registro"/);
+  assert.match(source, /title="Mis registros" subtitle="Ejercicios, cargas y marcas"/);
+  assert.doesNotMatch(source, /Consultá tus ejercicios, cargas y marcas registradas/);
+  assert.doesNotMatch(source, /<p[^>]*>Mis registros<\/p>/);
   assert.match(source, /function RecordsIcon/);
   assert.match(source, /grid-cols-2/);
   assert.match(source, /min-w-0/);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalClassOccurrence } from "@/types/classes";
 import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
+import { PortalActionCard } from "@/componentes/portal-action-card";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
@@ -327,8 +328,8 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         </section>
       )}
 
-      <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[.07] bg-[linear-gradient(145deg,#171717,#0c0c0c)] shadow-[0_14px_36px_rgba(0,0,0,.2)] sm:mt-5 sm:rounded-3xl">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-2.5 px-3 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:min-h-16 sm:px-6 sm:py-4">
+      <details className="group mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[#151517] sm:mt-5">
+        <summary aria-label="Ver mis horarios semanales" className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300">
           <div className="min-w-0">
             <h2 className="font-black text-zinc-100">Mis horarios semanales</h2>
             <p className="mt-0.5 text-[11px] text-zinc-500 sm:mt-1 sm:text-xs">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
@@ -360,20 +361,7 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
         </div>
       </details>
 
-      <section className="relative mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[linear-gradient(135deg,#181818,#090909)] p-4 shadow-[0_16px_42px_rgba(0,0,0,.22)] sm:mt-5 sm:rounded-3xl sm:p-6">
-        <span aria-hidden="true" className="absolute -right-10 -top-12 size-36 rounded-full border border-yellow-400/10 bg-yellow-400/[.035]" />
-        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.08] text-yellow-300 sm:size-11 sm:rounded-2xl"><RecordsIcon /></span>
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Mis registros</p>
-              <h2 className="mt-0.5 text-base font-black text-zinc-100 sm:mt-1 sm:text-lg">Ejercicios, cargas y marcas</h2>
-              <p className="mt-0.5 text-xs leading-relaxed text-zinc-400 sm:mt-1 sm:text-sm">Consultá tus ejercicios, cargas y marcas registradas.</p>
-            </div>
-          </div>
-          <Link href="/portal/registro" className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-yellow-400/30 bg-yellow-400/[.07] px-4 py-2 text-xs font-black text-yellow-300 transition hover:bg-yellow-400/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:min-h-11 sm:text-sm">Ver mis registros</Link>
-        </div>
-      </section>
+      <div className="mt-4 sm:mt-5"><PortalActionCard href="/portal/registro" ariaLabel="Ver mis registros" title="Mis registros" subtitle="Ejercicios, cargas y marcas" icon={<RecordsIcon />} /></div>
     </div>
   );
 }
