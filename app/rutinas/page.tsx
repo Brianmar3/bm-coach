@@ -55,6 +55,21 @@ function newExercise(order: number, type: TrainingBlockType = "STRENGTH"): Exerc
 }
 
 const blockLabels: Record<TrainingBlockType, string> = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "For time", FREE: "Bloque libre" };
+const classTypes = ["Funcional", "GAP", "Kids", "Personalizado", "Gimnasio", "Casa", "Otro"] as const;
+const classTypeTagPrefix = "Tipo de clase:";
+
+function classTypeFromTags(tags: string[]) {
+  const stored = tags.find((tag) => tag.toLocaleLowerCase("es").startsWith(classTypeTagPrefix.toLocaleLowerCase("es")))?.slice(classTypeTagPrefix.length).trim();
+  return classTypes.find((type) => type.toLocaleLowerCase("es") === stored?.toLocaleLowerCase("es")) ?? "Otro";
+}
+
+function visibleClassTags(tags: string[]) {
+  return tags.filter((tag) => !tag.toLocaleLowerCase("es").startsWith(classTypeTagPrefix.toLocaleLowerCase("es")));
+}
+
+function classTagsWithType(tags: string[], type: string) {
+  return [...visibleClassTags(tags), `${classTypeTagPrefix} ${type}`];
+}
 
 function newBlock(type: TrainingBlockType, order: number): BlockDraft {
   return { clientId: crypto.randomUUID(), type, name: type === "STRENGTH" ? "Bloque de fuerza" : blockLabels[type], order, rounds: ["ROUNDS", "INTERVAL", "FOR_TIME"].includes(type) ? 3 : null, durationSeconds: ["EMOM", "AMRAP"].includes(type) ? 600 : null, workSeconds: type === "INTERVAL" ? 40 : null, restSeconds: type === "INTERVAL" ? 20 : null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: "", exercises: [] };
@@ -73,9 +88,9 @@ function blankRoutine(kind: TrainingRoutineKind = "assigned"): RoutineDraft {
     priorityMuscles: [],
     location: "",
     equipment: [],
-    tags: [],
+    tags: kind === "template" ? [`${classTypeTagPrefix} Funcional`] : [],
     studentIds: [],
-    days: [{ clientId: crypto.randomUUID(), dayNumber: 1, name: "Día 1", objective: "", warmup: "", observations: "", estimatedMinutes: null, blocks: [newBlock("STRENGTH", 1)], exercises: [] }],
+    days: [{ clientId: crypto.randomUUID(), dayNumber: 1, name: kind === "template" ? "Clase" : "Día 1", objective: "", warmup: "", observations: "", estimatedMinutes: null, blocks: [newBlock("STRENGTH", 1)], exercises: [] }],
   };
 }
 
@@ -220,18 +235,21 @@ export default function RutinasPage() {
     if (saving) return;
     if (!form.name.trim() || !form.objective.trim()) { setError("Completá nombre y objetivo."); return; }
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const intent = submitter instanceof HTMLButtonElement ? submitter.value : "draft";
+    if (!(submitter instanceof HTMLButtonElement)) return;
+    const intent = submitter.value;
     const updatingActiveRoutine = editing?.status === "activa";
-    const requestedStatus = updatingActiveRoutine ? "activa" : intent === "draft" ? "borrador" : intent === "activate" ? "activa" : form.status;
+    const classTemplate = form.kind === "template" && form.days.length === 1;
+    const requestedStatus = classTemplate ? editing?.status ?? "borrador" : updatingActiveRoutine ? "activa" : intent === "draft" ? "borrador" : intent === "activate" ? "activa" : form.status;
     const payload = {
       ...form,
       status: requestedStatus,
+      tags: classTemplate ? classTagsWithType(form.tags, classTypeFromTags(form.tags)) : form.tags,
       replaceActive: requestedStatus === "activa" && replaceOnActivate,
       days: form.days.map((day) => ({
         id: day.id,
         dayNumber: day.dayNumber,
-        name: day.name,
-        objective: day.objective,
+        name: classTemplate ? form.name.trim() : day.name,
+        objective: classTemplate ? form.objective.trim() : day.objective,
         warmup: day.warmup,
         observations: day.observations,
         estimatedMinutes: day.estimatedMinutes,
@@ -280,8 +298,8 @@ export default function RutinasPage() {
       if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar la rutina."));
       const saved = (await response.json()) as TrainingRoutine;
       setItems((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]);
-      setOpen(false); setEditing(null); setNotice(updatingActiveRoutine ? "Rutina actualizada correctamente" : requestedStatus === "activa" ? "Rutina activada correctamente." : "Rutina guardada correctamente.");
-    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "No se pudo guardar la rutina en Neon."); }
+      setOpen(false); setEditing(null); setNotice(classTemplate ? editing ? "Clase actualizada correctamente." : "Clase guardada en Biblioteca." : updatingActiveRoutine ? "Rutina actualizada correctamente" : requestedStatus === "activa" ? "Rutina activada correctamente." : "Rutina guardada correctamente.");
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : classTemplate ? "No se pudo guardar la clase." : "No se pudo guardar la rutina en Neon."); }
     finally { setSaving(false); }
   }
 
@@ -462,7 +480,9 @@ export default function RutinasPage() {
       <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_minmax(170px,.8fr)_minmax(190px,.9fr)]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina o alumno…" className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
       <RoutineManagementPanel routines={visible} mode="rutinas" routineSection={routineSection} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
     </>}
-    {open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editingStatus={editing?.status ?? null} saving={saving} />}
+    {open && form.kind === "template" && form.days.length === 1
+      ? <ClassTemplateEditor form={form} setForm={setForm} error={error} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving} />
+      : open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} close={() => setOpen(false)} submit={submit} editingStatus={editing?.status ?? null} saving={saving} />}
     {libraryDialogOpen && libraryBlockDraft && <LibraryBlockDialog block={libraryBlockDraft} setBlock={setLibraryBlockDraft} folders={libraryFolders} folderId={libraryFolderId} setFolderId={setLibraryFolderId} tags={libraryTags} setTags={setLibraryTags} error={libraryError} saving={librarySaving} editing={Boolean(libraryEditing)} close={() => { if (!librarySaving) { setLibraryDialogOpen(false); setLibraryEditing(null); setLibraryBlockDraft(null); } }} submit={saveLibraryBlock} />}
     {viewing && <RoutineTableView
       routine={viewing}
@@ -562,8 +582,72 @@ function RoutineCopyDialog({ flow, students, routines, busy, close, submit }: {
   </div>;
 }
 
+function ClassTemplateEditor({ form, setForm, error, close, submit, editing, saving }: {
+  form: RoutineDraft;
+  setForm: (form: RoutineDraft) => void;
+  error: string;
+  close: () => void;
+  submit: (event: FormEvent) => void;
+  editing: boolean;
+  saving: boolean;
+}) {
+  const currentDay = form.days[0];
+  const handleKeyboardNavigation = useRoutineKeyboardNavigation();
+  const updateDay = (updater: (day: DayDraft) => DayDraft) => setForm({ ...form, days: [updater(currentDay)] });
+  const reorderBlocks = (blocks: BlockDraft[]) => blocks.map((block, index) => ({ ...block, order: index + 1 }));
+  const classType = classTypeFromTags(form.tags);
+  function addBlock(type: TrainingBlockType) { updateDay((day) => ({ ...day, blocks: [...day.blocks, newBlock(type, day.blocks.length + 1)] })); }
+  function updateBlock(clientId: string, updater: (block: BlockDraft) => BlockDraft) { updateDay((day) => ({ ...day, blocks: day.blocks.map((block) => block.clientId === clientId ? updater(block) : block) })); }
+  function moveBlock(clientId: string, direction: -1 | 1) { updateDay((day) => { const blocks = [...day.blocks].sort((a, b) => a.order - b.order); const index = blocks.findIndex((block) => block.clientId === clientId); const target = index + direction; if (index < 0 || target < 0 || target >= blocks.length) return day; [blocks[index], blocks[target]] = [blocks[target], blocks[index]]; return { ...day, blocks: reorderBlocks(blocks) }; }); }
+  function duplicateBlock(clientId: string) { updateDay((day) => { const index = day.blocks.findIndex((block) => block.clientId === clientId); if (index < 0) return day; const source = day.blocks[index]; const copy = { ...source, id: undefined, clientId: crypto.randomUUID(), name: `${source.name} (copia)`, exercises: source.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID() })) }; return { ...day, blocks: reorderBlocks([...day.blocks.slice(0, index + 1), copy, ...day.blocks.slice(index + 1)]) }; }); }
+  function removeBlock(clientId: string) { if (!window.confirm("¿Eliminar este bloque de la clase?")) return; updateDay((day) => ({ ...day, blocks: reorderBlocks(day.blocks.filter((block) => block.clientId !== clientId)) })); }
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || saving || document.querySelector('[aria-label="Biblioteca de ejercicios BM"]')) return;
+      close();
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [close, saving]);
+
+  return <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget && !saving) close(); }} className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-0 sm:p-3">
+    <form onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} role="dialog" aria-modal="true" aria-labelledby="class-template-title" className="mx-auto min-h-dvh w-full max-w-6xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
+      <header className="sticky top-0 z-20 -mx-3 -mt-3 flex items-start justify-between gap-4 border-b border-zinc-800 bg-zinc-900/95 px-3 py-3 backdrop-blur sm:-mx-5 sm:-mt-5 sm:rounded-t-2xl sm:px-5 sm:py-4"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Biblioteca · Clase completa</p><h2 id="class-template-title" className="mt-1 text-xl font-black">{editing ? "Editar clase" : "Nueva clase completa"}</h2><p className="mt-1 text-sm text-zinc-400">Diseñá una sesión lista para reutilizar.</p></div><button type="button" onClick={close} disabled={saving} aria-label="Cerrar editor de clase" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300 disabled:opacity-50">×</button></header>
+      {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
+
+      <section aria-label="Datos generales de la clase" className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950/45 p-3 sm:p-4">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          <label className="sm:col-span-2">Nombre de la clase<input required maxLength={120} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={`${inputClass} mt-1`} /></label>
+          <label>Tipo de clase<select value={classType} onChange={(event) => setForm({ ...form, tags: classTagsWithType(form.tags, event.target.value) })} className={`${inputClass} mt-1`}>{classTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
+          <label>Duración estimada (min)<NumericDraftInput min="1" max="1440" value={currentDay.estimatedMinutes} setValue={(value) => updateDay((day) => ({ ...day, estimatedMinutes: value }))} className={`${inputClass} mt-1`} /></label>
+          <label>Nivel<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value as TrainingRoutineLevel })} className={`${inputClass} mt-1`}>{levels.map((level) => <option key={level} value={level}>{label(level)}</option>)}</select></label>
+          <label>Objetivo de la clase<input required list="class-objectives" maxLength={100} value={form.objective} onChange={(event) => setForm({ ...form, objective: event.target.value })} className={`${inputClass} mt-1`} /><datalist id="class-objectives">{objectives.map((objective) => <option key={objective} value={objective} />)}</datalist></label>
+          <label>Equipamiento<input value={form.equipment.join(", ")} onChange={(event) => setForm({ ...form, equipment: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Mancuernas, bandas, cajón" className={`${inputClass} mt-1`} /></label>
+          <label>Tags / Etiquetas<input value={visibleClassTags(form.tags).join(", ")} onChange={(event) => setForm({ ...form, tags: classTagsWithType(event.target.value.split(",").map((value) => value.trim()).filter(Boolean), classType) })} placeholder="Full body, metabólico" className={`${inputClass} mt-1`} /></label>
+          <label className="sm:col-span-2">Descripción o notas generales<textarea maxLength={1000} rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${inputClass} mt-1`} /></label>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-x-2 gap-y-1 border-t border-zinc-800 pt-3 text-xs text-zinc-400"><strong className="max-w-full truncate text-zinc-100">{form.name.trim() || "Clase sin nombre"}</strong><span>·</span><span>{currentDay.estimatedMinutes ? `${currentDay.estimatedMinutes} min` : "Duración sin definir"}</span><span>·</span><span>{classType}</span><span>·</span><span>{label(form.level)}</span></div>
+      </section>
+
+      <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/45 p-3 sm:p-4"><h3 className="text-sm font-black text-yellow-300">Entrada en calor</h3><p className="mt-1 text-xs text-zinc-500">Preparación opcional antes de los bloques.</p><textarea maxLength={2000} rows={4} value={currentDay.warmup} onChange={(event) => updateDay((day) => ({ ...day, warmup: event.target.value }))} placeholder="Movilidad + activación" aria-label="Entrada en calor" className={`${inputClass} mt-3`} /></section>
+
+      <section aria-label="Bloques de la clase" className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/45 p-3 sm:p-4">
+        <div><h3 className="text-sm font-black text-zinc-100">Bloques de la clase</h3><p className="mt-1 text-xs text-zinc-500">Ordená la secuencia completa de la sesión.</p></div>
+        <details className="mt-3 rounded-xl border border-yellow-400/25 bg-yellow-400/[.04]"><summary className="cursor-pointer list-none px-4 py-3 font-bold text-yellow-300">+ Agregar bloque</summary><div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-3 sm:grid-cols-4">{(Object.keys(blockLabels) as TrainingBlockType[]).map((type) => <button type="button" key={type} onClick={() => addBlock(type)} className="min-h-11 rounded-lg bg-zinc-800 px-2 text-sm">{blockLabels[type]}</button>)}</div></details>
+        <div className="mt-4 space-y-4">{currentDay.blocks.length === 0 ? <p className="rounded-xl border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-500">Agregá el primer bloque de la clase.</p> : [...currentDay.blocks].sort((left, right) => left.order - right.order).map((block) => <BlockEditor key={block.clientId} block={block} interpretation={null} update={(updater) => updateBlock(block.clientId, updater)} move={(direction) => moveBlock(block.clientId, direction)} duplicate={() => duplicateBlock(block.clientId)} remove={() => removeBlock(block.clientId)} />)}</div>
+      </section>
+
+      <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/45 p-3 sm:p-4"><label className="font-bold text-zinc-200">Cierre / observaciones<textarea maxLength={1000} rows={3} value={currentDay.observations} onChange={(event) => updateDay((day) => ({ ...day, observations: event.target.value }))} placeholder="Vuelta a la calma final" className={`${inputClass} mt-2 font-normal`} /></label></section>
+
+      <footer className="sticky bottom-0 z-20 -mx-3 mt-4 flex justify-end gap-2 border-t border-zinc-800 bg-zinc-900/95 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] backdrop-blur sm:-mx-5 sm:rounded-b-2xl sm:px-5"><button type="button" onClick={close} disabled={saving} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50">Cancelar</button><button type="submit" name="intent" value="class" disabled={saving} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar clase"}</button></footer>
+    </form>
+  </div>;
+}
+
 function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, close, submit, editingStatus, saving }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean }) {
   const updatingActiveRoutine = editingStatus === "activa";
+  const legacyMultiDayTemplate = form.kind === "template" && form.days.length > 1;
   const selectedStudent = form.studentIds.length === 1 ? students.find((student) => student.id === form.studentIds[0]) : undefined;
   const { context: evaluationContext, loading: evaluationLoading } = useRoutineEvaluation(selectedStudent);
   const interpretation = evaluationContext?.interpretation ?? null;
@@ -586,7 +670,7 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
   const routineExercises = form.days.flatMap((day) => day.blocks.flatMap((block) => block.exercises.map((exercise) => ({ name: exercise.name, muscleGroup: exercise.muscleGroup }))));
   const reminders = uncoveredPriorityReminders(interpretation?.priorities ?? [], routineExercises).filter((item) => !reviewedReminders.includes(item.id));
   return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-0 sm:p-3"><form onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} className="mx-auto min-h-dvh w-full max-w-7xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
-    <header className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold">{editingStatus ? "Editar rutina" : "Nueva rutina"}</h2><p className="mt-1 text-sm text-zinc-400">Combiná fuerza, circuitos y formatos de tiempo dentro de cada día.</p></div><button type="button" onClick={close} aria-label="Cerrar editor" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300">×</button></header>
+    <header className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold">{legacyMultiDayTemplate ? "Editar plantilla multidía" : editingStatus ? "Editar rutina" : "Nueva rutina"}</h2><p className="mt-1 text-sm text-zinc-400">{legacyMultiDayTemplate ? "Plantilla histórica: se mantiene el editor por días para no perder contenido." : "Combiná fuerza, circuitos y formatos de tiempo dentro de cada día."}</p></div><button type="button" onClick={close} aria-label="Cerrar editor" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300">×</button></header>
     {error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
     {form.kind === "assigned" && form.studentIds.length === 0 ? <StudentAssignmentPicker students={students} selectedIds={form.studentIds} toggle={toggleStudent} clear={() => setForm({ ...form, studentIds: [] })} /> : <>
     {form.kind === "assigned" && <StudentAssignmentPicker students={students} selectedIds={form.studentIds} toggle={toggleStudent} clear={() => setForm({ ...form, studentIds: [] })} />}

@@ -30,6 +30,12 @@ export function ExerciseLibraryPicker({ open, onClose, onSelect, onMediaAvailabi
   const [selected, setSelected] = useState<BMExercise | null>(null);
   const [visibleCount, setVisibleCount] = useState(EXERCISE_LIBRARY_PAGE_SIZE);
   useEffect(() => { if (!open || catalog) return; const controller = new AbortController(); fetch("/api/exercise-library", { signal: controller.signal }).then((response) => response.json() as Promise<CatalogResponse>).then((body) => { setCatalog(body); onMediaAvailabilityChange?.(body.mediaEnabled); }).catch(() => { setCatalog(null); onMediaAvailabilityChange?.(false); }); return () => controller.abort(); }, [catalog, onMediaAvailabilityChange, open]);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); } };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, open]);
   const filtered = useMemo(() => catalog ? filterExerciseLibrary(catalog.items, { query, bodyPart, equipment, targetMuscle: target }) : [], [bodyPart, catalog, equipment, query, target]);
   const visible = useMemo(() => paginateExerciseLibrary(filtered, visibleCount), [filtered, visibleCount]);
   const resultLabel = query.trim() ? `${filtered.length.toLocaleString("es-AR")} resultados para “${query.trim()}”` : `${filtered.length.toLocaleString("es-AR")} resultados`;
