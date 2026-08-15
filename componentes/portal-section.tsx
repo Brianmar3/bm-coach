@@ -662,8 +662,7 @@ function WorkoutBlockCard({ block, programmed, libraryMediaEnabled, timerPersist
       {block.blockType === "ROUNDS" && <Field label="Rondas completadas"><input type="number" min="0" value={block.result.roundsCompleted ?? ""} onChange={(event) => update({ roundsCompleted: numeric(event.target.value) })} className={`${portalInput} mt-1`} /></Field>}
       {block.blockType === "ROUNDS" && <Field label="Duración realizada (seg.)"><input type="number" min="0" value={block.result.durationSeconds ?? ""} onChange={(event) => update({ durationSeconds: numeric(event.target.value) })} className={`${portalInput} mt-1`} /></Field>}
       {block.blockType === "FOR_TIME" && <Field label="Trabajo pendiente"><input value={block.result.pendingWork} onChange={(event) => update({ pendingWork: event.target.value })} className={`${portalInput} mt-1`} /></Field>}
-      {block.blockType === "FREE" && <Field label="Resultado"><textarea rows={2} value={block.result.resultText} onChange={(event) => update({ resultText: event.target.value })} className={`${portalInput} mt-1`} /></Field>}
-      <Field label="Observación"><textarea rows={2} value={block.result.observation} onChange={(event) => update({ observation: event.target.value })} className={`${portalInput} mt-1`} /></Field>
+      {block.blockType !== "FREE" && <Field label="Observación"><textarea rows={2} value={block.result.observation} onChange={(event) => update({ observation: event.target.value })} className={`${portalInput} mt-1`} /></Field>}
       </div>{!timed && <label className="mt-3 flex min-h-11 items-center gap-3 rounded-xl border border-zinc-700 px-3 text-sm font-semibold"><input type="checkbox" checked={block.result.completed} onChange={(event) => update({ completed: event.target.checked })} className="size-5 accent-yellow-400" /> Bloque completado</label>}
     </div>}
   </article>;

@@ -137,6 +137,16 @@ test("el historial conserva la lectura de energía y dificultad de sesiones ante
   assert.match(history, /session\.energyAfter/);
 });
 
+test("el bloque libre nuevo pide sólo completado y el historial conserva datos anteriores", () => {
+  const card = source.slice(source.indexOf("function WorkoutBlockCard"), source.indexOf("function workoutBlockResultSummary"));
+  const history = source.slice(source.indexOf("function workoutBlockResultSummary"));
+  assert.match(card, /Bloque completado/);
+  assert.doesNotMatch(card, /block\.blockType === "FREE" && <Field label="Resultado"/);
+  assert.match(card, /block\.blockType !== "FREE" && <Field label="Observación"/);
+  assert.match(history, /result\.resultText/);
+  assert.match(history, /block\.result\.observation/);
+});
+
 test("las acciones mantienen handlers y aparecen después de los ejercicios", () => {
   assert.match(source, /onClick=\{\(\) => save\(false\)\}/);
   assert.match(source, /onClick=\{openFinalSummary\}/);

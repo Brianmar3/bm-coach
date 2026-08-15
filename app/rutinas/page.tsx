@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, FormEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { RoutineFollowUp } from "@/componentes/routine-follow-up";
 import { RoutineTableView } from "@/componentes/routine-table-view";
@@ -22,6 +22,8 @@ import { libraryExerciseIdFromMediaUrl, resolveRoutineExerciseMedia } from "@/li
 import { numericDraftValue, repetitionRangeDraft, serializedRepetitionRange } from "@/lib/routine-numeric-draft";
 import { editableBlockToLibrarySnapshot, librarySnapshotToEditableBlock, type EditableTrainingBlockDraft } from "@/lib/training-library-block-draft";
 import { routineStatusCounts, routinesForStatusSection, type RoutineStatusSection } from "@/lib/routine-list-organization";
+import { focusRoutineValidationField } from "@/lib/routine-validation-focus";
+import { routineValidationIssues, type RoutineInput, type RoutineValidationIssue } from "@/lib/rutinas";
 import type { Student, TrainingBlockType, TrainingEffortType, TrainingRoutine, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 import type { BMExercise } from "@/types/exercise-library";
 import type { TrainingLibraryBlock, TrainingLibraryBlockPayload, TrainingLibraryFolder } from "@/types/training-library";
@@ -41,6 +43,15 @@ type EditorLibraryProps = {
   libraryLoadError: string;
   saveBlockToLibrary: (block: BlockDraft) => void;
 };
+
+const RoutineValidationContext = createContext<{ issues: RoutineValidationIssue[]; activeDay: number }>({ issues: [], activeDay: 1 });
+const BlockValidationContext = createContext<{ issues: RoutineValidationIssue[]; prefix: string }>({ issues: [], prefix: "" });
+
+function validationIssue(issues: RoutineValidationIssue[], key: string) { return issues.find((issue) => issue.key === key); }
+function validationInputClass(issue?: RoutineValidationIssue) { return issue ? "border-red-400/70 focus:border-red-400 focus:ring-2 focus:ring-red-400/30" : ""; }
+function validationMessageId(key: string) { return `validation-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`; }
+function FieldValidationMessage({ issue }: { issue?: RoutineValidationIssue }) { return issue ? <span id={validationMessageId(issue.key)} className="mt-1 block text-xs font-medium text-red-300">{issue.message}</span> : null; }
+function validationAttributes(key: string, issue?: RoutineValidationIssue) { return { "data-validation-key": key, "aria-invalid": issue ? true as const : undefined, "aria-describedby": issue ? validationMessageId(key) : undefined }; }
 
 const objectives = ["Hipertrofia", "Fuerza", "Descenso de grasa", "Rehabilitación", "Funcional", "Resistencia", "Movilidad"];
 const levels: TrainingRoutineLevel[] = ["principiante", "intermedio", "avanzado"];
@@ -169,6 +180,7 @@ export default function RutinasPage() {
   const [duplicatingId, setDuplicatingId] = useState("");
   const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
+  const [validationIssues, setValidationIssues] = useState<RoutineValidationIssue[]>([]);
   const [notice, setNotice] = useState("");
   const [historyRoutine, setHistoryRoutine] = useState<TrainingRoutine | null>(null);
   const [versions, setVersions] = useState<RoutineVersionItem[]>([]);
@@ -177,6 +189,15 @@ export default function RutinasPage() {
   const [baseDraftDestination, setBaseDraftDestination] = useState<"class" | "routine" | null>(null);
   const [replaceOnActivate, setReplaceOnActivate] = useState(false);
   const copyRequestInFlight = useRef(false);
+
+  function updateEditorForm(nextForm: RoutineDraft) {
+    setForm(nextForm);
+    if (!validationIssues.length) return;
+    const nextIssues = routineValidationIssues(nextForm as RoutineInput);
+    setValidationIssues(nextIssues);
+    if (!nextIssues.length) setError("");
+    else setError(nextIssues[0].summary);
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -226,6 +247,7 @@ export default function RutinasPage() {
     setForm(routine ? routineDraft(routine) : blankRoutine(kind ?? (activeTab === "plantillas" ? "template" : "assigned")));
     setActiveDay(1);
     setError("");
+    setValidationIssues([]);
     setEditorNotice("");
     setBaseDraftDestination(null);
     setReplaceOnActivate(false);
@@ -239,6 +261,7 @@ export default function RutinasPage() {
     setForm(draft);
     setActiveDay(1);
     setError("");
+    setValidationIssues([]);
     setEditorNotice(destination === "class" ? "Clase cargada desde Biblioteca. Podés editarla antes de guardarla." : "Rutina cargada desde una clase de Biblioteca. Completá sus datos antes de guardarla.");
     setReplaceOnActivate(false);
     setBaseDraftDestination(destination);
@@ -249,7 +272,6 @@ export default function RutinasPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    if (!form.name.trim() || !form.objective.trim()) { setError("Completá nombre y objetivo."); return; }
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
     if (!(submitter instanceof HTMLButtonElement)) return;
     const intent = submitter.value;
@@ -308,6 +330,15 @@ export default function RutinasPage() {
         exercises: day.blocks.flatMap((block) => block.exercises),
       })),
     };
+    const nextIssues = routineValidationIssues(payload as RoutineInput);
+    setValidationIssues(nextIssues);
+    if (nextIssues.length) {
+      const firstIssue = nextIssues[0];
+      setError(firstIssue.summary);
+      if (firstIssue.dayNumber) setActiveDay(firstIssue.dayNumber);
+      requestAnimationFrame(() => requestAnimationFrame(() => focusRoutineValidationField(firstIssue.key)));
+      return;
+    }
     setSaving(true); setError("");
     try {
       const response = await fetch(editing ? `/api/rutinas/${editing.id}` : "/api/rutinas", { method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -490,9 +521,9 @@ export default function RutinasPage() {
       <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_minmax(170px,.8fr)_minmax(190px,.9fr)]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina o alumno…" className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
       <RoutineManagementPanel routines={visible} mode="rutinas" routineSection={routineSection} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
     </>}
-    {open && form.kind === "template" && form.days.length === 1
-      ? <ClassTemplateEditor form={form} setForm={setForm} error={error} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editing={Boolean(editing)} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} />
-      : open && <RoutineEditor form={form} setForm={setForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} />}
+    {open && <RoutineValidationContext.Provider value={{ issues: validationIssues, activeDay }}>{form.kind === "template" && form.days.length === 1
+      ? <ClassTemplateEditor form={form} setForm={updateEditorForm} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editing={Boolean(editing)} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} />
+      : <RoutineEditor form={form} setForm={updateEditorForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} />}</RoutineValidationContext.Provider>}
     {libraryDialogOpen && libraryBlockDraft && <LibraryBlockDialog block={libraryBlockDraft} setBlock={setLibraryBlockDraft} folders={libraryFolders} folderId={libraryFolderId} setFolderId={setLibraryFolderId} tags={libraryTags} setTags={setLibraryTags} error={libraryError} saving={librarySaving} editing={Boolean(libraryEditing)} compact={libraryDialogMode === "saveCopy"} close={() => { if (!librarySaving) { setLibraryDialogOpen(false); setLibraryEditing(null); setLibraryBlockDraft(null); } }} submit={saveLibraryBlock} />}
     {viewing && <RoutineTableView
       routine={viewing}
@@ -645,6 +676,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
   form: RoutineDraft;
   setForm: (form: RoutineDraft) => void;
   error: string;
+  validationIssues: RoutineValidationIssue[];
   notice: string;
   close: () => void;
   submit: (event: FormEvent) => void;
@@ -673,7 +705,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
   }, [close, saving]);
 
   return <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget && !saving) close(); }} className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-0 sm:p-3">
-    <form onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} role="dialog" aria-modal="true" aria-labelledby="class-template-title" className="mx-auto min-h-dvh w-full max-w-6xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
+    <form noValidate onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} role="dialog" aria-modal="true" aria-labelledby="class-template-title" className="mx-auto min-h-dvh w-full max-w-6xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
       <header className="sticky top-0 z-20 -mx-3 -mt-3 flex items-start justify-between gap-4 border-b border-zinc-800 bg-zinc-900/95 px-3 py-3 backdrop-blur sm:-mx-5 sm:-mt-5 sm:rounded-t-2xl sm:px-5 sm:py-4"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Biblioteca · Clase completa</p><h2 id="class-template-title" className="mt-1 text-xl font-black">{editing ? "Editar clase" : "Nueva clase completa"}</h2><p className="mt-1 text-sm text-zinc-400">Diseñá una sesión lista para reutilizar.</p></div><button type="button" onClick={close} disabled={saving} aria-label="Cerrar editor de clase" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300 disabled:opacity-50">×</button></header>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
       {notice && <p role="status" className="mt-4 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
@@ -707,7 +739,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
   </div>;
 }
 
-function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, notice, close, submit, editingStatus, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; notice: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean } & EditorLibraryProps) {
+function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error, notice, close, submit, editingStatus, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary }: { form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; validationIssues: RoutineValidationIssue[]; notice: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean } & EditorLibraryProps) {
   const updatingActiveRoutine = editingStatus === "activa";
   const legacyMultiDayTemplate = form.kind === "template" && form.days.length > 1;
   const selectedStudent = form.studentIds.length === 1 ? students.find((student) => student.id === form.studentIds[0]) : undefined;
@@ -732,7 +764,7 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
   const exerciseCount = (day: DayDraft) => day.blocks.reduce((sum, block) => sum + block.exercises.length, 0);
   const routineExercises = form.days.flatMap((day) => day.blocks.flatMap((block) => block.exercises.map((exercise) => ({ name: exercise.name, muscleGroup: exercise.muscleGroup }))));
   const reminders = uncoveredPriorityReminders(interpretation?.priorities ?? [], routineExercises).filter((item) => !reviewedReminders.includes(item.id));
-  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-0 sm:p-3"><form onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} className="mx-auto min-h-dvh w-full max-w-7xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
+  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-0 sm:p-3"><form noValidate onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} className="mx-auto min-h-dvh w-full max-w-7xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
     <header className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-bold">{legacyMultiDayTemplate ? "Editar plantilla multidía" : editingStatus ? "Editar rutina" : "Nueva rutina"}</h2><p className="mt-1 text-sm text-zinc-400">{legacyMultiDayTemplate ? "Plantilla histórica: se mantiene el editor por días para no perder contenido." : "Combiná fuerza, circuitos y formatos de tiempo dentro de cada día."}</p></div><button type="button" onClick={close} aria-label="Cerrar editor" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300">×</button></header>
     {error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
     {notice && <p role="status" className="mt-4 rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
@@ -751,7 +783,15 @@ function RoutineEditor({ form, setForm, students, activeDay, setActiveDay, error
   </form></div>;
 }
 
-function BlockEditor({ block, interpretation, update, move, duplicate, remove, saveToLibrary, standalone = false }: { block: BlockDraft; interpretation: import("@/types/evaluation-interpretation").EvaluationInterpretation | null; update: (updater: (block: BlockDraft) => BlockDraft) => void; move: (direction: -1 | 1) => void; duplicate: () => void; remove: () => void; saveToLibrary?: () => void; standalone?: boolean }) {
+type BlockEditorProps = { block: BlockDraft; interpretation: import("@/types/evaluation-interpretation").EvaluationInterpretation | null; update: (updater: (block: BlockDraft) => BlockDraft) => void; move: (direction: -1 | 1) => void; duplicate: () => void; remove: () => void; saveToLibrary?: () => void; standalone?: boolean };
+
+function BlockEditor(props: BlockEditorProps) {
+  const { issues, activeDay } = useContext(RoutineValidationContext);
+  const prefix = `day.${activeDay}.block.${props.block.order}`;
+  return <BlockValidationContext.Provider value={{ issues, prefix }}><BlockEditorContent {...props} /></BlockValidationContext.Provider>;
+}
+
+function BlockEditorContent({ block, interpretation, update, move, duplicate, remove, saveToLibrary, standalone = false }: BlockEditorProps) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryMediaEnabled, setLibraryMediaEnabled] = useState(false);
   const [libraryTargetId, setLibraryTargetId] = useState<string | null>(null);
@@ -792,7 +832,13 @@ function NumericDraftInput({ value, setValue, required = false, ...inputProps }:
   }} />;
 }
 
-function NumberField({ label: title, value, setValue }: { label: string; value: number | null; setValue: (value: number | null) => void }) { return <label>{title}<NumericDraftInput min="0" value={value} setValue={setValue} className={`${inputClass} mt-1`} /></label>; }
+function NumberField({ label: title, value, setValue, validationKey, issue }: { label: string; value: number | null; setValue: (value: number | null) => void; validationKey?: string; issue?: RoutineValidationIssue }) {
+  const context = useContext(BlockValidationContext);
+  const field = title === "Rondas" ? "rounds" : title.startsWith("Duración total") || title.startsWith("Límite de tiempo") ? "durationSeconds" : title.startsWith("Trabajo") ? "workSeconds" : title === "Descanso (seg.)" ? "restSeconds" : title.startsWith("Descanso entre rondas") ? "restBetweenRoundsSeconds" : title.startsWith("Estaciones") ? "targetRounds" : title === "Segundos" ? "targetSeconds" : "";
+  const resolvedKey = validationKey ?? (field && context.prefix ? `${context.prefix}.${field}` : undefined);
+  const resolvedIssue = issue ?? (resolvedKey ? validationIssue(context.issues, resolvedKey) : undefined);
+  return <label>{title}<NumericDraftInput min="0" value={value} setValue={setValue} {...(resolvedKey ? validationAttributes(resolvedKey, resolvedIssue) : {})} className={`${inputClass} mt-1 ${validationInputClass(resolvedIssue)}`} /><FieldValidationMessage issue={resolvedIssue} /></label>;
+}
 
 function StudentAssignmentPicker({ students, selectedIds, toggle, clear }: { students: Student[]; selectedIds: string[]; toggle: (studentId: string) => void; clear: () => void }) {
   const [query, setQuery] = useState("");
@@ -802,7 +848,30 @@ function StudentAssignmentPicker({ students, selectedIds, toggle, clear }: { stu
   return <fieldset className="mt-5 min-w-0 rounded-xl border border-zinc-800 bg-zinc-950/50 p-4"><legend className="px-1 text-base font-bold text-yellow-400">¿Para quién es esta rutina?</legend><label className="mt-2 block text-sm text-zinc-400">Nombre o apellido<input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alumno" className={`${inputClass} mt-1`} /></label><div className="mt-2 min-w-0 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70">{!query.trim() ? <p className="p-3 text-center text-sm text-zinc-500">Escribí para buscar alumnos</p> : matches.length ? matches.map((student) => <button key={student.id} type="button" onClick={() => { toggle(student.id); setQuery(""); }} className="flex min-h-11 w-full min-w-0 items-center border-b border-zinc-800 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-zinc-800"><span className="truncate">{student.firstName} {student.lastName}</span></button>) : <p className="p-3 text-center text-sm text-zinc-500">No se encontraron alumnos</p>}</div></fieldset>;
 }
 
+function IntervalExerciseEditor({ exercise, update, changeTarget, move, remove }: { exercise: ExerciseDraft; update: <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) => void; changeTarget: (targetType: ExerciseDraft["targetType"]) => void; move: (direction: -1 | 1) => void; remove: () => void }) {
+  const { issues, prefix } = useContext(BlockValidationContext);
+  const exercisePrefix = `${prefix}.exercise.${exercise.order}`;
+  const issueFor = (field: string) => validationIssue(issues, `${exercisePrefix}.${field}`);
+  const attrs = (field: string) => validationAttributes(`${exercisePrefix}.${field}`, issueFor(field));
+  return <article className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3">
+    <header className="mb-3 flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-1">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-1">↓</button><button type="button" onClick={remove} className="ml-auto text-sm text-red-300">Eliminar</button></header>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <label className="lg:col-span-2">Ejercicio<input value={exercise.name} onChange={(event) => update("name", event.target.value)} {...attrs("name")} className={`${inputClass} mt-1 ${validationInputClass(issueFor("name"))}`} /><FieldValidationMessage issue={issueFor("name")} /></label>
+      <label>Zona muscular <span className="text-xs font-normal text-zinc-500">(opcional)</span><input value={exercise.muscleGroup} onChange={(event) => update("muscleGroup", event.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label>Objetivo<select value={exercise.targetType} onChange={(event) => changeTarget(event.target.value as ExerciseDraft["targetType"])} className={`${inputClass} mt-1`}><option value="REPS">Repeticiones</option><option value="TIME">Tiempo</option><option value="DISTANCE">Distancia</option><option value="REST">Descanso</option><option value="FREE">Libre</option></select></label>
+      {exercise.targetType === "TIME" ? <p className="self-end rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] px-3 py-3 text-xs text-zinc-400">Usa el tiempo general del intervalo</p> : ["REST"].includes(exercise.targetType) ? <NumberField label="Segundos" value={exercise.targetSeconds} setValue={(value) => update("targetSeconds", value)} validationKey={`${exercisePrefix}.targetSeconds`} issue={issueFor("targetSeconds")} /> : null}
+      {exercise.targetType === "REPS" && <label>Repeticiones<input value={exercise.targetRepetitions} onChange={(event) => update("targetRepetitions", event.target.value)} {...attrs("targetRepetitions")} className={`${inputClass} mt-1 ${validationInputClass(issueFor("targetRepetitions"))}`} /><FieldValidationMessage issue={issueFor("targetRepetitions")} /></label>}
+      {exercise.targetType === "DISTANCE" && <label>Distancia<input value={exercise.targetDistance} onChange={(event) => update("targetDistance", event.target.value)} {...attrs("targetDistance")} placeholder="Ej. 200 m" className={`${inputClass} mt-1 ${validationInputClass(issueFor("targetDistance"))}`} /><FieldValidationMessage issue={issueFor("targetDistance")} /></label>}
+      <label>Indicación o lado<input value={exercise.targetSide} onChange={(event) => update("targetSide", event.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label>Alternativa<input value={exercise.alternativeExercise} onChange={(event) => update("alternativeExercise", event.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label>Video<input type="url" value={exercise.videoUrl} onChange={(event) => update("videoUrl", event.target.value)} className={`${inputClass} mt-1`} /></label>
+      <label className="sm:col-span-2 lg:col-span-4">Observaciones técnicas<textarea value={exercise.observations} onChange={(event) => update("observations", event.target.value)} className={`${inputClass} mt-1`} /></label>
+    </div>
+  </article>;
+}
+
 function ConditioningExerciseEditor({ exercise, blockType, update, changeTarget, move, remove }: { exercise: ExerciseDraft; blockType: TrainingBlockType; update: <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) => void; changeTarget: (targetType: ExerciseDraft["targetType"]) => void; move: (direction: -1 | 1) => void; remove: () => void }) {
+  if (["INTERVAL"].includes(blockType)) return <IntervalExerciseEditor exercise={exercise} update={update} changeTarget={changeTarget} move={move} remove={remove} />;
   if (blockType === "INTERVAL" && exercise.targetType === "TIME") return <article className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3"><header className="mb-3 flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-1">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-1">↓</button><button type="button" onClick={remove} className="ml-auto text-sm text-red-300">Eliminar</button></header><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="lg:col-span-2">Ejercicio<input required value={exercise.name} onChange={(event) => update("name", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Zona muscular<input required value={exercise.muscleGroup} onChange={(event) => update("muscleGroup", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Objetivo<select value={exercise.targetType} onChange={(event) => changeTarget(event.target.value as ExerciseDraft["targetType"])} className={`${inputClass} mt-1`}><option value="REPS">Repeticiones</option><option value="TIME">Tiempo</option><option value="DISTANCE">Distancia</option><option value="REST">Descanso</option><option value="FREE">Libre</option></select></label><p className="self-end rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] px-3 py-3 text-xs text-zinc-400">Usa el tiempo general del intervalo</p><label>Indicación o lado<input value={exercise.targetSide} onChange={(event) => update("targetSide", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Alternativa<input value={exercise.alternativeExercise} onChange={(event) => update("alternativeExercise", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Video<input type="url" value={exercise.videoUrl} onChange={(event) => update("videoUrl", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2 lg:col-span-4">Observaciones técnicas<textarea value={exercise.observations} onChange={(event) => update("observations", event.target.value)} className={`${inputClass} mt-1`} /></label></div></article>;
   return <article className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3"><header className="mb-3 flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg bg-yellow-400 font-bold text-zinc-950">{exercise.order}</span><button type="button" onClick={() => move(-1)} className="rounded bg-zinc-800 px-2 py-1">↑</button><button type="button" onClick={() => move(1)} className="rounded bg-zinc-800 px-2 py-1">↓</button><button type="button" onClick={remove} className="ml-auto text-sm text-red-300">Eliminar</button></header><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="lg:col-span-2">Ejercicio<input required value={exercise.name} onChange={(event) => update("name", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Zona muscular<input required value={exercise.muscleGroup} onChange={(event) => update("muscleGroup", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Objetivo<select value={exercise.targetType} onChange={(event) => changeTarget(event.target.value as ExerciseDraft["targetType"])} className={`${inputClass} mt-1`}><option value="REPS">Repeticiones</option><option value="TIME">Tiempo</option><option value="DISTANCE">Distancia</option><option value="REST">Descanso</option><option value="FREE">Libre</option></select></label>{["TIME", "REST"].includes(exercise.targetType) && <NumberField label="Segundos" value={exercise.targetSeconds} setValue={(value) => update("targetSeconds", value)} />}{exercise.targetType === "REPS" && <label>Repeticiones<input value={exercise.targetRepetitions} onChange={(event) => update("targetRepetitions", event.target.value)} className={`${inputClass} mt-1`} /></label>}{exercise.targetType === "DISTANCE" && <label>Distancia<input value={exercise.targetDistance} onChange={(event) => update("targetDistance", event.target.value)} placeholder="Ej. 200 m" className={`${inputClass} mt-1`} /></label>}<label>Indicación o lado<input value={exercise.targetSide} onChange={(event) => update("targetSide", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Alternativa<input value={exercise.alternativeExercise} onChange={(event) => update("alternativeExercise", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Video<input type="url" value={exercise.videoUrl} onChange={(event) => update("videoUrl", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2 lg:col-span-4">Observaciones técnicas<textarea value={exercise.observations} onChange={(event) => update("observations", event.target.value)} className={`${inputClass} mt-1`} /></label></div></article>;
 }

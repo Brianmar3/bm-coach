@@ -42,6 +42,5 @@ export function validateWorkoutBlock(block: PortalWorkoutBlock) {
   if (block.blockType === "AMRAP" && hasBlockActivity(block) && block.result.roundsCompleted === null) return "Ingresá las vueltas completas del AMRAP.";
   if (block.blockType === "EMOM" && hasBlockActivity(block) && block.result.minutesCompleted === null) return "Ingresá los minutos realizados del EMOM.";
   if (block.blockType === "FOR_TIME" && block.result.completed && block.result.durationSeconds === null) return "Ingresá el tiempo final del bloque For time.";
-  if (block.blockType === "FREE" && block.result.completed && !block.result.resultText.trim()) return "Ingresá el resultado del bloque libre.";
   return null;
 }

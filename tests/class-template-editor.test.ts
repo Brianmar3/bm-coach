@@ -64,7 +64,7 @@ test("las clases no se mezclan con Activas o Borradores de Rutinas", () => {
 });
 
 test("editar una clase de un día vuelve al editor específico", () => {
-  assert.match(page, /open && form\.kind === "template" && form\.days\.length === 1/);
+  assert.match(page, /open && <RoutineValidationContext\.Provider[^\n]+form\.kind === "template" && form\.days\.length === 1/);
   assert.match(page, /<ClassTemplateEditor/);
   assert.match(page, /edit: begin/);
 });

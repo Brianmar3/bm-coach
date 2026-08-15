@@ -116,8 +116,8 @@ test("los objetivos por tiempo, repeticiones, distancia, descanso y libre se rep
 });
 
 test("INTERVAL con TIME usa el tiempo general sin exigir repeticiones ni segundos propios", () => {
-  assert.equal(validateExercise(exercise({ targetType: "TIME", targetSeconds: null, targetRepetitions: "" }), "INTERVAL"), null);
-  const interval = block("INTERVAL", { workSeconds: 40, exercises: [exercise({ targetType: "TIME", targetSeconds: null })] });
+  assert.equal(validateExercise(exercise({ muscleGroup: "", targetType: "TIME", targetSeconds: null, targetRepetitions: "" }), "INTERVAL"), null);
+  const interval = block("INTERVAL", { workSeconds: 40, exercises: [exercise({ muscleGroup: "", targetType: "TIME", targetSeconds: null })] });
   assert.equal(freshWorkoutBlock(interval).exercises[0].targetLabel, "40 segundos");
 });
 
@@ -172,12 +172,13 @@ test("cada tipo crea un borrador de resultado independiente", () => {
   }
 });
 
-test("AMRAP registra vueltas y extras; EMOM minutos; For time tiempo; libre texto", () => {
+test("AMRAP registra vueltas y extras; EMOM minutos; For time tiempo; libre sólo confirmación", () => {
   const workout = (type: BlockInput["type"], changes: Partial<ReturnType<typeof emptyBlockResult>>) => ({ blockId: "b", blockName: "Bloque", blockType: type, blockOrder: 1, configuration: {}, exercises: [], result: { ...emptyBlockResult(), ...changes } });
   assert.equal(validateWorkoutBlock(workout("AMRAP", { roundsCompleted: 4, extraRepetitions: 6 })), null);
   assert.equal(validateWorkoutBlock(workout("EMOM", { minutesCompleted: 9 })), null);
   assert.equal(validateWorkoutBlock(workout("FOR_TIME", { completed: true, durationSeconds: 523 })), null);
-  assert.equal(validateWorkoutBlock(workout("FREE", { completed: true, resultText: "Movilidad completa" })), null);
+  assert.equal(validateWorkoutBlock(workout("FREE", { completed: true })), null);
+  assert.equal(validateWorkoutBlock(workout("FREE", { completed: true, resultText: "Dato histórico" })), null);
   assert.equal(hasBlockActivity(workout("ROUNDS", { roundsCompleted: 2 })), true);
 });
 

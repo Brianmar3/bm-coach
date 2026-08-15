@@ -57,35 +57,45 @@ const statusFromDatabase = { BORRADOR: "borrador", ACTIVA: "activa", FINALIZADA:
 const kindToDatabase = { assigned: "ASSIGNED", template: "TEMPLATE" } as const;
 const kindFromDatabase = { ASSIGNED: "assigned", TEMPLATE: "template" } as const;
 
-export function validateExercise(input: ExerciseInput, blockType: TrainingBlockType = "STRENGTH") {
-  if (!input.name?.trim() || !input.muscleGroup?.trim()) return "Cada ejercicio necesita nombre y grupo muscular.";
-  if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) return "El orden debe ser un entero entre 1 y 999.";
-  if ((input.observations?.length ?? 0) > 1000) return "Las observaciones del ejercicio son demasiado extensas.";
-  if ((input.alternativeExercise?.length ?? 0) > 120) return "El ejercicio alternativo es demasiado extenso.";
-  if (!isValidRoutineVideoUrl(input.videoUrl)) return "El video debe ser una URL http/https o una referencia válida de Biblioteca BM.";
+export type RoutineValidationIssue = { key: string; message: string; summary: string; dayNumber?: number };
+
+type FieldIssue = { field: string; message: string };
+
+function exerciseValidationIssues(input: ExerciseInput, blockType: TrainingBlockType): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  if (!input.name?.trim()) issues.push({ field: "name", message: "Ingresá el nombre del ejercicio." });
+  if (blockType !== "INTERVAL" && !input.muscleGroup?.trim()) issues.push({ field: "muscleGroup", message: "Ingresá el grupo muscular." });
+  if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) issues.push({ field: "order", message: "El orden debe ser un entero entre 1 y 999." });
+  if ((input.observations?.length ?? 0) > 1000) issues.push({ field: "observations", message: "Las observaciones del ejercicio son demasiado extensas." });
+  if ((input.alternativeExercise?.length ?? 0) > 120) issues.push({ field: "alternativeExercise", message: "El ejercicio alternativo es demasiado extenso." });
+  if (!isValidRoutineVideoUrl(input.videoUrl)) issues.push({ field: "videoUrl", message: "El video debe ser una URL http/https o una referencia válida de Biblioteca BM." });
   if (blockType !== "STRENGTH") {
-    if (!targetTypes.includes(input.targetType)) return "Seleccioná un objetivo válido para cada ejercicio.";
-    if ((input.targetSide?.length ?? 0) > 80) return "La indicación del ejercicio es demasiado extensa.";
+    if (!targetTypes.includes(input.targetType)) issues.push({ field: "targetType", message: "Seleccioná un objetivo válido para cada ejercicio." });
+    if ((input.targetSide?.length ?? 0) > 80) issues.push({ field: "targetSide", message: "La indicación del ejercicio es demasiado extensa." });
     if (input.targetType === "TIME") {
-      if (input.targetSeconds === null && blockType !== "INTERVAL") return "Ingresá los segundos objetivo.";
-      if (input.targetSeconds !== null && (!Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) return "El tiempo objetivo no es válido.";
+      if (input.targetSeconds === null && blockType !== "INTERVAL") issues.push({ field: "targetSeconds", message: "Ingresá los segundos objetivo." });
+      if (input.targetSeconds !== null && (!Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) issues.push({ field: "targetSeconds", message: "El tiempo objetivo no es válido." });
     }
-    if (input.targetType === "REST" && (input.targetSeconds === null || !Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) return "Ingresá segundos de descanso válidos.";
+    if (input.targetType === "REST" && (input.targetSeconds === null || !Number.isInteger(input.targetSeconds) || input.targetSeconds < 1 || input.targetSeconds > 86400)) issues.push({ field: "targetSeconds", message: "Ingresá segundos de descanso válidos." });
     if (input.targetType === "REPS") {
       const repetitions = input.targetRepetitions?.match(/\d+(?:[.,]\d+)?/g)?.map((value) => Number(value.replace(",", "."))) ?? [];
-      if (!input.targetRepetitions?.trim() || input.targetRepetitions.length > 50 || !repetitions.length || repetitions.some((value) => value <= 0)) return "Ingresá repeticiones objetivo mayores a 0.";
+      if (!input.targetRepetitions?.trim() || input.targetRepetitions.length > 50 || !repetitions.length || repetitions.some((value) => value <= 0)) issues.push({ field: "targetRepetitions", message: "Ingresá repeticiones objetivo mayores a 0." });
     }
-    if (input.targetType === "DISTANCE" && (!input.targetDistance?.trim() || input.targetDistance.length > 50)) return "Ingresá la distancia objetivo.";
-    return null;
+    if (input.targetType === "DISTANCE" && (!input.targetDistance?.trim() || input.targetDistance.length > 50)) issues.push({ field: "targetDistance", message: "Ingresá la distancia objetivo." });
+    return issues;
   }
-  if (!Number.isInteger(input.sets) || input.sets < 1 || input.sets > 100) return "Las series deben ser un número entero entre 1 y 100.";
-  if (!input.repetitions?.trim() || input.repetitions.length > 50) return "Ingresá repeticiones válidas.";
-  if (input.weight !== null && (!Number.isFinite(input.weight) || input.weight < 0 || input.weight > 1000)) return "El peso debe estar entre 0 y 1000 kg.";
-  if (!effortTypes.includes(input.effortType)) return "Seleccioná RPE o RIR.";
-  if (input.effortValue !== null && (!Number.isFinite(input.effortValue) || input.effortValue < 0 || input.effortValue > 10)) return "El valor de RPE/RIR debe estar entre 0 y 10.";
-  if (input.restSeconds !== null && (!Number.isInteger(input.restSeconds) || input.restSeconds < 0 || input.restSeconds > 3600)) return "El descanso debe estar entre 0 y 3600 segundos.";
-  if ((input.tempo?.length ?? 0) > 40 || (input.alternativeExercise?.length ?? 0) > 120 || (input.equipment?.length ?? 0) > 120) return "Los datos complementarios del ejercicio son demasiado extensos.";
-  return null;
+  if (!Number.isInteger(input.sets) || input.sets < 1 || input.sets > 100) issues.push({ field: "sets", message: "Las series deben ser un número entero entre 1 y 100." });
+  if (!input.repetitions?.trim() || input.repetitions.length > 50) issues.push({ field: "repetitions", message: "Ingresá repeticiones válidas." });
+  if (input.weight !== null && (!Number.isFinite(input.weight) || input.weight < 0 || input.weight > 1000)) issues.push({ field: "weight", message: "El peso debe estar entre 0 y 1000 kg." });
+  if (!effortTypes.includes(input.effortType)) issues.push({ field: "effortType", message: "Seleccioná RPE o RIR." });
+  if (input.effortValue !== null && (!Number.isFinite(input.effortValue) || input.effortValue < 0 || input.effortValue > 10)) issues.push({ field: "effortValue", message: "El valor de RPE/RIR debe estar entre 0 y 10." });
+  if (input.restSeconds !== null && (!Number.isInteger(input.restSeconds) || input.restSeconds < 0 || input.restSeconds > 3600)) issues.push({ field: "restSeconds", message: "El descanso debe estar entre 0 y 3600 segundos." });
+  if ((input.tempo?.length ?? 0) > 40 || (input.equipment?.length ?? 0) > 120) issues.push({ field: (input.tempo?.length ?? 0) > 40 ? "tempo" : "equipment", message: "Los datos complementarios del ejercicio son demasiado extensos." });
+  return issues;
+}
+
+export function validateExercise(input: ExerciseInput, blockType: TrainingBlockType = "STRENGTH") {
+  return exerciseValidationIssues(input, blockType)[0]?.message ?? null;
 }
 
 export function normalizedBlocks(day: RoutineDayInput): BlockInput[] {
@@ -93,65 +103,87 @@ export function normalizedBlocks(day: RoutineDayInput): BlockInput[] {
   return [{ type: "STRENGTH", name: "Bloque de fuerza", order: 1, rounds: null, durationSeconds: null, workSeconds: null, restSeconds: null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: "", exercises: day.exercises ?? [] }];
 }
 
-export function validateBlock(block: BlockInput) {
-  if (!blockTypes.includes(block.type)) return "Seleccioná un tipo de bloque válido.";
-  if (!block.name?.trim() || block.name.trim().length > 120) return "Cada bloque necesita un nombre de hasta 120 caracteres.";
-  if (!Number.isInteger(block.order) || block.order < 1 || block.order > 99) return "El orden del bloque no es válido.";
-  if ((block.instructions?.length ?? 0) > 2000) return "Las instrucciones del bloque son demasiado extensas.";
-  for (const value of [block.rounds, block.durationSeconds, block.workSeconds, block.restSeconds, block.restBetweenRoundsSeconds, block.targetRounds]) {
-    if (value !== null && (!Number.isInteger(value) || value < 0 || value > 86400)) return "La configuración numérica del bloque no es válida.";
+function blockValidationIssues(block: BlockInput): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  if (!blockTypes.includes(block.type)) issues.push({ field: "type", message: "Seleccioná un tipo de bloque válido." });
+  if (!block.name?.trim() || block.name.trim().length > 120) issues.push({ field: "name", message: "Cada bloque necesita un nombre de hasta 120 caracteres." });
+  if (!Number.isInteger(block.order) || block.order < 1 || block.order > 99) issues.push({ field: "order", message: "El orden del bloque no es válido." });
+  if ((block.instructions?.length ?? 0) > 2000) issues.push({ field: "instructions", message: "Las instrucciones del bloque son demasiado extensas." });
+  const numericFields = ["rounds", "durationSeconds", "workSeconds", "restSeconds", "restBetweenRoundsSeconds", "targetRounds"] as const;
+  for (const field of numericFields) {
+    const value = block[field];
+    if (value !== null && (!Number.isInteger(value) || value < 0 || value > 86400)) issues.push({ field, message: "La configuración numérica del bloque no es válida." });
   }
-  if (["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && !block.rounds) return "Ingresá la cantidad de rondas del bloque.";
-  if (["EMOM", "AMRAP"].includes(block.type) && !block.durationSeconds) return "Ingresá la duración total del bloque.";
-  if (block.type === "INTERVAL" && (!block.workSeconds || block.restSeconds === null)) return "Ingresá los tiempos de trabajo y descanso.";
-  if (!Array.isArray(block.exercises)) return "Los ejercicios del bloque no son válidos.";
+  if (["ROUNDS", "INTERVAL", "FOR_TIME"].includes(block.type) && !block.rounds) issues.push({ field: "rounds", message: "Ingresá la cantidad de rondas del bloque." });
+  if (["EMOM", "AMRAP"].includes(block.type) && !block.durationSeconds) issues.push({ field: "durationSeconds", message: "Ingresá la duración total del bloque." });
+  if (block.type === "INTERVAL" && !block.workSeconds) issues.push({ field: "workSeconds", message: "Ingresá los segundos de trabajo." });
+  if (block.type === "INTERVAL" && block.restSeconds === null) issues.push({ field: "restSeconds", message: "Ingresá los segundos de descanso." });
+  if (!Array.isArray(block.exercises)) issues.push({ field: "exercises", message: "Los ejercicios del bloque no son válidos." });
+  return issues;
+}
+
+export function validateBlock(block: BlockInput) {
+  const blockIssue = blockValidationIssues(block)[0];
+  if (blockIssue) return blockIssue.message;
   for (const exercise of block.exercises) {
-    const error = validateExercise(exercise, block.type);
-    if (error) return error;
+    const issue = exerciseValidationIssues(exercise, block.type)[0];
+    if (issue) return issue.message;
   }
   return null;
 }
 
-export function validateRoutine(input: RoutineInput) {
-  if (!kinds.includes(input.kind)) return "Seleccioná un tipo de rutina válido.";
-  if ((input.description?.length ?? 0) > 1000 || (input.location?.length ?? 0) > 100) return "La descripción o el lugar son demasiado extensos.";
-  if (input.kind === "template" && input.status === "finalizada") return "Una plantilla no puede marcarse como finalizada.";
-  if (!input.name?.trim() || input.name.trim().length > 120) return "Ingresá un nombre de rutina de hasta 120 caracteres.";
-  if (!input.objective?.trim() || input.objective.trim().length > 100) return "Seleccioná un objetivo válido.";
-  if (!levels.includes(input.level)) return "Seleccioná un nivel válido.";
-  if (!statuses.includes(input.status)) return "Seleccioná un estado válido.";
-  if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) return "La fecha de inicio no es válida.";
-  if (input.durationWeeks !== null && (!Number.isInteger(input.durationWeeks) || input.durationWeeks < 1 || input.durationWeeks > 104)) {
-    return "La duración debe estar entre 1 y 104 semanas.";
+export function routineValidationIssues(input: RoutineInput): RoutineValidationIssue[] {
+  const issues: RoutineValidationIssue[] = [];
+  const add = (key: string, message: string, dayNumber?: number, context?: string) => issues.push({ key, message, dayNumber, summary: context ? `${context}: ${message}` : message });
+  if (!kinds.includes(input.kind)) add("routine.kind", "Seleccioná un tipo de rutina válido.");
+  if (!input.name?.trim() || input.name.trim().length > 120) add("routine.name", "Ingresá un nombre de rutina de hasta 120 caracteres.");
+  if (!input.objective?.trim() || input.objective.trim().length > 100) add("routine.objective", "Seleccioná un objetivo válido.");
+  if (!levels.includes(input.level)) add("routine.level", "Seleccioná un nivel válido.");
+  if (!statuses.includes(input.status)) add("routine.status", "Seleccioná un estado válido.");
+  if (input.kind === "template" && input.status === "finalizada") add("routine.status", "Una plantilla no puede marcarse como finalizada.");
+  if ((input.description?.length ?? 0) > 1000) add("routine.description", "La descripción es demasiado extensa.");
+  if ((input.location?.length ?? 0) > 100) add("routine.location", "El lugar es demasiado extenso.");
+  if (input.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) add("routine.startDate", "La fecha de inicio no es válida.");
+  if (input.durationWeeks !== null && (!Number.isInteger(input.durationWeeks) || input.durationWeeks < 1 || input.durationWeeks > 104)) add("routine.durationWeeks", "La duración debe estar entre 1 y 104 semanas.");
+  if (!Array.isArray(input.priorityMuscles) || input.priorityMuscles.length > 30 || input.priorityMuscles.some((muscle) => !muscle.trim() || muscle.length > 80)) add("routine.priorityMuscles", "Los músculos prioritarios no son válidos.");
+  if (!Array.isArray(input.studentIds) || new Set(input.studentIds).size !== input.studentIds.length || input.studentIds.some((id) => !id?.trim())) add("routine.studentIds", "La asignación de alumnos no es válida.");
+  if (input.kind === "template" && input.studentIds.length) add("routine.studentIds", "Las plantillas no pueden tener alumnos asignados.");
+  for (const [field, values] of [["equipment", input.equipment], ["tags", input.tags]] as const) {
+    if (!Array.isArray(values) || values.length > 30 || values.some((value) => !value.trim() || value.length > 80)) add(`routine.${field}`, field === "equipment" ? "El equipamiento no es válido." : "Las etiquetas no son válidas.");
   }
-  if (!Array.isArray(input.priorityMuscles) || input.priorityMuscles.length > 30 || input.priorityMuscles.some((muscle) => !muscle.trim() || muscle.length > 80)) {
-    return "Los músculos prioritarios no son válidos.";
+  if (!Array.isArray(input.days) || input.days.length < 1 || input.days.length > 14) {
+    add("routine.days", "La rutina debe incluir entre 1 y 14 días.");
+    return issues;
   }
-  if (!Array.isArray(input.studentIds)) return "La asignación de alumnos no es válida.";
-  if (![input.equipment, input.tags].every((values) => Array.isArray(values) && values.length <= 30 && values.every((value) => value.trim() && value.length <= 80))) return "El equipamiento o las etiquetas no son válidos.";
-  if (input.kind === "template" && input.studentIds.length) return "Las plantillas no pueden tener alumnos asignados.";
-  if (new Set(input.studentIds).size !== input.studentIds.length || input.studentIds.some((id) => !id?.trim())) return "La asignación de alumnos no es válida.";
-  if (!Array.isArray(input.days) || input.days.length < 1 || input.days.length > 14) return "La rutina debe incluir entre 1 y 14 días.";
   const dayNumbers = input.days.map((day) => day.dayNumber);
-  if (new Set(dayNumbers).size !== input.days.length || [...dayNumbers].sort((a, b) => a - b).some((day, index) => day !== index + 1)) {
-    return "Los días deben tener un orden consecutivo.";
-  }
+  if (new Set(dayNumbers).size !== input.days.length || [...dayNumbers].sort((a, b) => a - b).some((day, index) => day !== index + 1)) add("routine.days", "Los días deben tener un orden consecutivo.");
   for (const day of input.days) {
-    if ((day.objective?.length ?? 0) > 200 || (day.warmup?.length ?? 0) > 2000 || (day.observations?.length ?? 0) > 1000) return `Los datos del día ${day.dayNumber} son demasiado extensos.`;
-    if (!day.name?.trim() || day.name.trim().length > 100) return `Ingresá un nombre válido para el día ${day.dayNumber}.`;
-    if (day.estimatedMinutes !== null && (!Number.isInteger(day.estimatedMinutes) || day.estimatedMinutes < 1 || day.estimatedMinutes > 1440)) {
-      return `La duración estimada del día ${day.dayNumber} no es válida.`;
-    }
-    if (!Array.isArray(day.exercises) && !Array.isArray(day.blocks)) return `Los ejercicios del día ${day.dayNumber} no son válidos.`;
+    const dayPrefix = `day.${day.dayNumber}`;
+    const dayContext = `Día ${day.dayNumber}`;
+    if (!day.name?.trim() || day.name.trim().length > 100) add(`${dayPrefix}.name`, "Ingresá un nombre válido.", day.dayNumber, dayContext);
+    if ((day.objective?.length ?? 0) > 200) add(`${dayPrefix}.objective`, "El objetivo es demasiado extenso.", day.dayNumber, dayContext);
+    if ((day.warmup?.length ?? 0) > 2000) add(`${dayPrefix}.warmup`, "La entrada en calor es demasiado extensa.", day.dayNumber, dayContext);
+    if ((day.observations?.length ?? 0) > 1000) add(`${dayPrefix}.observations`, "Las observaciones son demasiado extensas.", day.dayNumber, dayContext);
+    if (day.estimatedMinutes !== null && (!Number.isInteger(day.estimatedMinutes) || day.estimatedMinutes < 1 || day.estimatedMinutes > 1440)) add(`${dayPrefix}.estimatedMinutes`, "La duración estimada no es válida.", day.dayNumber, dayContext);
+    if (!Array.isArray(day.exercises) && !Array.isArray(day.blocks)) { add(`${dayPrefix}.exercises`, "Los ejercicios no son válidos.", day.dayNumber, dayContext); continue; }
     const blocks = normalizedBlocks(day);
-    if (blocks.length > 20) return `El día ${day.dayNumber} tiene demasiados bloques.`;
-    if (new Set(blocks.map((block) => block.order)).size !== blocks.length) return `Los bloques del día ${day.dayNumber} tienen órdenes repetidos.`;
+    if (blocks.length > 20) add(`${dayPrefix}.blocks`, "El día tiene demasiados bloques.", day.dayNumber, dayContext);
+    if (new Set(blocks.map((block) => block.order)).size !== blocks.length) add(`${dayPrefix}.blocks`, "Los bloques tienen órdenes repetidos.", day.dayNumber, dayContext);
     for (const block of blocks) {
-      const error = validateBlock(block);
-      if (error) return `Día ${day.dayNumber}, ${block.name || "bloque"}: ${error}`;
+      const blockPrefix = `${dayPrefix}.block.${block.order}`;
+      const blockContext = `${dayContext}, ${block.name || "bloque"}`;
+      for (const issue of blockValidationIssues(block)) add(`${blockPrefix}.${issue.field}`, issue.message, day.dayNumber, blockContext);
+      if (!Array.isArray(block.exercises)) continue;
+      for (const exercise of block.exercises) {
+        for (const issue of exerciseValidationIssues(exercise, block.type)) add(`${blockPrefix}.exercise.${exercise.order}.${issue.field}`, issue.message, day.dayNumber, `${blockContext}, ejercicio ${exercise.order}`);
+      }
     }
   }
-  return null;
+  return issues;
+}
+
+export function validateRoutine(input: RoutineInput) {
+  return routineValidationIssues(input)[0]?.summary ?? null;
 }
 
 export function exerciseData(input: ExerciseInput) {
