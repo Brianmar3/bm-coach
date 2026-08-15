@@ -65,6 +65,8 @@ test("el acceso y el endpoint respetan capacidad, navegación y seguridad", () =
   assert.match(view, /hasPersonalizedService\(data\.profile\.serviceType\)[\s\S]*Ver mi progreso/);
   assert.match(page, /href="\/portal\/rutina"/);
   assert.match(page, /href="\/portal\/evaluaciones"/);
+  assert.match(page, /href="\/portal\/historial"/);
+  assert.match(page, /href=\{`\/portal\/historial#historial-/);
   assert.match(view, /linked\.open = true/);
   assert.match(route, /const studentId = session\.studentId/);
   assert.doesNotMatch(route, /searchParams|get\("studentId"\)|params\.studentId/);

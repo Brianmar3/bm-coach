@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
+import { PortalSection } from "@/componentes/portal-section";
 import { requirePortalRoutineAccess } from "@/lib/portal-service-access";
 
 export default async function PortalHistoryPage() {
   await requirePortalRoutineAccess();
-  redirect("/portal/rutina#historial-entrenamientos");
+  return <PortalSection section="historial" />;
 }

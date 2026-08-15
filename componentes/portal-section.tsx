@@ -24,7 +24,7 @@ import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
 import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-dashboard";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 
-type Section = "inicio" | "rutina" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "configuracion";
+type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
 const number = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
@@ -41,7 +41,7 @@ const billingPeriod = (value: string) => value
 
 export function PortalSection({ section }: { section: Section }) {
   const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false); const [reload, setReload] = useState(0);
-  useEffect(() => { const controller = new AbortController(); fetch(`/api/portal/data?section=${section}`, { cache: "no-store", signal: controller.signal }).then(async (response) => { const body = await response.json() as PortalData & { error?: string; code?: string }; if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); } if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; } if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información."); return body; }).then((body) => { if (body) setData(body); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [reload, section]);
+  useEffect(() => { const controller = new AbortController(); const dataSection = section === "historial" ? "rutina" : section; fetch(`/api/portal/data?section=${dataSection}`, { cache: "no-store", signal: controller.signal }).then(async (response) => { const body = await response.json() as PortalData & { error?: string; code?: string }; if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); } if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; } if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información."); return body; }).then((body) => { if (body) setData(body); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [reload, section]);
   useEffect(() => {
     const refresh = () => setReload((value) => value + 1);
     window.addEventListener("bm:portal-data-refresh", refresh);
@@ -51,7 +51,8 @@ export function PortalSection({ section }: { section: Section }) {
   if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); setLoading(true); setReload((value) => value + 1); }} />;
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
   if (!data) return null;
-  if (section === "rutina") return <><WorkoutView data={data} /><div id="historial-entrenamientos" className="mt-8 scroll-mt-24 border-t border-zinc-800 pt-8"><WorkoutHistoryView data={data} /></div></>;
+  if (section === "rutina") return <WorkoutView data={data} />;
+  if (section === "historial") return <WorkoutHistoryView data={data} />;
   if (section === "entrenamiento") return <WorkoutView data={data} />;
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
