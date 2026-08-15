@@ -4,6 +4,7 @@ import { type FormEvent, type ReactNode, type RefObject, useEffect, useMemo, use
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { ErrorState } from "@/componentes/async-states";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { useEnterFieldNavigation, useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
@@ -79,6 +80,8 @@ function currentPeriod(dateKey: string) {
 export default function PagosPage() {
   const [data, setData] = useState(emptyDashboard);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [reload, setReload] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AccountFilter>("TODOS");
   const [form, setForm] = useState<PaymentForm | null>(null);
@@ -99,6 +102,7 @@ export default function PagosPage() {
       })
       .then((dashboard) => {
         setData(dashboard);
+        setLoadError("");
         const params = new URLSearchParams(window.location.search);
         if (params.get("accion") === "nuevo") {
           const account = dashboard.students.find((item) => item.studentId === params.get("studentId"));
@@ -106,12 +110,12 @@ export default function PagosPage() {
           setForm({ studentId: account?.studentId ?? "", amount: account?.monthlyFee ?? 0, paidDate, billingPeriod: currentPeriod(paidDate), method: "Transferencia", dueDate: addMonthsToDateKey(account?.nextDueDate || paidDate), notes: "", requestKey: crypto.randomUUID(), mode: "create" });
         }
       })
-      .catch((loadError: unknown) => {
-        if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message);
+      .catch((value: unknown) => {
+        if (value instanceof Error && value.name !== "AbortError") setLoadError("No pudimos cargar el panel de pagos.");
       })
       .finally(() => setReady(true));
     return () => controller.abort();
-  }, []);
+  }, [reload]);
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es");
@@ -239,6 +243,13 @@ export default function PagosPage() {
   }
 
   const summary = data.summary;
+  function retryLoad() {
+    setLoadError("");
+    if (!data.students.length) setReady(false);
+    setReload((value) => value + 1);
+  }
+  if (ready && loadError && data.students.length === 0)
+    return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial."><ErrorState title="No pudimos cargar los pagos." description="Revisá la conexión e intentá nuevamente." retry={retryLoad}/></ModuleShell>;
   return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." hideHeader flushTop>
     <header className="admin-welcome mb-4 rounded-2xl px-4 py-5 sm:px-6 sm:py-6">
       <p className="text-[10px] font-bold uppercase tracking-[.24em] text-yellow-400">Gestión BM Training</p>
@@ -246,6 +257,7 @@ export default function PagosPage() {
       <p className="mt-1 text-sm text-zinc-400 sm:text-base">Cuotas, cobros e historial.</p>
     </header>
     {(error || notice) && !form && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
+    {loadError && <div className="mb-4"><ErrorState compact title="No pudimos actualizar los pagos." description="Seguís viendo la última información disponible." retry={retryLoad}/></div>}
 
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-lg shadow-black/10 sm:p-5">
       <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-zinc-500">Cobrado este mes</p><p className="mt-1 text-3xl font-bold tracking-tight text-emerald-300 sm:text-4xl">{ready ? money(summary.collectedThisMonth) : <span className="inline-block h-9 w-40 animate-pulse rounded bg-zinc-800" />}</p></div><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-yellow-400/15 bg-yellow-400/5 text-yellow-300"><PaymentIcon name="trend" /></span></div>

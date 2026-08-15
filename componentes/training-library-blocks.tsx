@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { inputClass } from "@/componentes/module-shell";
 import { TrainingLibraryFavoriteButton } from "@/componentes/training-library-favorite-button";
+import { EmptyState, ErrorState, ListSkeleton } from "@/componentes/async-states";
 import { filterTrainingLibraryBlocks, trainingLibraryLastUsedLabel } from "@/lib/training-library";
 import type { TrainingBlockType } from "@/types/gestion";
 import type { TrainingLibraryBlock, TrainingLibraryFolder, TrainingLibraryStatus, TrainingLibraryView } from "@/types/training-library";
@@ -14,10 +15,12 @@ async function responseError(response: Response, fallback: string) {
   try { return ((await response.json()) as { error?: string }).error ?? fallback; } catch { return fallback; }
 }
 
-export function TrainingLibraryBlocksPanel({ blocks, folders, ready, onNew, onEdit, onBlockChanged, onFoldersChanged }: {
+export function TrainingLibraryBlocksPanel({ blocks, folders, ready, loadError = "", retry, onNew, onEdit, onBlockChanged, onFoldersChanged }: {
   blocks: TrainingLibraryBlock[];
   folders: TrainingLibraryFolder[];
   ready: boolean;
+  loadError?: string;
+  retry?: () => void;
   onNew: () => void;
   onEdit: (block: TrainingLibraryBlock) => void;
   onBlockChanged: (block: TrainingLibraryBlock) => void;
@@ -33,16 +36,19 @@ export function TrainingLibraryBlocksPanel({ blocks, folders, ready, onNew, onEd
   const [statusBusy, setStatusBusy] = useState("");
   const [favoriteBusy, setFavoriteBusy] = useState("");
   const [favoriteError, setFavoriteError] = useState("");
+  const [statusError, setStatusError] = useState("");
   const tags = useMemo(() => [...new Set(blocks.flatMap((block) => block.tags))].sort((left, right) => left.localeCompare(right, "es")), [blocks]);
   const visible = useMemo(() => filterTrainingLibraryBlocks(blocks, { query, folderId, type, tag, status, view: status === "active" ? view : "all" }), [blocks, folderId, query, status, tag, type, view]);
+  const hasFilters = Boolean(query.trim()) || folderId !== "all" || type !== "all" || tag !== "all";
   async function changeStatus(block: TrainingLibraryBlock) {
     const action = block.status === "active" ? "archive" : "restore";
-    setStatusBusy(block.id);
+    setStatusBusy(block.id); setStatusError("");
     try {
       const response = await fetch(`/api/training-library/blocks/${block.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
-      if (!response.ok) return window.alert(await responseError(response, "No se pudo cambiar el estado del bloque."));
+      if (!response.ok) return setStatusError(await responseError(response, "No se pudo cambiar el estado del bloque."));
       onBlockChanged(await response.json() as TrainingLibraryBlock);
-    } finally { setStatusBusy(""); }
+    } catch { setStatusError("No se pudo cambiar el estado del bloque."); }
+    finally { setStatusBusy(""); }
   }
   async function toggleFavorite(block: TrainingLibraryBlock) {
     if (favoriteBusy || block.status !== "active") return;
@@ -54,7 +60,9 @@ export function TrainingLibraryBlocksPanel({ blocks, folders, ready, onNew, onEd
     } catch { setFavoriteError("No se pudo actualizar el favorito."); }
     finally { setFavoriteBusy(""); }
   }
-  const emptyMessage = status === "archived"
+  const emptyMessage = hasFilters
+    ? "No encontramos resultados con estos filtros."
+    : status === "archived"
     ? "No hay bloques archivados que coincidan."
     : view === "favorites" ? "No tenés bloques favoritos."
       : view === "recent" ? "Todavía no usaste bloques de la Biblioteca."
@@ -66,8 +74,8 @@ export function TrainingLibraryBlocksPanel({ blocks, folders, ready, onNew, onEd
     </div>
     {status === "active" && <nav aria-label="Vista de bloques" className="mb-3 grid grid-cols-3 rounded-xl border border-zinc-800 bg-[#111] p-1">{([['all', 'Todos'], ['favorites', 'Favoritos'], ['recent', 'Recientes']] as const).map(([value, title]) => <button key={value} type="button" aria-current={view === value ? "page" : undefined} onClick={() => setView(value)} className={`min-h-10 min-w-0 rounded-lg px-1 text-xs font-bold transition sm:text-sm ${view === value ? "bg-yellow-400/[.12] text-yellow-300" : "text-zinc-400"}`}>{title}</button>)}</nav>}
     <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.3fr)_repeat(3,minmax(150px,.7fr))]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, tipo, tag o carpeta…" className={`${inputClass} sm:col-span-2 xl:col-span-1`} /><select aria-label="Carpeta" value={folderId} onChange={(event) => setFolderId(event.target.value)} className={inputClass}><option value="all">Todas las carpetas</option><option value="unfiled">Sin carpeta</option>{folders.filter((folder) => folder.status === "active").map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select><select aria-label="Tipo de bloque" value={type} onChange={(event) => setType(event.target.value)} className={inputClass}><option value="all">Todos los tipos</option>{Object.entries(typeLabels).map(([value, title]) => <option key={value} value={value}>{title}</option>)}</select><select aria-label="Tag" value={tag} onChange={(event) => setTag(event.target.value)} className={inputClass}><option value="all">Todos los tags</option>{tags.map((value) => <option key={value} value={value}>{value}</option>)}</select></div></section>
-    {favoriteError && <p role="alert" className="mb-3 rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">{favoriteError}</p>}
-    {!ready ? <p className="rounded-2xl border border-zinc-800 bg-zinc-900 p-12 text-center text-zinc-500">Cargando bloques…</p> : visible.length === 0 ? <div className="rounded-2xl border border-dashed border-zinc-700 p-12 text-center text-zinc-500"><p>{emptyMessage}</p>{status === "active" && view === "favorites" && <p className="mt-2 text-xs">Marcá con ★ los bloques que usás más.</p>}</div> : <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">{visible.map((block) => <article key={block.id} className="min-w-0 rounded-2xl border border-white/[.07] bg-[#111] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="inline-flex rounded-lg bg-yellow-400/[.09] px-2 py-1 text-[10px] font-black uppercase tracking-wide text-yellow-300">{typeLabels[block.type]}</span><h3 className="mt-2 truncate text-base font-black">{block.name}</h3><p className="mt-1 text-xs text-zinc-500">{block.folder?.name ?? "Sin carpeta"}</p></div><div className="flex shrink-0 gap-1">{block.status === "active" && <TrainingLibraryFavoriteButton block={block} busy={favoriteBusy === block.id} toggle={(item) => void toggleFavorite(item)} />}<button type="button" onClick={() => onEdit(block)} className="min-h-10 rounded-lg border border-yellow-400/25 px-3 text-xs font-bold text-zinc-100">Abrir</button></div></div><div className="mt-3 flex flex-wrap gap-1.5">{block.tags.slice(0, 4).map((value) => <span key={value} className="rounded-full border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400">{value}</span>)}{block.tags.length > 4 && <span className="px-1 py-1 text-[10px] text-zinc-500">+{block.tags.length - 4}</span>}</div><div className="mt-4 flex items-end justify-between gap-3 border-t border-zinc-800 pt-3"><div><p className="text-xs text-zinc-300">{block.content.exercises.length} ejercicios{block.content.durationSeconds ? ` · ${Math.round(block.content.durationSeconds / 60)} min` : ""}</p><p className="mt-1 text-[10px] text-zinc-500">{status === "active" && view === "recent" ? trainingLibraryLastUsedLabel(block.lastUsedAt) : `Modificado ${showDate(block.updatedAt)}`}</p></div><button type="button" disabled={statusBusy === block.id} onClick={() => void changeStatus(block)} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-zinc-400 disabled:opacity-50">{block.status === "active" ? "Archivar" : "Restaurar"}</button></div></article>)}</section>}
+    {(favoriteError || statusError) && <p role="alert" className="mb-3 rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-200">{favoriteError || statusError}</p>}
+    {!ready ? <ListSkeleton rows={4} cardHeight="h-40" /> : loadError && blocks.length === 0 ? <ErrorState title="No se pudieron cargar los bloques." description={loadError} retry={retry ?? (() => undefined)} /> : <>{loadError && <div className="mb-3"><ErrorState compact title="No pudimos actualizar la Biblioteca." retry={retry ?? (() => undefined)} /></div>}{visible.length === 0 ? <EmptyState title={emptyMessage} description={status === "active" && view === "favorites" ? "Marcá con ★ los bloques que usás más." : undefined} action={hasFilters ? <button type="button" onClick={() => { setQuery(""); setFolderId("all"); setType("all"); setTag("all"); }} className="min-h-11 px-4 text-sm font-bold text-yellow-300">Limpiar filtros</button> : status === "active" && view === "all" ? <button type="button" onClick={onNew} className="min-h-11 px-4 text-sm font-bold text-yellow-300">Crear bloque</button> : undefined} /> : <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">{visible.map((block) => <article key={block.id} className="min-w-0 rounded-2xl border border-white/[.07] bg-[#111] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><span className="inline-flex rounded-lg bg-yellow-400/[.09] px-2 py-1 text-[10px] font-black uppercase tracking-wide text-yellow-300">{typeLabels[block.type]}</span><h3 className="mt-2 truncate text-base font-black">{block.name}</h3><p className="mt-1 text-xs text-zinc-500">{block.folder?.name ?? "Sin carpeta"}</p></div><div className="flex shrink-0 gap-1">{block.status === "active" && <TrainingLibraryFavoriteButton block={block} busy={favoriteBusy === block.id} toggle={(item) => void toggleFavorite(item)} />}<button type="button" onClick={() => onEdit(block)} className="min-h-10 rounded-lg border border-yellow-400/25 px-3 text-xs font-bold text-zinc-100">Abrir</button></div></div><div className="mt-3 flex flex-wrap gap-1.5">{block.tags.slice(0, 4).map((value) => <span key={value} className="rounded-full border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400">{value}</span>)}{block.tags.length > 4 && <span className="px-1 py-1 text-[10px] text-zinc-500">+{block.tags.length - 4}</span>}</div><div className="mt-4 flex items-end justify-between gap-3 border-t border-zinc-800 pt-3"><div><p className="text-xs text-zinc-300">{block.content.exercises.length} ejercicios{block.content.durationSeconds ? ` · ${Math.round(block.content.durationSeconds / 60)} min` : ""}</p><p className="mt-1 text-[10px] text-zinc-500">{status === "active" && view === "recent" ? trainingLibraryLastUsedLabel(block.lastUsedAt) : `Modificado ${showDate(block.updatedAt)}`}</p></div><button type="button" disabled={statusBusy === block.id} onClick={() => void changeStatus(block)} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-zinc-400 disabled:opacity-50">{block.status === "active" ? "Archivar" : "Restaurar"}</button></div></article>)}</section>}</>}
     {folderManagerOpen && <FolderManager folders={folders} close={() => setFolderManagerOpen(false)} changed={onFoldersChanged} />}
   </>;
 }

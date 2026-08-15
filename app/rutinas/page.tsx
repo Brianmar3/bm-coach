@@ -160,6 +160,7 @@ export default function RutinasPage() {
   const [libraryFolders, setLibraryFolders] = useState<TrainingLibraryFolder[]>([]);
   const [libraryReady, setLibraryReady] = useState(false);
   const [libraryLoadError, setLibraryLoadError] = useState("");
+  const [libraryReload, setLibraryReload] = useState(0);
   const [libraryDialogOpen, setLibraryDialogOpen] = useState(false);
   const [libraryDialogMode, setLibraryDialogMode] = useState<LibraryDialogMode>("manage");
   const [libraryEditing, setLibraryEditing] = useState<TrainingLibraryBlock | null>(null);
@@ -227,7 +228,7 @@ export default function RutinasPage() {
       fetch("/api/training-library/folders", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar las carpetas.")); return response.json() as Promise<TrainingLibraryFolder[]>; }),
     ]).then(([blocks, folders]) => { setLibraryBlocks(blocks); setLibraryFolders(folders); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setLibraryLoadError(loadError.message); }).finally(() => setLibraryReady(true));
     return () => controller.abort();
-  }, []);
+  }, [libraryReload]);
 
   const objectiveOptions = useMemo(() => [...new Set([...objectives, ...items.map((item) => item.objective)])].sort((a, b) => a.localeCompare(b, "es")), [items]);
   const statusCounts = useMemo(() => routineStatusCounts(items), [items]);
@@ -514,8 +515,7 @@ export default function RutinasPage() {
         <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.5fr)_minmax(180px,.8fr)]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar clase completa…" className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select></div></section>
         <RoutineManagementPanel routines={visible} mode="plantillas" ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), copyToStudent: (routine) => setCopyFlow({ source: routine, mode: "copyToStudent" }), archive, restore, history: openHistory, remove }} />
       </> : <>
-        {libraryLoadError && <p role="alert" className="mb-3 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-200">{libraryLoadError}</p>}
-        <TrainingLibraryBlocksPanel blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} onNew={() => beginLibraryBlock()} onEdit={beginLibraryBlock} onBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} onFoldersChanged={setLibraryFolders} />
+        <TrainingLibraryBlocksPanel blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} loadError={libraryLoadError} retry={() => { setLibraryLoadError(""); if (!libraryBlocks.length) setLibraryReady(false); setLibraryReload((value) => value + 1); }} onNew={() => beginLibraryBlock()} onEdit={beginLibraryBlock} onBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} onFoldersChanged={setLibraryFolders} />
       </>}
     </> : <>
       <nav aria-label="Estado de las rutinas" className="mb-3 grid grid-cols-3 border-b border-zinc-800 bg-black/10">{([["activas", "Activas"], ["borradores", "Borradores"], ["archivadas", "Archivadas"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={routineSection === value ? "page" : undefined} onClick={() => setRoutineSection(value)} className={`relative min-h-11 min-w-0 px-1 text-xs font-bold transition sm:px-3 sm:text-sm ${routineSection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:bg-yellow-400 sm:after:inset-x-3" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}><span className="truncate">{title}</span> <span className="text-[10px] tabular-nums text-zinc-500 sm:text-xs">{statusCounts[value]}</span></button>)}</nav>

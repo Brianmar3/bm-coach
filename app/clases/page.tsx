@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { ClassOccurrenceAdmin } from "@/componentes/class-occurrence-admin";
+import { EmptyState, ErrorState } from "@/componentes/async-states";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
 
 const days: Array<{ value: WeeklyClassDay; label: string; short: string }> = [
@@ -62,6 +63,8 @@ export default function ClasesPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [filter, setFilter] = useState<StatusFilter>("activos");
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [reload, setReload] = useState(0);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<WeeklyClassSchedule | null>(null);
   const [viewing, setViewing] = useState<WeeklyClassSchedule | null>(null);
@@ -84,18 +87,24 @@ export default function ClasesPage() {
     ])
       .then(([weeklySchedules, realStudents]) => {
         setSchedules(weeklySchedules); setStudents(realStudents);
+        setLoadError("");
         if (new URLSearchParams(window.location.search).get("accion") === "nueva") {
           setEditing(null); setForm(emptySchedule()); setStudentQuery(""); setEditorOpen(true);
         }
       })
-      .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); })
+      .catch((value: unknown) => { if (value instanceof Error && value.name !== "AbortError") setLoadError("No pudimos cargar los horarios semanales."); })
       .finally(() => setReady(true));
     return () => controller.abort();
-  }, []);
+  }, [reload]);
 
   const visible = useMemo(() => schedules.filter((schedule) => filter === "todos" || (filter === "activos" ? schedule.active : !schedule.active)), [filter, schedules]);
   const activeCount = schedules.filter((schedule) => schedule.active).length;
   const assignedCount = new Set(schedules.filter((schedule) => schedule.active).flatMap((schedule) => schedule.studentIds)).size;
+  function retryLoad() {
+    setLoadError("");
+    if (!schedules.length) setReady(false);
+    setReload((value) => value + 1);
+  }
 
   function begin(schedule?: WeeklyClassSchedule, preferredDay?: WeeklyClassDay) {
     setEditing(schedule ?? null);
@@ -173,10 +182,11 @@ export default function ClasesPage() {
       hideHeader
       flushTop
     >
-      {error && !editorOpen && <p className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+      {error && !editorOpen && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+      {loadError && schedules.length > 0 && <div className="mb-5"><ErrorState compact title="No pudimos actualizar los horarios." retry={retryLoad}/></div>}
 
       <section className="mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
-        <div className="grid grid-cols-3 divide-x divide-zinc-800"><Metric label="Horarios activos" value={activeCount} /><Metric label="Alumnos con horario" value={assignedCount} /><Metric label="Bloques semanales" value={schedules.length} /></div>
+        {!ready ? <div aria-hidden="true" className="grid grid-cols-3 gap-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-14 animate-pulse rounded-xl bg-zinc-800/70"/>)}</div> : <div className="grid grid-cols-3 divide-x divide-zinc-800"><Metric label="Horarios activos" value={activeCount} /><Metric label="Alumnos con horario" value={assignedCount} /><Metric label="Bloques semanales" value={schedules.length} /></div>}
       </section>
 
       <ClassOccurrenceAdmin />
@@ -194,7 +204,7 @@ export default function ClasesPage() {
           </select>
         </div>
 
-        {!ready ? <LoadingCalendar /> : (
+        {!ready ? <LoadingCalendar /> : loadError && schedules.length === 0 ? <div className="p-4"><ErrorState title="No pudimos cargar los horarios." description="La agenda no cambió. Intentá nuevamente." retry={retryLoad}/></div> : schedules.length === 0 ? <div className="p-4"><EmptyState title="Todavía no hay horarios semanales." description="Creá el primer horario para organizar clases y asistencias." action={<button type="button" onClick={() => begin()} className="min-h-11 px-4 text-sm font-bold text-yellow-300">Crear horario</button>}/></div> : (
           <>
             <div className="hidden grid-cols-5 divide-x divide-zinc-800 lg:grid">
               {days.map((day) => <DayColumn key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} />)}

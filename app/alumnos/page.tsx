@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
+import { EmptyState, ErrorState, ListSkeleton } from "@/componentes/async-states";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { StudentAccessControls } from "@/componentes/student-access-controls";
 import { StudentQuickPanels } from "@/componentes/student-quick-panels";
@@ -63,6 +64,8 @@ export default function AlumnosPage() {
     const [items, setItems] = useState<Student[]>([]);
     const [options, setOptions] = useState<EnrollmentOptions>({ plans: [], schedules: [] });
     const [ready, setReady] = useState(false);
+    const [loadError, setLoadError] = useState("");
+    const [reload, setReload] = useState(0);
     const [query, setQuery] = useState("");
     const [status, setStatus] = useState("todos");
     const [plan, setPlan] = useState("todos");
@@ -85,6 +88,7 @@ export default function AlumnosPage() {
         ]).then(([students, enrollmentOptions]) => {
             setItems(students);
             setOptions(enrollmentOptions);
+            setLoadError("");
             const params = new URLSearchParams(window.location.search);
             if (params.get("estado") === "activo")
                 setStatus("activo");
@@ -103,10 +107,10 @@ export default function AlumnosPage() {
                 setForm(blank(enrollmentOptions));
                 setOpen(true);
             }
-        }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError")
-            setError(loadError.message); }).finally(() => setReady(true));
+        }).catch((value: unknown) => { if (value instanceof Error && value.name !== "AbortError")
+            setLoadError("No pudimos cargar los alumnos."); }).finally(() => setReady(true));
         return () => controller.abort();
-    }, []);
+    }, [reload]);
     const planIdentity = (item: Student) => {
         const resolution = resolveStudentPlan(item, options.plans);
         return resolution.status === "matched" ? resolution.plan.selectionKey : `legacy:${normalizePlanName(item.plan)}`;
@@ -127,6 +131,16 @@ export default function AlumnosPage() {
     const plans = planChoices.map((item) => `${item.name} (${item.count})`);
     const selectedPlanFilter = planChoices.find((item) => `${item.name} (${item.count})` === plan);
     const visible = contextualItems.filter((item) => plan === "todos" || (selectedPlanFilter && planIdentity(item) === selectedPlanFilter.key));
+    const hasFilters = Boolean(query.trim()) || status !== "todos" || plan !== "todos" || serviceType !== "todos";
+    function retryLoad() {
+        setLoadError("");
+        if (!items.length)
+            setReady(false);
+        setReload((value) => value + 1);
+    }
+    function clearFilters() {
+        setQuery(""); setStatus("todos"); setPlan("todos"); setServiceType("todos");
+    }
     async function begin(item?: Student) {
         setError("");
         try {
@@ -219,9 +233,17 @@ export default function AlumnosPage() {
             setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el alumno.");
         }
     }
+    if (!ready)
+        return <ModuleShell title="Alumnos" subtitle="Alta rápida, planes y seguimiento de tu cartera de alumnos."><ListSkeleton rows={6} cardHeight="h-20"/></ModuleShell>;
+    if (loadError && items.length === 0)
+        return <ModuleShell title="Alumnos" subtitle="Alta rápida, planes y seguimiento de tu cartera de alumnos."><ErrorState title="No pudimos cargar los alumnos." description="Revisá la conexión e intentá nuevamente." retry={retryLoad}/></ModuleShell>;
     return <ModuleShell title="Alumnos" subtitle="Alta rápida, planes y seguimiento de tu cartera de alumnos.">
+    {loadError && items.length > 0 && <div className="mb-5"><ErrorState compact title="No pudimos actualizar la lista de alumnos." retry={retryLoad}/></div>}
     {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+    {visible.length === 0 && <EmptyState title={hasFilters ? "No encontramos alumnos con estos filtros." : "Todavía no tenés alumnos."} description={hasFilters ? "Probá limpiar la búsqueda o cambiar los filtros." : "Agregá el primero para empezar a gestionar su plan y seguimiento."} action={<button type="button" onClick={hasFilters ? clearFilters : () => void begin()} className="min-h-11 px-4 text-sm font-bold text-yellow-300">{hasFilters ? "Limpiar filtros" : "Agregar alumno"}</button>}/>}
+    <div className={visible.length === 0 ? "hidden" : ""}>
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900"><div className="grid gap-3 border-b border-zinc-800 p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, apellido o teléfono" className={inputClass}/><select value={status} onChange={(event) => setStatus(event.target.value)} className={inputClass}><option value="todos">Todos los estados</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select><select value={plan} onChange={(event) => setPlan(event.target.value)} className={inputClass}><option value="todos">Todos los planes</option>{plans.map((item) => <option key={item}>{item}</option>)}</select><select value={serviceType} onChange={(event) => setServiceType(event.target.value as "todos" | StudentServiceType)} className={inputClass}><option value="todos">Todos los servicios</option>{STUDENT_SERVICE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-4">Alumno</th><th>Servicio</th><th>Plan</th><th>Horario principal</th><th>Contacto</th><th>Vencimiento</th><th>Estado</th><th aria-label="Acciones"/></tr></thead><tbody>{!ready ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">Cargando alumnos…</td></tr> : visible.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">No hay alumnos que coincidan con los filtros.</td></tr> : visible.map((item) => <tr key={item.id} className="border-t border-zinc-800"><td className="p-4 font-medium">{item.firstName} {item.lastName}<span className="block text-xs font-normal text-zinc-500">{item.studentType} · IMC {bmi(item.weight, item.height)} · {age(item.birthDate)} años</span></td><td><ServiceBadge value={item.serviceType}/></td><td>{item.plan}<span className="block text-xs text-zinc-500">{money(item.monthlyFee)}</span></td><td className="max-w-56 text-xs text-zinc-400">{item.scheduleLabel ?? "Sin horario principal"}</td><td>{item.studentType === "Kids" ? item.responsiblePhone || item.phone || "Sin teléfono" : item.phone}<span className="block text-xs text-zinc-500">{item.email || "Sin correo"}</span></td><td>{showDate(item.dueDate)}</td><td><span className={`rounded-full px-2 py-1 text-xs font-bold capitalize ${item.status === "activo" ? "bg-emerald-400/15 text-emerald-300" : "bg-zinc-700 text-zinc-300"}`}>{item.status}</span></td><td className="space-x-3 whitespace-nowrap pr-4 text-yellow-400"><button onClick={() => setViewing(item)}>Ver ficha</button><button onClick={() => begin(item)}>Editar</button><button onClick={() => remove(item)} className="text-red-300">Eliminar</button></td></tr>)}</tbody></table></div></section>
+    </div>
     {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
     {viewing && <StudentDetail item={viewing} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
     <TrainerFloatingActions mode="direct" enabled={!open && !viewing} actions={[{ label: "Nuevo alumno", symbol: "+", onSelect: () => void begin() }]} />
