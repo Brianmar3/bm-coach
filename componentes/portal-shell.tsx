@@ -68,7 +68,7 @@ export function PortalShell({
     }
     if (
       href === "/portal/rutina" &&
-      ["/portal/entrenamiento", "/portal/historial", "/portal/comentarios"].some(
+      ["/portal/entrenamiento", "/portal/historial", "/portal/comentarios", "/portal/progreso"].some(
         (route) => pathname.startsWith(route),
       )
     ) {

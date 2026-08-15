@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePortalPageSession } from "@/lib/portal-auth";
-import { hasGroupClasses } from "@/lib/student-service";
+import { hasGroupClasses, hasPersonalizedService } from "@/lib/student-service";
 
 export function activePortalRoutineWhere(studentId: string) {
   return {
@@ -44,5 +44,12 @@ export async function requirePortalRoutineAccess() {
   const session = await requirePortalPageSession();
   if (session.credential.student.serviceType !== "CLASSES") return session;
   if (!await hasActivePortalRoutine(session.studentId)) redirect("/portal");
+  return session;
+}
+
+export async function requirePortalProgressAccess() {
+  const session = await requirePortalPageSession();
+  if (!hasPersonalizedService(session.credential.student.serviceType)) redirect("/portal/rutina");
+  if (!await hasActivePortalRoutine(session.studentId)) redirect("/portal/rutina");
   return session;
 }
