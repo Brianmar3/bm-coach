@@ -250,12 +250,7 @@ export default function PagosPage() {
   }
   if (ready && loadError && data.students.length === 0)
     return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial."><ErrorState title="No pudimos cargar los pagos." description="Revisá la conexión e intentá nuevamente." retry={retryLoad}/></ModuleShell>;
-  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." hideHeader flushTop>
-    <header className="admin-welcome mb-4 rounded-2xl px-4 py-5 sm:px-6 sm:py-6">
-      <p className="text-[10px] font-bold uppercase tracking-[.24em] text-yellow-400">Gestión BM Training</p>
-      <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Pagos</h1>
-      <p className="mt-1 text-sm text-zinc-400 sm:text-base">Cuotas, cobros e historial.</p>
-    </header>
+  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial.">
     {(error || notice) && !form && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
     {loadError && <div className="mb-4"><ErrorState compact title="No pudimos actualizar los pagos." description="Seguís viendo la última información disponible." retry={retryLoad}/></div>}
 

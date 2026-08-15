@@ -5,16 +5,15 @@ import test from "node:test";
 const source = readFileSync(new URL("../app/pagos/page.tsx", import.meta.url), "utf8");
 const sidebar = readFileSync(new URL("../componentes/sidebar.tsx", import.meta.url), "utf8");
 
-test("Pagos usa un hero propio y limpio; las acciones pasan al acceso flotante", () => {
-  const hero = source.slice(source.indexOf('<header className="admin-welcome'), source.indexOf("</header>"));
-  assert.match(source, /Gestión BM Training/);
+test("Pagos reutiliza la cabecera estándar; las acciones pasan al acceso flotante", () => {
+  assert.match(source, /<ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial\."/);
   assert.match(source, /Cuotas, cobros e historial\./);
-  assert.doesNotMatch(hero, /Resumen mensual|Agregar pago|Registrar pago/);
+  assert.doesNotMatch(source, /admin-welcome/);
   assert.match(source, /<TrainerFloatingActions/);
   assert.match(source, /label: "Registrar pago"/);
   assert.doesNotMatch(source, /<TrainerFloatingActions[^\n]+Resumen mensual/);
   assert.match(sidebar, /\["Resumen mensual", "\/resumen-mensual"/);
-  assert.match(source, /hideHeader flushTop/);
+  assert.doesNotMatch(source, /hideHeader flushTop/);
   assert.doesNotMatch(source, /kettlebell|pesa rusa/i);
 });
 

@@ -22,6 +22,10 @@ test("el acceso flotante reutiliza exactamente el lenguaje del Dashboard", () =>
   assert.match(component, /bg-yellow-400/);
   assert.match(component, /bottom-\[calc\(env\(safe-area-inset-bottom\)\+1rem\)\]/);
   assert.match(component, /shadow-\[0_10px_35px_rgba\(250,204,21,\.28\)\]/);
+  assert.match(component, /function PlusIcon/);
+  assert.match(component, /M12 5v14M5 12h14/);
+  assert.match(component, /focus-visible:ring-2/);
+  assert.doesNotMatch(component, /<span aria-hidden="true"[^>]*>\+<\/span>/);
 });
 
 test("el sheet cierra por overlay, botón y Escape y administra el foco", () => {
@@ -72,13 +76,13 @@ test("Rutinas conserva creación y plantillas en un único acceso flotante", () 
   assert.doesNotMatch(floatingAction, /Crear plantilla/);
   assert.match(routines, /activeTab === "plantillas"/);
   assert.match(routines, /onClick=\{\(\) => begin\(undefined, "template"\)\}/);
-  assert.match(routines, />\+ Crear plantilla<\/button>/);
-  assert.match(routines, /enabled=\{!open && !viewing && !copyFlow && !historyRoutine\}/);
+  assert.match(routines, />\+ Crear clase completa<\/button>/);
+  assert.match(routines, /enabled=\{!open && !libraryDialogOpen && !viewing && !copyFlow && !baseSource && !historyRoutine\}/);
 });
 
-test("Pagos deja el hero limpio y ofrece Registrar pago y Resumen mensual", () => {
-  const hero = payments.slice(payments.indexOf('<header className="admin-welcome'), payments.indexOf("</header>"));
-  assert.doesNotMatch(hero, /Agregar pago|Registrar pago|Resumen mensual/);
+test("Pagos usa el hero estándar y ofrece Registrar pago desde el acceso flotante", () => {
+  assert.match(payments, /<ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial\."/);
+  assert.doesNotMatch(payments, /admin-welcome/);
   assert.equal(componentCount(payments), 1);
   const floatingAction = payments.slice(payments.indexOf("<TrainerFloatingActions"), payments.indexOf("/>", payments.indexOf("<TrainerFloatingActions")));
   assert.match(floatingAction, /mode="direct"/);

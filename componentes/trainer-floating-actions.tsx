@@ -48,17 +48,17 @@ export function TrainerFloatingActions({
 
   if (!enabled || actions.length === 0) return null;
   const directAction = actions[0];
-  const floatingClassName = "fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[65] grid h-14 w-14 place-items-center rounded-full border border-yellow-100/30 bg-yellow-400 text-3xl font-light text-zinc-950 shadow-[0_10px_35px_rgba(250,204,21,.28)] transition hover:bg-yellow-300 active:scale-95 md:bottom-6 md:right-6 md:h-16 md:w-16";
+  const floatingClassName = "fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[65] grid h-14 w-14 place-items-center rounded-full border border-yellow-100/30 bg-yellow-400 text-zinc-950 shadow-[0_10px_35px_rgba(250,204,21,.28)] transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-100 focus-visible:ring-offset-2 focus-visible:ring-offset-black active:scale-95 md:bottom-6 md:right-6 md:h-16 md:w-16";
   if (mode === "direct") return <>
     <div className="h-20" aria-hidden="true" />
     {directAction.href
-      ? <Link href={directAction.href} data-trainer-floating-trigger aria-label={directAction.label} className={floatingClassName}><span aria-hidden="true">+</span></Link>
-      : <button type="button" data-trainer-floating-trigger aria-label={directAction.label} onClick={directAction.onSelect} className={floatingClassName}><span aria-hidden="true">+</span></button>}
+      ? <Link href={directAction.href} data-trainer-floating-trigger aria-label={directAction.label} className={floatingClassName}><PlusIcon /></Link>
+      : <button type="button" data-trainer-floating-trigger aria-label={directAction.label} onClick={directAction.onSelect} className={floatingClassName}><PlusIcon /></button>}
   </>;
   return <>
     <div className="h-20" aria-hidden="true" />
     <button ref={triggerRef} type="button" data-trainer-floating-trigger aria-label={open ? "Cerrar acciones rápidas" : "Abrir acciones rápidas"} aria-expanded={open} aria-controls={dialogId} onClick={() => setOpen((value) => !value)} className={floatingClassName}>
-      <span aria-hidden="true" className={`transition-transform ${open ? "rotate-45" : ""}`}>+</span>
+      <PlusIcon open={open} />
     </button>
     {open && <div className="fixed inset-0 z-[60] flex items-end bg-black/70 backdrop-blur-sm md:items-center md:justify-center md:p-6" onPointerDown={() => close()}>
       <section id={dialogId} role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-title`} className="w-full rounded-t-3xl border border-yellow-400/15 bg-zinc-950 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl md:max-w-lg md:rounded-3xl md:p-5" onPointerDown={(event) => event.stopPropagation()}>
@@ -75,4 +75,8 @@ export function TrainerFloatingActions({
       </section>
     </div>}
   </>;
+}
+
+function PlusIcon({ open = false }: { open?: boolean }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`h-6 w-6 transition-transform duration-200 md:h-7 md:w-7 ${open ? "rotate-45" : ""}`}><path d="M12 5v14M5 12h14" /></svg>;
 }

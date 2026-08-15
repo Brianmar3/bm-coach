@@ -224,7 +224,7 @@ export default function ClasesPage() {
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="min-w-0 px-2 py-1 text-center"><p className="text-[9px] uppercase leading-tight tracking-wide text-zinc-500 sm:text-[10px]">{label}</p><p className="mt-1 text-xl font-bold text-yellow-400">{value}</p></div>;
+  return <div className="flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center px-1 py-1 text-center sm:min-h-0 sm:px-2"><p className="flex min-h-8 items-center justify-center text-[8px] uppercase leading-[1.2] tracking-[.08em] text-zinc-500 min-[390px]:text-[9px] sm:min-h-0 sm:text-[10px] sm:tracking-wide">{label}</p><p className="mt-1 text-xl font-bold leading-none text-yellow-400">{value}</p></div>;
 }
 
 function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void }) {
