@@ -1,5 +1,6 @@
-import type { BlockInput, ExerciseInput } from "./rutinas.ts";
+import type { BlockInput } from "./rutinas.ts";
 import { validateBlock } from "./rutinas.ts";
+import { canonicalTrainingLibraryBlock } from "./training-library-block-draft.ts";
 import type { TrainingLibraryBlock, TrainingLibraryBlockPayload, TrainingLibraryFolder, TrainingLibraryStatus } from "../types/training-library.ts";
 
 const maximumTags = 20;
@@ -34,50 +35,13 @@ export function validateLibraryBlockPayload(input: TrainingLibraryBlockPayload) 
   return validateBlock({ ...input.block, name: input.name.trim(), order: 1 });
 }
 
-function cleanExercise(exercise: ExerciseInput, order: number): ExerciseInput {
-  return {
-    name: exercise.name.trim(),
-    muscleGroup: exercise.muscleGroup.trim(),
-    sets: exercise.sets,
-    repetitions: exercise.repetitions.trim(),
-    weight: exercise.weight,
-    effortType: exercise.effortType,
-    effortValue: exercise.effortValue,
-    restSeconds: exercise.restSeconds,
-    observations: exercise.observations?.trim() ?? "",
-    videoUrl: exercise.videoUrl?.trim() ?? "",
-    tempo: exercise.tempo?.trim() ?? "",
-    alternativeExercise: exercise.alternativeExercise?.trim() ?? "",
-    equipment: exercise.equipment?.trim() ?? "",
-    optional: Boolean(exercise.optional),
-    targetType: exercise.targetType,
-    targetSeconds: exercise.targetSeconds,
-    targetRepetitions: exercise.targetRepetitions?.trim() ?? "",
-    targetDistance: exercise.targetDistance?.trim() ?? "",
-    targetSide: exercise.targetSide?.trim() ?? "",
-    order,
-  };
-}
-
 export function cleanLibraryBlockPayload(input: TrainingLibraryBlockPayload): TrainingLibraryBlockPayload {
   const name = input.name.trim();
   return {
     name,
     folderId: input.folderId.trim(),
     tags: normalizedLibraryTags(input.tags).map((tag) => tag.name),
-    block: {
-      type: input.block.type,
-      name,
-      order: 1,
-      rounds: input.block.rounds,
-      durationSeconds: input.block.durationSeconds,
-      workSeconds: input.block.workSeconds,
-      restSeconds: input.block.restSeconds,
-      restBetweenRoundsSeconds: input.block.restBetweenRoundsSeconds,
-      targetRounds: input.block.targetRounds,
-      instructions: input.block.instructions?.trim() ?? "",
-      exercises: input.block.exercises.map((exercise, index) => cleanExercise(exercise, index + 1)),
-    },
+    block: canonicalTrainingLibraryBlock(input.block, name),
   };
 }
 

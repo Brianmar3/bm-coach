@@ -26,7 +26,9 @@ test("el editor de clase oculta conceptos de planificación y activación", () =
 });
 
 test("la clase conserva entrada en calor, bloques, observaciones y guardado específico", () => {
-  for (const text of ["Entrada en calor", "+ Agregar bloque", "Bloques de la clase", "Cierre / observaciones", "Guardar clase"]) assert.match(classEditor, new RegExp(text.replace("+", "\\+")));
+  for (const text of ["Entrada en calor", "Bloques de la clase", "Cierre / observaciones", "Guardar clase"]) assert.match(classEditor, new RegExp(text));
+  assert.match(page, /\+ Agregar bloque/);
+  assert.match(classEditor, /<BlockAdder/);
   for (const handler of ["addBlock", "moveBlock", "duplicateBlock", "removeBlock"]) assert.match(classEditor, new RegExp(handler));
   assert.match(classEditor, /<BlockEditor/);
   assert.match(classEditor, /useRoutineKeyboardNavigation/);
@@ -79,7 +81,9 @@ test("Nueva rutina conserva semanas, estado, días y acciones originales", () =>
 
 test("Enter sin submitter no guarda y Escape respeta la capa superior", () => {
   assert.match(submitFlow, /if \(!\(submitter instanceof HTMLButtonElement\)\) return/);
-  assert.match(classEditor, /document\.querySelector\('\[aria-label="Biblioteca de ejercicios BM"\]'/);
+  assert.match(classEditor, /aria-label="Biblioteca de ejercicios BM"/);
+  assert.match(classEditor, /aria-labelledby="block-library-picker-title"/);
+  assert.match(classEditor, /aria-labelledby="library-block-dialog-title"/);
   assert.match(exerciseLibrary, /event\.key === "Escape"/);
   assert.match(exerciseLibrary, /onClose\(\)/);
 });
