@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     /* eslint-enable @typescript-eslint/no-explicit-any */
     const validationError = validateWorkoutSessionInput(input);
     if (validationError) {
-      if (process.env.NODE_ENV === "development") console.error("Payload de entrenamiento rechazado", { status: 400, validationError, routineId: input.routineId, dayId: input.dayId, sessionId: input.id ?? null, blocks: input.blocks, payload: input });
+      if (process.env.NODE_ENV === "development") console.error("Payload de entrenamiento rechazado", { status: 400, validationError, routineId: input.routineId, dayId: input.dayId, sessionId: input.id ?? null, blockCount: input.blocks?.length ?? 0, exerciseCount: input.exercises.length });
       return Response.json({ error: validationError, ...(process.env.NODE_ENV === "development" ? { invalidField: validationError } : {}) }, { status: 400 });
     }
     const weekRange = getWorkoutWeekRange(input.date);
@@ -293,8 +293,7 @@ export async function POST(request: Request) {
       return Response.json({ error: status === "COMPLETED" ? "Este día ya fue finalizado durante la semana actual." : "La sesión se creó al mismo tiempo. Reintentá para continuarla sin duplicar datos." }, { status: 409 });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La sesión cambió mientras la guardabas. Recargá Mi rutina antes de volver a intentar." }, { status: 409 });
-    console.error("Error al guardar entrenamiento del portal", { status: 500, saveStage, message: error instanceof Error ? error.message : String(error), payload: process.env.NODE_ENV === "development" ? parsedInput : undefined, error });
-    const developmentDetail = process.env.NODE_ENV === "development" ? `${saveStage}: ${error instanceof Error ? error.message : String(error)}` : undefined;
-    return Response.json({ error: "No se pudo guardar el entrenamiento.", ...(developmentDetail ? { developmentDetail } : {}) }, { status: 500 });
+    console.error("Error al guardar entrenamiento del portal", { status: 500, saveStage, errorName: error instanceof Error ? error.name : "UnknownError", routineId: parsedInput?.routineId ?? null, dayId: parsedInput?.dayId ?? null, sessionId: parsedInput?.id ?? null });
+    return Response.json({ error: "No se pudo guardar el entrenamiento." }, { status: 500 });
   }
 }

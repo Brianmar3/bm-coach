@@ -4,6 +4,7 @@ import { FormEvent, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { PasswordField } from "@/componentes/password-field";
+import { safeInternalPath } from "@/lib/client-api";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -35,7 +36,8 @@ export default function AdminLoginPage() {
         throw new Error("No pudimos iniciar sesión. Revisá la credencial e intentá nuevamente.");
       }
       setToken("");
-      router.replace("/dashboard");
+      const next = safeInternalPath(new URLSearchParams(window.location.search).get("next"), "/dashboard");
+      router.replace(next);
       router.refresh();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "No se pudo iniciar sesión.");

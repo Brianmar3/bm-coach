@@ -91,7 +91,7 @@ test("abre el primer ejercicio incompleto y mantiene un único acordeón control
 test("contraer no elimina el borrador ni cambia el guardado existente", () => {
   assert.match(source, /updateSet\(exerciseIndex, setIndex/);
   assert.match(source, /localStorage\.setItem/);
-  assert.match(source, /fetch\("\/api\/portal\/entrenamientos"/);
+  assert.match(source, /apiRequest<.*>\("\/api\/portal\/entrenamientos"/);
 });
 
 test("la tabla compacta conserva Kg, Reps, esfuerzo, valores y checkbox accesible", () => {

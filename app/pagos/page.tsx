@@ -8,6 +8,7 @@ import { ErrorState } from "@/componentes/async-states";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { useEnterFieldNavigation, useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
+import { apiRequest } from "@/lib/client-api";
 import type { Payment, PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
 
 type AccountFilter = "TODOS" | PaymentStudentAccount["status"] | "PAGADOS_MES";
@@ -92,6 +93,7 @@ export default function PagosPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [savingId, setSavingId] = useState("");
+  const paymentSaveLock = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,31 +176,34 @@ export default function PagosPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form || savingId) return;
+    if (!form || paymentSaveLock.current) return;
     const account = data.students.find((item) => item.studentId === form.studentId);
     if (!account) { setError("El alumno ya no está disponible."); return; }
+    paymentSaveLock.current = true;
     setSavingId(form.paymentId ?? form.studentId);
     setError("");
     setNotice("");
     try {
-      const response = await fetch(form.paymentId ? `/api/pagos/${form.paymentId}` : "/api/pagos", {
+      const saved = await apiRequest<{ dashboard: PaymentDashboard; payment: Payment }>(form.paymentId ? `/api/pagos/${form.paymentId}` : "/api/pagos", {
         method: form.paymentId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form.paymentId ? form : { ...form, nextDueDate: form.dueDate, dueDate: undefined }),
-      });
-      if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar el pago."));
-      const saved = await response.json() as { dashboard: PaymentDashboard; payment: Payment };
+      }, { fallback: "No se pudo guardar el pago.", scope: "admin" });
       setData(saved.dashboard);
       setForm(null);
       setNotice(form.paymentId ? "Pago actualizado correctamente." : `Pago de ${account.student} registrado correctamente.`);
       if (!form.paymentId) {
-        const refreshed = await fetch("/api/pagos", { cache: "no-store" });
-        if (refreshed.ok) setData(await refreshed.json() as PaymentDashboard);
+        try {
+          setData(await apiRequest<PaymentDashboard>("/api/pagos", { cache: "no-store" }, { fallback: "No se pudo actualizar el panel de pagos.", scope: "admin" }));
+        } catch {
+          setNotice(`Pago de ${account.student} registrado. No pudimos actualizar la lista; los datos guardados se mantienen.`);
+        }
       }
       if (historyAccount?.studentId === account.studentId) await loadHistory(account);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudo guardar el pago.");
     } finally {
+      paymentSaveLock.current = false;
       setSavingId("");
     }
   }

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PasswordField } from "@/componentes/password-field";
+import { safeInternalPath } from "@/lib/client-api";
 
 type LoginErrors = { username?: string; password?: string };
 
@@ -36,7 +37,8 @@ export function PortalLoginForm() {
         if (response.status === 401 || response.status === 403) { setFieldErrors({ password: "Los datos ingresados no son correctos." }); passwordRef.current?.focus(); }
         throw new Error(response.status === 429 ? (body.error ?? "Esperá unos minutos antes de volver a intentar.") : "No pudimos iniciar sesión. Revisá los datos e intentá nuevamente.");
       }
-      router.replace("/portal");
+      const next = safeInternalPath(new URLSearchParams(window.location.search).get("next"), "/portal");
+      router.replace(next);
       router.refresh();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "No se pudo iniciar sesión.");

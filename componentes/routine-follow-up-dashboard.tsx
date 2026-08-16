@@ -7,6 +7,7 @@ import { CardGridSkeleton, EmptyState, ErrorState, ListSkeleton } from "@/compon
 import { BodyEvolutionChart, ExerciseProgressChart, SessionDurationChart, TrainingDistributionChart } from "@/componentes/routine-follow-up-charts";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 import { routineTrainingLocation, type RoutineTrainingLocation } from "@/lib/routine-follow-up-filters";
+import { apiRequest } from "@/lib/client-api";
 import type { AdminFollowUpDetail, AdminFollowUpState, AdminStudentFollowUp, AdminWorkoutExercise, AdminWorkoutSession } from "@/types/follow-up";
 
 type SummaryResponse = { students: AdminStudentFollowUp[]; summary: Summary; error?: string };
@@ -37,24 +38,21 @@ export function RoutineFollowUpDashboard({ initialStudentId = "" }: { initialStu
   const openerRef = useRef<HTMLElement | null>(null);
 
   const loadSummary = useCallback(async () => {
-    const response = await fetch("/api/seguimiento/resumen", { cache: "no-store" });
-    const body = await response.json() as SummaryResponse;
-    if (!response.ok) throw new Error(body.error ?? "No se pudo cargar el seguimiento.");
+    const body = await apiRequest<SummaryResponse>("/api/seguimiento/resumen", { cache: "no-store" }, { fallback: "No se pudo cargar el seguimiento.", scope: "admin" });
     setStudents(body.students); setSummary(body.summary);
   }, []);
 
   useEffect(() => { const controller = new AbortController();
-    fetch("/api/seguimiento/resumen", { cache: "no-store", signal: controller.signal }).then(async (response) => {
-      if (response.status === 401 || response.status === 403) { window.location.assign("/admin/login"); throw new Error("Sesión vencida."); }
-      const body = await response.json() as SummaryResponse; if (!response.ok) throw new Error("No pudimos cargar el seguimiento."); setStudents(body.students); setSummary(body.summary); setError("");
+    apiRequest<SummaryResponse>("/api/seguimiento/resumen", { cache: "no-store", signal: controller.signal }, { fallback: "No pudimos cargar el seguimiento.", scope: "admin" }).then((body) => {
+      setStudents(body.students); setSummary(body.summary); setError("");
     }).catch((value: unknown) => { if (!(value instanceof Error && value.name === "AbortError")) setError(value instanceof Error ? value.message : "No pudimos cargar el seguimiento."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort();
   }, [reload]);
 
   const openStudent = useCallback(async (student: AdminStudentFollowUp, preferredTab: Tab = "resumen") => {
     openerRef.current = document.activeElement as HTMLElement | null; setSelectedStudent(student); setTab(preferredTab); setDetail(null); setDetailLoading(true); setDetailError("");
-    try { const response = await fetch(`/api/seguimiento/detalle?studentId=${encodeURIComponent(student.studentId)}`, { cache: "no-store" });
-      const body = await response.json() as AdminFollowUpDetail & { error?: string }; if (!response.ok) throw new Error(response.status === 404 ? "Este seguimiento ya no está disponible." : "No pudimos cargar el detalle del alumno."); setDetail(body);
+    try { const body = await apiRequest<AdminFollowUpDetail>(`/api/seguimiento/detalle?studentId=${encodeURIComponent(student.studentId)}`, { cache: "no-store" }, { fallback: "No pudimos cargar el detalle del alumno.", scope: "admin" });
+      setDetail(body);
     } catch (value) { setDetailError(value instanceof Error ? value.message : "No pudimos cargar el detalle del alumno."); }
     finally { setDetailLoading(false); }
   }, []);

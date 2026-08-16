@@ -7,6 +7,7 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { WeeklyAttendanceHistory } from "@/componentes/weekly-attendance-history";
 import { toggledAttendanceStatus } from "@/lib/attendance-state";
 import { nextRosterIndex, rosterStatusForKey } from "@/lib/trainer-keyboard-interactions";
+import { apiRequest } from "@/lib/client-api";
 import type { AttendanceGeneralSummary, AttendanceRoster, AttendanceRosterStudent, AttendanceStatus, Student, WeeklyClassDay, WeeklyClassSchedule } from "@/types/gestion";
 
 const DAY_FROM_JS: Partial<Record<number, WeeklyClassDay>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
@@ -48,6 +49,7 @@ function AttendancePageContent() {
   const [loadingRoster, setLoadingRoster] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [refreshWarning, setRefreshWarning] = useState("");
   const [error, setError] = useState("");
   const savingLock = useRef(false);
   const rosterRefs = useRef(new Map<string, HTMLElement>());
@@ -126,17 +128,23 @@ function AttendancePageContent() {
   async function persist(records: Array<{ studentId: string; status: AttendanceStatus | null }>, previousRoster: AttendanceRosterStudent[]) {
     if (!records.length || savingLock.current) return;
     savingLock.current = true;
-    setSaving(true); setError(""); setSaved(false);
+    setSaving(true); setError(""); setRefreshWarning(""); setSaved(false);
     try {
-      const response = await fetch("/api/asistencias", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, scheduleId: effectiveScheduleId, records }) });
-      if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar la asistencia."));
-      const updatedSummary = await fetch(`/api/asistencias/resumen?date=${date}`, { cache: "no-store" }).then((response) => response.json() as Promise<AttendanceGeneralSummary>);
-      setSummary(updatedSummary); setSaved(true);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "No se pudo guardar la asistencia.");
-      setRoster(previousRoster);
-    }
-    finally {
+      try {
+        await apiRequest<unknown>("/api/asistencias", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, scheduleId: effectiveScheduleId, records }) }, { fallback: "No se pudo guardar la asistencia.", scope: "admin" });
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : "No se pudo guardar la asistencia.");
+        setRoster(previousRoster);
+        return;
+      }
+      setSaved(true);
+      try {
+        const updatedSummary = await apiRequest<AttendanceGeneralSummary>(`/api/asistencias/resumen?date=${date}`, { cache: "no-store" }, { fallback: "No se pudo actualizar el resumen.", scope: "admin" });
+        setSummary(updatedSummary);
+      } catch (summaryError) {
+        if (!(summaryError instanceof Error && summaryError.name === "AbortError")) setRefreshWarning("La asistencia se guardó, pero no pudimos actualizar el resumen.");
+      }
+    } finally {
       savingLock.current = false;
       setSaving(false);
     }
@@ -204,6 +212,7 @@ function AttendancePageContent() {
   return (
     <ModuleShell title="" subtitle="" hideHeader flushTop>
       {error && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+      {refreshWarning && <p role="status" className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">{refreshWarning}</p>}
       {saved && <p className="mb-4 text-sm font-medium text-emerald-300">✓ Asistencia actualizada</p>}
       {selectedSchedule && <section className="mb-3 rounded-xl border border-zinc-800 bg-zinc-900/80 px-4 py-3"><p className="text-[11px] font-bold uppercase tracking-wider text-yellow-400">{DAY_LABEL[selectedSchedule.dayOfWeek]} · {selectedSchedule.startTime}–{selectedSchedule.endTime}</p><div className="mt-1 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold">{selectedSchedule.classType}</h2><p className="text-xs text-zinc-500">{selectedSchedule.students.length} alumnos asignados</p></div></section>}
       <section className={`${historyMode ? "hidden " : ""}overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80`}>

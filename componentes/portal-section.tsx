@@ -25,6 +25,7 @@ import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-das
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { PortalActionCard } from "@/componentes/portal-action-card";
 import { PasswordField } from "@/componentes/password-field";
+import { apiRequest } from "@/lib/client-api";
 
 type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -390,6 +391,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [openBlockId, setOpenBlockId] = useState<string | null>(null);
   const autosaveSignature = useRef("");
   const autosaveAbortRef = useRef<AbortController | null>(null);
+  const saveLockRef = useRef(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
@@ -504,11 +506,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     autosaveSignature.current = signature;
     setError("");
     try {
-      if (process.env.NODE_ENV === "development") console.info("Guardando resultado de bloque", { routineId: next.routineId, dayId: next.dayId, sessionId: next.id ?? null, blockId, payload: next });
-      const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) });
-      const body = await response.json() as { id?: string; error?: string; developmentDetail?: string };
-      if (process.env.NODE_ENV === "development") console.info("Respuesta al guardar bloque", { status: response.status, body });
-      if (!response.ok) throw new Error(process.env.NODE_ENV === "development" && body.developmentDetail ? `${body.error ?? "No se pudo guardar."} ${body.developmentDetail}` : body.error ?? "No se pudo guardar el entrenamiento.");
+      const body = await apiRequest<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) }, { fallback: "No se pudo guardar el entrenamiento.", scope: "portal" });
       const saved = { ...next, id: body.id ?? next.id };
       autosaveSignature.current = JSON.stringify(saved);
       window.localStorage.setItem(storageKey(saved.dayId), JSON.stringify(saved));
@@ -516,7 +514,6 @@ function WorkoutView({ data }: { data: PortalData }) {
     } catch (value) {
       autosaveSignature.current = "";
       const message = value instanceof Error ? value.message : "No se pudo guardar el entrenamiento.";
-      console.error("Error al guardar resultado de bloque", value);
       setError(message);
       throw value;
     }
@@ -531,9 +528,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     autosaveAbortRef.current = controller;
     const timer = window.setTimeout(async () => {
       try {
-        const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }), signal: controller.signal });
-        const body = await response.json() as { id?: string; error?: string };
-        if (!response.ok) throw new Error(body.error ?? "No se pudo guardar automáticamente.");
+        const body = await apiRequest<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }), signal: controller.signal }, { fallback: "No se pudo guardar automáticamente.", scope: "portal" });
         autosaveSignature.current = signature;
         if (!draft.id && body.id) setDraft((current) => current?.dayId === draft.dayId ? { ...current, id: body.id } : current);
       } catch (value) {
@@ -544,7 +539,8 @@ function WorkoutView({ data }: { data: PortalData }) {
     return () => { window.clearTimeout(timer); controller.abort(); if (autosaveAbortRef.current === controller) autosaveAbortRef.current = null; };
   }, [data.profile.id, draft, started, storageKey]);
   async function save(finalize = false) {
-    if (!draft) return;
+    if (!draft || saveLockRef.current) return;
+    saveLockRef.current = true;
     setSaving(true); setSavingAction(finalize ? "final" : "draft"); setError(""); setMessage("");
     try {
       const duration = draft.durationMinutes;
@@ -553,9 +549,7 @@ function WorkoutView({ data }: { data: PortalData }) {
         ? [`Zona: ${painLocation.trim() || "sin especificar"}`, painIntensity ? `Intensidad: ${painIntensity}/10` : "", draft.painDetails.trim()].filter(Boolean).join(" · ")
         : draft.painDetails;
       const payload = { ...draft, durationMinutes: duration, generalFeeling: finalize ? sensation as PortalWorkoutSession["generalFeeling"] : draft.generalFeeling, finalComment, painDetails, status: finalize ? "finalizado" as const : "en_progreso" as const };
-      const response = await fetch("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const body = await response.json() as { id?: string; error?: string; achievements?: PortalAchievement[]; newAchievements?: CelebrationAchievement[] };
-      if (!response.ok) throw new Error(body.error ?? "No se pudo guardar.");
+      const body = await apiRequest<{ id?: string; achievements?: PortalAchievement[]; newAchievements?: CelebrationAchievement[] }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }, { fallback: "No se pudo guardar.", scope: "portal" });
       announceNewAchievements(body.newAchievements);
       const updated = { ...payload, id: body.id };
       if (finalize) {
@@ -572,7 +566,7 @@ function WorkoutView({ data }: { data: PortalData }) {
         setMessage("Progreso guardado.");
       }
     } catch (value) { setError(value instanceof Error ? value.message : "No se pudo guardar."); }
-    finally { setSaving(false); setSavingAction(null); }
+    finally { saveLockRef.current = false; setSaving(false); setSavingAction(null); }
   }
   function openFinalSummary() {
     if (!draft || !started) return;
