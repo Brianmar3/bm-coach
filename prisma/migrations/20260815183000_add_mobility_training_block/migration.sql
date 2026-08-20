@@ -1,0 +1,1 @@
+ALTER TYPE "TrainingBlockType" ADD VALUE 'MOBILITY';

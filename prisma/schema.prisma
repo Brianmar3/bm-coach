@@ -908,6 +908,7 @@ enum TrainingBlockType {
   AMRAP
   FOR_TIME
   FREE
+  MOBILITY
 }
 
 enum TrainingLibraryItemStatus {

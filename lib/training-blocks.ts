@@ -1,7 +1,7 @@
 import type { PortalWorkoutBlock, PortalWorkoutBlockResult } from "../types/portal.ts";
 import type { TrainingExercise, TrainingExerciseTargetType, TrainingRoutineBlock } from "../types/gestion.ts";
 
-export const TRAINING_BLOCK_LABELS = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "For time", FREE: "Bloque libre" } as const;
+export const TRAINING_BLOCK_LABELS = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "For time", FREE: "Bloque libre", MOBILITY: "Movilidad" } as const;
 
 export function clearedExerciseTarget(targetType: TrainingExerciseTargetType) {
   return { targetType, targetSeconds: null, targetRepetitions: "", targetDistance: "" };
@@ -20,12 +20,21 @@ export function exerciseTargetLabel(exercise: Pick<TrainingExercise, "targetType
   return exercise.targetSide ? `${main} · ${exercise.targetSide}` : main;
 }
 
+export function mobilityExerciseTargetLabel(exercise: Pick<TrainingExercise, "targetType" | "targetSeconds" | "targetRepetitions" | "targetDistance" | "targetSide" | "repetitions">) {
+  const side = exercise.targetSide.trim().replace(/^por\s+/i, "");
+  const suffix = side ? `/${side}` : "";
+  if (exercise.targetType === "TIME") return `${exercise.targetSeconds ?? 0} s${suffix}`;
+  if (exercise.targetType === "REPS") return `${exercise.targetRepetitions || exercise.repetitions}${suffix}`;
+  if (exercise.targetType === "DISTANCE") return `${exercise.targetDistance || "Distancia libre"}${suffix}`;
+  return exercise.targetType === "REST" ? `${exercise.targetSeconds ?? 0} s de pausa` : "Libre";
+}
+
 export function blockConfiguration(block: TrainingRoutineBlock): Record<string, number | string | null> {
   return { rounds: block.rounds, durationSeconds: block.durationSeconds, workSeconds: block.workSeconds, restSeconds: block.restSeconds, restBetweenRoundsSeconds: block.restBetweenRoundsSeconds, targetRounds: block.targetRounds, instructions: block.instructions };
 }
 
 export function freshWorkoutBlock(block: TrainingRoutineBlock): PortalWorkoutBlock {
-  return { blockId: block.id, blockName: block.name, blockType: block.type, blockOrder: block.order, configuration: blockConfiguration(block), exercises: block.exercises.map((exercise) => ({ exerciseId: exercise.id, name: exercise.name, targetType: exercise.targetType, targetLabel: exerciseTargetLabel(exercise, block.type === "INTERVAL" ? block.workSeconds : null), order: exercise.order })), result: emptyBlockResult() };
+  return { blockId: block.id, blockName: block.name, blockType: block.type, blockOrder: block.order, configuration: blockConfiguration(block), exercises: block.exercises.map((exercise) => ({ exerciseId: exercise.id, name: exercise.name, targetType: exercise.targetType, targetLabel: block.type === "MOBILITY" ? mobilityExerciseTargetLabel(exercise) : exerciseTargetLabel(exercise, block.type === "INTERVAL" ? block.workSeconds : null), order: exercise.order })), result: emptyBlockResult() };
 }
 
 export function hasBlockActivity(block: PortalWorkoutBlock) {

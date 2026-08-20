@@ -47,7 +47,7 @@ const levels: TrainingRoutineLevel[] = ["principiante", "intermedio", "avanzado"
 const statuses: TrainingRoutineStatus[] = ["borrador", "activa", "finalizada", "archivada"];
 const effortTypes: TrainingEffortType[] = ["RPE", "RIR"];
 const kinds: TrainingRoutineKind[] = ["assigned", "template"];
-const blockTypes: TrainingBlockType[] = ["STRENGTH", "ROUNDS", "INTERVAL", "EMOM", "AMRAP", "FOR_TIME", "FREE"];
+const blockTypes: TrainingBlockType[] = ["STRENGTH", "ROUNDS", "INTERVAL", "EMOM", "AMRAP", "FOR_TIME", "FREE", "MOBILITY"];
 const targetTypes: TrainingExerciseTargetType[] = ["TIME", "REPS", "DISTANCE", "REST", "FREE"];
 
 const levelToDatabase = { principiante: "PRINCIPIANTE", intermedio: "INTERMEDIO", avanzado: "AVANZADO" } as const;
@@ -64,7 +64,7 @@ type FieldIssue = { field: string; message: string };
 function exerciseValidationIssues(input: ExerciseInput, blockType: TrainingBlockType): FieldIssue[] {
   const issues: FieldIssue[] = [];
   if (!input.name?.trim()) issues.push({ field: "name", message: "Ingresá el nombre del ejercicio." });
-  if (blockType !== "INTERVAL" && !input.muscleGroup?.trim()) issues.push({ field: "muscleGroup", message: "Ingresá el grupo muscular." });
+  if (blockType !== "INTERVAL" && blockType !== "MOBILITY" && !input.muscleGroup?.trim()) issues.push({ field: "muscleGroup", message: "Ingresá el grupo muscular." });
   if (!Number.isInteger(input.order) || input.order < 1 || input.order > 999) issues.push({ field: "order", message: "El orden debe ser un entero entre 1 y 999." });
   if ((input.observations?.length ?? 0) > 1000) issues.push({ field: "observations", message: "Las observaciones del ejercicio son demasiado extensas." });
   if ((input.alternativeExercise?.length ?? 0) > 120) issues.push({ field: "alternativeExercise", message: "El ejercicio alternativo es demasiado extenso." });

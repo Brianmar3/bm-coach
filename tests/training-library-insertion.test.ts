@@ -49,6 +49,18 @@ test("round-trip conserva configuración, ejercicios, esfuerzo, equipamiento y m
   assert.equal(secondDraft.exercises[0].videoUrl, "bm-library://exercise/goblet-squat");
 });
 
+test("Movilidad conserva duración, indicación y video al guardar y reutilizar", () => {
+  const mobility: BlockInput = {
+    type: "MOBILITY", name: "Movilidad", order: 1, rounds: null, durationSeconds: 300, workSeconds: null, restSeconds: null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: "Sin dolor",
+    exercises: [{ ...sourceBlock().exercises[0], name: "Movilidad de tobillo", muscleGroup: "", observations: "Rango cómodo", videoUrl: "https://cdn.example.com/tobillo.mp4", targetType: "TIME", targetSeconds: 30, targetRepetitions: "", targetSide: "lado" }],
+  };
+  const reused = librarySnapshotToEditableBlock(editableBlockToLibrarySnapshot(librarySnapshotToEditableBlock(mobility, 1, idFactory())), 2, idFactory());
+  assert.equal(reused.type, "MOBILITY");
+  assert.equal(reused.durationSeconds, 300);
+  assert.equal(reused.exercises[0].observations, "Rango cómodo");
+  assert.equal(reused.exercises[0].videoUrl, "https://cdn.example.com/tobillo.mp4");
+});
+
 test("Agregar bloque ofrece Crear nuevo y Desde Biblioteca en ambos editores", () => {
   assert.match(page, /function BlockAdder/);
   assert.match(page, />Crear nuevo</);

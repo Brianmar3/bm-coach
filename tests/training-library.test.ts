@@ -51,11 +51,13 @@ test("filtra bloques por búsqueda, carpeta, tipo, tag y estado", () => {
   const blocks = [
     item({ id: "1", name: "Fuerza de piernas", folder: { id: "lower", name: "Tren inferior" }, tags: ["Técnica"], updatedAt: "2026-08-14T12:00:00.000Z" }),
     item({ id: "2", name: "EMOM cardio", type: "EMOM", tags: ["Acondicionamiento"] }),
+    item({ id: "4", name: "Movilidad de cadera", type: "MOBILITY", tags: ["Entrada en calor"] }),
     item({ id: "3", name: "Archivado", status: "archived" }),
   ];
   assert.deepEqual(filterTrainingLibraryBlocks(blocks, { query: "tecnica", folderId: "all", type: "all", tag: "all", status: "active" }).map((value) => value.id), ["1"]);
   assert.deepEqual(filterTrainingLibraryBlocks(blocks, { query: "", folderId: "lower", type: "STRENGTH", tag: "TÉCNICA", status: "active" }).map((value) => value.id), ["1"]);
   assert.deepEqual(filterTrainingLibraryBlocks(blocks, { query: "", folderId: "unfiled", type: "EMOM", tag: "all", status: "active" }).map((value) => value.id), ["2"]);
+  assert.deepEqual(filterTrainingLibraryBlocks(blocks, { query: "movilidad", folderId: "all", type: "MOBILITY", tag: "all", status: "active" }).map((value) => value.id), ["4"]);
   assert.deepEqual(filterTrainingLibraryBlocks(blocks, { query: "", folderId: "all", type: "all", tag: "all", status: "archived" }).map((value) => value.id), ["3"]);
 });
 

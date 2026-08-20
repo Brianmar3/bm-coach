@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { clearedExerciseTarget, emptyBlockResult, exerciseTargetLabel, freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS, validateWorkoutBlock } from "../lib/training-blocks.ts";
+import { clearedExerciseTarget, emptyBlockResult, exerciseTargetLabel, freshWorkoutBlock, hasBlockActivity, mobilityExerciseTargetLabel, TRAINING_BLOCK_LABELS, validateWorkoutBlock } from "../lib/training-blocks.ts";
 import { normalizedBlocks, routineVersionSnapshot, validateBlock, validateExercise, validateRoutine, type BlockInput, type ExerciseInput, type RoutineInput } from "../lib/rutinas.ts";
 import { routineSeriesMetrics } from "../lib/routine-metrics.ts";
 import { createEmptyRoutineExerciseDraft } from "../lib/routine-exercise-draft.ts";
@@ -9,6 +9,7 @@ import { validateWorkoutSessionInput } from "../lib/workout-session-validation.t
 
 const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../prisma/migrations/20260802180000_add_training_routine_blocks/migration.sql", import.meta.url), "utf8");
+const mobilityMigration = readFileSync(new URL("../prisma/migrations/20260815183000_add_mobility_training_block/migration.sql", import.meta.url), "utf8");
 const editor = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
 const student = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const blockTimer = readFileSync(new URL("../componentes/workout-block-timer.tsx", import.meta.url), "utf8");
@@ -52,6 +53,7 @@ function block(type: BlockInput["type"], overrides: Partial<BlockInput> = {}): B
     AMRAP: { durationSeconds: 600 },
     FOR_TIME: { rounds: 3, durationSeconds: 900 },
     FREE: {},
+    MOBILITY: { durationSeconds: 300 },
   };
   return {
     type,
@@ -99,9 +101,20 @@ test("una rutina anterior se interpreta como un único bloque STRENGTH sin dupli
   assert.equal(blocks[0].exercises[0].weight, 72.5);
 });
 
-test("los siete tipos de bloque tienen nombre visible y configuración válida", () => {
-  assert.deepEqual(Object.keys(TRAINING_BLOCK_LABELS), ["STRENGTH", "ROUNDS", "INTERVAL", "EMOM", "AMRAP", "FOR_TIME", "FREE"]);
+test("los ocho tipos de bloque tienen nombre visible y configuración válida", () => {
+  assert.deepEqual(Object.keys(TRAINING_BLOCK_LABELS), ["STRENGTH", "ROUNDS", "INTERVAL", "EMOM", "AMRAP", "FOR_TIME", "FREE", "MOBILITY"]);
   for (const type of Object.keys(TRAINING_BLOCK_LABELS) as BlockInput["type"][]) assert.equal(validateBlock(block(type)), null, type);
+});
+
+test("Movilidad usa objetivos compactos, indicación opcional y no exige grupo muscular", () => {
+  const mobility = exercise({ muscleGroup: "", targetType: "TIME", targetSeconds: 30, targetRepetitions: "", targetSide: "lado", observations: "Sin dolor" });
+  assert.equal(validateExercise(mobility, "MOBILITY"), null);
+  assert.equal(mobilityExerciseTargetLabel(mobility), "30 s/lado");
+  assert.equal(mobilityExerciseTargetLabel(exercise({ targetType: "REPS", targetRepetitions: "6", targetSide: "lado" })), "6/lado");
+  const draft = createEmptyRoutineExerciseDraft(1, "MOBILITY", () => "mobility-1");
+  assert.equal(draft.targetType, "TIME");
+  assert.equal(draft.targetSeconds, 30);
+  assert.equal(freshWorkoutBlock({ id: "mobility", ...block("MOBILITY", { exercises: [mobility] }) } as never).exercises[0].targetLabel, "30 s/lado");
 });
 
 test("los objetivos por tiempo, repeticiones, distancia, descanso y libre se representan sin kg ni RIR", () => {
@@ -221,8 +234,13 @@ test("Prisma normaliza bloques, objetivos y snapshots de resultados", () => {
   assert.match(schema, /result\s+Json/);
 });
 
+test("la migración de Movilidad sólo amplía el enum y no modifica datos existentes", () => {
+  assert.match(mobilityMigration, /ALTER TYPE "TrainingBlockType" ADD VALUE 'MOBILITY'/);
+  assert.doesNotMatch(mobilityMigration, /DROP|DELETE|UPDATE|INSERT|TRUNCATE|ALTER TABLE/i);
+});
+
 test("el editor agrega, reordena, duplica y elimina bloques y ejercicios", () => {
-  for (const text of ["+ Agregar bloque", "Fuerza", "Circuito", "Intervalos", "EMOM", "AMRAP", "For time", "Bloque libre", "+ Agregar ejercicio"]) assert.match(editor, new RegExp(text.replace("+", "\\+")));
+  for (const text of ["+ Agregar bloque", "Fuerza", "Circuito", "Intervalos", "EMOM", "AMRAP", "For time", "Bloque libre", "Movilidad", "+ Agregar ejercicio"]) assert.match(editor, new RegExp(text.replace("+", "\\+")));
   for (const handler of ["moveBlock", "duplicateBlock", "removeBlock", "moveExercise"]) assert.match(editor, new RegExp(handler));
   assert.match(editor, /if \(saving\) return/);
   assert.match(editor, /pb-\[calc\(env\(safe-area-inset-bottom\)/);
@@ -237,6 +255,10 @@ test("el portal ordena bloques, abre uno por vez y muestra el formulario según 
   for (const type of ["ROUNDS", "FREE"]) assert.match(student, new RegExp(`"${type}"`));
   assert.match(student, /Comenzar bloque/);
   assert.match(student, /overflow-hidden/);
+  assert.match(student, /block\.blockType === "MOBILITY"/);
+  assert.match(student, /RoutineExerciseMediaButton exercise=\{source\} libraryMediaEnabled=\{libraryMediaEnabled\} compact/);
+  assert.match(student, /source\?\.observations/);
+  assert.match(student, /block\.blockType === "MOBILITY"\) return `\$\{result\.completedExerciseIds\.length\}/);
 });
 
 test("las sesiones guardan snapshots y resultados por bloque sin romper la clave semanal", () => {

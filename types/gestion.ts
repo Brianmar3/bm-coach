@@ -259,7 +259,7 @@ export type TrainingRoutineLevel = "principiante" | "intermedio" | "avanzado";
 export type TrainingRoutineStatus = "borrador" | "activa" | "finalizada" | "archivada";
 export type TrainingRoutineKind = "assigned" | "template";
 export type TrainingEffortType = "RPE" | "RIR";
-export type TrainingBlockType = "STRENGTH" | "ROUNDS" | "INTERVAL" | "EMOM" | "AMRAP" | "FOR_TIME" | "FREE";
+export type TrainingBlockType = "STRENGTH" | "ROUNDS" | "INTERVAL" | "EMOM" | "AMRAP" | "FOR_TIME" | "FREE" | "MOBILITY";
 export type TrainingExerciseTargetType = "TIME" | "REPS" | "DISTANCE" | "REST" | "FREE";
 
 export type TrainingExercise = {
