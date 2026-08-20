@@ -229,11 +229,12 @@ test("la persistencia y el portal mantienen Observaciones como Indicaciones sin 
   assert.match(mediaComponent, /if \(!media\.hasMedia\) return null/);
 });
 
-test("Crear rutina se abre desde el acceso flotante y no desde el hero", () => {
+test("Nueva rutina abre el selector de origen desde la acción principal y el acceso flotante", () => {
   assert.match(editor, /<TrainerFloatingActions/);
   assert.match(editor, /mode="direct"/);
-  assert.match(editor, /label: "Crear rutina"/);
-  assert.match(editor, /begin\(undefined, "assigned"\)/);
+  assert.match(editor, /label: "Nueva rutina"/);
+  assert.match(editor, />\+ Nueva rutina<\/button>/);
+  assert.match(editor, /setCreationOpen\(true\)/);
   assert.doesNotMatch(editor, /action=\{activeTab/);
 });
 

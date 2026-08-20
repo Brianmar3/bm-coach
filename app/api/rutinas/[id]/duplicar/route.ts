@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { createRoutineDays, databaseUnavailable, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type ExerciseInput, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
+import { cleanRoutineCopyName } from "@/lib/routine-creation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,14 +16,6 @@ type CopyRequest = {
   resetWeights?: boolean;
   replaceActive?: boolean;
 };
-
-function copyName(name: string) {
-  const base = name
-    .replace(/^\s*Copia de\s+/i, "")
-    .replace(/(?:\s*\(\s*copia\s*\))+\s*$/gi, "")
-    .trim();
-  return `Copia de ${base || "rutina"}`;
-}
 
 export async function POST(request: Request, context: RouteContext<"/api/rutinas/[id]/duplicar">) {
   try {
@@ -86,7 +79,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       exercises: [],
     }));
     const input: RoutineInput = {
-      name: body.name?.trim() || copyName(source.name),
+      name: body.name?.trim() || cleanRoutineCopyName(source.name),
       kind: targetKind,
       description: source.description,
       objective: source.objective,

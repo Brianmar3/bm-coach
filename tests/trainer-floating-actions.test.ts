@@ -72,12 +72,12 @@ test("Rutinas conserva creación y plantillas en un único acceso flotante", () 
   assert.equal(componentCount(routines), 1);
   const floatingAction = routines.slice(routines.indexOf("<TrainerFloatingActions"), routines.indexOf("/>", routines.indexOf("<TrainerFloatingActions")));
   assert.match(floatingAction, /mode="direct"/);
-  assert.match(floatingAction, /label: "Crear rutina"/);
+  assert.match(floatingAction, /label: "Nueva rutina"/);
   assert.doesNotMatch(floatingAction, /Crear plantilla/);
   assert.match(routines, /activeTab === "plantillas"/);
   assert.match(routines, /onClick=\{\(\) => begin\(undefined, "template"\)\}/);
   assert.match(routines, />\+ Crear clase completa<\/button>/);
-  assert.match(routines, /enabled=\{!open && !libraryDialogOpen && !viewing && !copyFlow && !baseSource && !historyRoutine\}/);
+  assert.match(routines, /enabled=\{!open && !libraryDialogOpen[\s\S]*!creationOpen\}/);
 });
 
 test("Pagos usa el hero estándar y ofrece Registrar pago desde el acceso flotante", () => {

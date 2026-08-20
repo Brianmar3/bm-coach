@@ -6,6 +6,7 @@ import { RoutineFollowUpDashboard } from "@/componentes/routine-follow-up-dashbo
 import { RoutineTableView } from "@/componentes/routine-table-view";
 import { RoutineManagementPanel } from "@/componentes/routine-management-panel";
 import { RoutineDuplicatesReview } from "@/componentes/routine-duplicates-review";
+import { RoutineCreationDialog } from "@/componentes/routine-creation-dialog";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { TrainingLibraryBlocksPanel } from "@/componentes/training-library-blocks";
 import { TrainingLibraryBlockPicker } from "@/componentes/training-library-block-picker";
@@ -194,6 +195,7 @@ export default function RutinasPage() {
   const [baseDraftDestination, setBaseDraftDestination] = useState<"class" | "routine" | null>(null);
   const [replaceOnActivate, setReplaceOnActivate] = useState(false);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+  const [creationOpen, setCreationOpen] = useState(false);
   const copyRequestInFlight = useRef(false);
 
   function updateEditorForm(nextForm: RoutineDraft) {
@@ -260,9 +262,9 @@ export default function RutinasPage() {
     setOpen(true);
   }
 
-  function beginFromClassBase(destination: "class" | "routine") {
-    if (!baseSource) return;
-    const draft = destination === "class" ? classTemplateToClassDraft(baseSource) : classTemplateToRoutineDraft(baseSource);
+  function beginFromClassBase(destination: "class" | "routine", source: TrainingRoutine | null = baseSource) {
+    if (!source) return;
+    const draft = destination === "class" ? classTemplateToClassDraft(source) : classTemplateToRoutineDraft(source);
     setEditing(null);
     setForm(draft);
     setActiveDay(1);
@@ -273,6 +275,16 @@ export default function RutinasPage() {
     setBaseDraftDestination(destination);
     setBaseSource(null);
     setOpen(true);
+  }
+
+  function startRoutineFromScratch() {
+    setCreationOpen(false);
+    begin(undefined, "assigned");
+  }
+
+  function startRoutineFromClass(source: TrainingRoutine) {
+    setCreationOpen(false);
+    beginFromClassBase("routine", source);
   }
 
   async function submit(event: FormEvent) {
@@ -368,6 +380,22 @@ export default function RutinasPage() {
       const copy = (await response.json()) as TrainingRoutine;
       setItems((current) => [copy, ...current]);
     } catch (duplicateError) { setError(duplicateError instanceof Error ? duplicateError.message : "No se pudo duplicar la rutina en Neon."); }
+    finally { setDuplicatingId(""); copyRequestInFlight.current = false; }
+  }
+
+  async function duplicateForEditing(routine: TrainingRoutine) {
+    if (copyRequestInFlight.current) return;
+    copyRequestInFlight.current = true;
+    setDuplicatingId(routine.id); setError("");
+    try {
+      const response = await fetch(`/api/rutinas/${routine.id}/duplicar`, { method: "POST" });
+      if (!response.ok) throw new Error(await responseError(response, "No se pudo crear la copia."));
+      const copy = await response.json() as TrainingRoutine;
+      setItems((current) => [copy, ...current]);
+      setCreationOpen(false);
+      setRoutineSection("borradores");
+      begin(copy);
+    } catch (duplicateError) { setError(duplicateError instanceof Error ? duplicateError.message : "No se pudo crear la copia editable."); }
     finally { setDuplicatingId(""); copyRequestInFlight.current = false; }
   }
 
@@ -537,7 +565,7 @@ export default function RutinasPage() {
         <TrainingLibraryBlocksPanel blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} loadError={libraryLoadError} retry={() => { setLibraryLoadError(""); if (!libraryBlocks.length) setLibraryReady(false); setLibraryReload((value) => value + 1); }} onNew={() => beginLibraryBlock()} onEdit={beginLibraryBlock} onBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} onBlockDeleted={(blockId) => setLibraryBlocks((current) => current.filter((item) => item.id !== blockId))} onFoldersChanged={setLibraryFolders} />
       </>}
     </> : <>
-      <div className="mb-3 flex justify-end"><button type="button" onClick={() => setDuplicatesOpen(true)} className="min-h-10 rounded-xl border border-zinc-700 px-3 text-xs font-bold text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300">Revisar duplicados</button></div>
+      <div className="mb-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setDuplicatesOpen(true)} className="min-h-11 rounded-xl border border-zinc-700 px-3.5 text-xs font-bold text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300">Revisar duplicados</button><button type="button" onClick={() => setCreationOpen(true)} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-yellow-300">+ Nueva rutina</button></div>
       <nav aria-label="Estado de las rutinas" className="mb-3 grid grid-cols-3 border-b border-zinc-800 bg-black/10">{([["activas", "Activas"], ["borradores", "Borradores"], ["archivadas", "Archivadas"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={routineSection === value ? "page" : undefined} onClick={() => setRoutineSection(value)} className={`relative min-h-11 min-w-0 px-1 text-xs font-bold transition sm:px-3 sm:text-sm ${routineSection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:bg-yellow-400 sm:after:inset-x-3" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}><span className="truncate">{title}</span> <span className="text-[10px] tabular-nums text-zinc-500 sm:text-xs">{statusCounts[value]}</span></button>)}</nav>
       <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_minmax(170px,.8fr)_minmax(190px,.9fr)]"><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina o alumno…" className={inputClass} /><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select></div></section>
       <RoutineManagementPanel routines={visible} mode="rutinas" routineSection={routineSection} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), manageAssignments: setAssignmentTarget, archive, restore, history: openHistory, remove }} />
@@ -561,7 +589,8 @@ export default function RutinasPage() {
     {duplicatesOpen && <RoutineDuplicatesReview close={() => setDuplicatesOpen(false)} onDeleted={(ids) => { setItems((current) => current.filter((routine) => !ids.includes(routine.id))); setNotice(`${ids.length} rutina${ids.length === 1 ? "" : "s"} duplicada${ids.length === 1 ? "" : "s"} vacía${ids.length === 1 ? "" : "s"} eliminada${ids.length === 1 ? "" : "s"}.`); }} onArchived={(routine) => setItems((current) => current.map((item) => item.id === routine.id ? routine : item))} />}
     {baseSource && <ClassBaseChoiceDialog source={baseSource} close={() => setBaseSource(null)} choose={beginFromClassBase} />}
     {historyRoutine && <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><section className="mx-auto my-10 max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">Historial de {historyRoutine.name}</h2><p className="text-sm text-zinc-400">Las versiones más recientes aparecen primero.</p></div><button onClick={() => setHistoryRoutine(null)} className="text-zinc-400">Cerrar</button></div><div className="mt-5 space-y-3">{versions.length === 0 ? <p className="rounded-xl bg-zinc-950 p-5 text-sm text-zinc-500">Todavía no hay versiones guardadas.</p> : versions.map((version) => <article key={version.id} className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold">Versión {version.version}</p><p className="text-sm text-zinc-400">{version.summary} · {new Date(version.createdAt).toLocaleString("es-AR")}</p></div><button disabled={actionId === historyRoutine.id} onClick={() => restoreVersion(version.id)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300 disabled:opacity-50">Restaurar versión</button></article>)}</div></section></div>}
-    <TrainerFloatingActions mode="direct" enabled={!open && !libraryDialogOpen && !viewing && !copyFlow && !assignmentTarget && !baseSource && !historyRoutine && !duplicatesOpen} actions={[{ label: "Crear rutina", symbol: "+", onSelect: () => { setActiveTab("rutinas"); begin(undefined, "assigned"); } }]} />
+    {creationOpen && <RoutineCreationDialog routines={items} busyId={duplicatingId} close={() => setCreationOpen(false)} createFromScratch={startRoutineFromScratch} createFromClass={startRoutineFromClass} copyRoutine={duplicateForEditing} />}
+    <TrainerFloatingActions mode="direct" enabled={!open && !libraryDialogOpen && !viewing && !copyFlow && !assignmentTarget && !baseSource && !historyRoutine && !duplicatesOpen && !creationOpen} actions={[{ label: "Nueva rutina", symbol: "+", onSelect: () => { setActiveTab("rutinas"); setCreationOpen(true); } }]} />
   </ModuleShell>;
 }
 

@@ -33,7 +33,7 @@ test("administrar asignaciones actualiza la misma rutina y no crea copias", () =
 test("sólo las acciones explícitas de duplicar o usar base crean una rutina nueva", () => {
   assert.doesNotMatch(copyApi, /copyToStudent/);
   assert.match(copyApi, /type CopyMode = "duplicate" \| "saveAsTemplate" \| "useTemplate"/);
-  assert.match(copyApi, /copyName\(source\.name\)/);
+  assert.match(copyApi, /cleanRoutineCopyName\(source\.name\)/);
   assert.match(copyApi, /trainingRoutine\.create/);
   assert.match(copyApi, /requestedStudentIds\.map/);
 });
