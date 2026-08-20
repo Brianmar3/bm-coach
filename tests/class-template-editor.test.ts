@@ -93,5 +93,5 @@ test("Enter sin submitter no guarda y Escape respeta la capa superior", () => {
 test("Usar plantilla continúa usando la copia independiente existente", () => {
   assert.match(page, /flow\.mode === "useTemplate"/);
   assert.match(page, /mode: "useTemplate"/);
-  assert.match(page, /Se creará una copia independiente/);
+  assert.match(page, /Se creará una sola rutina independiente/);
 });

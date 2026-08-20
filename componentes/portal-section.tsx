@@ -650,6 +650,18 @@ function WorkoutBlockCard({ block, programmed, libraryMediaEnabled, timerPersist
   const timed = isTimedBlockType(block.blockType);
   const numeric = (value: string) => value === "" ? null : Number(value);
   function toggleExercise(id: string) { update({ completedExerciseIds: block.result.completedExerciseIds.includes(id) ? block.result.completedExerciseIds.filter((item) => item !== id) : [...block.result.completedExerciseIds, id] }); }
+  if (block.blockType === "MOBILITY") {
+    const minutes = programmed.durationSeconds ? Math.max(1, Math.round(programmed.durationSeconds / 60)) : null;
+    return <article className="mb-3 rounded-2xl border border-yellow-400/20 bg-zinc-900/90 p-3.5">
+      <header className="flex items-center gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-xl text-sm font-black ${active ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{active ? "✓" : programmed.order}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm uppercase tracking-wide text-zinc-100">{programmed.name || "Movilidad"}</strong><span className="mt-1 block text-[10px] text-zinc-500">{block.exercises.length} ejercicio{block.exercises.length === 1 ? "" : "s"}{minutes ? ` · ${minutes} min` : ""}</span></span></header>
+      {programmed.instructions && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-zinc-400">{programmed.instructions}</p>}
+      <ol className="mt-3 divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70">{block.exercises.map((exercise) => {
+        const source = programmed.exercises.find((item) => item.id === exercise.exerciseId);
+        return <li key={exercise.exerciseId} className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-2"><input aria-label={`${exercise.name} completado`} type="checkbox" checked={block.result.completedExerciseIds.includes(exercise.exerciseId)} onChange={() => toggleExercise(exercise.exerciseId)} className="size-4 shrink-0 accent-yellow-400" /><span className="min-w-0"><strong className="block truncate text-xs font-semibold text-zinc-100">{exercise.name}</strong><span className="mt-0.5 block text-[11px] text-yellow-300/80">{exercise.targetLabel}</span>{source?.observations && <span className="mt-0.5 line-clamp-1 block text-[10px] text-zinc-500">{source.observations}</span>}</span>{source && <RoutineExerciseMediaButton exercise={source} libraryMediaEnabled={libraryMediaEnabled} compact />}</li>;
+      })}</ol>
+      <label className="mt-2 flex min-h-9 items-center gap-2 px-1 text-xs font-semibold text-zinc-300"><input type="checkbox" checked={block.result.completed} onChange={(event) => update({ completed: event.target.checked })} className="size-4 accent-yellow-400" /> Bloque completado</label>
+    </article>;
+  }
   return <article className={`mb-3 overflow-hidden rounded-2xl border bg-zinc-900/90 ${open ? "border-yellow-400/30" : "border-zinc-800"}`}>
     <button type="button" onClick={toggle} aria-expanded={open} className="flex min-h-16 w-full items-center gap-3 p-3.5 text-left"><span className={`grid size-9 shrink-0 place-items-center rounded-xl text-sm font-black ${active ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{active ? "✓" : programmed.order}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm uppercase tracking-wide text-zinc-100">{programmed.name}</strong><span className="mt-1 block text-[10px] text-zinc-500">{TRAINING_BLOCK_LABELS[programmed.type]}{configuration ? ` · ${configuration}` : ""}</span></span><span className="shrink-0 rounded-lg border border-yellow-400/25 px-2 py-1 text-[10px] font-bold text-yellow-300">{open ? "Cerrar" : "Comenzar bloque"}</span></button>
     {open && <div className="border-t border-zinc-800 p-3.5">
@@ -668,6 +680,7 @@ function WorkoutBlockCard({ block, programmed, libraryMediaEnabled, timerPersist
 
 function workoutBlockResultSummary(block: PortalWorkoutBlock) {
   const result = block.result;
+  if (block.blockType === "MOBILITY") return `${result.completedExerciseIds.length} ejercicio${result.completedExerciseIds.length === 1 ? "" : "s"} completado${result.completedExerciseIds.length === 1 ? "" : "s"}`;
   if (block.blockType === "AMRAP") return `${result.roundsCompleted ?? 0} vueltas${result.extraRepetitions ? ` + ${result.extraRepetitions} reps` : ""}`;
   if (block.blockType === "EMOM") return `${result.minutesCompleted ?? 0} min${result.roundsCompleted ? ` · ${result.roundsCompleted} ciclos` : ""}`;
   if (block.blockType === "FOR_TIME") return result.completed ? `${result.durationSeconds ?? 0} s · completado` : `${result.roundsCompleted ?? 0} rondas${result.pendingWork ? ` · pendiente: ${result.pendingWork}` : ""}`;

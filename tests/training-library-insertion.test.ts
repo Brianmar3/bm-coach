@@ -70,15 +70,18 @@ test("Agregar bloque ofrece Crear nuevo y Desde Biblioteca en ambos editores", (
   assert.match(page, /newBlock\(type, day\.blocks\.length \+ 1\)/);
 });
 
-test("el selector reutiliza filtros, muestra sólo activos y no inserta con Enter", () => {
+test("el selector abre en Todos, reutiliza filtros, permite previsualizar y no inserta con Enter", () => {
   assert.match(picker, /filterTrainingLibraryBlocks/);
   assert.match(picker, /status: "active"/);
   for (const field of ["Carpeta", "Tipo de bloque", "Tag"]) assert.match(picker, new RegExp(`aria-label="${field}"`));
   assert.match(picker, /event\.key === "Enter"/);
   assert.match(picker, /event\.preventDefault\(\)/);
   assert.match(picker, /Agregar desde Biblioteca/);
-  for (const view of ["Favoritos", "Recientes", "Todos"]) assert.match(picker, new RegExp(view));
-  assert.match(picker, /useState<TrainingLibraryView>\("favorites"\)/);
+  assert.match(picker, /\[\['all', 'Todos'\], \['favorites', 'Favoritos'\], \['recent', 'Recientes'\]\]/);
+  assert.match(picker, /useState<TrainingLibraryView>\("all"\)/);
+  assert.match(picker, /aria-expanded=\{expanded\}/);
+  assert.match(picker, /aria-controls=\{previewId\}/);
+  assert.match(picker, /block\.content\.exercises\.map/);
   assert.match(picker, /onBlockChanged/);
 });
 

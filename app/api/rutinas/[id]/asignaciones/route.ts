@@ -23,7 +23,8 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     const { id } = await context.params;
     const body = await request.json() as { studentIds?: string[] };
     if (!Array.isArray(body.studentIds)) return Response.json({ error: "La lista de alumnos no es válida." }, { status: 400 });
-    const studentIds = [...new Set(body.studentIds.map((studentId) => studentId.trim()).filter(Boolean))];
+    const studentIds = body.studentIds.map((studentId) => studentId.trim()).filter(Boolean);
+    if (new Set(studentIds).size !== studentIds.length) return Response.json({ error: "La selección contiene alumnos repetidos." }, { status: 400 });
     const students = await prisma.studentRecord.count({ where: { id: { in: studentIds } } });
     if (students !== studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 

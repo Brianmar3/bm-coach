@@ -13,7 +13,7 @@ type Actions = {
   saveAsTemplate: (routine: TrainingRoutine) => void;
   useAsBase: (routine: TrainingRoutine) => void;
   useTemplate: (routine: TrainingRoutine) => void;
-  copyToStudent: (routine: TrainingRoutine) => void;
+  manageAssignments: (routine: TrainingRoutine) => void;
   archive: (routine: TrainingRoutine) => void;
   restore: (routine: TrainingRoutine) => void;
   history: (routine: TrainingRoutine) => void;
@@ -23,7 +23,11 @@ type Actions = {
 const showDate = (value: string) => value ? new Date(value).toLocaleDateString("es-AR") : "Sin registros";
 const exerciseCount = (routine: TrainingRoutine) => routine.days.reduce((total, day) => total + day.exercises.length, 0);
 const students = (routine: TrainingRoutine) => (routine.status === "archivada" ? routine.historicalStudents : routine.students);
-const studentNames = (routine: TrainingRoutine) => students(routine).map((student) => student.name).join(" · ") || "Sin asignar";
+const studentNames = (routine: TrainingRoutine) => {
+  const assigned = students(routine);
+  if (!assigned.length) return "Sin asignar";
+  return assigned.length === 1 ? assigned[0].name : `${assigned[0].name} +${assigned.length - 1}`;
+};
 
 function relativeDate(value: string) {
   if (!value) return "Sin registros";
@@ -105,7 +109,7 @@ function VisibleActions({ routine, mode, menuOpen, busy, duplicating, toggleMenu
   const reusableCompleteClass = mode === "plantillas" && routine.days.length === 1;
   const primaryLabel = mode === "plantillas" ? reusableCompleteClass ? "Usar como base" : "Usar plantilla" : isDraft ? "Continuar editando" : "Abrir plan";
   const primaryAction = mode === "plantillas" ? reusableCompleteClass ? () => actions.useAsBase(routine) : () => actions.useTemplate(routine) : isDraft ? () => actions.edit(routine) : () => actions.openPlan(routine);
-  return <div className="relative flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}><button type="button" onClick={primaryAction} className="min-h-9 rounded-lg border border-yellow-400/30 px-3 text-xs font-bold text-zinc-100">{primaryLabel}</button>{routine.kind === "assigned" && <button type="button" onClick={() => actions.openTracking(routine)} aria-label="Abrir seguimiento" className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-yellow-300">↗</button>}<button type="button" onClick={toggleMenu} aria-label="Más acciones" aria-expanded={menuOpen} className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-300">⋮</button>{menuOpen && <div className="absolute right-0 top-11 z-30 w-52 overflow-hidden rounded-xl border border-zinc-700 bg-[#171717] p-1 text-left text-xs shadow-2xl"><MenuItem label="Editar" disabled={routine.status === "archivada"} action={() => actions.edit(routine)} />{!reusableCompleteClass && <MenuItem label={duplicating ? "Duplicando…" : "Duplicar"} disabled={duplicating} action={() => actions.duplicate(routine)} />}{routine.kind === "assigned" && <><MenuItem label="Usar como plantilla" action={() => actions.saveAsTemplate(routine)} /><MenuItem label="Cambiar asignación" action={() => actions.copyToStudent(routine)} /></>}<MenuItem label="Historial de versiones" action={() => actions.history(routine)} />{routine.status === "archivada" ? <MenuItem label="Restaurar" disabled={busy} action={() => actions.restore(routine)} /> : <MenuItem label="Archivar" disabled={busy} action={() => actions.archive(routine)} />}<div className="my-1 border-t border-zinc-800"/><MenuItem label="Eliminar rutina" danger disabled={busy} action={requestDelete} /></div>}</div>;
+  return <div className="relative flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}><button type="button" onClick={primaryAction} className="min-h-9 rounded-lg border border-yellow-400/30 px-3 text-xs font-bold text-zinc-100">{primaryLabel}</button>{routine.kind === "assigned" && <button type="button" onClick={() => actions.openTracking(routine)} aria-label="Abrir seguimiento" className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-yellow-300">↗</button>}<button type="button" onClick={toggleMenu} aria-label="Más acciones" aria-expanded={menuOpen} className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-300">⋮</button>{menuOpen && <div className="absolute right-0 top-11 z-30 w-52 overflow-hidden rounded-xl border border-zinc-700 bg-[#171717] p-1 text-left text-xs shadow-2xl"><MenuItem label="Editar" disabled={routine.status === "archivada"} action={() => actions.edit(routine)} />{!reusableCompleteClass && <MenuItem label={duplicating ? "Duplicando…" : "Duplicar"} disabled={duplicating} action={() => actions.duplicate(routine)} />}{routine.kind === "assigned" && <><MenuItem label="Usar como plantilla" action={() => actions.saveAsTemplate(routine)} />{routine.status !== "archivada" && <MenuItem label="Asignar alumnos" action={() => actions.manageAssignments(routine)} />}</>}<MenuItem label="Historial de versiones" action={() => actions.history(routine)} />{routine.status === "archivada" ? <MenuItem label="Restaurar" disabled={busy} action={() => actions.restore(routine)} /> : <MenuItem label="Archivar" disabled={busy} action={() => actions.archive(routine)} />}<div className="my-1 border-t border-zinc-800"/><MenuItem label="Eliminar rutina" danger disabled={busy} action={requestDelete} /></div>}</div>;
 }
 
 function MenuItem({ label, action, disabled = false, danger = false }: { label: string; action: () => void; disabled?: boolean; danger?: boolean }) { return <button type="button" disabled={disabled} onClick={action} className={`min-h-10 w-full rounded-lg px-3 text-left font-semibold disabled:opacity-40 ${danger ? "text-red-300 hover:bg-red-400/10" : "text-zinc-300 hover:bg-zinc-800"}`}>{label}</button>; }

@@ -130,6 +130,18 @@ test("las APIs requieren sesión, validan contenido y protegen carpetas con bloq
   assert.match(foldersApi, /La carpeta contiene bloques y no puede eliminarse/);
 });
 
+test("el borrado definitivo elimina sólo el template y usa confirmación propia", () => {
+  assert.match(blockApi, /export async function DELETE/);
+  assert.match(blockApi, /trainingBlockTemplate\.delete\(\{ where: \{ id \} \}\)/);
+  assert.doesNotMatch(blockApi, /trainingRoutine\.(?:delete|update)/);
+  assert.doesNotMatch(blockApi, /trainingLibrary(?:Tag|Folder)\.delete/);
+  assert.match(panel, /role="dialog"/);
+  assert.match(panel, /¿Querés eliminar definitivamente/);
+  assert.match(panel, /Las rutinas que ya usaron una copia del bloque no se modificarán/);
+  const dialog = panel.slice(panel.indexOf("function DeleteBlockDialog"), panel.indexOf("function FolderManager"));
+  assert.doesNotMatch(dialog, /window\.confirm/);
+});
+
 test("favoritos se persiste con el PATCH existente y sólo permite bloques activos", () => {
   assert.match(blockApi, /typeof isFavorite === "boolean"/);
   assert.match(blockApi, /findFirst\(\{ where: \{ id, status: "ACTIVE" \}/);

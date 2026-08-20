@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const routineIds = records.map((record) => record.id);
     const sessions = routineIds.length ? await prisma.workoutSession.findMany({
       where: { routineId: { in: routineIds }, status: "COMPLETED" },
-      select: { routineId: true, date: true, durationMinutes: true, hasPain: true, painDetails: true },
+      select: { routineId: true, studentId: true, date: true, durationMinutes: true, hasPain: true, painDetails: true },
       orderBy: { date: "asc" },
     }) : [];
     const now = new Date();
@@ -42,8 +42,11 @@ export async function GET(request: Request) {
       related.push(session);
       sessionsByRoutine.set(session.routineId, related);
     }
-    const summaries = new Map(routineIds.map((routineId) => {
-      const related = sessionsByRoutine.get(routineId) ?? [];
+    const summaries = new Map(records.flatMap((record) => {
+      const activeStudentIds = record.assignments.filter((assignment) => assignment.active).map((assignment) => assignment.studentId);
+      if (activeStudentIds.length !== 1) return [];
+      const routineId = record.id;
+      const related = (sessionsByRoutine.get(routineId) ?? []).filter((session) => session.studentId === activeStudentIds[0]);
       const durations = related.flatMap((session) => session.durationMinutes === null ? [] : [session.durationMinutes]);
       const pain = [...related].reverse().find((session) => session.hasPain);
       const recentWeeklySessions = [3, 2, 1, 0].map((weeksAgo) => {
@@ -53,14 +56,14 @@ export async function GET(request: Request) {
         end.setUTCDate(end.getUTCDate() + 7);
         return related.filter((session) => session.date >= start && session.date < end).length;
       });
-      return [routineId, {
+      return [[routineId, {
         completedSessions: related.length,
         latestSessionDate: related.at(-1)?.date.toISOString() ?? "",
         averageDurationMinutes: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : null,
         recentWeeklySessions,
         latestPainReport: pain && isActivePainReport(pain.date, now) ? { date: pain.date.toISOString(), details: pain.painDetails } : null,
         progressPercentage: null,
-      }] as const;
+      }] as const];
     }));
     return Response.json(records.map((record) => ({ ...serializeRoutine(record), managementSummary: summaries.get(record.id) })));
   } catch (error) {

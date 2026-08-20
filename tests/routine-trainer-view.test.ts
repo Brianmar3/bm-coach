@@ -23,10 +23,11 @@ test("el buscador de asignaciones filtra nombre, apellido y tildes con máximo o
   assert.equal(searchStudents(students, "angela", ["1"]).length, 0);
 });
 
-test("la selección de alumno empieza cerrada y se compacta al elegir", () => {
-  for (const text of ["Buscar alumno", "Escribí para buscar alumnos", "No se encontraron alumnos", "Alumno seleccionado", "Cambiar alumno"]) assert.match(page, new RegExp(text));
-  assert.match(page, /searchStudents\(students, query, selectedIds\)/);
-  assert.match(page, /min-w-0 overflow-hidden/);
+test("la selección admite varios alumnos con búsqueda, conteo y limpieza", () => {
+  for (const text of ["Asignar alumnos", "Buscar alumno", "No se encontraron alumnos", "Seleccionados:", "Limpiar"]) assert.match(page, new RegExp(text));
+  assert.match(page, /searchStudents\(students, query, \[\]\)/);
+  assert.match(page, /type="checkbox" checked=\{checked\}/);
+  assert.match(page, /max-h-64 min-w-0 overflow-y-auto/);
 });
 const table = readFileSync(new URL("../componentes/routine-table-view.tsx", import.meta.url), "utf8");
 const api = readFileSync(new URL("../app/api/rutinas/[id]/route.ts", import.meta.url), "utf8");
@@ -55,7 +56,7 @@ test("las acciones visibles son Abrir plan, seguimiento y menú contextual", () 
   assert.match(management, /Abrir plan/);
   assert.match(management, /aria-label="Abrir seguimiento"/);
   assert.match(management, /aria-label="Más acciones"/);
-  for (const action of ["Editar", "Duplicar", "Usar como plantilla", "Cambiar asignación", "Archivar", "Eliminar rutina"]) assert.match(management, new RegExp(action));
+  for (const action of ["Editar", "Duplicar", "Usar como plantilla", "Asignar alumnos", "Archivar", "Eliminar rutina"]) assert.match(management, new RegExp(action));
   assert.doesNotMatch(management, /Ver contenido/);
 });
 
@@ -194,7 +195,7 @@ test("la navegación principal de Rutinas queda en tres pestañas sin perder las
   const navigation = page.slice(page.indexOf('<nav className="mb-4'), page.indexOf('{activeTab === "seguimiento"'));
   for (const tab of ["Rutinas", "Biblioteca", "Seguimiento"]) assert.match(navigation, new RegExp(`"${tab}"`));
   assert.doesNotMatch(navigation, /Asignaciones/);
-  for (const action of ["Usar plantilla", "Cambiar asignación"]) assert.match(management, new RegExp(action));
+  for (const action of ["Usar plantilla", "Asignar alumnos"]) assert.match(management, new RegExp(action));
 });
 
 test("Biblioteca reutiliza Plantillas y muestra sólo búsqueda y objetivo", () => {

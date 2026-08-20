@@ -61,3 +61,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return Response.json({ error: "No se pudo cambiar el estado del bloque." }, { status: 500 });
   }
 }
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const unauthorized = await requireAdminApiResponse(); if (unauthorized) return unauthorized;
+  try {
+    const { id } = await context.params;
+    if (!id.trim()) return Response.json({ error: "El bloque seleccionado no es válido." }, { status: 400 });
+    const removed = await prisma.$transaction(async (transaction) => {
+      const block = await transaction.trainingBlockTemplate.findUnique({ where: { id }, select: { id: true, name: true } });
+      if (!block) return null;
+      await transaction.trainingBlockTemplate.delete({ where: { id } });
+      return block;
+    });
+    if (!removed) return Response.json({ error: "El bloque ya no existe." }, { status: 404 });
+    return Response.json({ id: removed.id, message: `“${removed.name}” se eliminó definitivamente de la Biblioteca.` });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") return Response.json({ error: "El bloque ya no existe." }, { status: 404 });
+    console.error("Error al eliminar bloque de Biblioteca", error);
+    return Response.json({ error: "No se pudo eliminar el bloque de Biblioteca." }, { status: 500 });
+  }
+}

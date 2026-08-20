@@ -289,8 +289,10 @@ test("actualizar una rutina activa conserva id, asignaciones, historial y proteg
   assert.doesNotMatch(updateApi, /workoutSession\.(?:update|delete)/);
 });
 
-test("duplicar, copiar y guardar como plantilla conservan bloques, ejercicios y entrada en calor", () => {
-  for (const value of ["saveAsTemplate", "useTemplate", "copyToStudent", "warmup: day.warmup", "blocks: day.blocks.map", "targetType", "createRoutineDays"]) assert.match(copyApi, new RegExp(value));
+test("duplicar explícitamente y guardar o usar como plantilla conservan bloques, ejercicios y entrada en calor", () => {
+  for (const value of ["saveAsTemplate", "useTemplate", "warmup: day.warmup", "blocks: day.blocks.map", "targetType", "createRoutineDays"]) assert.match(copyApi, new RegExp(value));
+  assert.doesNotMatch(copyApi, /copyToStudent/);
+  assert.match(copyApi, /studentIds/);
   assert.match(updateApi, /restoreVersion/);
   assert.match(updateApi, /\.\.\.day/);
 });

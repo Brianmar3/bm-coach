@@ -5,16 +5,24 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type CopyMode = "duplicate" | "saveAsTemplate" | "useTemplate" | "copyToStudent";
+type CopyMode = "duplicate" | "saveAsTemplate" | "useTemplate";
 type CopyRequest = {
   mode?: CopyMode;
   name?: string;
-  studentId?: string;
+  studentIds?: string[];
   startDate?: string;
   status?: "borrador" | "activa";
   resetWeights?: boolean;
   replaceActive?: boolean;
 };
+
+function copyName(name: string) {
+  const base = name
+    .replace(/^\s*Copia de\s+/i, "")
+    .replace(/(?:\s*\(\s*copia\s*\))+\s*$/gi, "")
+    .trim();
+  return `Copia de ${base || "rutina"}`;
+}
 
 export async function POST(request: Request, context: RouteContext<"/api/rutinas/[id]/duplicar">) {
   try {
@@ -26,9 +34,13 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
     if (mode === "useTemplate" && source.kind !== "TEMPLATE") return Response.json({ error: "La rutina seleccionada no es una plantilla." }, { status: 400 });
 
     const targetKind = mode === "saveAsTemplate" || (mode === "duplicate" && source.kind === "TEMPLATE") ? "template" : "assigned";
-    const studentId = targetKind === "assigned" ? body.studentId?.trim() : undefined;
-    if (["useTemplate", "copyToStudent"].includes(mode) && !studentId) return Response.json({ error: "Seleccioná un alumno destino." }, { status: 400 });
-    if (studentId && !(await prisma.studentRecord.count({ where: { id: studentId } }))) return Response.json({ error: "El alumno destino no existe." }, { status: 404 });
+    const requestedStudentIds = targetKind === "assigned" && Array.isArray(body.studentIds)
+      ? body.studentIds.map((studentId) => studentId.trim()).filter(Boolean)
+      : [];
+    if (new Set(requestedStudentIds).size !== requestedStudentIds.length) return Response.json({ error: "La selección contiene alumnos repetidos." }, { status: 400 });
+    if (mode === "useTemplate" && !requestedStudentIds.length) return Response.json({ error: "Seleccioná al menos un alumno destino." }, { status: 400 });
+    const existingStudents = requestedStudentIds.length ? await prisma.studentRecord.count({ where: { id: { in: requestedStudentIds } } }) : 0;
+    if (existingStudents !== requestedStudentIds.length) return Response.json({ error: "Uno o más alumnos destino ya no existen." }, { status: 404 });
 
     const days = source.days.map((day) => ({
       dayNumber: day.dayNumber,
@@ -74,7 +86,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       exercises: [],
     }));
     const input: RoutineInput = {
-      name: body.name?.trim() || `${source.name} (copia)`,
+      name: body.name?.trim() || copyName(source.name),
       kind: targetKind,
       description: source.description,
       objective: source.objective,
@@ -86,21 +98,21 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       location: source.location,
       equipment: source.equipment,
       tags: source.tags,
-      studentIds: studentId ? [studentId] : [],
+      studentIds: requestedStudentIds,
       days,
     };
     const validationError = validateRoutine(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const copy = await prisma.$transaction(async (transaction) => {
-      if (studentId && input.status === "activa") {
+      if (requestedStudentIds.length && input.status === "activa") {
         const conflicts = await transaction.trainingRoutineAssignment.findMany({
-          where: { studentId, active: true, routine: { status: "ACTIVA", kind: "ASSIGNED" } },
-          select: { routineId: true },
+          where: { studentId: { in: requestedStudentIds }, active: true, routine: { status: "ACTIVA", kind: "ASSIGNED" } },
+          select: { routineId: true, studentId: true },
         });
         if (conflicts.length && !body.replaceActive) throw new Error("ACTIVE_ASSIGNMENT_CONFLICT");
         if (conflicts.length) {
-          await transaction.trainingRoutineAssignment.updateMany({ where: { studentId, routineId: { in: conflicts.map((item) => item.routineId) } }, data: { active: false, archivedAt: new Date() } });
+          await transaction.trainingRoutineAssignment.updateMany({ where: { OR: conflicts.map((item) => ({ studentId: item.studentId, routineId: item.routineId })) }, data: { active: false, archivedAt: new Date() } });
           for (const conflict of conflicts) {
             const others = await transaction.trainingRoutineAssignment.count({ where: { routineId: conflict.routineId, active: true } });
             if (!others) await transaction.trainingRoutine.update({ where: { id: conflict.routineId }, data: { status: "FINALIZADA" } });
@@ -121,7 +133,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
           location: input.location,
           equipment: input.equipment,
           tags: input.tags,
-          assignments: studentId ? { create: { studentId, active: true, archivedAt: null } } : undefined,
+          assignments: requestedStudentIds.length ? { create: requestedStudentIds.map((studentId) => ({ studentId, active: true, archivedAt: null })) } : undefined,
         },
       });
       await createRoutineDays(transaction, created.id, days);
