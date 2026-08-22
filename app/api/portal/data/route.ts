@@ -164,7 +164,7 @@ export async function GET(request: Request) {
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio" || section === "puntos"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, serviceType, todayKey, weekStart, groupClassesEnabled)
-      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
+      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),

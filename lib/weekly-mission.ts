@@ -1,6 +1,11 @@
 import { addDateDays, assignmentCoversDateKeys, studentIsActiveOnDate, weekRange, type WeeklyStudentStatusEvent } from "./weekly-attendance.ts";
 
-export const WEEKLY_MISSION_REWARD = 15;
+export const WEEKLY_MISSION_SESSION_POINTS = 2;
+export const WEEKLY_MISSION_COMPLETION_BONUS = 5;
+
+export function weeklyMissionMaximumReward(target: number) {
+  return Math.max(1, target) * WEEKLY_MISSION_SESSION_POINTS + WEEKLY_MISSION_COMPLETION_BONUS;
+}
 
 export type WeeklyMissionState = "ACTIVE" | "COMPLETED" | "EXPIRED";
 export type WeeklyMissionView = {
@@ -15,6 +20,9 @@ export type WeeklyMissionView = {
   percentage: number;
   state: WeeklyMissionState;
   rewardPoints: number;
+  pointsPerSession: number;
+  completionBonus: number;
+  maximumReward: number;
   completedAt: string | null;
   pointsAwardedAt: string | null;
   message: string;
@@ -69,7 +77,10 @@ export function getWeeklyMissionProgress(input: {
     remaining: Math.max(0, target - progress),
     percentage: Math.min(100, Math.round(progress / target * 100)),
     state: input.state,
-    rewardPoints: input.rewardPoints ?? WEEKLY_MISSION_REWARD,
+    rewardPoints: input.rewardPoints ?? weeklyMissionMaximumReward(target),
+    pointsPerSession: WEEKLY_MISSION_SESSION_POINTS,
+    completionBonus: WEEKLY_MISSION_COMPLETION_BONUS,
+    maximumReward: weeklyMissionMaximumReward(target),
     completedAt: iso(input.completedAt),
     pointsAwardedAt: iso(input.pointsAwardedAt),
     message: weeklyMissionMessage(progress, target, input.state),

@@ -24,6 +24,7 @@ import type {
 } from "@/types/points";
 import { resolveCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 import { paymentWasOnTime } from "@/lib/payment-notification-rules";
+import { pointPeriodStart } from "@/lib/point-period";
 
 type PointEvent = ValidPointEvent;
 
@@ -107,8 +108,8 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
         orderBy: [{ date: "asc" }, { createdAt: "asc" }],
       }),
       prisma.studentWeeklyMission.findMany({
-        where: { studentId, state: "COMPLETED" },
-        select: { id: true, weekStart: true },
+        where: { studentId, progress: { gt: 0 } },
+        select: { id: true, weekStart: true, weekEnd: true, progress: true, target: true, rewardPoints: true },
         orderBy: { weekStart: "asc" },
       }),
       prisma.studentPayment.findMany({
@@ -159,11 +160,27 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
       date: session.date,
       description: `Rutina completada: ${session.routineNameSnapshot || "entrenamiento personalizado"}`,
     })),
-    weeklyMissions: completedWeeklyMissions.map((mission) => ({
+    weeklyMissions: completedWeeklyMissions.map((mission) => {
+      const start = mission.weekStart.toISOString().slice(0, 10);
+      const end = mission.weekEnd.toISOString().slice(0, 10);
+      const byDate = new Map<string, { id: string; date: Date }>();
+      for (const attendance of occurrenceAttendances) {
+        const key = attendance.occurrence.date.toISOString().slice(0, 10);
+        if (key >= start && key <= end && !byDate.has(key)) byDate.set(key, { id: `occurrence-${attendance.id}`, date: attendance.occurrence.date });
+      }
+      for (const attendance of legacyAttendances) {
+        const key = attendance.date.toISOString().slice(0, 10);
+        if (key >= start && key <= end && !byDate.has(key)) byDate.set(key, { id: `legacy-${attendance.id}`, date: attendance.date });
+      }
+      return {
       id: mission.id,
       date: mission.weekStart,
       description: "Misión semanal completada",
-    })),
+      progress: mission.progress,
+      target: mission.target,
+      rewardPoints: mission.rewardPoints,
+      sessions: [...byDate.values()].sort((left, right) => left.date.getTime() - right.date.getTime()),
+    }; }),
     onTimePayments: payments.flatMap((payment) =>
       payment.paidDate && paymentWasOnTime(payment.paidDate, payment.dueDate)
         ? [{ id: payment.id, date: payment.paidDate, description: "Pago de cuota registrado en término" }]
@@ -310,7 +327,7 @@ export async function syncStudentPoints(
             invalidatedAt: null,
           },
         });
-        if (event.sourceType === "WEEKLY_MISSION") {
+        if (event.eventKey.startsWith("weekly-mission-bonus:")) {
           await transaction.studentWeeklyMission.updateMany({
             where: { id: event.sourceId, studentId, pointsAwardedAt: null },
             data: { pointsAwardedAt: now },
@@ -394,14 +411,21 @@ export async function loadStudentPointSummary(
   studentId: string,
 ): Promise<StudentPointSummary> {
   const { total } = await syncStudentPoints(studentId, { notify: false });
-  const recent = await prisma.studentPointTransaction.findMany({
-    where: { studentId, active: true },
-    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-    take: 8,
-  });
+  const [recent, monthly] = await Promise.all([
+    prisma.studentPointTransaction.findMany({
+      where: { studentId, active: true },
+      orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+      take: 8,
+    }),
+    prisma.studentPointTransaction.aggregate({
+      where: { studentId, active: true, occurredAt: { gte: pointPeriodStart("month")! } },
+      _sum: { points: true },
+    }),
+  ]);
   const nextTarget = Math.max(50, Math.ceil((total + 1) / 50) * 50);
   return {
     total,
+    monthlyTotal: monthly._sum.points ?? 0,
     latest: recent[0] ? movement(recent[0]) : null,
     recent: recent.map(movement),
     nextTarget,

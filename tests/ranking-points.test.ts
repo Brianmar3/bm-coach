@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildValidPointEvents, effectivePointDate, pointEventKeysToInvalidate } from "../lib/point-event-rules.ts";
+import { pointPeriodStart } from "../lib/point-period.ts";
 
 test("un alumno sin actividad, creado o con perfil completo obtiene cero puntos", () => {
   assert.deepEqual(buildValidPointEvents({}), []);
@@ -66,5 +67,29 @@ test("el recálculo previene doble toque y conserva el desempate existente", () 
   const route = readFileSync(new URL("../app/api/admin/ranking/route.ts", import.meta.url), "utf8");
   assert.match(component, /if \(rebuilding\) return/);
   assert.match(component, /disabled=\{rebuilding\}/);
-  assert.match(route, /right\.total - left\.total[\s\S]*right\.historicalTotal[\s\S]*localeCompare/);
+  const helper = readFileSync(new URL("../lib/point-ranking.ts", import.meta.url), "utf8");
+  assert.match(route, /loadPointRanking\(period\)/);
+  assert.match(helper, /right\.total - left\.total[\s\S]*right\.historicalTotal[\s\S]*localeCompare/);
+});
+
+test("tarjeta mensual y ranking reutilizan el mismo período del ledger", () => {
+  const summary = readFileSync(new URL("../lib/student-points.ts", import.meta.url), "utf8");
+  const ranking = readFileSync(new URL("../lib/point-ranking.ts", import.meta.url), "utf8");
+  const period = readFileSync(new URL("../lib/point-period.ts", import.meta.url), "utf8");
+  assert.match(summary, /pointPeriodStart\("month"\)/);
+  assert.match(ranking, /pointPeriodStart\(period\)/);
+  assert.match(period, /argentinaMonthBounds/);
+});
+
+test("el cambio de mes reinicia el período mensual sin alterar el concepto de total histórico", () => {
+  assert.equal(pointPeriodStart("month", new Date("2026-08-31T23:59:00-03:00"))?.toISOString(), "2026-08-01T03:00:00.000Z");
+  assert.equal(pointPeriodStart("month", new Date("2026-09-01T00:01:00-03:00"))?.toISOString(), "2026-09-01T03:00:00.000Z");
+  assert.equal(pointPeriodStart("total", new Date("2026-09-01T00:01:00-03:00")), null);
+});
+
+test("el ranking del portal deriva el alumno de la sesión y no acepta studentId", () => {
+  const route = readFileSync(new URL("../app/api/portal/ranking/route.ts", import.meta.url), "utf8");
+  assert.match(route, /getPortalSession/);
+  assert.match(route, /session\.studentId/);
+  assert.doesNotMatch(route, /searchParams|get\("studentId"\)/);
 });

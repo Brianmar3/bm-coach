@@ -143,8 +143,8 @@ function WeeklyMissionAchievement({ data }: { data: PortalData }) {
   const expired = mission.state === "EXPIRED";
   const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";
   return <section className={`relative overflow-hidden rounded-[22px] border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] ${completed ? "border-emerald-400/15 bg-[linear-gradient(145deg,#151816,#090909)]" : "border-white/[.07] bg-[linear-gradient(145deg,#151515,#090909)]"}`}>
-    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-zinc-400" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>{stateLabel}</span></div><h2 className="mt-1.5 text-sm font-black leading-snug text-white sm:text-base"><span aria-hidden="true" className="mr-2">{completed ? "🏆" : "🎯"}</span>{mission.title}</h2></div><span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>+{mission.rewardPoints} pts</span></div>
-    <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-zinc-500">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-zinc-400"}`}>{completed ? `+${mission.rewardPoints} pts obtenidos` : mission.message}</p></div>
+    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-zinc-400" : "border-yellow-400/20 bg-yellow-400/[.06] text-yellow-300"}`}>{stateLabel}</span></div><h2 className="mt-1.5 text-sm font-black leading-snug text-white sm:text-base"><span aria-hidden="true" className="mr-2">{completed ? "🏆" : "🎯"}</span>{mission.title}</h2></div><div className="shrink-0 text-right text-[9px] leading-relaxed text-zinc-400"><p className="font-bold uppercase tracking-[.12em] text-yellow-400">Recompensa</p><p>+{mission.pointsPerSession} por entrenamiento</p><p>+{mission.completionBonus} bonus semanal</p><p className="mt-0.5 font-bold text-yellow-300">Máximo +{mission.maximumReward} pts</p></div></div>
+    <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-zinc-500">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-zinc-400"}`}>{completed ? `+${mission.maximumReward} pts obtenidos` : mission.message}</p></div>
     <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-label="Progreso de la misión semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)}><div className={`h-full rounded-full transition-[width] duration-500 ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div>
   </section>;
 }
@@ -163,18 +163,14 @@ function PointsSummary({ data }: { data: PortalData }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">
-            Tus puntos
+            Puntos totales
           </p>
           <p className="mt-2 text-3xl font-black text-white">
             {points.total.toLocaleString("es-AR")}
           </p>
+          <p className="mt-1 text-[10px] text-zinc-500">Progresión histórica</p>
         </div>
-        <span
-          aria-hidden="true"
-          className="grid h-10 w-10 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.07] font-black text-yellow-300"
-        >
-          +
-        </span>
+        <div className="min-w-24 rounded-xl border border-white/[.07] bg-black/25 px-3 py-2 text-right"><p className="text-[9px] font-bold uppercase tracking-[.12em] text-zinc-500">Este mes</p><strong className="mt-1 block text-xl text-yellow-300">{points.monthlyTotal.toLocaleString("es-AR")}</strong><span className="text-[9px] text-zinc-600">Ranking mensual</span></div>
       </div>
       {points.latest ? (
         <p className="mt-3 text-sm text-zinc-300">
@@ -223,14 +219,36 @@ function PointsSummary({ data }: { data: PortalData }) {
 }
 
 function PointsAndAchievementsView({ data }: { data: PortalData }) {
-  return <PageHeader title="Puntos y logros" subtitle="Tus avances, movimientos y próximos hitos">
+  const [rankingOpen, setRankingOpen] = useState(false);
+  return <>
+    <header className="mb-6 flex items-start justify-between gap-4"><div className="min-w-0"><h1 className="text-2xl font-bold">Puntos y logros</h1><p className="mt-1 text-sm text-zinc-500">Tus avances, movimientos y próximos hitos</p></div><button type="button" onClick={() => setRankingOpen(true)} aria-label="Ver ranking mensual" className="grid size-11 shrink-0 place-items-center rounded-xl border border-white/10 bg-zinc-900 text-yellow-300 transition hover:border-yellow-400/30 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"><PodiumIcon /></button></header>
     <div className="space-y-3 sm:space-y-4">
       <WeeklyMissionAchievement data={data} />
       <PointsSummary data={data} />
       <AchievementsSpotlight data={data} />
       <AchievementsOverview data={data} />
     </div>
-  </PageHeader>;
+    {rankingOpen && <MonthlyRankingDialog onClose={() => setRankingOpen(false)} expectedMonthlyPoints={data.home.points.monthlyTotal} />}
+  </>;
+}
+
+function PodiumIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20v-5h5v5M9 20V9h6v11M15 20v-7h5v7M2.5 20.5h19" /><path d="M10.5 6.5 12 4l1.5 2.5" /></svg>;
+}
+
+type PortalRankingResponse = { currentStudentId: string; currentPosition: number | null; currentPoints: number; ranking: Array<{ studentId: string; studentName: string; total: number }> };
+
+function MonthlyRankingDialog({ onClose, expectedMonthlyPoints }: { onClose: () => void; expectedMonthlyPoints: number }) {
+  const [ranking, setRanking] = useState<PortalRankingResponse | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/portal/ranking", { cache: "no-store", signal: controller.signal }).then(async (response) => { const body = await response.json() as PortalRankingResponse & { error?: string }; if (!response.ok) throw new Error(body.error ?? "No se pudo cargar el ranking."); return body; }).then(setRanking).catch((reason: unknown) => { if (reason instanceof Error && reason.name !== "AbortError") setError(reason.message); });
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => { controller.abort(); window.removeEventListener("keydown", closeOnEscape); };
+  }, [onClose]);
+  return <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }} className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5"><section role="dialog" aria-modal="true" aria-labelledby="ranking-title" className="max-h-[82dvh] w-full overflow-hidden rounded-t-[24px] border border-white/10 bg-[#111] shadow-2xl sm:max-w-lg sm:rounded-[24px]"><header className="flex items-start justify-between gap-4 border-b border-white/[.07] p-4"><div><p className="text-[9px] font-black uppercase tracking-[.18em] text-yellow-400">Puntos del mes</p><h2 id="ranking-title" className="mt-1 text-xl font-black">Ranking mensual</h2></div><button type="button" onClick={onClose} aria-label="Cerrar ranking" className="grid size-11 place-items-center rounded-xl border border-white/10 text-xl text-zinc-300 hover:bg-white/[.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300">×</button></header><div className="max-h-[calc(82dvh-82px)] overflow-y-auto p-4">{error ? <p className="rounded-xl border border-red-400/20 bg-red-400/[.06] p-3 text-sm text-red-200">{error}</p> : !ranking ? <div className="space-y-2" aria-label="Cargando ranking"><div className="h-16 animate-pulse rounded-xl bg-zinc-800/60" /><div className="h-16 animate-pulse rounded-xl bg-zinc-800/40" /></div> : <><div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-yellow-400/15 bg-yellow-400/[.04] p-3"><div><p className="text-[9px] uppercase tracking-[.12em] text-zinc-500">Tu posición</p><strong className="mt-1 block text-xl text-white">{ranking.currentPosition ? `#${ranking.currentPosition}` : "—"}</strong></div><div className="text-right"><p className="text-[9px] uppercase tracking-[.12em] text-zinc-500">Tus puntos del mes</p><strong className="mt-1 block text-xl text-yellow-300">{ranking.currentPoints.toLocaleString("es-AR")}</strong></div></div>{ranking.currentPoints !== expectedMonthlyPoints && <p className="mb-3 text-xs text-amber-300">Tus puntos se actualizaron. Cerrá esta vista para refrescar el resumen.</p>}<ol className="space-y-1.5">{ranking.ranking.map((entry, index) => <li key={entry.studentId} className={`flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2 ${entry.studentId === ranking.currentStudentId ? "border-yellow-400/25 bg-yellow-400/[.05]" : "border-white/[.06] bg-black/20"}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full text-xs font-black ${index < 3 ? "bg-yellow-400/10 text-yellow-300" : "bg-zinc-800 text-zinc-400"}`}>{index + 1}</span><span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-100">{entry.studentName}</span><strong className="shrink-0 text-sm text-yellow-300">{entry.total.toLocaleString("es-AR")} pts</strong></li>)}</ol><p className="mt-4 text-center text-[11px] leading-relaxed text-zinc-500">El ranking se calcula con los puntos obtenidos durante el mes actual.</p></>}</div></section></div>;
 }
 
 function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {

@@ -8,7 +8,7 @@ import { hasGroupClasses } from "@/lib/student-service";
 import { weekRange } from "@/lib/weekly-attendance";
 import {
   getWeeklyMissionProgress,
-  WEEKLY_MISSION_REWARD,
+  weeklyMissionMaximumReward,
   weeklyMissionTitle,
   weeklyMissionAttendanceProgress,
   type WeeklyMissionView,
@@ -115,7 +115,7 @@ async function createCurrentMission(studentId: string, referenceDate: string, co
         scheduledClassKeys: [],
         progress: progressResult.progress,
         state: completed ? "COMPLETED" : "ACTIVE",
-        rewardPoints: WEEKLY_MISSION_REWARD,
+        rewardPoints: weeklyMissionMaximumReward(target),
         completedAt: completionDate ? new Date(`${completionDate}T12:00:00.000Z`) : null,
       },
     });
@@ -142,13 +142,14 @@ export async function resolveCurrentWeeklyMission(studentId: string, referenceDa
     where: { studentId_weekStart: { studentId, weekStart: currentWeekStart } },
   });
   if (existing) {
-    if (existing.state !== "ACTIVE") return existing;
-    const normalized = existing.target === configuration.target && existing.scheduledClassKeys.length === 0
+    const expectedReward = weeklyMissionMaximumReward(configuration.target);
+    const normalized = existing.target === configuration.target && existing.scheduledClassKeys.length === 0 && existing.rewardPoints === expectedReward
       ? existing
       : await prisma.studentWeeklyMission.update({
           where: { id: existing.id },
-          data: { target: configuration.target, title: weeklyMissionTitle(configuration.target), scheduledClassKeys: [] },
+          data: { target: configuration.target, title: weeklyMissionTitle(configuration.target), scheduledClassKeys: [], rewardPoints: expectedReward },
         });
+    if (normalized.state !== "ACTIVE") return normalized;
     return settleMission(normalized);
   }
   return createCurrentMission(studentId, referenceDate, configuration);

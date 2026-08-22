@@ -15,6 +15,7 @@ export type StudentPointMovement = {
 
 export type StudentPointSummary = {
   total: number;
+  monthlyTotal: number;
   latest: StudentPointMovement | null;
   recent: StudentPointMovement[];
   nextTarget: number;

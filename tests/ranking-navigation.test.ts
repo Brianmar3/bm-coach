@@ -63,7 +63,9 @@ test("un doble toque no dispara dos navegaciones", () => {
 
 test("el orden y los desempates siguen resueltos por la API existente", () => {
   const source = readFileSync(new URL("../app/api/admin/ranking/route.ts", import.meta.url), "utf8");
-  assert.match(source, /sort/);
-  assert.match(source, /total/);
-  assert.match(source, /studentName/);
+  const helper = readFileSync(new URL("../lib/point-ranking.ts", import.meta.url), "utf8");
+  assert.match(source, /loadPointRanking/);
+  assert.match(helper, /sort/);
+  assert.match(helper, /total/);
+  assert.match(helper, /studentName/);
 });

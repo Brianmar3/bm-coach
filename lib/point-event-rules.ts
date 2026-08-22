@@ -2,7 +2,8 @@ export const POINT_RULES = {
   ATTENDANCE: 5,
   RECORD: 3,
   ROUTINE_COMPLETED: 5,
-  WEEKLY_MISSION: 15,
+  WEEKLY_MISSION_SESSION: 2,
+  WEEKLY_MISSION_BONUS: 5,
   PAYMENT_ON_TIME: 5,
 } as const;
 
@@ -30,12 +31,19 @@ type AttendanceInput = {
 
 type RecordInput = AttendanceInput;
 
+type WeeklyMissionInput = RecordInput & {
+  progress: number;
+  target: number;
+  rewardPoints: number;
+  sessions?: Array<{ id: string; date: Date | string }>;
+};
+
 export type PointEventInputs = {
   legacyAttendances?: AttendanceInput[];
   occurrenceAttendances?: AttendanceInput[];
   quickLogs?: RecordInput[];
   completedRoutineSessions?: RecordInput[];
-  weeklyMissions?: RecordInput[];
+  weeklyMissions?: WeeklyMissionInput[];
   onTimePayments?: RecordInput[];
 };
 
@@ -90,15 +98,36 @@ export function buildValidPointEvents(input: PointEventInputs): ValidPointEvent[
     });
   }
   for (const item of input.weeklyMissions ?? []) {
-    events.push({
-      eventKey: `weekly-mission:${item.id}`,
-      eventType: "WEEKLY_MISSION",
-      sourceType: "WEEKLY_MISSION",
-      sourceId: item.id,
-      points: POINT_RULES.WEEKLY_MISSION,
-      description: item.description,
-      occurredAt: effectivePointDate(item.date),
-    });
+    const completedSessions = Math.min(Math.max(0, item.progress), Math.max(1, item.target));
+    const dynamicMaximum = item.target * POINT_RULES.WEEKLY_MISSION_SESSION + POINT_RULES.WEEKLY_MISSION_BONUS;
+    if (item.rewardPoints !== dynamicMaximum) {
+      if (completedSessions >= item.target) events.push({ eventKey: `weekly-mission:${item.id}`, eventType: "WEEKLY_MISSION", sourceType: "WEEKLY_MISSION", sourceId: item.id, points: item.rewardPoints, description: item.description, occurredAt: effectivePointDate(item.date) });
+      continue;
+    }
+    const sessions = item.sessions?.slice(0, item.target) ?? Array.from({ length: completedSessions }, (_, index) => ({ id: String(index + 1), date: item.date }));
+    const validSessionCount = sessions.length;
+    for (const [index, session] of sessions.entries()) {
+      events.push({
+        eventKey: `weekly-mission-session:${item.id}:${session.id}`,
+        eventType: "WEEKLY_MISSION",
+        sourceType: "WEEKLY_MISSION",
+        sourceId: item.id,
+        points: POINT_RULES.WEEKLY_MISSION_SESSION,
+        description: `Misión semanal: entrenamiento ${index + 1}/${item.target} cumplido`,
+        occurredAt: effectivePointDate(session.date),
+      });
+    }
+    if (validSessionCount >= item.target) {
+      events.push({
+        eventKey: `weekly-mission-bonus:${item.id}`,
+        eventType: "WEEKLY_MISSION",
+        sourceType: "WEEKLY_MISSION",
+        sourceId: item.id,
+        points: POINT_RULES.WEEKLY_MISSION_BONUS,
+        description: "Bonus por completar la misión semanal",
+        occurredAt: effectivePointDate(sessions.at(-1)?.date ?? item.date),
+      });
+    }
   }
   for (const item of input.onTimePayments ?? []) {
     events.push({
