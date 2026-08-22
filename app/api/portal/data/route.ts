@@ -7,7 +7,7 @@ import { serializeEvent } from "@/lib/eventos";
 import type { CoachSettings, Student } from "@/types/gestion";
 import type { PortalData } from "@/types/portal";
 import type { Prisma, StudentServiceType } from "@prisma/client";
-import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { calculatePortalAchievements } from "@/lib/portal-achievements";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { portalPaymentAccount, serializePayment } from "@/lib/payments";
@@ -22,6 +22,8 @@ import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements
 import { mergePortalAttendanceRecords, summarizeExpectedPortalAttendancePeriod, type PortalAttendanceRecord } from "@/lib/portal-attendance";
 import { loadCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 import { exerciseMediaAvailable } from "@/lib/exercise-library-server";
+import { obligationStatus } from "@/lib/monthly-calculations";
+import { normalizeTransferDetails } from "@/lib/transfer-payment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -165,7 +167,7 @@ export async function GET(request: Request) {
     const homeInsightsPromise = section === "inicio" || section === "puntos"
       ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, serviceType, todayKey, weekStart, groupClassesEnabled)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
-    const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules] = await Promise.all([
+    const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules, paymentObligationRecords, paidAmountsByPeriod] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
       prisma.evaluationRecord.findMany({ orderBy: { createdAt: "desc" } }),
@@ -188,11 +190,29 @@ export async function GET(request: Request) {
       homeInsightsPromise,
       section === "pagos" || section === "inicio" ? prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
       groupClassesEnabled ? prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }) : Promise.resolve([]),
+      section === "pagos" ? prisma.monthlyStudentObligation.findMany({ where: { studentId }, orderBy: [{ period: "desc" }, { dueDate: "desc" }], take: 12 }) : Promise.resolve([]),
+      section === "pagos" ? prisma.studentPayment.groupBy({ by: ["billingPeriod"], where: { studentId, status: "PAGADO", billingPeriod: { not: null } }, _sum: { amount: true } }) : Promise.resolve([]),
     ]);
     if ((section === "rutina" || section === "entrenamiento") && serviceType === "CLASSES" && !routine) {
       return Response.json({ error: "No tenés una rutina personalizada activa." }, { status: 403 });
     }
     const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
+    const paidByPeriod = new Map(paidAmountsByPeriod.flatMap((item) => item.billingPeriod ? [[databaseDateKey(item.billingPeriod), Number(item._sum.amount ?? 0)] as const] : []));
+    const paymentObligations = paymentObligationRecords.map((obligation) => {
+      const period = databaseDateKey(obligation.period);
+      const expectedAmount = Number(obligation.expectedAmount);
+      const paidAmount = paidByPeriod.get(period) ?? Number(obligation.paidAmount);
+      const balance = Math.max(expectedAmount - paidAmount, 0);
+      return {
+        id: obligation.id,
+        period,
+        expectedAmount,
+        paidAmount,
+        balance,
+        dueDate: databaseDateKey(obligation.dueDate),
+        status: obligation.status === "VOID" ? "VOID" as const : obligationStatus(expectedAmount, paidAmount, databaseDateKey(obligation.dueDate), todayKey),
+      };
+    });
     const normalizedEvaluations = deduplicateEvaluations([
       ...evaluations.map(normalizePhysicalEvaluation),
       ...legacyEvaluationRecords.map(normalizeLegacyEvaluationRecord).filter((item) => item.studentId === studentId),
@@ -206,6 +226,8 @@ export async function GET(request: Request) {
       payments: payments.map(serializePayment),
       paymentAccount: portalPaymentAccount(student, payments, todayKey),
       paymentMethods: settings?.paymentMethods?.filter((method) => method.trim().length > 0) ?? [],
+      paymentObligations,
+      transferDetails: normalizeTransferDetails(settings?.transferDetails),
       events: events.map(serializeEvent),
       workoutSessions: workoutSessions.map((workout) => ({
         id: workout.id,

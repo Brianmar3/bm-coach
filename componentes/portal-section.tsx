@@ -26,6 +26,8 @@ import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media
 import { PortalActionCard } from "@/componentes/portal-action-card";
 import { PasswordField } from "@/componentes/password-field";
 import { apiRequest } from "@/lib/client-api";
+import { PortalTransferPaymentSheet } from "@/componentes/portal-transfer-payment-sheet";
+import { openTransferObligations } from "@/lib/transfer-payment";
 
 type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -356,6 +358,7 @@ function PaymentsView({ data }: { data: PortalData }) {
   const [visibleCount, setVisibleCount] = useState(8);
   const account = data.paymentAccount;
   const status = accountStatus[account.status];
+  const openObligations = openTransferObligations(data.paymentObligations);
   return <PageHeader title="Mi cuota" subtitle="Estado e historial personal de pagos">
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-zinc-500">Estado actual</p><span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-bold ${status.className}`}>{status.label}</span></div>{account.monthlyFee > 0 && <p className="text-2xl font-bold">{money(account.monthlyFee)}<span className="ml-1 text-xs font-normal text-zinc-500">por mes</span></p>}</div>
@@ -366,7 +369,7 @@ function PaymentsView({ data }: { data: PortalData }) {
       {data.payments.length ? <div className="mt-3 space-y-2">{data.payments.slice(0, visibleCount).map((payment) => <article key={payment.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{date(payment.paidDate || payment.createdAt)}</p><p className="mt-1 text-xs capitalize text-zinc-500">{billingPeriod(payment.billingPeriod) || payment.concept}</p></div><div className="text-right"><p className="font-bold">{money(payment.amount)}</p><span className="mt-1 inline-flex rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300">Confirmado</span></div></div><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400"><span>{payment.method || "Medio no informado"}</span>{payment.concept && billingPeriod(payment.billingPeriod) && <span>{payment.concept}</span>}</div>{payment.notes && <p className="mt-2 border-t border-zinc-800 pt-2 text-xs text-zinc-400">{payment.notes}</p>}</article>)}</div> : <Notice>Todavía no hay pagos registrados.</Notice>}
       {visibleCount < data.payments.length && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400">Ver más pagos</button>}
     </section>
-    <section className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900 p-4"><h2 className="font-semibold">Medios de pago</h2>{data.paymentMethods.length ? <ul className="mt-3 space-y-2">{data.paymentMethods.map((method) => <li key={method} className="rounded-lg bg-zinc-950 px-3 py-2 text-sm text-zinc-300">{method}</li>)}</ul> : <p className="mt-2 text-sm text-zinc-500">Consultá con tu entrenador para conocer los medios de pago.</p>}<p className="mt-3 text-xs text-zinc-600">Los pagos son confirmados únicamente por el entrenador.</p></section>
+    <section className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900 p-4"><h2 className="font-semibold">Medios de pago</h2>{data.paymentMethods.length ? <ul className="mt-3 space-y-2">{data.paymentMethods.map((method) => { const transfer = method.trim().toLocaleLowerCase("es") === "transferencia"; return <li key={method}>{transfer && openObligations.length ? <PortalTransferPaymentSheet details={data.transferDetails} obligations={data.paymentObligations} /> : <div className="flex min-h-11 items-center justify-between rounded-lg bg-zinc-950 px-3 py-2 text-sm text-zinc-300"><span>{method}</span>{transfer && data.paymentObligations.length > 0 && <span className="text-xs text-emerald-300">Sin saldo pendiente</span>}</div>}</li>; })}</ul> : <p className="mt-2 text-sm text-zinc-500">Consultá con tu entrenador para conocer los medios de pago.</p>}<p className="mt-3 text-xs text-zinc-600">Los pagos son confirmados únicamente por el entrenador.</p></section>
   </PageHeader>;
 }
 

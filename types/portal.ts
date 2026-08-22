@@ -1,4 +1,4 @@
-import type { CoachEvent, Payment, PortalPaymentAccount, StudentServiceType, TrainingRoutine } from "@/types/gestion";
+import type { CoachEvent, Payment, PortalPaymentAccount, StudentServiceType, TrainingRoutine, TransferPaymentDetails } from "@/types/gestion";
 import type { StudentEvaluation } from "@/types/evaluation-read-model";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import type { TrainingBlockType } from "@/types/gestion";
@@ -111,6 +111,8 @@ export type PortalData = {
   payments: Payment[];
   paymentAccount: PortalPaymentAccount;
   paymentMethods: string[];
+  paymentObligations: PortalPaymentObligation[];
+  transferDetails: TransferPaymentDetails;
   events: CoachEvent[];
   workoutSessions: PortalWorkoutSession[];
   comments: PortalComment[];
@@ -129,4 +131,14 @@ export type PortalData = {
     points: StudentPointSummary;
     weeklyMission: WeeklyMissionView | null;
   };
+};
+
+export type PortalPaymentObligation = {
+  id: string;
+  period: string;
+  expectedAmount: number;
+  paidAmount: number;
+  balance: number;
+  dueDate: string;
+  status: "PENDING" | "PARTIAL" | "PAID" | "OVERDUE" | "VOID";
 };

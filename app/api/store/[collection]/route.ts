@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings, Student } from "@/types/gestion";
+import { normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
 
 const collections = {
   "bm-coach-students": prisma.studentRecord,
@@ -50,7 +51,8 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
   }
   const planError = validateCoachPlans(requested.plans);
   const methodError = validatePaymentMethods(requested.paymentMethods);
-  if (planError || methodError) return Response.json({ error: planError ?? methodError }, { status: 400 });
+  const transferError = validateTransferDetails(requested.transferDetails);
+  if (planError || methodError || transferError) return Response.json({ error: planError ?? methodError ?? transferError }, { status: 400 });
 
   const [currentRecord, studentRecords] = await Promise.all([
     prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" }, select: { data: true } }),
@@ -86,6 +88,7 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
     ...requested,
     plans: nextPlans,
     paymentMethods: requested.paymentMethods.map((method) => method.trim()),
+    transferDetails: normalizeTransferDetails(requested.transferDetails),
   };
   const studentUpdates = studentRecords.flatMap((record) => {
     const student = record.data as unknown as Student;

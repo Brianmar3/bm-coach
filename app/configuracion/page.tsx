@@ -6,6 +6,7 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { useBrowserStore } from "@/lib/browser-store";
 import { planId, planSelectionKey, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
+import { emptyTransferDetails, normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
 import type { CoachSettings } from "@/types/gestion";
 
 const defaults: CoachSettings = {
@@ -18,6 +19,7 @@ const defaults: CoachSettings = {
   currency: "ARS",
   dueDay: 10,
   paymentMethods: ["Transferencia", "Efectivo"],
+  transferDetails: emptyTransferDetails,
   plans: [
     { id: "default-plan-2", name: "2 días por semana", price: 0 },
     { id: "default-plan-3", name: "3 días por semana", price: 0 },
@@ -51,6 +53,7 @@ export default function ConfiguracionPage() {
           ...stored,
           id: stored.id ?? "main",
           plans: hydratedPlans.length ? hydratedPlans : defaults.plans,
+          transferDetails: normalizeTransferDetails(stored.transferDetails),
         }
       : defaults);
   function update<K extends keyof CoachSettings>(
@@ -64,7 +67,7 @@ export default function ConfiguracionPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const validationError = validateCoachPlans(value.plans) ?? validatePaymentMethods(value.paymentMethods);
+    const validationError = validateCoachPlans(value.plans) ?? validatePaymentMethods(value.paymentMethods) ?? validateTransferDetails(value.transferDetails);
     if (validationError) {
       setError(validationError);
       setSaved(false);
@@ -223,6 +226,24 @@ export default function ConfiguracionPage() {
                   + Agregar método
                 </button>
               </div>
+            </div>
+          </div>
+          <div className="mt-5">
+            <p className="text-sm font-semibold">Datos para transferencias</p>
+            <p className="mt-1 text-xs text-zinc-500">Se muestran al alumno de forma informativa. Configurá al menos alias o CBU/CVU.</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <Field label="Titular">
+                <input value={value.transferDetails?.holder ?? ""} onChange={(event) => update("transferDetails", { ...normalizeTransferDetails(value.transferDetails), holder: event.target.value })} className={inputClass} />
+              </Field>
+              <Field label="Banco o billetera">
+                <input value={value.transferDetails?.institution ?? ""} onChange={(event) => update("transferDetails", { ...normalizeTransferDetails(value.transferDetails), institution: event.target.value })} className={inputClass} />
+              </Field>
+              <Field label="Alias">
+                <input value={value.transferDetails?.alias ?? ""} onChange={(event) => update("transferDetails", { ...normalizeTransferDetails(value.transferDetails), alias: event.target.value })} className={inputClass} />
+              </Field>
+              <Field label="CBU o CVU">
+                <input inputMode="numeric" value={value.transferDetails?.accountNumber ?? ""} onChange={(event) => update("transferDetails", { ...normalizeTransferDetails(value.transferDetails), accountNumber: event.target.value })} className={inputClass} />
+              </Field>
             </div>
           </div>
           <div className="mt-5">

@@ -143,10 +143,18 @@ export type CoachSettings = {
   currency: string;
   dueDay: number;
   paymentMethods: string[];
+  transferDetails?: TransferPaymentDetails;
   plans: CoachPlan[];
   primaryColor: string;
   accentColor: string;
   compactMode: boolean;
+};
+
+export type TransferPaymentDetails = {
+  holder: string;
+  alias: string;
+  accountNumber: string;
+  institution: string;
 };
 
 export type Payment = {
