@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.bmtraining.app",
+      "sha256_cert_fingerprints": [
+        "1A:CA:6D:60:C6:0E:70:5C:9B:89:D7:7B:7B:C1:9B:27:0F:0F:DF:5B:90:65:64:CE:25:7F:BD:81:71:CD:AB:36"
+      ]
+    }
+  }
+]
