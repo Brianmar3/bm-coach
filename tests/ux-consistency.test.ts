@@ -24,8 +24,10 @@ test("la navegación móvil respeta safe area y deja espacio al contenido", () =
 });
 
 test("App Motion V1 anima sólo logo y contenido mientras mantiene estable la navegación", () => {
-  assert.match(splash, /SPLASH_DURATION_MS = 800/);
-  assert.match(splash, /EXIT_DURATION_MS = 200/);
+  const splashDuration = Number(splash.match(/SPLASH_DURATION_MS = ([\d_]+)/)?.[1].replaceAll("_", ""));
+  const exitDuration = Number(splash.match(/EXIT_DURATION_MS = ([\d_]+)/)?.[1].replaceAll("_", ""));
+  assert.ok(splashDuration >= 1_400 && splashDuration <= 1_500);
+  assert.ok(exitDuration >= 200 && exitDuration <= 250);
   assert.match(splash, /bm-app-splash-logo/);
   assert.match(portalShell, /key=\{pathname\}/);
   assert.match(portalShell, /portal-route-enter/);
@@ -33,6 +35,22 @@ test("App Motion V1 anima sólo logo y contenido mientras mantiene estable la na
   assert.match(globals, /prefers-reduced-motion: reduce/);
   assert.match(globals, /transform: translateY\(8px\)/);
   assert.doesNotMatch(globals, /@keyframes bm-[^{]+\{[^}]*(?:width|height|top|left):/s);
+});
+
+test("el aro del splash rodea el asset real y usa un único destello orbital", () => {
+  assert.match(splash, /src="\/bm-training-splash\.png"/);
+  assert.match(splash, /<svg[^>]+viewBox="0 0 200 200"/);
+  assert.match(splash, /className="bm-splash-ring-base"/);
+  assert.match(splash, /className="bm-splash-orbit"/);
+  assert.match(splash, /d="M 70\.95 10\.6 A 94 94 0 0 1 100 6"/);
+  assert.equal((splash.match(/className="bm-splash-orbit-spark"/g) ?? []).length, 1);
+  assert.match(splash, /className="bm-app-splash-logo relative z-10 w-\[96%\]"/);
+  assert.match(splash, /bm-app-splash-logo-image/);
+  assert.match(globals, /bm-splash-orbit-travel 1100ms linear 150ms/);
+  assert.match(globals, /transform: rotate\(360deg\)/);
+  assert.match(globals, /\.bm-splash-orbit \{\s+opacity: 0;/);
+  assert.match(splash, /phase === "exiting" \? "bm-splash-content-enter"/);
+  assert.match(globals, /\.bm-splash-content-enter > \* \{/);
 });
 
 test("las esperas reales del portal usan skeleton sin duplicar el logo", () => {

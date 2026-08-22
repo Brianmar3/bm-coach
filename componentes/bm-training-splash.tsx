@@ -4,8 +4,9 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 const SPLASH_SESSION_KEY = "bmTrainingSplashShown";
-const SPLASH_DURATION_MS = 800;
-const EXIT_DURATION_MS = 200;
+const SPLASH_DURATION_MS = 1_450;
+const REDUCED_MOTION_DURATION_MS = 120;
+const EXIT_DURATION_MS = 220;
 
 type SplashPhase = "checking" | "showing" | "exiting" | "hidden";
 
@@ -41,7 +42,7 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (phase !== "showing") return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = setTimeout(() => finish(reducedMotion), SPLASH_DURATION_MS);
+    const timer = setTimeout(() => finish(), reducedMotion ? REDUCED_MOTION_DURATION_MS : SPLASH_DURATION_MS);
     const previousOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";
     return () => {
@@ -62,19 +63,46 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
       aria-label="Presentación de BM Training"
       className={`bm-app-splash fixed inset-0 z-[200] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-black p-6 sm:p-10 ${phase === "exiting" ? "bm-app-splash--exiting" : ""}`}
     >
-      {phase !== "checking" && <div className="bm-app-splash-logo relative w-full max-w-[520px]">
-        <Image
-          src="/bm-training-splash.png"
-          alt="BM Training — Gestión, entrenamiento y seguimiento"
-          width={1536}
-          height={1024}
-          priority
-          sizes="(max-width: 640px) 82vw, 520px"
-          onError={() => finish(true)}
-          className="relative z-10 h-auto max-h-[70dvh] w-full object-contain"
-        />
+      {phase !== "checking" && <div className="bm-app-splash-stage relative grid aspect-square place-items-center">
+        <svg className="bm-app-splash-ring absolute inset-0 size-full overflow-visible" viewBox="0 0 200 200" aria-hidden="true">
+          <defs>
+            <linearGradient id="bm-splash-ring-gold" x1="30" y1="28" x2="170" y2="172" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#f59e0b" />
+              <stop offset="0.5" stopColor="#fde68a" />
+              <stop offset="1" stopColor="#d97706" />
+            </linearGradient>
+            <linearGradient id="bm-splash-ring-glint" x1="70.95" y1="10.6" x2="100" y2="6" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#f59e0b" stopOpacity="0" />
+              <stop offset="0.52" stopColor="#facc15" stopOpacity="0.68" />
+              <stop offset="0.82" stopColor="#fde68a" />
+              <stop offset="1" stopColor="#fffbea" />
+            </linearGradient>
+          </defs>
+          <circle className="bm-splash-ring-base" cx="100" cy="100" r="94" fill="none" stroke="url(#bm-splash-ring-gold)" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
+          <g className="bm-splash-orbit">
+            <path d="M 70.95 10.6 A 94 94 0 0 1 100 6" fill="none" stroke="url(#bm-splash-ring-glint)" strokeWidth="1.9" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <circle className="bm-splash-orbit-spark" cx="100" cy="6" r="1.65" fill="#fffbea" />
+          </g>
+        </svg>
+        <div className="bm-app-splash-logo relative z-10 w-[96%]">
+          <Image
+            src="/bm-training-splash.png"
+            alt="BM Training — Gestión, entrenamiento y seguimiento"
+            width={1536}
+            height={1024}
+            priority
+            sizes="(max-width: 640px) 84vw, 645px"
+            onError={() => finish(true)}
+            className="bm-app-splash-logo-image h-auto w-full object-contain"
+          />
+        </div>
       </div>}
     </div>}
-    <div className="contents" style={{ visibility: hideContent ? "hidden" : undefined }}>{children}</div>
+    <div
+      className={`contents ${phase === "exiting" ? "bm-splash-content-enter" : ""}`}
+      style={{ visibility: hideContent ? "hidden" : undefined }}
+    >
+      {children}
+    </div>
   </>;
 }
