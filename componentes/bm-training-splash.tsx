@@ -4,8 +4,8 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 const SPLASH_SESSION_KEY = "bmTrainingSplashShown";
-const SPLASH_DURATION_MS = 1_000;
-const EXIT_DURATION_MS = 140;
+const SPLASH_DURATION_MS = 800;
+const EXIT_DURATION_MS = 200;
 
 type SplashPhase = "checking" | "showing" | "exiting" | "hidden";
 
@@ -60,18 +60,20 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
     {phase !== "hidden" && <div
       role="status"
       aria-label="Presentación de BM Training"
-      className={`fixed inset-0 z-[200] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-black p-6 transition-opacity duration-150 sm:p-10 ${phase === "exiting" ? "opacity-0" : "opacity-100"}`}
+      className={`bm-app-splash fixed inset-0 z-[200] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-black p-6 sm:p-10 ${phase === "exiting" ? "bm-app-splash--exiting" : ""}`}
     >
-      {phase !== "checking" && <Image
-        src="/bm-training-splash.png"
-        alt="BM Training — Gestión, entrenamiento y seguimiento"
-        width={1536}
-        height={1024}
-        priority
-        sizes="(max-width: 640px) 82vw, 520px"
-        onError={() => finish(true)}
-        className="h-auto max-h-[70dvh] w-full max-w-[520px] object-contain"
-      />}
+      {phase !== "checking" && <div className="bm-app-splash-logo relative w-full max-w-[520px]">
+        <Image
+          src="/bm-training-splash.png"
+          alt="BM Training — Gestión, entrenamiento y seguimiento"
+          width={1536}
+          height={1024}
+          priority
+          sizes="(max-width: 640px) 82vw, 520px"
+          onError={() => finish(true)}
+          className="relative z-10 h-auto max-h-[70dvh] w-full object-contain"
+        />
+      </div>}
     </div>}
     <div className="contents" style={{ visibility: hideContent ? "hidden" : undefined }}>{children}</div>
   </>;

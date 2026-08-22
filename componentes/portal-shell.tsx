@@ -156,7 +156,7 @@ export function PortalShell({
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl p-2.5 pb-[calc(env(safe-area-inset-bottom)+8.25rem)] sm:p-6 md:pb-12">
+      <main key={pathname} className="portal-route-enter mx-auto max-w-6xl p-2.5 pb-[calc(env(safe-area-inset-bottom)+8.25rem)] sm:p-6 md:pb-12">
         {children}
       </main>
 
@@ -182,7 +182,7 @@ export function PortalShell({
                 aria-hidden="true"
                 className={`text-[17px] leading-none transition-[color,filter,transform] duration-200 ${
                   active
-                    ? "scale-105 text-yellow-300"
+                    ? "portal-nav-active-icon scale-105 text-yellow-300"
                     : "text-zinc-500 group-hover:text-zinc-300"
                 }`}
               >
