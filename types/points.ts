@@ -6,7 +6,8 @@ export type StudentPointMovement = {
     | "PERSONAL_RECORD"
     | "ACHIEVEMENT"
     | "MILESTONE"
-    | "WEEKLY_MISSION";
+    | "WEEKLY_MISSION"
+    | "PAYMENT";
   points: number;
   description: string;
   occurredAt: string;

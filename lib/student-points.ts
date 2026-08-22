@@ -23,6 +23,7 @@ import type {
   StudentPointSummary,
 } from "@/types/points";
 import { resolveCurrentWeeklyMission } from "@/lib/weekly-mission-data";
+import { paymentWasOnTime } from "@/lib/payment-notification-rules";
 
 type PointEvent = ValidPointEvent;
 
@@ -49,6 +50,7 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
     quickLogs,
     completedRoutineSessions,
     completedWeeklyMissions,
+    payments,
   ] =
     await Promise.all([
       prisma.classOccurrenceAttendance.findMany({
@@ -109,6 +111,11 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
         select: { id: true, weekStart: true },
         orderBy: { weekStart: "asc" },
       }),
+      prisma.studentPayment.findMany({
+        where: { studentId, status: "PAGADO", paidDate: { not: null } },
+        select: { id: true, paidDate: true, dueDate: true },
+        orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }],
+      }),
     ]);
 
   const firstOccurrenceDate =
@@ -157,6 +164,11 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
       date: mission.weekStart,
       description: "Misión semanal completada",
     })),
+    onTimePayments: payments.flatMap((payment) =>
+      payment.paidDate && paymentWasOnTime(payment.paidDate, payment.dueDate)
+        ? [{ id: payment.id, date: payment.paidDate, description: "Pago de cuota registrado en término" }]
+        : [],
+    ),
   });
 }
 

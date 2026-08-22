@@ -3,17 +3,19 @@ export const POINT_RULES = {
   RECORD: 3,
   ROUTINE_COMPLETED: 5,
   WEEKLY_MISSION: 15,
+  PAYMENT_ON_TIME: 5,
 } as const;
 
 export type ValidPointEvent = {
   eventKey: string;
-  eventType: "ATTENDANCE" | "RECORD" | "WEEKLY_MISSION";
+  eventType: "ATTENDANCE" | "RECORD" | "WEEKLY_MISSION" | "PAYMENT";
   sourceType:
     | "CLASS_OCCURRENCE_ATTENDANCE"
     | "LEGACY_ATTENDANCE"
     | "QUICK_LOG"
     | "WORKOUT_SESSION"
-    | "WEEKLY_MISSION";
+    | "WEEKLY_MISSION"
+    | "PAYMENT";
   sourceId: string;
   points: number;
   description: string;
@@ -34,6 +36,7 @@ export type PointEventInputs = {
   quickLogs?: RecordInput[];
   completedRoutineSessions?: RecordInput[];
   weeklyMissions?: RecordInput[];
+  onTimePayments?: RecordInput[];
 };
 
 /** Noon UTC keeps a calendar date stable inside Argentina month boundaries. */
@@ -93,6 +96,17 @@ export function buildValidPointEvents(input: PointEventInputs): ValidPointEvent[
       sourceType: "WEEKLY_MISSION",
       sourceId: item.id,
       points: POINT_RULES.WEEKLY_MISSION,
+      description: item.description,
+      occurredAt: effectivePointDate(item.date),
+    });
+  }
+  for (const item of input.onTimePayments ?? []) {
+    events.push({
+      eventKey: `payment-on-time:${item.id}`,
+      eventType: "PAYMENT",
+      sourceType: "PAYMENT",
+      sourceId: item.id,
+      points: POINT_RULES.PAYMENT_ON_TIME,
       description: item.description,
       occurredAt: effectivePointDate(item.date),
     });

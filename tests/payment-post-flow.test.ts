@@ -39,7 +39,9 @@ test("el duplicado se bloquea antes de crear o actualizar", () => {
 });
 
 test("Pagos cierra el modal, usa la respuesta y distingue un refetch fallido", () => {
-  assert.match(page, /setData\(saved\.dashboard\);\s*setForm\(null\)/);
+  assert.match(page, /if \(saved\.dashboard\) setData\(saved\.dashboard\);\s*setForm\(null\)/);
+  assert.match(api, /paymentDashboard\(\)\.catch/);
+  assert.match(api, /El pago quedó guardado, pero no se pudo refrescar el panel/);
   assert.match(page, /apiRequest<PaymentDashboard>\("\/api\/pagos"/);
   assert.match(page, /registrado\. No pudimos actualizar la lista/);
   assert.match(page, /paymentSaveLock\.current/);

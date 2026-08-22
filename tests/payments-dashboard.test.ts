@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import "./payment-notifications.test.ts";
 
 const source = readFileSync(new URL("../app/pagos/page.tsx", import.meta.url), "utf8");
 const sidebar = readFileSync(new URL("../componentes/sidebar.tsx", import.meta.url), "utf8");

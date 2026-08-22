@@ -184,12 +184,12 @@ export default function PagosPage() {
     setError("");
     setNotice("");
     try {
-      const saved = await apiRequest<{ dashboard: PaymentDashboard; payment: Payment }>(form.paymentId ? `/api/pagos/${form.paymentId}` : "/api/pagos", {
+      const saved = await apiRequest<{ dashboard: PaymentDashboard | null; payment: Payment }>(form.paymentId ? `/api/pagos/${form.paymentId}` : "/api/pagos", {
         method: form.paymentId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form.paymentId ? form : { ...form, nextDueDate: form.dueDate, dueDate: undefined }),
       }, { fallback: "No se pudo guardar el pago.", scope: "admin" });
-      setData(saved.dashboard);
+      if (saved.dashboard) setData(saved.dashboard);
       setForm(null);
       setNotice(form.paymentId ? "Pago actualizado correctamente." : `Pago de ${account.student} registrado correctamente.`);
       if (!form.paymentId) {

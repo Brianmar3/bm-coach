@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
 import { PAYMENT_METHODS, paymentDashboard, serializePayment, storedStudent } from "@/lib/payments";
+import { persistPaymentConfirmation, sendPaymentConfirmationPush } from "@/lib/payment-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,11 +103,21 @@ export async function POST(request: Request) {
         where: { id: input.studentId },
         data: { data: { ...(student as unknown as Prisma.InputJsonObject), dueDate: input.nextDueDate } },
       });
+      await persistPaymentConfirmation(transaction, payment);
       return { payment, duplicate: false };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
+    if (!result.duplicate) {
+      await sendPaymentConfirmationPush(result.payment).catch((error) => {
+        console.error("No se pudo programar la confirmación de pago por push", error);
+      });
+    }
+    const dashboard = await paymentDashboard().catch((error) => {
+      console.error("El pago quedó guardado, pero no se pudo refrescar el panel", error);
+      return null;
+    });
     return Response.json(
-      { payment: serializePayment(result.payment), dashboard: await paymentDashboard(), duplicate: result.duplicate },
+      { payment: serializePayment(result.payment), dashboard, duplicate: result.duplicate },
       { status: result.duplicate ? 200 : 201 },
     );
   } catch (error) {

@@ -617,12 +617,14 @@ enum StudentNotificationType {
   REMINDER
   ACHIEVEMENT
   POINTS
+  PAYMENT
 }
 
 model StudentNotification {
   id        String                  @id @default(cuid())
   studentId String
   type      StudentNotificationType
+  eventKey  String?                 @unique
   title     String
   message   String
   url       String                  @default("/portal")
@@ -689,6 +691,7 @@ enum StudentPointEventType {
   ACHIEVEMENT
   MILESTONE
   WEEKLY_MISSION
+  PAYMENT
 }
 
 enum StudentPointSourceType {
@@ -699,6 +702,7 @@ enum StudentPointSourceType {
   WORKOUT_SESSION
   ACHIEVEMENT
   WEEKLY_MISSION
+  PAYMENT
 }
 
 model StudentPointTransaction {
