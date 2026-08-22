@@ -38,6 +38,17 @@ test("los dos accesos validan inline, conservan Enter nativo y bloquean doble en
   assert.match(trainerLogin, /<PasswordField/);
 });
 
+test("los accesos de alumno y entrenador se enlazan internamente sin competir con la acción principal", () => {
+  assert.match(portalLogin, /href="\/admin\/login\?next=%2F"/);
+  assert.match(portalLogin, />\s*Entrar al panel\s*</);
+  assert.match(trainerLogin, /href="\/portal\/login"/);
+  assert.match(trainerLogin, />\s*Entrar al portal\s*</);
+  assert.doesNotMatch(portalLogin, /target="_blank"/);
+  assert.doesNotMatch(trainerLogin, /target="_blank"/);
+  assert.match(portalLogin, /fetch\("\/api\/portal\/login"/);
+  assert.match(trainerLogin, /fetch\("\/api\/admin\/auth\/login"/);
+});
+
 test("el cambio de contraseña usa tres controles independientes y valida antes de la red", () => {
   for (const id of ["current-password", "new-password", "confirm-password"]) assert.match(portal, new RegExp(`id="${id}"`));
   assert.match(portal, /if \(saving \|\| !validate\(\)\) return/);

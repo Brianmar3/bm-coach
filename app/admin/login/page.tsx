@@ -2,6 +2,7 @@
 
 import { FormEvent, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PasswordField } from "@/componentes/password-field";
 import { safeInternalPath } from "@/lib/client-api";
@@ -55,6 +56,12 @@ export default function AdminLoginPage() {
       <div className="mt-6"><PasswordField ref={tokenRef} id="admin-credential" label="Credencial administrativa" required minLength={32} autoComplete="current-password" value={token} error={fieldError} onChange={(event) => { setToken(event.target.value); setError(""); if (fieldError) setFieldError(""); }} className="bg-black" /></div>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
       <button type="submit" disabled={loading} aria-busy={loading} className="mt-6 w-full rounded-xl bg-yellow-400 px-4 py-3 font-black text-zinc-950 disabled:cursor-wait disabled:opacity-60">{loading ? "Ingresando…" : "Ingresar"}</button>
+      <div className="mt-4 border-t border-zinc-800 pt-3 text-center">
+        <p className="text-xs text-zinc-500">¿Sos alumno?</p>
+        <Link href="/portal/login" className="mt-0.5 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-yellow-400 transition hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">
+          Entrar al portal
+        </Link>
+      </div>
     </form>
   </main>;
 }

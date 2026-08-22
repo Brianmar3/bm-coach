@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PasswordField } from "@/componentes/password-field";
@@ -60,6 +61,12 @@ export function PortalLoginForm() {
         <PasswordField ref={passwordRef} id="portal-password" label="Contraseña" required autoComplete="current-password" value={password} error={fieldErrors.password} onChange={(event) => { setPassword(event.target.value); setError(""); if (fieldErrors.password) setFieldErrors((current) => ({ ...current, password: undefined })); }} />
         <button type="submit" disabled={loading} aria-busy={loading} className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:cursor-wait disabled:opacity-60">{loading ? "Ingresando…" : "Iniciar sesión"}</button>
       </form>
+      <div className="mt-4 border-t border-zinc-800 pt-3 text-center">
+        <p className="text-xs text-zinc-500">¿Sos entrenador?</p>
+        <Link href="/admin/login?next=%2F" className="mt-0.5 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-yellow-400 transition hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">
+          Entrar al panel
+        </Link>
+      </div>
     </section>
   </main>;
 }
