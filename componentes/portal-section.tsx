@@ -62,7 +62,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "pagos") return <PaymentsView data={data} />;
   if (section === "puntos") return <PointsAndAchievementsView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
-  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><ChangePasswordCard /><PushNotificationsCard /><PortalLogoutCard /></PageHeader>;
+  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><PushNotificationsCard /><PortalLogoutCard /><ExpandablePasswordCard /></PageHeader>;
   return <PortalOverview data={data} />;
 }
 
@@ -740,7 +740,38 @@ function CommentsView({ data }: { data: PortalData }) {
 const portalInput = "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-yellow-400";
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="text-xs text-zinc-500">{label}{children}</label>; }
 
-function ChangePasswordCard({ forced = false, onSuccess }: { forced?: boolean; onSuccess?: () => void }) {
+function ExpandablePasswordCard() {
+  const [expanded, setExpanded] = useState(false);
+  const contentId = "portal-change-password-content";
+  return <section className="mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+    <button
+      type="button"
+      aria-expanded={expanded}
+      aria-controls={contentId}
+      onClick={() => setExpanded((value) => !value)}
+      className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-white/[.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:px-5"
+    >
+      <span className="min-w-0">
+        <span className="block font-semibold text-yellow-300">Cambiar contraseña</span>
+        <span className="mt-1 block text-sm text-zinc-500">Actualizá la contraseña de acceso a tu cuenta.</span>
+      </span>
+      <span aria-hidden="true" className={`shrink-0 text-xl text-zinc-500 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}>›</span>
+    </button>
+    <div
+      id={contentId}
+      aria-hidden={!expanded}
+      inert={!expanded}
+      // Keep the form mounted so collapsing it never clears what the student typed.
+      className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${expanded ? "grid-rows-[1fr] opacity-100" : "pointer-events-none grid-rows-[0fr] opacity-0"}`}
+    >
+      <div className="overflow-hidden">
+        <ChangePasswordCard embedded />
+      </div>
+    </div>
+  </section>;
+}
+
+function ChangePasswordCard({ forced = false, embedded = false, onSuccess }: { forced?: boolean; embedded?: boolean; onSuccess?: () => void }) {
   type PasswordErrors = { current?: string; next?: string; confirm?: string };
   const [currentPassword, setCurrentPassword] = useState(""); const [newPassword, setNewPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [saving, setSaving] = useState(false); const [fieldErrors, setFieldErrors] = useState<PasswordErrors>({});
   const currentRef = useRef<HTMLInputElement>(null); const newRef = useRef<HTMLInputElement>(null); const confirmRef = useRef<HTMLInputElement>(null);
@@ -773,7 +804,7 @@ function ChangePasswordCard({ forced = false, onSuccess }: { forced?: boolean; o
       setError("No pudimos guardar el cambio. Revisá tu conexión e intentá nuevamente.");
     } finally { setSaving(false); }
   }
-  return <section className={`mt-6 rounded-2xl border p-5 ${forced ? "border-yellow-400/40 bg-yellow-400/5" : "border-zinc-800 bg-zinc-900"}`}><h2 className="font-semibold text-yellow-300">{forced ? "Creá tu contraseña personal" : "Cambiar contraseña"}</h2><p className="mt-1 text-sm text-zinc-500">{forced ? "La contraseña temporal debe reemplazarse antes de acceder a tus datos." : "Debe incluir mayúscula, minúscula, número y al menos 10 caracteres."}</p>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}{success && <p role="status" className="mt-4 rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-300">{success}</p>}<form noValidate onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-3"><PasswordField ref={currentRef} id="current-password" label="Contraseña actual" required autoComplete="current-password" value={currentPassword} error={fieldErrors.current} onChange={(event) => { setCurrentPassword(event.target.value); setError(""); if (fieldErrors.current) setFieldErrors((value) => ({ ...value, current: undefined })); }} /><PasswordField ref={newRef} id="new-password" label="Nueva contraseña" required autoComplete="new-password" value={newPassword} error={fieldErrors.next} onChange={(event) => { const value = event.target.value; setNewPassword(value); setError(""); setFieldErrors((errors) => ({ ...errors, next: undefined, confirm: confirmPassword && value === confirmPassword ? undefined : errors.confirm })); }} /><PasswordField ref={confirmRef} id="confirm-password" label="Repetir contraseña" required autoComplete="new-password" value={confirmPassword} error={fieldErrors.confirm} onChange={(event) => { setConfirmPassword(event.target.value); setError(""); if (fieldErrors.confirm) setFieldErrors((value) => ({ ...value, confirm: undefined })); }} /><button type="submit" disabled={saving} aria-busy={saving} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:cursor-wait disabled:opacity-60 sm:col-span-3">{saving ? "Guardando…" : "Guardar contraseña"}</button></form></section>;
+  return <section className={embedded ? "border-t border-zinc-800 px-4 pb-4 pt-3 sm:px-5 sm:pb-5" : `mt-6 rounded-2xl border p-5 ${forced ? "border-yellow-400/40 bg-yellow-400/5" : "border-zinc-800 bg-zinc-900"}`}><h2 className={embedded ? "sr-only" : "font-semibold text-yellow-300"}>{forced ? "Creá tu contraseña personal" : "Cambiar contraseña"}</h2><p className="mt-1 text-sm text-zinc-500">{forced ? "La contraseña temporal debe reemplazarse antes de acceder a tus datos." : "Debe incluir mayúscula, minúscula, número y al menos 10 caracteres."}</p>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}{success && <p role="status" className="mt-4 rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-300">{success}</p>}<form noValidate onSubmit={submit} className="mt-5 grid gap-4 sm:grid-cols-3"><PasswordField ref={currentRef} id="current-password" label="Contraseña actual" required autoComplete="current-password" value={currentPassword} error={fieldErrors.current} onChange={(event) => { setCurrentPassword(event.target.value); setError(""); if (fieldErrors.current) setFieldErrors((value) => ({ ...value, current: undefined })); }} /><PasswordField ref={newRef} id="new-password" label="Nueva contraseña" required autoComplete="new-password" value={newPassword} error={fieldErrors.next} onChange={(event) => { const value = event.target.value; setNewPassword(value); setError(""); setFieldErrors((errors) => ({ ...errors, next: undefined, confirm: confirmPassword && value === confirmPassword ? undefined : errors.confirm })); }} /><PasswordField ref={confirmRef} id="confirm-password" label="Repetir contraseña" required autoComplete="new-password" value={confirmPassword} error={fieldErrors.confirm} onChange={(event) => { setConfirmPassword(event.target.value); setError(""); if (fieldErrors.confirm) setFieldErrors((value) => ({ ...value, confirm: undefined })); }} /><button type="submit" disabled={saving} aria-busy={saving} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:cursor-wait disabled:opacity-60 sm:col-span-3">{saving ? "Guardando…" : "Guardar contraseña"}</button></form></section>;
 }
 
 function PortalLogoutCard() {
@@ -787,7 +818,7 @@ function PortalLogoutCard() {
     }
   }
   return (
-    <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 sm:flex-row sm:items-center sm:justify-between">
+    <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <div>
         <h2 className="font-semibold">Sesión</h2>
         <p className="mt-1 text-sm text-zinc-500">

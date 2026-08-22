@@ -289,7 +289,7 @@ export function PushNotificationsCard({
     loading: "Comprobando…",
     unsupported: "No compatibles en este dispositivo",
     "iphone-browser": "Requiere instalar la app",
-    blocked: "Bloqueadas por el navegador",
+    blocked: "Permiso denegado",
     inactive: "No activadas",
     active: "Activadas",
     unconfigured: "Pendientes de configuración",
@@ -297,14 +297,25 @@ export function PushNotificationsCard({
   const heading =
     audience === "trainer"
       ? "Notificaciones de asistencia"
-      : "Notificaciones de logros";
+      : "Notificaciones";
   const description =
     audience === "trainer"
       ? "Recibí un aviso cuando un alumno confirme o rechace su asistencia."
-      : "Recibí un aviso cuando desbloquees un logro o superes una marca personal.";
+      : "Recibí avisos de pagos, vencimientos, logros y novedades de tu entrenamiento.";
+  const contextualMessage = message || (
+    state === "iphone-browser"
+      ? "Para recibir notificaciones en iPhone, agregá BM Training a la pantalla de inicio desde Compartir → Agregar a pantalla de inicio; luego abrí la app y activalas."
+      : state === "blocked"
+        ? "Las notificaciones están desactivadas para BM Training. Podés habilitarlas desde la configuración del navegador o del teléfono."
+        : state === "unconfigured"
+          ? "Las notificaciones todavía no están configuradas."
+          : state === "active"
+            ? "Notificaciones activadas."
+            : ""
+  );
 
   return (
-    <section className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold">{heading}</h2>
@@ -315,32 +326,14 @@ export function PushNotificationsCard({
         </span>
       </div>
 
-      {state === "iphone-browser" && (
-        <p className="mt-3 text-sm text-yellow-200">
-          Para recibir notificaciones en iPhone, agregá BM Training a la pantalla
-          de inicio: Compartir → Agregar a pantalla de inicio → abrí la app →
-          activá las notificaciones.
-        </p>
-      )}
-      {state === "blocked" && (
-        <p className="mt-3 text-sm text-yellow-200">
-          Las notificaciones están bloqueadas. Podés habilitarlas desde la
-          configuración del navegador o del teléfono.
-        </p>
-      )}
-      {state === "unconfigured" && (
-        <p className="mt-3 text-sm text-zinc-500">
-          Las notificaciones todavía no están configuradas.
-        </p>
-      )}
-      {message && (
+      {contextualMessage && (
         <p
           role="status"
           className={`mt-3 text-sm ${
             state === "active" ? "text-emerald-300" : "text-yellow-200"
           }`}
         >
-          {message}
+          {contextualMessage}
         </p>
       )}
 

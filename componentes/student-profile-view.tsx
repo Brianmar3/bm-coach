@@ -123,6 +123,7 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
   const selectedAvatar =
     PROFILE_AVATARS.find((avatar) => avatar.id === avatarChoice) ??
     DEFAULT_PROFILE_AVATAR;
+  const avatarGroups = ["Personajes", "Equipamiento"] as const;
 
   return (
     <div>
@@ -266,13 +267,11 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
               </div>
             </div>
 
-            <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
-              <div
-                className="grid grid-cols-3 gap-2.5 sm:grid-cols-4"
-                role="group"
-                aria-label="Avatares deportivos"
-              >
-                {PROFILE_AVATARS.map((avatar) => {
+            <div className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-5 sm:px-5">
+              {avatarGroups.map((group) => <section key={group} aria-labelledby={`avatar-group-${group.toLowerCase()}`}>
+                <h3 id={`avatar-group-${group.toLowerCase()}`} className="mb-2 text-[10px] font-black uppercase tracking-[.16em] text-yellow-400">{group}</h3>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label={`Avatares: ${group}`}>
+                {PROFILE_AVATARS.filter((avatar) => avatar.category === group).map((avatar) => {
                   const selected = avatarChoice === avatar.id;
                   return (
                     <button
@@ -299,10 +298,11 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              </section>)}
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-800 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:p-5">
+            <div className="sticky bottom-0 mt-4 grid grid-cols-2 gap-3 border-t border-zinc-800 bg-[#111]/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur sm:p-5">
               <button
                 type="button"
                 onClick={closeAvatarPicker}
