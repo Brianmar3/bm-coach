@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Blob URLs are validated uploads */
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { QuickLog, QuickLogType } from "@/types/quick-log";
 import { normalizeExerciseName } from "@/lib/exercise-name";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
@@ -25,18 +26,11 @@ const labels: Record<QuickLogType, { title: string; icon: string }> = {
 };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
 
-export function QuickLogLauncher() {
-  const [open, setOpen] = useState(false);
-  return <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3"><h2 className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Registro rápido</h2><button type="button" onClick={() => setOpen(true)} className="mt-3 min-h-11 w-full rounded-xl bg-yellow-400 px-4 text-sm font-bold text-zinc-950">¿Qué querés anotar?</button>{open && <GuidedQuickLogForm close={() => setOpen(false)} saved={() => undefined} />}</section>;
-}
-
 export function QuickNoteButton({ placement }: { placement: "navigation" | "inline" }) {
-  const [open, setOpen] = useState(false);
-  const [notice, setNotice] = useState("");
   const className = placement === "navigation"
     ? "group relative grid h-14 w-14 aspect-square shrink-0 -translate-y-2 place-items-center self-center justify-self-center rounded-full border border-yellow-400/45 bg-zinc-950 text-xl font-black text-yellow-300 shadow-[0_8px_22px_rgba(250,204,21,.08),0_10px_28px_rgba(0,0,0,.55)] transition-[color,background-color,border-color,transform] duration-200 hover:border-yellow-300/70 hover:bg-yellow-400/[.06] active:-translate-y-1 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
     : "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-yellow-400/30 bg-yellow-400/[.05] px-3 text-xs font-black text-yellow-300 transition hover:border-yellow-400/50 hover:bg-yellow-400/[.09] active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300";
-  return <>{<button type="button" onClick={() => setOpen(true)} aria-label="Abrir registro rápido" className={className}><span aria-hidden="true">＋</span><span className={placement === "navigation" ? "sr-only" : ""}>Registro rápido</span></button>}{open && <GuidedQuickLogForm close={() => setOpen(false)} saved={() => { setNotice("Registro guardado correctamente."); window.dispatchEvent(new Event("bm:achievement-check")); window.setTimeout(() => setNotice(""), 3000); }} />}{notice && <p role="status" className="fixed bottom-[calc(env(safe-area-inset-bottom)+6.5rem)] left-4 right-4 z-[75] mx-auto max-w-md rounded-xl border border-emerald-400/25 bg-zinc-950 px-4 py-3 text-sm text-emerald-300 shadow-2xl">{notice}</p>}</>;
+  return <Link href="/portal/registro" aria-label="Abrir mis registros" className={className}><span aria-hidden="true">＋</span><span className={placement === "navigation" ? "sr-only" : ""}>Registro rápido</span></Link>;
 }
 
 type QuickCategory = "strength" | "circuit" | "other";
@@ -62,9 +56,7 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
   const [errors, setErrors] = useState<Partial<Record<keyof QuickLogDraft, string>>>({});
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [exiting, setExiting] = useState(false);
   const savingLock = useRef(false);
-  const closeTimer = useRef<number | null>(null);
   const requestKey = useRef("");
   const suggestions = useMemo(() => draft.exercise.trim() ? exerciseSuggestions(options, draft.exercise) : [], [draft.exercise, options]);
   const exactSuggestion = suggestions.some((option) => normalizeExerciseSearch(option.name) === normalizeExerciseSearch(draft.exercise));
@@ -77,16 +69,6 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
-
-  useEffect(() => () => {
-    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
-  }, []);
-
-  function requestClose() {
-    if (exiting) return;
-    setExiting(true);
-    closeTimer.current = window.setTimeout(close, 230);
-  }
 
   function chooseCategory(value: QuickCategory) {
     setCategory(value);
@@ -126,7 +108,7 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
         setChoosingIntervalFormat(false);
         setErrors({});
         requestKey.current = "";
-      } else requestClose();
+      } else close();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo guardar el registro.");
     } finally {
@@ -138,9 +120,9 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
   const fieldError = (key: keyof QuickLogDraft) => errors[key] ? <span className="mt-1 block text-xs text-red-300">{errors[key]}</span> : null;
   const numberInput = (key: keyof QuickLogDraft, placeholder: string, optional = false) => <><input type="number" min="0" inputMode="numeric" value={String(draft[key] ?? "")} onChange={(event) => set(key, event.target.value as never)} placeholder={placeholder} className="input min-h-12" />{optional ? null : fieldError(key)}</>;
 
-  return <div className={`quick-log-sheet-layer fixed inset-0 z-[70] flex items-end justify-center overflow-hidden bg-black/85 backdrop-blur-sm ${exiting ? "quick-log-backdrop-exit" : "quick-log-backdrop-enter"}`} onMouseDown={(event) => event.target === event.currentTarget && requestClose()}><form onSubmit={(event) => { event.preventDefault(); void save(false); }} className={`quick-log-sheet flex w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-yellow-400/15 bg-[#111] shadow-[0_18px_48px_rgba(0,0,0,.68),0_0_24px_rgba(250,204,21,.035)] ${exiting ? "quick-log-sheet-exit" : "quick-log-sheet-enter"}`}>
-    <header className="sticky top-0 z-20 flex shrink-0 items-start gap-3 border-b border-zinc-800 bg-[#111]/95 p-4 backdrop-blur"><button type="button" onClick={category ? back : requestClose} disabled={saving} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/70 text-lg text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver">←</button><div className="min-w-0 pt-0.5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Registro rápido</p><h2 className="mt-0.5 text-lg font-black leading-tight sm:text-xl">{draft.kind ? KIND_LABEL[draft.kind] : category ? CATEGORY_LABEL[category] : "¿Qué querés registrar hoy?"}</h2>{!category && <p className="mt-1 text-xs leading-relaxed text-zinc-400 sm:text-sm">Elegí una opción para guardar tu progreso.</p>}</div></header>
-    <div className={`min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 ${draft.kind ? "pb-6" : "pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]"}`}>
+  return <form onSubmit={(event) => { event.preventDefault(); void save(false); }} className="mt-5 overflow-hidden rounded-3xl border border-yellow-400/15 bg-[#111] shadow-[0_18px_48px_rgba(0,0,0,.45)]">
+    <header className="flex items-start gap-3 border-b border-zinc-800 p-4"><button type="button" onClick={category ? back : close} disabled={saving} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/70 text-lg text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver">←</button><div className="min-w-0 pt-0.5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Registro rápido</p><h2 className="mt-0.5 text-lg font-black leading-tight sm:text-xl">{draft.kind ? KIND_LABEL[draft.kind] : category ? CATEGORY_LABEL[category] : "¿Qué querés registrar hoy?"}</h2>{!category && <p className="mt-1 text-xs leading-relaxed text-zinc-400 sm:text-sm">Elegí una opción para guardar tu progreso.</p>}</div></header>
+    <div className="space-y-4 p-4">
       {error && <p role="alert" className="rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
       {!category && <div className="grid gap-3">{(["strength", "circuit", "other"] as QuickCategory[]).map((value) => <button key={value} type="button" onClick={() => chooseCategory(value)} aria-label={`${CATEGORY_LABEL[value]}. ${CATEGORY_META[value].description}`} className="group grid min-h-[5.5rem] w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-zinc-800 bg-[linear-gradient(135deg,#181818,#0a0a0a)] p-3 text-left shadow-[0_10px_24px_rgba(0,0,0,.18)] transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-yellow-400/35 hover:shadow-[0_14px_30px_rgba(0,0,0,.28)] active:translate-y-0 active:scale-[.985] active:border-yellow-400/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"><span aria-hidden="true" className="grid h-12 w-12 place-items-center rounded-xl border border-yellow-400/15 bg-yellow-400/[.07] text-lg text-yellow-300 transition group-hover:border-yellow-400/30 group-hover:bg-yellow-400/[.1]">{CATEGORY_META[value].icon}</span><span className="min-w-0"><strong className="block text-sm font-black text-white sm:text-base">{CATEGORY_LABEL[value]}</strong><span className="mt-1 block text-xs leading-snug text-zinc-400 sm:text-sm">{CATEGORY_META[value].description}</span></span><span aria-hidden="true" className="pr-1 text-lg text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-yellow-300">›</span></button>)}</div>}
       {category === "circuit" && !draft.kind && !choosingIntervalFormat && <Choice title="¿Qué resultado querés registrar?" options={[{ value: "time", label: "Tiempo" }, { value: "rounds", label: "Vueltas" }, { value: "interval", label: "AMRAP / EMOM" }]} choose={(value) => value === "interval" ? setChoosingIntervalFormat(true) : set("kind", value as QuickLogKind)} />}
@@ -156,8 +138,8 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
       {draft.kind === "intervals" && <div className="space-y-4"><TextField label="Actividad" value={draft.activity} setValue={(value) => set("activity", value)} error={errors.activity} /><div className="grid grid-cols-3 gap-2"><Field label="Rondas">{numberInput("rounds", "8")}</Field><Field label="Trabajo (s)">{numberInput("workSeconds", "30")}</Field><Field label="Descanso (s)">{numberInput("restSeconds", "30")}</Field></div></div>}
       {draft.kind === "note" && <TextArea label="¿Qué querés anotar?" value={draft.note} setValue={(value) => set("note", value)} error={errors.note} />}
     </div>
-    {draft.kind && <footer className="sticky bottom-0 z-10 mt-auto shrink-0 border-t border-zinc-800 bg-[#111]/95 p-3 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] backdrop-blur"><button type="submit" disabled={saving} className="min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar"}</button><div className="mt-2 flex items-center justify-between gap-3"><button type="button" disabled={saving} onClick={() => void save(true)} className="min-h-10 text-sm font-semibold text-yellow-300 disabled:opacity-50">Guardar y agregar otro</button><button type="button" disabled={saving} onClick={requestClose} className="min-h-10 text-sm text-zinc-500 disabled:opacity-50">Cancelar</button></div></footer>}
-  </form></div>;
+    {draft.kind && <footer className="border-t border-zinc-800 p-3"><button type="submit" disabled={saving} className="min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar"}</button><div className="mt-2 flex items-center justify-between gap-3"><button type="button" disabled={saving} onClick={() => void save(true)} className="min-h-10 text-sm font-semibold text-yellow-300 disabled:opacity-50">Guardar y agregar otro</button><button type="button" disabled={saving} onClick={close} className="min-h-10 text-sm text-zinc-500 disabled:opacity-50">Cancelar</button></div></footer>}
+  </form>;
 }
 
 function Choice({ title, options, choose, compact = false }: { title: string; options: Array<{ value: string; label: string }>; choose: (value: string) => void; compact?: boolean }) { return <section><h3 className="font-bold">{title}</h3><div className={`mt-3 grid gap-3 ${compact ? "grid-cols-2" : ""}`}>{options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className="min-h-16 rounded-xl border border-zinc-800 bg-zinc-950 px-4 text-left font-bold hover:border-yellow-400/40 hover:text-yellow-300">{option.label}</button>)}</div></section>; }
@@ -216,12 +198,13 @@ export function QuickLogHistory() {
     const body = await response.json() as { error?: string; message?: string }; if (!response.ok) { setError(body.error ?? "No se pudo eliminar la foto."); return; }
     setNotice(body.message ?? "Foto eliminada correctamente."); await load();
   }
-  return <div><header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro personal</p><h1 className="mt-1 text-2xl font-bold">Mis registros</h1><p className="mt-1 text-sm text-zinc-500">Consultá tu historial cronológico o la evolución de cada ejercicio.</p></div><button onClick={() => setCreating(true)} className="rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950">+ Nuevo registro</button></header>
+  return <div><header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Registro personal</p><h1 className="mt-1 text-2xl font-bold">Mis registros</h1><p className="mt-1 text-sm text-zinc-500">Consultá tu historial cronológico o la evolución de cada ejercicio.</p></div>{!creating && <button onClick={() => setCreating(true)} className="rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950">+ Nuevo registro</button>}</header>
     {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}{notice && <p role="status" className="mt-4 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
+    {creating ? <GuidedQuickLogForm close={() => setCreating(false)} saved={async () => { setNotice("Registro guardado correctamente."); await load(); }} /> : <>
     <div className="mt-4 inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1" role="tablist" aria-label="Vista de registros"><button type="button" role="tab" aria-selected={view === "chronological"} onClick={() => setView("chronological")} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${view === "chronological" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Cronológico</button><button type="button" role="tab" aria-selected={view === "exercises"} onClick={() => setView("exercises")} className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${view === "exercises" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Por ejercicio</button></div>
     <section className="mt-4 grid gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3 sm:grid-cols-2 lg:grid-cols-4"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en mis registros" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-yellow-400" /><select value={type} onChange={(event) => setType(event.target.value as QuickLogType | "")} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option value="">Todos</option>{(Object.keys(labels) as QuickLogType[]).map((value) => <option key={value} value={value}>{labels[value].title}</option>)}</select><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Desde" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" /><input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="Hasta" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" /></section>
     <div className="mt-4 space-y-3">{loading ? <p className="rounded-xl bg-zinc-900 p-8 text-center text-zinc-500">Cargando registros…</p> : view === "chronological" ? logs.length ? logs.map((log) => <QuickLogCard key={log.id} log={log} edit={() => setEditing(log)} remove={() => remove(log)} removePhoto={(photoId) => removePhoto(log, photoId)} />) : <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Todavía no hay registros personales.</p> : exerciseGroups.length ? exerciseGroups.map((group) => <section key={group.key} className="rounded-2xl border border-yellow-400/10 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold text-zinc-100">{group.name}</h2><p className="mt-1 text-xs text-zinc-500">{group.logs.length} registro{group.logs.length === 1 ? "" : "s"} · Último: {new Date(`${group.latest.date}T12:00:00`).toLocaleDateString("es-AR")}</p></div><button type="button" onClick={() => setSelectedExercise((value) => value === group.key ? "" : group.key)} className="min-h-10 rounded-lg border border-yellow-400/20 px-3 text-xs font-bold text-yellow-300">{selectedExercise === group.key ? "Ocultar historial" : "Ver historial"}</button></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label="Última carga" value={group.latest.currentValue === null ? "Sin carga" : `${group.latest.currentValue.toLocaleString("es-AR")} ${group.latest.unit || "kg"}`} /><Metric label="Máxima histórica" value={`${group.maximum.toLocaleString("es-AR")} ${group.latest.unit || "kg"}`} /><Metric label="Último trabajo" value={group.latest.sets !== null && group.latest.repetitions !== null ? `${group.latest.sets} × ${group.latest.repetitions}` : "Sin datos"} /><Metric label="Última fecha" value={new Date(`${group.latest.date}T12:00:00`).toLocaleDateString("es-AR")} /></div>{selectedExercise === group.key && <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">{group.logs.map((log) => <QuickLogCard key={log.id} log={log} edit={() => setEditing(log)} remove={() => remove(log)} removePhoto={(photoId) => removePhoto(log, photoId)} />)}</div>}</section>) : <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">Todavía no hay ejercicios registrados.</p>}</div>
-    {creating && <GuidedQuickLogForm close={() => setCreating(false)} saved={async () => { setNotice("Registro guardado correctamente."); await load(); }} />}
+    </>}
     {editing && <QuickLogForm type={editing.type} initial={editing} close={() => setEditing(null)} saved={async () => { setEditing(null); setNotice("Registro actualizado correctamente."); await load(); }} />}
   </div>;
 }

@@ -209,20 +209,20 @@ test("el portal deriva alumno de sesión y el ranking consume el evento existent
   assert.match(points, /weekly-mission-bonus:/);
 });
 
-test("Puntos separa total y mes y abre ranking dentro del módulo", () => {
+test("Puntos separa total y mes y navega al ranking completo", () => {
   const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
   const view = portal.slice(portal.indexOf("function PointsAndAchievementsView"), portal.indexOf("function MonthlyAttendanceIndicator"));
-  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  const ranking = readFileSync(new URL("../componentes/portal-ranking.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/portal/(student)/ranking/page.tsx", import.meta.url), "utf8");
   assert.match(portal, /points\.monthlyTotal/);
   assert.match(view, /aria-label="Ver ranking mensual"/);
-  assert.match(view, /MonthlyRankingDialog/);
-  assert.match(view, /portal-ranking-sheet flex w-full flex-col overflow-hidden/);
-  assert.match(view, /sticky top-0 z-20/);
-  assert.match(view, /shrink-0 px-4 pt-4/);
-  assert.match(view, /portal-ranking-scroll min-h-0 flex-1 overflow-y-auto/);
-  assert.doesNotMatch(view, /max-h-\[calc\(82dvh-82px\)\]/);
-  assert.match(styles, /max-height: min\(78dvh, calc\(100dvh - env\(safe-area-inset-top, 0px\) - 24px\)\)/);
-  assert.match(styles, /padding-bottom: calc\(16px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(view, /href="\/portal\/ranking"/);
+  assert.match(page, /<PortalRanking/);
+  assert.match(ranking, /fetch\("\/api\/portal\/ranking"/);
+  assert.match(ranking, /href="\/portal\/puntos"/);
+  assert.match(ranking, /ranking\.ranking\.map/);
+  assert.doesNotMatch(ranking, /fixed inset-0|role="dialog"|overflow-y-auto|max-h-/);
+  assert.doesNotMatch(view, /MonthlyRankingDialog|rankingOpen/);
   assert.doesNotMatch(view, /campanita|profileImageUrl/);
 });
 

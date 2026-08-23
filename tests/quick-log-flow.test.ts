@@ -108,14 +108,13 @@ test("las validaciones breves se asocian al campo mínimo faltante", () => {
   assert.equal(validateQuickLogDraft(draft({ kind: "rounds", title: "Circuito" })).rounds, "Ingresá las vueltas.");
 });
 
-test("volver conserva el borrador y la barra móvil respeta safe area", () => {
+test("volver conserva el borrador y el alta usa el flujo normal de la página", () => {
   const source = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
   const back = source.slice(source.indexOf("function back()"), source.indexOf("async function save"));
   assert.doesNotMatch(back, /setDraft/);
-  assert.match(source, /sticky bottom-0/);
-  assert.match(source, /env\(safe-area-inset-bottom,0px\)/);
-  assert.match(source, /min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain/);
-  assert.doesNotMatch(source, /min-h-\[calc\(100dvh/);
+  assert.match(source, /creating \? <GuidedQuickLogForm/);
+  assert.match(source, /mt-5 overflow-hidden rounded-3xl/);
+  assert.doesNotMatch(source, /quick-log-sheet|fixed inset-0 z-\[70\]|sticky bottom-0/);
 });
 
 test("el doble toque queda cubierto por bloqueo local e idempotencia persistida", () => {
