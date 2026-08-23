@@ -13,7 +13,11 @@ export async function GET() {
     currentStudentId: session.studentId,
     currentPosition: currentIndex >= 0 ? currentIndex + 1 : null,
     currentPoints: currentIndex >= 0 ? ranking[currentIndex].total : 0,
-    ranking: ranking.map(({ studentId, studentName, total }) => ({ studentId, studentName, total })),
+    ranking: ranking.map(({ studentId, studentName, profileImageUrl, total }) => ({
+      studentId,
+      studentName,
+      profileImageUrl,
+      total,
+    })),
   });
 }
-

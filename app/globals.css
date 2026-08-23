@@ -202,6 +202,63 @@ body {
   }
 }
 
+@keyframes portal-ranking-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes portal-ranking-sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.7) rotate(0deg); }
+  50% { opacity: 0.9; transform: scale(1.15) rotate(90deg); }
+}
+
+@keyframes portal-ranking-celebration {
+  0% { opacity: 0; transform: translateY(10px) scale(0.5); }
+  35% { opacity: 0.85; }
+  100% { opacity: 0; transform: translateY(-18px) scale(1); }
+}
+
+.portal-ranking-enter-item {
+  opacity: 0;
+  animation: portal-ranking-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) var(--ranking-delay, 0ms) both;
+}
+
+.portal-ranking-summary {
+  background:
+    linear-gradient(105deg, rgba(250, 204, 21, 0.055), rgba(9, 9, 11, 0.9) 42%, rgba(250, 204, 21, 0.07)),
+    #0d0d0f;
+}
+
+.portal-ranking-sparkle,
+.portal-ranking-celebration {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #fde68a;
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.9);
+}
+
+.portal-ranking-sparkle {
+  animation: portal-ranking-sparkle 950ms ease-out 260ms both;
+}
+
+.portal-ranking-celebration {
+  animation: portal-ranking-celebration 1050ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-ranking-enter-item {
+    opacity: 1;
+    animation: none;
+  }
+
+  .portal-ranking-sparkle,
+  .portal-ranking-celebration {
+    animation: none;
+  }
+}
+
 /* Sistema visual del panel del entrenador. El alcance evita modificar el portal. */
 .admin-panel {
   --admin-gold: #facc15;

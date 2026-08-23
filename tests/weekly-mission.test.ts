@@ -213,6 +213,7 @@ test("Puntos separa total y mes y navega al ranking completo", () => {
   const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
   const view = portal.slice(portal.indexOf("function PointsAndAchievementsView"), portal.indexOf("function MonthlyAttendanceIndicator"));
   const ranking = readFileSync(new URL("../componentes/portal-ranking.tsx", import.meta.url), "utf8");
+  const rankingRoute = readFileSync(new URL("../app/api/portal/ranking/route.ts", import.meta.url), "utf8");
   const page = readFileSync(new URL("../app/portal/(student)/ranking/page.tsx", import.meta.url), "utf8");
   assert.match(portal, /points\.monthlyTotal/);
   assert.match(view, /aria-label="Ver ranking mensual"/);
@@ -220,7 +221,17 @@ test("Puntos separa total y mes y navega al ranking completo", () => {
   assert.match(page, /<PortalRanking/);
   assert.match(ranking, /fetch\("\/api\/portal\/ranking"/);
   assert.match(ranking, /href="\/portal\/puntos"/);
-  assert.match(ranking, /ranking\.ranking\.map/);
+  assert.match(ranking, /FEATURED_RANKING_SIZE = 5/);
+  assert.match(ranking, /pinnedCurrent/);
+  assert.match(ranking, /entry\.studentId !== pinnedCurrent\?\.studentId/);
+  assert.match(ranking, /entry\.profileImageUrl \|\| DEFAULT_PROFILE_AVATAR\.src/);
+  assert.match(rankingRoute, /studentName, profileImageUrl, total/);
+  assert.match(ranking, /position === 1/);
+  assert.match(ranking, /position === 2/);
+  assert.match(ranking, /position === 3/);
+  assert.match(ranking, /prefers-reduced-motion: reduce/);
+  assert.match(ranking, /useAnimatedPoints/);
+  assert.doesNotMatch(ranking, /Racha|positionChange|variaci[oó]n/i);
   assert.doesNotMatch(ranking, /fixed inset-0|role="dialog"|overflow-y-auto|max-h-/);
   assert.doesNotMatch(view, /MonthlyRankingDialog|rankingOpen/);
   assert.doesNotMatch(view, /campanita|profileImageUrl/);
