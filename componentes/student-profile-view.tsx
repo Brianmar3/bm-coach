@@ -1,10 +1,7 @@
-"use client";
 /* eslint-disable @next/next/no-img-element -- profile image is a preserved Blob URL or a bundled avatar */
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { DEFAULT_PROFILE_AVATAR, PROFILE_AVATARS } from "@/lib/profile-avatars";
+import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 import { studentServiceLabel } from "@/lib/student-service";
 import type { PortalProfile } from "@/types/portal";
 
@@ -13,117 +10,8 @@ const showDate = (value: string) =>
     ? new Date(`${value}T12:00:00`).toLocaleDateString("es-AR")
     : "Sin definir";
 
-type AvatarResponse = {
-  success?: boolean;
-  photoUrl?: string;
-  url?: string;
-  message?: string;
-  error?: string;
-};
-
-async function readAvatarResponse(response: Response): Promise<AvatarResponse> {
-  const text = await response.text();
-  if (!text.trim()) {
-    throw new Error(
-      response.ok
-        ? "El servidor no confirmó el cambio de avatar."
-        : "El servidor no pudo procesar el avatar.",
-    );
-  }
-  if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("application/json")) {
-    throw new Error("El servidor devolvió una respuesta no válida.");
-  }
-  try {
-    return JSON.parse(text) as AvatarResponse;
-  } catch {
-    throw new Error("El servidor devolvió una respuesta no válida.");
-  }
-}
-
 export function StudentProfileView({ profile }: { profile: PortalProfile }) {
-  const router = useRouter();
-  const [avatarUrl, setAvatarUrl] = useState(profile.profileImageUrl);
-  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
-  const [avatarChoice, setAvatarChoice] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const avatarButton = useRef<HTMLButtonElement>(null);
-  const savingLock = useRef(false);
-
-  useEffect(() => {
-    if (!avatarPickerOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeAvatarPicker();
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [avatarPickerOpen]);
-
-  function openAvatarPicker() {
-    setError("");
-    setMessage("");
-    setAvatarChoice(
-      PROFILE_AVATARS.find((avatar) => avatar.src === avatarUrl)?.id ??
-        DEFAULT_PROFILE_AVATAR.id,
-    );
-    setAvatarPickerOpen(true);
-  }
-
-  function closeAvatarPicker() {
-    setAvatarPickerOpen(false);
-    window.setTimeout(() => avatarButton.current?.focus(), 0);
-  }
-
-  async function saveAvatar() {
-    if (!avatarChoice || savingLock.current) return;
-    savingLock.current = true;
-    setSaving(true);
-    setError("");
-    setMessage("");
-    try {
-      const response = await fetch("/api/portal/profile-photo", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatarId: avatarChoice }),
-      });
-      const body = await readAvatarResponse(response);
-      const nextAvatarUrl = body.photoUrl ?? body.url;
-      if (!response.ok || body.success === false || !nextAvatarUrl) {
-        throw new Error(body.error ?? "No se pudo guardar el avatar.");
-      }
-      setAvatarUrl(nextAvatarUrl);
-      setAvatarPickerOpen(false);
-      setMessage(body.message ?? "Avatar actualizado correctamente.");
-      window.dispatchEvent(
-        new CustomEvent("bm:profile-photo-updated", {
-          detail: { photoUrl: nextAvatarUrl },
-        }),
-      );
-      router.refresh();
-      window.setTimeout(() => avatarButton.current?.focus(), 0);
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "No se pudo guardar el avatar.",
-      );
-    } finally {
-      savingLock.current = false;
-      setSaving(false);
-    }
-  }
-
-  const shown = avatarUrl || DEFAULT_PROFILE_AVATAR.src;
-  const selectedAvatar =
-    PROFILE_AVATARS.find((avatar) => avatar.id === avatarChoice) ??
-    DEFAULT_PROFILE_AVATAR;
-  const avatarGroups = ["Personajes", "Equipamiento"] as const;
+  const shown = profile.profileImageUrl || DEFAULT_PROFILE_AVATAR.src;
 
   return (
     <div>
@@ -154,31 +42,12 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
           <p className="mt-1 text-xs text-zinc-500">
             Elegí el avatar que más te represente.
           </p>
-          <button
-            ref={avatarButton}
-            type="button"
-            disabled={saving}
-            onClick={openAvatarPicker}
-            className="mt-4 min-h-11 rounded-lg border border-yellow-400/25 bg-yellow-400/[.04] px-4 py-2 text-sm font-bold text-yellow-300 transition hover:border-yellow-400/45 focus:outline-none focus:ring-2 focus:ring-yellow-300"
+          <Link
+            href="/portal/perfil/avatar"
+            className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-yellow-400/25 bg-yellow-400/[.04] px-4 py-2 text-sm font-bold text-yellow-300 transition hover:border-yellow-400/45 focus:outline-none focus:ring-2 focus:ring-yellow-300"
           >
             Cambiar avatar
-          </button>
-          {error && (
-            <p
-              role="alert"
-              className="mt-3 rounded-lg bg-red-400/10 p-2 text-sm text-red-300"
-            >
-              {error}
-            </p>
-          )}
-          {message && (
-            <p
-              role="status"
-              className="mt-3 rounded-lg bg-emerald-400/10 p-2 text-sm text-emerald-300"
-            >
-              {message}
-            </p>
-          )}
+          </Link>
         </div>
       </header>
 
@@ -215,114 +84,6 @@ export function StudentProfileView({ profile }: { profile: PortalProfile }) {
         <span aria-hidden="true" className="ml-3 text-yellow-400">›</span>
       </Link>
 
-      {avatarPickerOpen && (
-        <div
-          className="fixed inset-0 z-[70] flex items-end bg-black/80 p-0 pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:items-center sm:p-5"
-          onMouseDown={(event) =>
-            event.target === event.currentTarget && closeAvatarPicker()
-          }
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="avatar-picker-title"
-            className="flex max-h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden rounded-t-3xl border border-yellow-400/15 bg-[#111] shadow-[0_-18px_50px_rgba(0,0,0,.55)] sm:mx-auto sm:max-w-2xl sm:rounded-3xl"
-          >
-            <div className="flex items-start justify-between gap-3 p-4 pb-3 sm:p-5">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">
-                  BM Training
-                </p>
-                <h2 id="avatar-picker-title" className="mt-1 text-xl font-bold">
-                  Elegí tu avatar
-                </h2>
-                <p className="mt-1 text-sm text-zinc-500">
-                  Elegí el avatar que más te represente.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeAvatarPicker}
-                disabled={saving}
-                aria-label="Cerrar selector de avatares"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-zinc-700 text-zinc-400 focus:outline-none focus:ring-2 focus:ring-yellow-300"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="mx-4 flex items-center gap-3 rounded-2xl border border-yellow-400/15 bg-black/55 p-3 sm:mx-5">
-              <img
-                src={selectedAvatar.src}
-                alt=""
-                className="h-16 w-16 shrink-0 rounded-full border border-yellow-400/30 object-cover"
-              />
-              <div className="min-w-0">
-                <p className="truncate font-bold text-yellow-200">
-                  {selectedAvatar.label}
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {selectedAvatar.category}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-5 sm:px-5">
-              {avatarGroups.map((group) => <section key={group} aria-labelledby={`avatar-group-${group.toLowerCase()}`}>
-                <h3 id={`avatar-group-${group.toLowerCase()}`} className="mb-2 text-[10px] font-black uppercase tracking-[.16em] text-yellow-400">{group}</h3>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label={`Avatares: ${group}`}>
-                {PROFILE_AVATARS.filter((avatar) => avatar.category === group).map((avatar) => {
-                  const selected = avatarChoice === avatar.id;
-                  return (
-                    <button
-                      key={avatar.id}
-                      type="button"
-                      disabled={saving}
-                      onClick={() => setAvatarChoice(avatar.id)}
-                      aria-label={`Elegir avatar ${avatar.label}`}
-                      aria-pressed={selected}
-                      className={`min-w-0 rounded-2xl border p-2 transition focus:outline-none focus:ring-2 focus:ring-yellow-300 ${
-                        selected
-                          ? "border-yellow-300 bg-yellow-400/10 shadow-[0_0_18px_rgba(250,204,21,.1)]"
-                          : "border-zinc-800 bg-black hover:border-yellow-400/35"
-                      }`}
-                    >
-                      <img
-                        src={avatar.src}
-                        alt=""
-                        className="mx-auto aspect-square w-full rounded-full object-cover"
-                      />
-                      <span className="mt-2 block truncate text-[10px] font-semibold text-zinc-300">
-                        {avatar.label}
-                      </span>
-                    </button>
-                  );
-                })}
-                </div>
-              </section>)}
-            </div>
-
-            <div className="sticky bottom-0 mt-4 grid grid-cols-2 gap-3 border-t border-zinc-800 bg-[#111]/95 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur sm:p-5">
-              <button
-                type="button"
-                onClick={closeAvatarPicker}
-                disabled={saving}
-                className="min-h-12 rounded-xl border border-zinc-700 px-4 font-bold text-zinc-300"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={saveAvatar}
-                disabled={saving || !avatarChoice}
-                className="min-h-12 rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50"
-              >
-                {saving ? "Guardando…" : "Guardar avatar"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { dailyFocusForInstant } from "@/lib/daily-focus";
 import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/body-evolution-card";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { StudentProfileView } from "@/componentes/student-profile-view";
+import { StudentAvatarPage } from "@/componentes/student-avatar-page";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { hasGroupClasses, hasPersonalizedService } from "@/lib/student-service";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
@@ -28,7 +29,7 @@ import { apiRequest } from "@/lib/client-api";
 import { PortalTransferPaymentSheet } from "@/componentes/portal-transfer-payment-sheet";
 import { openTransferObligations } from "@/lib/transfer-payment";
 
-type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "configuracion";
+type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "avatar" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
 const number = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
@@ -45,7 +46,7 @@ const billingPeriod = (value: string) => value
 
 export function PortalSection({ section }: { section: Section }) {
   const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false); const [reload, setReload] = useState(0);
-  useEffect(() => { const controller = new AbortController(); const dataSection = section === "historial" ? "rutina" : section; fetch(`/api/portal/data?section=${dataSection}`, { cache: "no-store", signal: controller.signal }).then(async (response) => { const body = await response.json() as PortalData & { error?: string; code?: string }; if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); } if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; } if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información."); return body; }).then((body) => { if (body) setData(body); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [reload, section]);
+  useEffect(() => { const controller = new AbortController(); const dataSection = section === "historial" ? "rutina" : section === "avatar" ? "perfil" : section; fetch(`/api/portal/data?section=${dataSection}`, { cache: "no-store", signal: controller.signal }).then(async (response) => { const body = await response.json() as PortalData & { error?: string; code?: string }; if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); } if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; } if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información."); return body; }).then((body) => { if (body) setData(body); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [reload, section]);
   useEffect(() => {
     const refresh = () => setReload((value) => value + 1);
     window.addEventListener("bm:portal-data-refresh", refresh);
@@ -63,6 +64,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "pagos") return <PaymentsView data={data} />;
   if (section === "puntos") return <PointsAndAchievementsView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
+  if (section === "avatar") return <StudentAvatarPage profile={data.profile} />;
   if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><PushNotificationsCard /><PortalLogoutCard /><ExpandablePasswordCard /></PageHeader>;
   return <PortalOverview data={data} />;
 }

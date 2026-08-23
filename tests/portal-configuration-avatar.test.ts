@@ -6,6 +6,8 @@ import { DEFAULT_PROFILE_AVATAR, PROFILE_AVATARS, profileAvatarById } from "../l
 const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const push = readFileSync(new URL("../componentes/push-notifications-card.tsx", import.meta.url), "utf8");
 const profile = readFileSync(new URL("../componentes/student-profile-view.tsx", import.meta.url), "utf8");
+const avatarPage = readFileSync(new URL("../componentes/student-avatar-page.tsx", import.meta.url), "utf8");
+const avatarRoute = readFileSync(new URL("../app/portal/(student)/perfil/avatar/page.tsx", import.meta.url), "utf8");
 const profileRoute = readFileSync(new URL("../app/api/portal/profile-photo/route.ts", import.meta.url), "utf8");
 const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 
@@ -66,16 +68,31 @@ test("el selector conserva los avatares anteriores y registra los nuevos sin dup
   for (const avatar of PROFILE_AVATARS) {
     assert.ok(existsSync(new URL(`../public${avatar.src}`, import.meta.url)), avatar.src);
   }
-  assert.match(profile, /\["Personajes", "Equipamiento"\]/);
-  assert.match(profile, /grid grid-cols-3 gap-2 sm:grid-cols-4/);
-  assert.match(profile, /min-h-0 flex-1.*overflow-y-auto/);
-  assert.match(profile, /sticky bottom-0/);
+  assert.match(avatarPage, /\["Personajes", "Equipamiento"\]/);
+  assert.match(avatarPage, /grid grid-cols-3 gap-2 sm:grid-cols-4/);
 });
 
 test("la selección sigue persistiendo por avatarId con la API existente", () => {
   assert.equal(profileAvatarById(DEFAULT_PROFILE_AVATAR.id)?.src, DEFAULT_PROFILE_AVATAR.src);
-  assert.match(profile, /method: "PUT"/);
-  assert.match(profile, /JSON\.stringify\(\{ avatarId: avatarChoice \}\)/);
+  assert.match(avatarPage, /method: "PUT"/);
+  assert.match(avatarPage, /JSON\.stringify\(\{ avatarId: avatarChoice \}\)/);
   assert.match(profileRoute, /profileAvatarById\(input\.avatarId\)/);
   assert.match(profileRoute, /profileImageUrl: avatar\.src/);
+});
+
+test("Cambiar avatar navega a una página propia y ya no abre un modal", () => {
+  assert.match(profile, /href="\/portal\/perfil\/avatar"/);
+  assert.match(avatarRoute, /section="avatar"/);
+  assert.doesNotMatch(profile, /avatarPickerOpen|role="dialog"|aria-modal|max-h-\[calc\(100dvh/);
+  assert.doesNotMatch(avatarPage, /fixed inset-0|sticky bottom-0|z-\[70\]|safe-area-inset/);
+});
+
+test("la página muestra selección local, grupos reales y guardado explícito", () => {
+  assert.match(avatarPage, /Avatar actual/);
+  assert.match(avatarPage, /Personajes/);
+  assert.match(avatarPage, /Equipamiento/);
+  assert.match(avatarPage, /setAvatarChoice\(avatar\.id\)/);
+  assert.match(avatarPage, /Guardar avatar/);
+  assert.match(avatarPage, /href="\/portal\/perfil"/);
+  assert.doesNotMatch(avatarPage, /onClick=\{saveAvatar\}.*setAvatarChoice/s);
 });
