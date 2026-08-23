@@ -36,11 +36,17 @@ test("el acceso integrado es táctil, accesible y no depende de offsets del Home
 });
 
 test("Registro rápido abre como bottom sheet seguro con scroll interno", () => {
-  assert.match(quickLog, /fixed inset-0 z-\[70\] flex items-end/);
-  assert.match(quickLog, /max-h-\[min\(82dvh,calc\(100dvh-env\(safe-area-inset-top,0px\)-1rem\)\)\]/);
+  assert.match(quickLog, /quick-log-sheet-layer fixed inset-0 z-\[70\] flex items-end/);
+  assert.match(quickLog, /quick-log-sheet-exit/);
   assert.match(quickLog, /sticky top-0 z-20/);
   assert.match(quickLog, /min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain/);
   assert.match(quickLog, /safe-area-inset-bottom,0px/);
+});
+
+test("el panel espera la animación de salida antes de desmontarse", () => {
+  assert.match(quickLog, /setExiting\(true\)/);
+  assert.match(quickLog, /window\.setTimeout\(close, 230\)/);
+  assert.match(quickLog, /onClick=\{requestClose\}/);
 });
 
 test("las opciones actuales son genéricas y no cargan asistencia de clase", () => {
