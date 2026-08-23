@@ -27,10 +27,20 @@ test("Mixto conserva su navegación y abre el mismo flujo desde Clases", () => {
 
 test("el acceso integrado es táctil, accesible y no depende de offsets del Home", () => {
   assert.match(quickLog, /aria-label="Abrir registro rápido"/);
-  assert.match(quickLog, /min-h-11 min-w-11/);
+  assert.match(quickLog, /h-14 w-14 aspect-square/);
+  assert.match(quickLog, /rounded-full/);
+  assert.match(quickLog, /-translate-y-2/);
   assert.match(quickLog, /focus-visible:ring-2/);
   const navigationStyle = quickLog.slice(quickLog.indexOf('placement === "navigation"'), quickLog.indexOf('    : "inline-flex'));
   assert.doesNotMatch(navigationStyle, /\bfixed\b|bottom-\[|right-/);
+});
+
+test("Registro rápido abre como bottom sheet seguro con scroll interno", () => {
+  assert.match(quickLog, /fixed inset-0 z-\[70\] flex items-end/);
+  assert.match(quickLog, /max-h-\[min\(82dvh,calc\(100dvh-env\(safe-area-inset-top,0px\)-1rem\)\)\]/);
+  assert.match(quickLog, /sticky top-0 z-20/);
+  assert.match(quickLog, /min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain/);
+  assert.match(quickLog, /safe-area-inset-bottom,0px/);
 });
 
 test("las opciones actuales son genéricas y no cargan asistencia de clase", () => {

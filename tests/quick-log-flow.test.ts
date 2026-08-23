@@ -113,8 +113,8 @@ test("volver conserva el borrador y la barra móvil respeta safe area", () => {
   const back = source.slice(source.indexOf("function back()"), source.indexOf("async function save"));
   assert.doesNotMatch(back, /setDraft/);
   assert.match(source, /sticky bottom-0/);
-  assert.match(source, /env\(safe-area-inset-bottom\)/);
-  assert.match(source, /pb-36/);
+  assert.match(source, /env\(safe-area-inset-bottom,0px\)/);
+  assert.match(source, /min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain/);
 });
 
 test("el doble toque queda cubierto por bloqueo local e idempotencia persistida", () => {
