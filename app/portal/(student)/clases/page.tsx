@@ -2,6 +2,6 @@ import { PortalClasses } from "@/componentes/portal-classes";
 import { requirePortalClassAccess } from "@/lib/portal-service-access";
 
 export default async function PortalClassesPage() {
-  await requirePortalClassAccess();
-  return <PortalClasses />;
+  const session = await requirePortalClassAccess();
+  return <PortalClasses showQuickLogAction={session.credential.student.serviceType === "MIXED"} />;
 }

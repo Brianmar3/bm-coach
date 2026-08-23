@@ -11,7 +11,6 @@ import { BODY_METRICS, BodyEvolutionCard, formatBodyValue } from "@/componentes/
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { StudentProfileView } from "@/componentes/student-profile-view";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
-import { QuickNoteButton } from "@/componentes/quick-log";
 import { hasGroupClasses, hasPersonalizedService } from "@/lib/student-service";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
 import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName } from "@/lib/workout-presentation";
@@ -88,7 +87,6 @@ function PortalOverview({ data }: { data: PortalData }) {
     <section className="relative overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] px-4 py-3.5 shadow-[0_12px_28px_rgba(0,0,0,.22)] sm:px-5 sm:py-4"><span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -right-8 h-28 w-52 rotate-[-18deg] rounded-[50%] border-t border-yellow-400/15" /><div className="relative"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Enfoque de hoy</p><div className="mt-2 flex items-start gap-2.5"><span aria-hidden="true" className="text-2xl font-black leading-none text-yellow-400/80">“</span><div className="min-w-0"><h2 className="line-clamp-2 break-words text-sm font-semibold italic leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-[11px] leading-relaxed text-zinc-500 sm:text-xs">{dailyFocus.reflection}</p></div></div></div></section>
     {homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}
     <HomeQuickStats data={data} plan={homePlan} />
-    <QuickNoteButton />
   </div>;
 }
 

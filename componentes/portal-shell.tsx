@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
 import { AchievementCelebration } from "@/componentes/achievement-celebration";
+import { QuickNoteButton } from "@/componentes/quick-log";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 
 type PortalLink = readonly [title: string, href: string, icon: string];
@@ -62,6 +63,8 @@ export function PortalShell({
     if (href === "/portal/rutina") return serviceType !== "CLASSES" || hasRoutine;
     return true;
   });
+  const showNavigationQuickLog = serviceType !== "MIXED";
+  const mobileQuickLogIndex = Math.ceil(links.length / 2);
   const isLinkActive = (href: string) => {
     if (href === "/portal/clases" && (pathname.startsWith("/portal/registro") || pathname.startsWith("/portal/asistencias"))) {
       return true;
@@ -82,12 +85,8 @@ export function PortalShell({
       : "text-zinc-500 hover:text-zinc-200";
   };
 
-  const shellStyle = {
-    "--portal-quick-note-bottom": "calc(env(safe-area-inset-bottom) + 0.85rem + 76px + 0.85rem)",
-  } as CSSProperties;
-
   return (
-    <div className="min-h-screen overflow-x-clip bg-[#070707] text-white" style={shellStyle}>
+    <div className="min-h-screen overflow-x-clip bg-[#070707] text-white">
       <AchievementCelebration />
       <header className="sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
@@ -153,6 +152,7 @@ export function PortalShell({
               {title}
             </Link>
           ))}
+          {showNavigationQuickLog && <QuickNoteButton placement="inline" />}
         </nav>
       </header>
 
@@ -162,14 +162,15 @@ export function PortalShell({
 
       <nav
         aria-label="Navegación móvil del portal"
-        style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${links.length + (showNavigationQuickLog ? 1 : 0)}, minmax(0, 1fr))` }}
         className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-5 right-5 z-40 mx-auto grid h-[76px] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden"
       >
-        {links.map(([title, href, icon]) => {
+        {links.map(([title, href, icon], index) => {
           const active = isLinkActive(href);
           return (
+            <span key={href} className="contents">
+            {showNavigationQuickLog && index === mobileQuickLogIndex && <QuickNoteButton placement="navigation" />}
             <Link
-              key={href}
               href={href}
               aria-current={active ? "page" : undefined}
               className={`group relative mx-0.5 flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-full border text-[10px] font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-1 focus-visible:ring-offset-black ${
@@ -196,8 +197,10 @@ export function PortalShell({
                 />
               )}
             </Link>
+            </span>
           );
         })}
+        {showNavigationQuickLog && mobileQuickLogIndex === links.length && <QuickNoteButton placement="navigation" />}
       </nav>
     </div>
   );

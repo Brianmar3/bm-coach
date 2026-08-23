@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalClassOccurrence } from "@/types/classes";
 import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
 import { PortalActionCard } from "@/componentes/portal-action-card";
+import { QuickNoteButton } from "@/componentes/quick-log";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
@@ -85,7 +86,7 @@ function RecordsIcon() {
   );
 }
 
-export function PortalClasses({ compact = false }: { compact?: boolean }) {
+export function PortalClasses({ compact = false, showQuickLogAction = false }: { compact?: boolean; showQuickLogAction?: boolean }) {
   const [data, setData] = useState<ClassData | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -253,10 +254,11 @@ export function PortalClasses({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-4">
-      <header className="px-1">
-        <p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Agenda presencial</p>
+      <header className="flex items-start justify-between gap-3 px-1">
+        <div className="min-w-0"><p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Agenda presencial</p>
         <h1 className="mt-1.5 text-2xl font-black leading-tight tracking-[-.03em] text-zinc-50 sm:text-4xl">Tus próximas clases</h1>
-        <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p>
+        <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p></div>
+        {showQuickLogAction && <QuickNoteButton placement="inline" />}
       </header>
 
       <nav aria-label="Vista de clases" className="mt-5 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]">

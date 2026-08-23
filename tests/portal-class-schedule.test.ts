@@ -374,12 +374,13 @@ test("Inicio conserva el dorado como acento sin botones ni superficies dominante
   const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
   const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
   const responseButtons = classes.slice(classes.indexOf("function ResponseButtons"));
-  const floatingButton = quickLog.slice(quickLog.indexOf("export function QuickNoteButton"), quickLog.indexOf("function GuidedQuickLogForm"));
+  const quickLogButton = quickLog.slice(quickLog.indexOf("export function QuickNoteButton"), quickLog.indexOf("function GuidedQuickLogForm"));
   assert.doesNotMatch(responseButtons, /"bg-yellow-400 text-zinc-950 hover:bg-yellow-300"/);
   assert.match(responseButtons, /✓ Asistiré/);
   assert.match(responseButtons, /border-zinc-700 bg-zinc-950/);
-  assert.doesNotMatch(floatingButton, /rounded-full bg-yellow-400/);
-  assert.match(floatingButton, /border-yellow-400\/35 bg-zinc-950/);
+  const quickLogTriggerStyles = quickLogButton.slice(quickLogButton.indexOf("const className"), quickLogButton.indexOf("return <>"));
+  assert.doesNotMatch(quickLogTriggerStyles, /\bfixed\b|portal-quick-note-bottom/);
+  assert.match(quickLogButton, /border-yellow-400\/45 bg-zinc-950/);
   assert.match(shell, /absolute bottom-1\.5 h-0\.5 w-4 rounded-full bg-yellow-300/);
   assert.doesNotMatch(shell, /drop-shadow-\[0_0_6px_rgba\(250,204,21/);
   assert.match(home, /role="progressbar"/);
