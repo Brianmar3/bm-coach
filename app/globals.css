@@ -166,6 +166,122 @@ body {
   animation: bm-nav-active 150ms ease-out both;
 }
 
+@keyframes portal-home-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes portal-home-light-sweep {
+  0% { opacity: 0; transform: translate3d(-125%, 0, 0) skewX(-18deg); }
+  18% { opacity: 0.72; }
+  100% { opacity: 0; transform: translate3d(290%, 0, 0) skewX(-18deg); }
+}
+
+@keyframes portal-home-progress-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes portal-home-mini-bar-fill {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes portal-home-points-spark {
+  0%, 100% { opacity: 0; transform: scale(0.55) rotate(0deg); }
+  45% { opacity: 0.9; transform: scale(1.1) rotate(80deg); }
+}
+
+.portal-home-enter {
+  opacity: 0;
+  animation: portal-home-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+.portal-home-sequence > .portal-home-enter:nth-child(1) { animation-delay: 0ms; }
+.portal-home-sequence > .portal-home-enter:nth-child(2) { animation-delay: 80ms; }
+.portal-home-sequence > .portal-home-enter:nth-child(3) { animation-delay: 160ms; }
+.portal-home-sequence > .portal-home-enter:nth-child(4) { animation-delay: 240ms; }
+
+.portal-home-hero {
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.34), inset 0 0 22px rgba(250, 204, 21, 0.018);
+}
+
+.portal-home-light-sweep,
+.portal-home-points-sweep {
+  position: absolute;
+  inset-block: -25%;
+  left: 0;
+  width: 34%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(253, 224, 71, 0.12), transparent);
+  animation: portal-home-light-sweep 820ms ease-out 250ms both;
+}
+
+.portal-home-focus-quote {
+  filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.16));
+}
+
+.portal-home-progress-fill {
+  transform-origin: left center;
+  animation: portal-home-progress-fill 680ms cubic-bezier(0.22, 1, 0.36, 1) 230ms both;
+}
+
+.portal-home-mini-bars i {
+  transform-origin: center bottom;
+  animation: portal-home-mini-bar-fill 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.portal-home-mini-bars i:nth-child(1) { animation-delay: 370ms; }
+.portal-home-mini-bars i:nth-child(2) { animation-delay: 420ms; }
+.portal-home-mini-bars i:nth-child(3) { animation-delay: 470ms; }
+.portal-home-mini-bars i:nth-child(4) { animation-delay: 520ms; }
+
+.portal-home-points {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2), inset 0 0 18px rgba(250, 204, 21, 0.018);
+}
+
+.portal-home-points-sweep {
+  animation-delay: 390ms;
+}
+
+.portal-home-points-spark {
+  position: absolute;
+  z-index: 1;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #fde68a;
+  box-shadow: 0 0 7px rgba(250, 204, 21, 0.82);
+  animation: portal-home-points-spark 520ms ease-out 790ms both;
+}
+
+.portal-home-points-spark-one { right: 34%; top: 48%; }
+.portal-home-points-spark-two { right: 22%; top: 66%; animation-delay: 850ms; }
+
+.portal-home-interactive {
+  transition-duration: 140ms;
+  transition-property: color, background-color, border-color, box-shadow, transform;
+}
+
+.portal-home-interactive:active {
+  transform: scale(0.98);
+}
+
+.portal-home-class-row {
+  animation: portal-home-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) var(--portal-home-row-delay, 0ms) both;
+}
+
+@keyframes portal-home-confirmed {
+  0% { box-shadow: 0 0 0 rgba(52, 211, 153, 0); }
+  45% { box-shadow: 0 0 18px rgba(52, 211, 153, 0.18); }
+  100% { box-shadow: 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+.portal-home-confirmed {
+  animation: portal-home-confirmed 520ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bm-app-splash {
     transition-duration: 80ms;
@@ -176,9 +292,26 @@ body {
   .bm-app-splash-ring,
   .bm-splash-ring-base,
   .bm-splash-orbit,
-  .portal-nav-active-icon {
+  .portal-nav-active-icon,
+  .portal-home-enter,
+  .portal-home-light-sweep,
+  .portal-home-points-sweep,
+  .portal-home-points-spark,
+  .portal-home-progress-fill,
+  .portal-home-mini-bars i,
+  .portal-home-class-row,
+  .portal-home-confirmed {
     animation: none;
   }
+
+  .portal-home-enter { opacity: 1; transform: none; }
+  .portal-home-light-sweep,
+  .portal-home-points-sweep,
+  .portal-home-points-spark { display: none; }
+  .portal-home-progress-fill { transform: none; }
+  .portal-home-mini-bars i { transform: none; }
+  .portal-home-interactive { transition: none; }
+  .portal-home-interactive:active { transform: none; }
 
   .bm-app-splash-ring {
     opacity: 0.62;

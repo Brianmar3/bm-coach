@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import type { PaymentAccountStatus, TrainingRoutineBlock } from "@/types/gestion";
 import type { StudentEvaluation } from "@/types/evaluation-read-model";
@@ -75,8 +75,9 @@ function PortalOverview({ data }: { data: PortalData }) {
   const groupClassesEnabled = hasGroupClasses(data.profile.serviceType);
   const routineFocused = data.profile.serviceType === "PERSONALIZED" || (data.profile.serviceType === "MIXED" && Boolean(data.routine));
   const homePlan = routineFocused ? personalizedHomePlan(data) : null;
-  return <div className="mx-auto max-w-5xl space-y-2.5 sm:space-y-3">
-    <header className="relative overflow-hidden rounded-[24px] border border-white/[.07] bg-[radial-gradient(circle_at_88%_8%,rgba(250,204,21,.045),transparent_28%),linear-gradient(145deg,#151515,#090909_70%)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.34)] sm:p-5">
+  return <div className="portal-home-sequence mx-auto max-w-5xl space-y-2.5 sm:space-y-3">
+    <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[24px] border border-white/[.07] bg-[radial-gradient(circle_at_88%_8%,rgba(250,204,21,.045),transparent_28%),linear-gradient(145deg,#151515,#090909_70%)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.34)] sm:p-5">
+      <span aria-hidden="true" className="portal-home-light-sweep" />
       <div className={`relative min-h-28 sm:min-h-32 ${groupClassesEnabled && !routineFocused ? "pr-[5.4rem] sm:pr-28" : ""}`}>
         <p className="flex items-center gap-2 text-[11px] text-zinc-500"><span aria-hidden="true" className="text-yellow-400">▣</span>{todayLabel}</p>
         <h1 className="mt-4 text-[1.65rem] font-black tracking-[-.035em] text-zinc-50 sm:text-4xl">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
@@ -84,8 +85,8 @@ function PortalOverview({ data }: { data: PortalData }) {
         {groupClassesEnabled && !routineFocused && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </header>
-    <section className="relative overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] px-4 py-3.5 shadow-[0_12px_28px_rgba(0,0,0,.22)] sm:px-5 sm:py-4"><span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -right-8 h-28 w-52 rotate-[-18deg] rounded-[50%] border-t border-yellow-400/15" /><div className="relative"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Enfoque de hoy</p><div className="mt-2 flex items-start gap-2.5"><span aria-hidden="true" className="text-2xl font-black leading-none text-yellow-400/80">“</span><div className="min-w-0"><h2 className="line-clamp-2 break-words text-sm font-semibold italic leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-[11px] leading-relaxed text-zinc-500 sm:text-xs">{dailyFocus.reflection}</p></div></div></div></section>
-    {homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}
+    <section className="portal-home-enter relative overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] px-4 py-3.5 shadow-[0_12px_28px_rgba(0,0,0,.22)] sm:px-5 sm:py-4"><span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -right-8 h-28 w-52 rotate-[-18deg] rounded-[50%] border-t border-yellow-400/15" /><div className="relative"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Enfoque de hoy</p><div className="mt-2 flex items-start gap-2.5"><span aria-hidden="true" className="portal-home-focus-quote text-2xl font-black leading-none text-yellow-400/80">“</span><div className="min-w-0"><h2 className="line-clamp-2 break-words text-sm font-semibold italic leading-snug text-zinc-100 sm:text-base">{dailyFocus.title}</h2><p className="mt-1 line-clamp-2 break-words text-[11px] leading-relaxed text-zinc-500 sm:text-xs">{dailyFocus.reflection}</p></div></div></div></section>
+    <div className="portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
     <HomeQuickStats data={data} plan={homePlan} />
   </div>;
 }
@@ -113,7 +114,7 @@ function RoutineHomeCard({ plan }: { plan: PersonalizedHomePlan }) {
   return <section className="relative overflow-hidden rounded-[22px] border border-white/[.08] bg-[radial-gradient(circle_at_88%_18%,rgba(250,204,21,.05),transparent_34%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_16px_36px_rgba(0,0,0,.3)] sm:p-5">
     <p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Tu rutina de hoy</p>
     <div className="mt-3 flex items-start gap-3"><span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.04] text-lg text-yellow-300">▦</span><div className="min-w-0"><h2 className="text-lg font-black leading-tight text-zinc-50 sm:text-xl">{plan.title}</h2><p className="mt-1 text-xs text-zinc-500">{plan.available ? <>{plan.activityCount} {plan.activityCount === 1 ? "ejercicio" : "ejercicios"}{plan.estimatedMinutes ? ` · ${plan.estimatedMinutes} min` : ""}</> : "Continuá desde tu planificación activa"}</p></div></div>
-    <div className="mt-4 grid gap-3 border-t border-white/[.07] pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><div>{plan.target > 0 ? <><div className="flex items-center justify-between gap-3 text-[10px] text-zinc-500"><span>Progreso semanal</span><strong className="text-xs text-yellow-300">{plan.completed}/{plan.target} días</strong></div><div role="progressbar" aria-label="Progreso semanal del plan" aria-valuemin={0} aria-valuemax={plan.target} aria-valuenow={plan.completed} className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${progress}%` }} /></div></> : <p className="text-xs leading-relaxed text-zinc-500">Revisá tu planificación para conocer el próximo bloque.</p>}</div><Link href="/portal/rutina" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-yellow-400/45 px-4 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><span aria-hidden="true">▶</span>{plan.available ? plan.inProgress ? "Continuar rutina" : "Empezar rutina" : "Ver rutina"}</Link></div>
+    <div className="mt-4 grid gap-3 border-t border-white/[.07] pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><div>{plan.target > 0 ? <><div className="flex items-center justify-between gap-3 text-[10px] text-zinc-500"><span>Progreso semanal</span><strong className="text-xs text-yellow-300">{plan.completed}/{plan.target} días</strong></div><div role="progressbar" aria-label="Progreso semanal del plan" aria-valuemin={0} aria-valuemax={plan.target} aria-valuenow={plan.completed} className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="portal-home-progress-fill h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${progress}%` }} /></div></> : <p className="text-xs leading-relaxed text-zinc-500">Revisá tu planificación para conocer el próximo bloque.</p>}</div><Link href="/portal/rutina" className="portal-home-interactive inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-yellow-400/45 px-4 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><span aria-hidden="true">▶</span>{plan.available ? plan.inProgress ? "Continuar rutina" : "Empezar rutina" : "Ver rutina"}</Link></div>
   </section>;
 }
 
@@ -128,11 +129,11 @@ function HomeQuickStats({ data, plan }: { data: PortalData; plan: PersonalizedHo
   const weekStartKey = weekStart.toISOString().slice(0, 10);
   const weeklyPoints = data.home.points.recent.filter((item) => item.occurredAt.slice(0, 10) >= weekStartKey).reduce((sum, item) => sum + item.points, 0);
   const dueLabel = account.nextDueDate ? `${account.status === "VENCIDA" ? "Venció" : "Renueva"} el ${date(account.nextDueDate)}` : account.configured ? "Cuota configurada" : "Consultá con tu entrenador";
-  const progressContent = <><p className="text-[8px] font-black uppercase tracking-[.12em] text-yellow-400 sm:text-[9px]">{plan ? "Progreso del plan" : "Progreso resumido"}</p><div className="mt-3 flex items-end gap-2"><p className="text-lg font-semibold leading-none text-zinc-100 sm:text-xl">{progressValue}</p><span aria-hidden="true" className="flex h-5 items-end gap-0.5"><i className="h-1 w-0.5 bg-yellow-400/30" /><i className="h-2.5 w-0.5 bg-yellow-400/45" /><i className="h-4 w-0.5 bg-yellow-400/65" /><i className="h-2 w-0.5 bg-zinc-700" /></span></div><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">{progressLabel}</p></>;
-  return <section aria-label="Resumen del alumno" className="grid grid-cols-3 gap-1.5 sm:gap-2">
-    <Link href="/portal/pagos" className="group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3"><span aria-hidden="true" className="absolute right-2.5 top-2.5 text-xs text-yellow-400/60">▣</span><p className="pr-4 text-[8px] font-black uppercase tracking-[.13em] text-yellow-400 sm:text-[9px]">Tu cuota</p><p className={`mt-3 truncate text-sm font-semibold sm:text-base ${status.className.includes("emerald") ? "text-emerald-400" : "text-zinc-100"}`}>{status.label}</p><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">{dueLabel}</p></Link>
-    {plan ? <Link href="/portal/rutina" className="group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3">{progressContent}</Link> : <Link href="/portal/evaluaciones" className="group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3">{progressContent}</Link>}
-    <Link href="/portal/puntos" className="group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3"><span aria-hidden="true" className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/25 text-[10px] text-yellow-300">★</span><p className="pr-7 text-[8px] font-black uppercase tracking-[.13em] text-yellow-400 sm:text-[9px]">Tus puntos</p><p className="mt-3 truncate text-lg font-semibold leading-none text-zinc-100 sm:text-xl">{data.home.points.total.toLocaleString("es-AR")}</p><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">+{weeklyPoints} esta semana</p></Link>
+  const progressContent = <><p className="text-[8px] font-black uppercase tracking-[.12em] text-yellow-400 sm:text-[9px]">{plan ? "Progreso del plan" : "Progreso resumido"}</p><div className="mt-3 flex items-end gap-2"><p className="text-lg font-semibold leading-none text-zinc-100 sm:text-xl">{progressValue}</p><span aria-hidden="true" className="portal-home-mini-bars flex h-5 items-end gap-0.5"><i className="h-1 w-0.5 bg-yellow-400/30" /><i className="h-2.5 w-0.5 bg-yellow-400/45" /><i className="h-4 w-0.5 bg-yellow-400/65" /><i className="h-2 w-0.5 bg-zinc-700" /></span></div><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">{progressLabel}</p></>;
+  return <section aria-label="Resumen del alumno" className="portal-home-enter grid grid-cols-3 gap-1.5 sm:gap-2">
+    <Link href="/portal/pagos" className="portal-home-interactive group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3"><span aria-hidden="true" className="absolute right-2.5 top-2.5 text-xs text-yellow-400/60">▣</span><p className="pr-4 text-[8px] font-black uppercase tracking-[.13em] text-yellow-400 sm:text-[9px]">Tu cuota</p><p className={`mt-3 truncate text-sm font-semibold sm:text-base ${status.className.includes("emerald") ? "text-emerald-400" : "text-zinc-100"}`}>{status.label}</p><p className="mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">{dueLabel}</p></Link>
+    {plan ? <Link href="/portal/rutina" className="portal-home-interactive group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3">{progressContent}</Link> : <Link href="/portal/evaluaciones" className="portal-home-interactive group relative min-w-0 rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3">{progressContent}</Link>}
+    <Link href="/portal/puntos" className="portal-home-points portal-home-interactive group relative min-w-0 overflow-hidden rounded-[17px] border border-white/[.07] bg-[linear-gradient(145deg,#141414,#090909)] p-2.5 shadow-[0_10px_24px_rgba(0,0,0,.2)] transition hover:border-yellow-400/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:p-3"><span aria-hidden="true" className="portal-home-points-sweep" /><span aria-hidden="true" className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/25 text-[10px] text-yellow-300">★</span><p className="relative pr-7 text-[8px] font-black uppercase tracking-[.13em] text-yellow-400 sm:text-[9px]">Tus puntos</p><p className="relative mt-3 truncate text-lg font-semibold leading-none text-zinc-100 sm:text-xl"><HomeAnimatedNumber value={data.home.points.total} /></p><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><p className="relative mt-1 truncate text-[9px] text-zinc-500 sm:text-[10px]">+{weeklyPoints} esta semana</p></Link>
   </section>;
 }
 
@@ -234,14 +235,56 @@ function PodiumIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20v-5h5v5M9 20V9h6v11M15 20v-7h5v7M2.5 20.5h19" /><path d="M10.5 6.5 12 4l1.5 2.5" /></svg>;
 }
 
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(listener: () => void) {
+  const query = window.matchMedia(reducedMotionQuery);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(reducedMotionQuery).matches, () => false);
+}
+
+function useHomeAnimatedValue(value: number, duration: number) {
+  const reducedMotion = usePrefersReducedMotion();
+  const [visibleValue, setVisibleValue] = useState(0);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    let frame = 0;
+    let start: number | null = null;
+    const tick = (now: number) => {
+      start ??= now;
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setVisibleValue(value * eased);
+      if (progress < 1) frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [duration, reducedMotion, value]);
+
+  return reducedMotion ? value : visibleValue;
+}
+
+function HomeAnimatedNumber({ value }: { value: number }) {
+  const visibleValue = useHomeAnimatedValue(value, 760);
+  return <>{Math.round(visibleValue).toLocaleString("es-AR")}</>;
+}
+
 function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
   const percentage = data.home.monthlyAttendancePercentage;
-  const angle = Math.min(100, Math.max(0, percentage ?? 0)) * 3.6;
+  const animatedPercentage = useHomeAnimatedValue(percentage ?? 0, 820);
+  const visiblePercentage = percentage === null ? 0 : animatedPercentage;
+  const angle = Math.min(100, Math.max(0, visiblePercentage)) * 3.6;
   const attended = data.home.classesAttendedThisMonth;
   const detail = percentage === null ? "Sin registros este mes" : `${attended} ${attended === 1 ? "presente" : "presentes"} este mes`;
-  const display = percentage === null ? "—" : `${percentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
-  return <Link href="/portal/asistencias" aria-label={`Ver detalle de asistencia mensual. ${percentage === null ? "Sin registros este mes." : `${display}. ${detail}.`}`} className="group absolute right-0 top-0 z-10 flex w-[5rem] cursor-pointer flex-col items-center gap-1 rounded-2xl transition active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:w-[6rem]" title="Ver detalle de asistencias">
-    <span className="relative grid h-[68px] w-[68px] place-items-center rounded-full border border-zinc-700/70 shadow-[0_8px_22px_rgba(0,0,0,.28)] transition group-hover:border-yellow-400/40 sm:h-[76px] sm:w-[76px]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[5px] rounded-full bg-[#0b0b0b]" /><strong className="relative text-base font-black text-yellow-300 sm:text-lg">{display}</strong></span>
+  const finalDisplay = percentage === null ? "—" : `${percentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+  const display = percentage === null ? "—" : `${visiblePercentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+  return <Link href="/portal/asistencias" aria-label={`Ver detalle de asistencia mensual. ${percentage === null ? "Sin registros este mes." : `${finalDisplay}. ${detail}.`}`} className="portal-home-interactive group absolute right-0 top-0 z-10 flex w-[5rem] cursor-pointer flex-col items-center gap-1 rounded-2xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:w-[6rem]" title="Ver detalle de asistencias">
+    <span className="relative grid h-[68px] w-[68px] place-items-center rounded-full border border-zinc-700/70 shadow-[0_8px_22px_rgba(0,0,0,.28)] transition group-hover:border-yellow-400/40 sm:h-[76px] sm:w-[76px]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[5px] rounded-full bg-[#0b0b0b]" /><strong className="relative text-base font-black tabular-nums text-yellow-300 sm:text-lg">{display}</strong></span>
     <span className="text-[8px] font-bold uppercase tracking-[.12em] text-zinc-500">Asistencia</span>
     <span className="text-[9px] font-semibold text-yellow-300/85">Ver detalle ›</span>
   </Link>;

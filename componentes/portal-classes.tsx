@@ -91,7 +91,9 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState("");
+  const [confirmedId, setConfirmedId] = useState("");
   const responseInFlight = useRef(false);
+  const confirmationTimer = useRef<number | null>(null);
   const [showWeek, setShowWeek] = useState(false);
   const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
@@ -135,6 +137,10 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
     };
   }, [data?.focus.refreshAfterMs, load]);
 
+  useEffect(() => () => {
+    if (confirmationTimer.current !== null) window.clearTimeout(confirmationTimer.current);
+  }, []);
+
   async function respond(
     item: PortalClassOccurrence,
     value: "GOING" | "NOT_GOING",
@@ -158,6 +164,11 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         throw new Error(body.error ?? "No se pudo guardar.");
       setNotice(body.message ?? "Respuesta guardada.");
       await load();
+      if (value === "GOING") {
+        setConfirmedId(item.id);
+        if (confirmationTimer.current !== null) window.clearTimeout(confirmationTimer.current);
+        confirmationTimer.current = window.setTimeout(() => setConfirmedId(""), 600);
+      }
     } catch (value) {
       setError(
         value instanceof Error ? value.message : "No se pudo guardar.",
@@ -230,11 +241,13 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
               <span>· {data.summary.mode === "TODAY" ? "Elegí tu horario." : "Tu próximo día con actividad."}</span>
             </div>
             <div className="mt-3 space-y-2">
-              {data.summary.preview.map((item) => (
+              {data.summary.preview.map((item, index) => (
                 <CompactClassRow
                   key={item.id}
                   item={item}
                   saving={savingId === item.id}
+                  confirmed={confirmedId === item.id}
+                  index={index}
                   respond={respond}
                 />
               ))}
@@ -371,10 +384,14 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
 function CompactClassRow({
   item,
   saving,
+  confirmed,
+  index,
   respond,
 }: {
   item: PortalClassOccurrence;
   saving: boolean;
+  confirmed: boolean;
+  index: number;
   respond: (
     item: PortalClassOccurrence,
     value: "GOING" | "NOT_GOING",
@@ -383,13 +400,13 @@ function CompactClassRow({
   const discipline = disciplineLabel(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.065] bg-black/35 p-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+    <article className={`portal-home-class-row grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.065] bg-black/35 p-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] ${confirmed ? "portal-home-confirmed" : ""}`} style={{ animationDelay: `${index * 75}ms` }}>
       <div className="min-w-0">
         <p className="truncate text-[11px] font-black tabular-nums text-zinc-100">{item.startTime}–{item.endTime}</p>
         <p className="mt-0.5 truncate text-[10px] text-zinc-500">{discipline}</p>
       </div>
       <span className={`hidden shrink-0 text-[9px] font-bold sm:inline ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</span>
-      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`min-h-9 shrink-0 rounded-lg border px-2.5 text-[10px] font-bold transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/35 bg-yellow-400/[.055] text-yellow-200" : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-yellow-400/25"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
+      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-9 shrink-0 rounded-lg border px-2.5 text-[10px] font-bold transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/35 bg-yellow-400/[.055] text-yellow-200" : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-yellow-400/25"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
     </article>
   );
 }
