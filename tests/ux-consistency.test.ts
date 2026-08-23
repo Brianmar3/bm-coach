@@ -25,9 +25,10 @@ test("la navegación móvil respeta safe area y deja espacio al contenido", () =
 
 test("App Motion V1 anima sólo logo y contenido mientras mantiene estable la navegación", () => {
   const splashDuration = Number(splash.match(/SPLASH_DURATION_MS = ([\d_]+)/)?.[1].replaceAll("_", ""));
-  const exitDuration = Number(splash.match(/EXIT_DURATION_MS = ([\d_]+)/)?.[1].replaceAll("_", ""));
   assert.ok(splashDuration >= 1_400 && splashDuration <= 1_500);
-  assert.ok(exitDuration >= 200 && exitDuration <= 250);
+  assert.match(splash, /useState<SplashPhase>\("showing"\)/);
+  assert.doesNotMatch(splash, /"checking"/);
+  assert.match(splash, /onTransitionEnd=\{completeExit\}/);
   assert.match(splash, /bm-app-splash-logo/);
   assert.match(portalShell, /key=\{pathname\}/);
   assert.match(portalShell, /portal-route-enter/);
@@ -46,7 +47,11 @@ test("el aro del splash rodea el asset real y usa un único destello orbital", (
   assert.equal((splash.match(/className="bm-splash-orbit-spark"/g) ?? []).length, 1);
   assert.match(splash, /className="bm-app-splash-logo relative z-10 w-\[96%\]"/);
   assert.match(splash, /bm-app-splash-logo-image/);
+  assert.match(splash, /\bpreload\b/);
+  assert.doesNotMatch(splash, /\bpriority\b/);
+  assert.match(splash, /onAnimationEnd=\{completeVisibleAnimation\}/);
   assert.match(globals, /bm-splash-orbit-travel 1100ms linear 150ms/);
+  assert.match(globals, /\.bm-app-splash--playing \.bm-splash-orbit/);
   assert.match(globals, /transform: rotate\(360deg\)/);
   assert.match(globals, /\.bm-splash-orbit \{\s+opacity: 0;/);
   assert.match(splash, /phase === "exiting" \? "bm-splash-content-enter"/);

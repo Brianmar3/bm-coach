@@ -1,18 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type AnimationEvent, type ReactNode, type TransitionEvent } from "react";
 
 const SPLASH_SESSION_KEY = "bmTrainingSplashShown";
 const SPLASH_DURATION_MS = 1_450;
 const REDUCED_MOTION_DURATION_MS = 120;
-const EXIT_DURATION_MS = 220;
 
-type SplashPhase = "checking" | "showing" | "exiting" | "hidden";
+type SplashPhase = "showing" | "exiting" | "hidden";
 
 export function BmTrainingSplash({ children }: { children: ReactNode }) {
-  const [phase, setPhase] = useState<SplashPhase>("checking");
-  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [phase, setPhase] = useState<SplashPhase>("showing");
+  const [animationStarted, setAnimationStarted] = useState(false);
 
   const finish = useCallback((immediate = false) => {
     try {
@@ -25,7 +24,6 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
       return;
     }
     setPhase("exiting");
-    exitTimer.current = setTimeout(() => setPhase("hidden"), EXIT_DURATION_MS);
   }, []);
 
   useEffect(() => {
@@ -35,35 +33,44 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
     } catch {
       // Continue once when storage is unavailable.
     }
-    const frame = window.requestAnimationFrame(() => setPhase(alreadyShown ? "hidden" : "showing"));
+    const frame = window.requestAnimationFrame(() => {
+      if (alreadyShown) setPhase("hidden");
+      else setAnimationStarted(true);
+    });
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
-    if (phase !== "showing") return;
+    if (phase !== "showing" || !animationStarted) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = setTimeout(() => finish(), reducedMotion ? REDUCED_MOTION_DURATION_MS : SPLASH_DURATION_MS);
+    const timer = reducedMotion ? setTimeout(() => finish(), REDUCED_MOTION_DURATION_MS) : null;
     const previousOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";
     return () => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       document.documentElement.style.overflow = previousOverflow;
     };
-  }, [finish, phase]);
+  }, [animationStarted, finish, phase]);
 
-  useEffect(() => () => {
-    if (exitTimer.current) clearTimeout(exitTimer.current);
-  }, []);
+  const completeVisibleAnimation = (event: AnimationEvent<HTMLImageElement>) => {
+    if (event.animationName === "bm-splash-logo-finish") finish();
+  };
 
-  const hideContent = phase === "checking" || phase === "showing";
+  const completeExit = (event: TransitionEvent<HTMLDivElement>) => {
+    if (phase === "exiting" && event.propertyName === "opacity") setPhase("hidden");
+  };
+
+  const hideContent = phase === "showing";
 
   return <>
     {phase !== "hidden" && <div
       role="status"
+      data-animation-duration={SPLASH_DURATION_MS}
+      onTransitionEnd={completeExit}
       aria-label="Presentación de BM Training"
-      className={`bm-app-splash fixed inset-0 z-[200] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-black p-6 sm:p-10 ${phase === "exiting" ? "bm-app-splash--exiting" : ""}`}
+      className={`bm-app-splash fixed inset-0 z-[200] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-black p-6 sm:p-10 ${animationStarted ? "bm-app-splash--playing" : ""} ${phase === "exiting" ? "bm-app-splash--exiting" : ""}`}
     >
-      {phase !== "checking" && <div className="bm-app-splash-stage relative grid aspect-square place-items-center">
+      <div className="bm-app-splash-stage relative grid aspect-square place-items-center">
         <svg className="bm-app-splash-ring absolute inset-0 size-full overflow-visible" viewBox="0 0 200 200" aria-hidden="true">
           <defs>
             <linearGradient id="bm-splash-ring-gold" x1="30" y1="28" x2="170" y2="172" gradientUnits="userSpaceOnUse">
@@ -90,13 +97,14 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
             alt="BM Training — Gestión, entrenamiento y seguimiento"
             width={1536}
             height={1024}
-            priority
+            preload
             sizes="(max-width: 640px) 84vw, 645px"
             onError={() => finish(true)}
+            onAnimationEnd={completeVisibleAnimation}
             className="bm-app-splash-logo-image h-auto w-full object-contain"
           />
         </div>
-      </div>}
+      </div>
     </div>}
     <div
       className={`contents ${phase === "exiting" ? "bm-splash-content-enter" : ""}`}
