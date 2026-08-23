@@ -31,6 +31,17 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+.portal-ranking-sheet {
+  max-height: min(78svh, calc(100svh - env(safe-area-inset-top, 0px) - 24px));
+  max-height: min(78dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 24px));
+}
+
+.portal-ranking-scroll {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 @keyframes bm-splash-logo-enter {
   from {
     opacity: 0;
