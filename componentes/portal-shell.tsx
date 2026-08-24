@@ -3,22 +3,30 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
 import { AchievementCelebration } from "@/componentes/achievement-celebration";
 import { QuickNoteButton } from "@/componentes/quick-log";
+import {
+  BmClassesIcon,
+  BmEvaluationIcon,
+  BmHomeIcon,
+  BmNutritionIcon,
+  BmRoutineIcon,
+  type BmIconProps,
+} from "@/componentes/icons";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 
-type PortalLink = readonly [title: string, href: string, icon: string];
+type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
 const allLinks: PortalLink[] = [
-  ["Inicio", "/portal", "⌂"],
-  ["Rutina", "/portal/rutina", "◫"],
-  ["Clases", "/portal/clases", "▷"],
-  ["Nutrición", "/portal/nutricion", "◉"],
-  ["Evaluación", "/portal/evaluaciones", "◇"],
+  ["Inicio", "/portal", BmHomeIcon],
+  ["Rutina", "/portal/rutina", BmRoutineIcon],
+  ["Clases", "/portal/clases", BmClassesIcon],
+  ["Nutrición", "/portal/nutricion", BmNutritionIcon],
+  ["Evaluación", "/portal/evaluaciones", BmEvaluationIcon],
 ];
 
 function BrandMark() {
@@ -165,7 +173,7 @@ export function PortalShell({
         style={{ gridTemplateColumns: `repeat(${links.length + (showNavigationQuickLog ? 1 : 0)}, minmax(0, 1fr))` }}
         className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-5 right-5 z-40 mx-auto grid h-[76px] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden"
       >
-        {links.map(([title, href, icon], index) => {
+        {links.map(([title, href, Icon], index) => {
           const active = isLinkActive(href);
           return (
             <span key={href} className="contents">
@@ -179,16 +187,14 @@ export function PortalShell({
                   : "border-transparent bg-transparent text-zinc-500 hover:text-zinc-200"
               }`}
             >
-              <span
-                aria-hidden="true"
-                className={`text-[17px] leading-none transition-[color,filter,transform] duration-200 ${
+              <Icon
+                size={20}
+                className={`transition-[color,filter,transform] duration-200 ${
                   active
                     ? "portal-nav-active-icon scale-105 text-yellow-300"
                     : "text-zinc-500 group-hover:text-zinc-300"
                 }`}
-              >
-                {icon}
-              </span>
+              />
               <span className="max-w-full truncate px-0.5">{title}</span>
               {active && (
                 <span
