@@ -800,7 +800,7 @@ function ExpandablePasswordCard() {
   </section>;
 }
 
-function ChangePasswordCard({ forced = false, embedded = false, onSuccess }: { forced?: boolean; embedded?: boolean; onSuccess?: () => void }) {
+export function ChangePasswordCard({ forced = false, embedded = false, onSuccess }: { forced?: boolean; embedded?: boolean; onSuccess?: () => void }) {
   type PasswordErrors = { current?: string; next?: string; confirm?: string };
   const [currentPassword, setCurrentPassword] = useState(""); const [newPassword, setNewPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [saving, setSaving] = useState(false); const [fieldErrors, setFieldErrors] = useState<PasswordErrors>({});
   const currentRef = useRef<HTMLInputElement>(null); const newRef = useRef<HTMLInputElement>(null); const confirmRef = useRef<HTMLInputElement>(null);

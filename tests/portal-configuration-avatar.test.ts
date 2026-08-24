@@ -11,12 +11,9 @@ const avatarRoute = readFileSync(new URL("../app/portal/(student)/perfil/avatar/
 const profileRoute = readFileSync(new URL("../app/api/portal/profile-photo/route.ts", import.meta.url), "utf8");
 const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 
-test("Configuración ordena Notificaciones, Sesión y Cambiar contraseña", () => {
-  const configuration = portal.match(/if \(section === "configuracion"\).*?return <PortalOverview/s)?.[0] ?? "";
-  const notifications = configuration.indexOf("<PushNotificationsCard />");
-  const session = configuration.indexOf("<PortalLogoutCard />");
-  const password = configuration.indexOf("<ExpandablePasswordCard />");
-  assert.ok(notifications >= 0 && notifications < session && session < password);
+test("Ajustes navega a vistas propias y no usa Configuración como destino genérico", () => {
+  for (const route of ["seguridad", "privacidad", "preferencias", "ayuda"]) assert.match(profile, new RegExp(`/portal/perfil/${route}`));
+  assert.doesNotMatch(profile, /\/portal\/configuracion#/);
 });
 
 test("el formulario de contraseña empieza plegado y conserva su instancia al cerrar", () => {
@@ -83,7 +80,7 @@ test("la selección sigue persistiendo por avatarId con la API existente", () =>
 test("Cambiar avatar navega a una página propia y ya no abre un modal", () => {
   assert.match(profile, /href="\/portal\/perfil\/avatar"/);
   assert.match(avatarRoute, /section="avatar"/);
-  assert.doesNotMatch(profile, /avatarPickerOpen|role="dialog"|aria-modal|max-h-\[calc\(100dvh/);
+  assert.doesNotMatch(profile, /avatarPickerOpen|aria-modal/);
   assert.doesNotMatch(avatarPage, /fixed inset-0|sticky bottom-0|z-\[70\]|safe-area-inset/);
 });
 

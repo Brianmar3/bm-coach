@@ -16,15 +16,20 @@ function publicVapidKey() {
   return { value: valid ? normalized : "", present: raw.length > 0, length: normalized.length, valid };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
   const publicKey = publicVapidKey();
+  const endpoint = new URL(request.url).searchParams.get("endpoint");
+  const activeCurrent = endpoint && validEndpoint(endpoint)
+    ? Boolean(await prisma.studentPushSubscription.findFirst({ where: { studentId: session.studentId, endpoint, active: true }, select: { id: true } }))
+    : false;
   return Response.json({
     configured: Boolean(publicKey.valid && process.env.VAPID_PRIVATE_KEY?.trim() && process.env.VAPID_SUBJECT?.trim()),
     publicKey: publicKey.value,
     diagnostics: { publicKeyPresent: publicKey.present, publicKeyLength: publicKey.length, publicKeyValid: publicKey.valid },
     activeDevices: await prisma.studentPushSubscription.count({ where: { studentId: session.studentId, active: true } }),
+    activeCurrent,
   });
 }
 

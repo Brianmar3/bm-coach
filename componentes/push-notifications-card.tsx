@@ -1,15 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { resolvePushUiState, sameApplicationServerKey, type PushUiState } from "@/lib/push-notification-state";
 
-type PushState =
-  | "loading"
-  | "unsupported"
-  | "iphone-browser"
-  | "blocked"
-  | "inactive"
-  | "active"
-  | "unconfigured";
 type PushConfig = {
   configured: boolean;
   publicKey: string;
@@ -116,21 +109,19 @@ export function PushNotificationsCard({
     () => (audience === "trainer" ? "/api/admin/push" : "/api/portal/push"),
     [audience],
   );
-  const [state, setState] = useState<PushState>("loading");
+  const [state, setState] = useState<PushUiState>("loading");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [config, setConfig] = useState<PushConfig | null>(null);
 
   useEffect(() => {
     void (async () => {
-      if (
-        !window.isSecureContext ||
-        !(
+      const supported = window.isSecureContext && (
           "serviceWorker" in navigator &&
           "PushManager" in window &&
           "Notification" in window
-        )
-      ) {
+        );
+      if (!supported) {
         return setState("unsupported");
       }
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -142,7 +133,7 @@ export function PushNotificationsCard({
       if (Notification.permission === "denied") return setState("blocked");
 
       const response = await fetch(endpoint, { cache: "no-store" });
-      if (!response.ok) return setState("unsupported");
+      if (!response.ok) throw new Error(`PUSH_CONFIG_HTTP_${response.status}`);
       const loaded = (await response.json()) as PushConfig;
       setConfig(loaded);
       if (
@@ -157,22 +148,28 @@ export function PushNotificationsCard({
         WORKER_SCOPE,
       );
       const subscription = await registration?.pushManager?.getSubscription();
-      if (audience === "trainer" && subscription) {
+      const validSubscription = subscription
+        ? sameApplicationServerKey(
+            subscription,
+            applicationServerKey(loaded.publicKey),
+          )
+        : false;
+      let backendActive = false;
+      if (subscription) {
         const currentResponse = await fetch(
           `${endpoint}?endpoint=${encodeURIComponent(subscription.endpoint)}`,
           { cache: "no-store" },
         );
-        if (currentResponse.ok) {
-          const currentConfig = (await currentResponse.json()) as PushConfig;
-          setConfig(currentConfig);
-          setState(currentConfig.activeCurrent ? "active" : "inactive");
-          return;
-        }
+        if (!currentResponse.ok) throw new Error(`PUSH_STATUS_HTTP_${currentResponse.status}`);
+        const currentConfig = (await currentResponse.json()) as PushConfig;
+        setConfig(currentConfig);
+        backendActive = currentConfig.activeCurrent === true;
       }
-      setState(subscription ? "active" : "inactive");
+      setState(resolvePushUiState({ supported, iphoneBrowser: false, permission: Notification.permission, configured: loaded.configured, hasSubscription: validSubscription, backendActive }));
     })().catch((error) => {
       console.error("[BM Training Push] diagnóstico inicial fallido", error);
-      setState("unsupported");
+      setState("error");
+      setMessage("No pudimos comprobar el estado de las notificaciones. Revisá tu conexión e intentá nuevamente.");
     });
   }, [audience, endpoint]);
 
@@ -202,23 +199,28 @@ export function PushNotificationsCard({
           "ServiceWorkerError",
         );
       }
-      const permission =
-        Notification.permission === "granted"
-          ? "granted"
-          : await Notification.requestPermission();
-      if (permission !== "granted") {
+      if (Notification.permission === "denied") {
         setState("blocked");
-        setMessage(
-          "Las notificaciones están bloqueadas en la configuración del teléfono.",
-        );
+        setMessage("Las notificaciones están bloqueadas en este dispositivo. Activalas desde la configuración del navegador o de BM Training.");
         return;
       }
-      const existing = await registration.pushManager.getSubscription();
+      const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+      if (permission !== "granted") {
+        setState(permission === "denied" ? "blocked" : "inactive");
+        setMessage(permission === "denied" ? "Las notificaciones están bloqueadas en este dispositivo. Activalas desde la configuración del navegador o de BM Training." : "No se concedió el permiso. Podés intentarlo nuevamente cuando quieras.");
+        return;
+      }
+      const serverKey = applicationServerKey(config.publicKey);
+      let existing = await registration.pushManager.getSubscription();
+      if (existing && !sameApplicationServerKey(existing, serverKey)) {
+        await existing.unsubscribe();
+        existing = null;
+      }
       const subscription =
         existing ??
         (await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: applicationServerKey(config.publicKey),
+          applicationServerKey: serverKey,
         }));
       const response = await fetch(endpoint, {
         method: "POST",
@@ -232,6 +234,7 @@ export function PushNotificationsCard({
       setState("active");
       setMessage(data.message ?? "Notificaciones activadas correctamente.");
     } catch (error) {
+      setState(Notification.permission === "denied" ? "blocked" : "error");
       setMessage(friendlyError(error));
     } finally {
       setBusy(false);
@@ -245,11 +248,12 @@ export function PushNotificationsCard({
       const registration = await readyRegistration();
       const subscription = await registration.pushManager?.getSubscription();
       if (subscription) {
-        await fetch(endpoint, {
+        const response = await fetch(endpoint, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
+        if (!response.ok) throw new Error(`PUSH_DELETE_HTTP_${response.status}`);
         if (audience === "student") {
           await subscription.unsubscribe();
         }
@@ -295,6 +299,7 @@ export function PushNotificationsCard({
     inactive: "No activadas",
     active: "Activadas",
     unconfigured: "Pendientes de configuración",
+    error: "Error temporal",
   }[state];
   const heading =
     audience === "trainer"
@@ -313,13 +318,15 @@ export function PushNotificationsCard({
           ? "Las notificaciones todavía no están configuradas."
           : state === "active"
             ? "Notificaciones activadas."
+            : state === "error"
+              ? "Hubo un error técnico al crear o registrar la suscripción Push. Reintentá en unos minutos."
             : ""
   );
 
   if (compact) {
-    const canToggle = state === "active" || state === "inactive";
+    const canToggle = state === "active" || state === "inactive" || state === "error";
     return <div className="rounded-xl border border-white/10 bg-white/[.025] px-4 py-3">
-      <div className="flex min-h-8 items-center gap-3"><span className="text-xl text-yellow-400">♢</span><span className="flex-1 text-sm">Notificaciones</span><button type="button" role="switch" aria-checked={state === "active"} disabled={busy || !canToggle} onClick={state === "active" ? deactivate : activate} className={`relative h-7 w-12 rounded-full border transition ${state === "active" ? "border-yellow-300 bg-yellow-400/25" : "border-zinc-600 bg-zinc-800"} disabled:opacity-50`}><span className={`absolute top-0.5 size-5 rounded-full bg-white transition-transform ${state === "active" ? "translate-x-5" : "translate-x-0.5"}`} /></button></div>
+      <div className="flex min-h-8 items-center gap-3"><span className="text-xl text-yellow-400">♢</span><span className="flex-1 text-sm">Notificaciones</span><button type="button" role="switch" aria-label={`Notificaciones: ${label}`} aria-checked={state === "active"} disabled={busy || !canToggle} onClick={state === "active" ? deactivate : activate} className={`relative h-7 w-12 rounded-full border transition ${state === "active" ? "border-yellow-300 bg-yellow-400/25" : "border-zinc-600 bg-zinc-800"} disabled:opacity-50`}><span className={`absolute top-0.5 size-5 rounded-full bg-white transition-transform ${state === "active" ? "translate-x-5" : "translate-x-0.5"}`} /></button></div>
       {(contextualMessage || !canToggle) && <p role="status" className="mt-2 text-[11px] leading-relaxed text-zinc-500">{contextualMessage || label}</p>}
     </div>;
   }
@@ -347,7 +354,7 @@ export function PushNotificationsCard({
         </p>
       )}
 
-      {state === "inactive" && (
+      {(state === "inactive" || state === "error") && (
         <button
           disabled={busy}
           type="button"
