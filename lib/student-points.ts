@@ -409,13 +409,14 @@ export async function syncStudentPoints(
 
 export async function loadStudentPointSummary(
   studentId: string,
+  recentLimit = 8,
 ): Promise<StudentPointSummary> {
   const { total } = await syncStudentPoints(studentId, { notify: false });
   const [recent, monthly] = await Promise.all([
     prisma.studentPointTransaction.findMany({
       where: { studentId, active: true },
       orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-      take: 8,
+      take: recentLimit,
     }),
     prisma.studentPointTransaction.aggregate({
       where: { studentId, active: true, occurredAt: { gte: pointPeriodStart("month")! } },

@@ -138,9 +138,10 @@ test("Puntos oculta por completo la misión inexistente y conserva puntos y logr
   const pointsView = source.slice(source.indexOf("function PointsAndAchievementsView"), source.indexOf("function RoutineView"));
   assert.match(missionCard, /if \(!mission\) return null/);
   assert.doesNotMatch(missionCard, /No tenés una misión semanal disponible/);
-  assert.match(pointsView, /<PointsSummary data=\{data\} \/>/);
-  assert.match(pointsView, /<AchievementsSpotlight data=\{data\} \/>/);
+  assert.match(pointsView, /<PointsSummary data=\{data\} ranking=\{ranking\} \/>/);
+  assert.match(pointsView, /<RankingPreview ranking=\{ranking\} \/>/);
   assert.match(pointsView, /<AchievementsOverview data=\{data\} \/>/);
+  assert.match(pointsView, /<PointsHistory data=\{data\} \/>/);
 });
 
 test("la oferta general no contamina el target: cinco turnos disponibles y dos asignados dan target 2", () => {
@@ -216,8 +217,8 @@ test("Puntos separa total y mes y navega al ranking completo", () => {
   const rankingRoute = readFileSync(new URL("../app/api/portal/ranking/route.ts", import.meta.url), "utf8");
   const page = readFileSync(new URL("../app/portal/(student)/ranking/page.tsx", import.meta.url), "utf8");
   assert.match(portal, /points\.monthlyTotal/);
-  assert.match(view, /aria-label="Ver ranking mensual"/);
-  assert.match(view, /href="\/portal\/ranking"/);
+  assert.match(portal, /aria-label="Ver ranking mensual"/);
+  assert.match(portal, /href="\/portal\/ranking"/);
   assert.match(page, /<PortalRanking/);
   assert.match(ranking, /fetch\("\/api\/portal\/ranking"/);
   assert.match(ranking, /href="\/portal\/puntos"/);

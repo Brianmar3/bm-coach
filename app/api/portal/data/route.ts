@@ -28,7 +28,7 @@ import { normalizeTransferDetails } from "@/lib/transfer-payment";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, serviceType: StudentServiceType, todayKey: string, weekStart: Date, includeClasses: boolean) {
+async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, serviceType: StudentServiceType, todayKey: string, weekStart: Date, includeClasses: boolean, pointMovementLimit = 8) {
   const today = dateKeyToDatabase(todayKey);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
   const previousMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
@@ -70,7 +70,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     loadQuickLogAchievements(studentId),
     loadUnifiedRecordAchievements(studentId, activityStart),
     prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId) }),
-    loadStudentPointSummary(studentId),
+    loadStudentPointSummary(studentId, pointMovementLimit),
   ]);
   const currentAttendance: PortalAttendanceRecord[] = newAttendanceDates.map((item) => ({
     id: item.id,
@@ -165,7 +165,7 @@ export async function GET(request: Request) {
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio" || section === "puntos"
-      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, serviceType, todayKey, weekStart, groupClassesEnabled)
+      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, serviceType, todayKey, weekStart, groupClassesEnabled, section === "puntos" ? 40 : 8)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules, paymentObligationRecords, paidAmountsByPeriod] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
