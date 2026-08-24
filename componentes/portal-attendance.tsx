@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { PortalAttendancePeriod, PortalAttendanceRecord, PortalAttendanceSummary } from "@/lib/portal-attendance";
+import { BmBackIcon } from "@/componentes/icons";
 
 type AttendanceResponse = PortalAttendanceSummary & {
   period: { key: PortalAttendancePeriod; label: string; start: string; endExclusive: string };
@@ -62,7 +63,7 @@ export function PortalAttendanceView() {
 
   return <div className="space-y-5">
     <header className="rounded-3xl border border-yellow-400/15 bg-[radial-gradient(circle_at_90%_0%,rgba(250,204,21,.1),transparent_35%),linear-gradient(145deg,#181818,#090909)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.3)] sm:p-6">
-      <Link href="/portal" className="inline-flex min-h-11 items-center gap-2 rounded-xl text-sm font-bold text-zinc-400 transition hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"><span aria-hidden="true">←</span> Volver al inicio</Link>
+      <Link href="/portal" className="inline-flex min-h-11 items-center gap-2 rounded-xl text-sm font-bold text-zinc-400 transition hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"><BmBackIcon size={18} /> Volver al inicio</Link>
       <p className="mt-4 text-[10px] font-bold uppercase tracking-[.2em] text-yellow-400">Tu actividad</p>
       <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Mis asistencias</h1>
       <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-400">Consultá la presencia real registrada por tu entrenador.</p>

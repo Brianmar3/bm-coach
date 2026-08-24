@@ -7,6 +7,12 @@ const barrel = readFileSync(new URL("../componentes/icons/index.ts", import.meta
 const settings = readFileSync(new URL("../componentes/settings-icons.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 const profile = readFileSync(new URL("../componentes/student-profile-view.tsx", import.meta.url), "utf8");
+const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
+const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
+const quickLog = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
+const progress = readFileSync(new URL("../componentes/portal-progress.tsx", import.meta.url), "utf8");
+const nutrition = readFileSync(new URL("../componentes/student-nutrition.tsx", import.meta.url), "utf8");
+const transferPayment = readFileSync(new URL("../componentes/portal-transfer-payment-sheet.tsx", import.meta.url), "utf8");
 
 test("BM Icons expone una API visual y accesible única", () => {
   assert.match(library, /export type BmIconProps/);
@@ -50,4 +56,33 @@ test("la primera migración usa BM Icons y elimina Unicode de navegación y Perf
     assert.match(profile, new RegExp(icon));
   }
   assert.doesNotMatch(profile, /[☎✉⚙♙✎]/);
+});
+
+test("la adopción controlada cubre los conceptos genéricos del portal alumno", () => {
+  for (const icon of ["BmCalendarIcon", "BmPaymentIcon", "BmPointsIcon", "BmProgressIcon", "BmRankingIcon"]) {
+    assert.match(home, new RegExp(icon));
+  }
+  assert.match(classes, /BmCalendarIcon/);
+  assert.match(classes, /BmHistoryIcon/);
+  assert.doesNotMatch(classes, /function CalendarIcon|function RecordsIcon/);
+
+  for (const icon of ["BmBackIcon", "BmBarbellIcon", "BmChallengeIcon", "BmCheckIcon", "BmChevronRightIcon", "BmClipboardIcon", "BmProgressIcon"]) {
+    assert.match(quickLog, new RegExp(icon));
+  }
+  for (const icon of ["BmBackIcon", "BmCalendarIcon", "BmEvaluationIcon", "BmProgressIcon", "BmTimerIcon"]) {
+    assert.match(progress, new RegExp(icon));
+  }
+  for (const icon of ["BmCloseIcon", "BmCopyIcon", "BmInfoIcon"]) {
+    assert.match(transferPayment, new RegExp(icon));
+  }
+});
+
+test("la migración conserva visuales especializados sin inventar equivalencias", () => {
+  assert.match(progress, /<svg viewBox="0 0 640 230"/);
+  assert.match(nutrition, /function NutritionIllustration/);
+  assert.match(nutrition, /function HabitIcon/);
+  assert.match(nutrition, /star: <path/);
+  assert.match(quickLog, /BM Icons V1 does not include a photo\/camera concept yet/);
+  assert.match(quickLog, /function GuidedQuickLogForm/);
+  assert.match(quickLog, /quickLogPayload/);
 });

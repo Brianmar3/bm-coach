@@ -6,6 +6,7 @@ import type { PortalClassOccurrence } from "@/types/classes";
 import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
 import { PortalActionCard } from "@/componentes/portal-action-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
+import { BmCalendarIcon, BmHistoryIcon } from "@/componentes/icons";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
@@ -68,22 +69,6 @@ function weeklyScheduleDisplay(label: string) {
     time: match ? `${match[2]}–${match[3]}` : timePart,
     discipline,
   };
-}
-
-function CalendarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none">
-      <path d="M7 3v3m10-3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function RecordsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none">
-      <path d="M5 19V12h3v7H5Zm5.5 0V7h3v12h-3Zm5.5 0V4h3v15h-3ZM3 20.5h18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
 }
 
 export function PortalClasses({ compact = false, showQuickLogAction = false }: { compact?: boolean; showQuickLogAction?: boolean }) {
@@ -219,7 +204,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">
-              <span aria-hidden="true">▣</span>{data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.mode === "NEXT_DAY" ? "Próximo día" : "Agenda de clases"}
+              <BmCalendarIcon size={14} />{data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.mode === "NEXT_DAY" ? "Próximo día" : "Agenda de clases"}
             </p>
             <h2 className="mt-1.5 text-lg font-black leading-tight text-zinc-50">
               {data.summary.total
@@ -297,7 +282,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
 
       {grouped.length === 0 ? (
         <section className="mt-4 overflow-hidden rounded-2xl border border-white/[.07] bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#181818,#0b0b0b)] p-4 text-center shadow-[0_16px_45px_rgba(0,0,0,.25)]">
-          <span className="mx-auto grid size-10 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.07] text-yellow-300"><CalendarIcon /></span>
+          <span className="mx-auto grid size-10 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.07] text-yellow-300"><BmCalendarIcon size={20} /></span>
           <h2 className="mt-3 text-base font-black text-zinc-100">Sin clases próximas</h2>
           <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-zinc-400">
             {data.availability.message ?? noClassesMessage}
@@ -306,7 +291,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
       ) : showWeek ? (
         <section className="mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl">
           <div className="flex items-center gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300 sm:size-10"><CalendarIcon /></span>
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300 sm:size-10"><BmCalendarIcon size={20} /></span>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Agenda completa</p>
               <h2 className="mt-0.5 text-base font-black text-zinc-100 sm:text-lg">Próximos 7 días</h2>
@@ -327,7 +312,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         <section id="clases-del-dia" className="mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_18px_50px_rgba(0,0,0,.28)] sm:rounded-3xl">
           <div className="flex items-center justify-between gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
             <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.09] text-yellow-300 sm:size-11 sm:rounded-2xl"><CalendarIcon /></span>
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.09] text-yellow-300 sm:size-11 sm:rounded-2xl"><BmCalendarIcon size={20} /></span>
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">{focusSectionLabel(data)}</p>
                 <h2 className="mt-0.5 truncate text-sm font-black text-zinc-100 sm:mt-1 sm:text-lg">{focusDateHeading(data)}</h2>
@@ -376,7 +361,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         </div>
       </details>
 
-      <div className="mt-4 sm:mt-5"><PortalActionCard href="/portal/registro" ariaLabel="Ver mis registros" title="Mis registros" subtitle="Ejercicios, cargas y marcas" icon={<RecordsIcon />} /></div>
+      <div className="mt-4 sm:mt-5"><PortalActionCard href="/portal/registro" ariaLabel="Ver mis registros" title="Mis registros" subtitle="Ejercicios, cargas y marcas" icon={<BmHistoryIcon size={20} />} /></div>
     </div>
   );
 }

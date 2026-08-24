@@ -4,6 +4,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { argentinaDateKey } from "@/lib/payment-dates";
 import type { PortalProgressData, PortalProgressMetric } from "@/types/portal-progress";
+import {
+  BmBackIcon,
+  BmBarbellIcon,
+  BmCalendarIcon,
+  BmChevronRightIcon,
+  BmClipboardIcon,
+  BmEvaluationIcon,
+  BmProgressIcon,
+  BmTimerIcon,
+} from "@/componentes/icons";
 
 const formatNumber = (value: number) => new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value);
 const formatDate = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString("es-AR", { day: "numeric", month: "short" });
@@ -27,15 +37,12 @@ function relativeDate(value: string | null) {
 }
 
 function ProgressIcon({ kind = "chart" }: { kind?: "chart" | "calendar" | "sets" | "exercise" | "evaluation" | "time" }) {
-  const paths = {
-    chart: <><path d="M4 19V9m5 10V5m5 14v-7m5 7V3" /><path d="m3 15 5-4 5 2 7-7" /></>,
-    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 10h18" /></>,
-    sets: <><path d="M5 6h14M5 12h14M5 18h14" /><path d="m2 6 1 1 2-2m-3 7 1 1 2-2m-3 7 1 1 2-2" /></>,
-    exercise: <><path d="M5 12h14M7 8v8m10-8v8M3 10v4m18-4v4" /></>,
-    evaluation: <><path d="M7 3h10v3H7z" /><rect x="4" y="5" width="16" height="16" rx="2" /><path d="M8 11h8m-8 4h5" /></>,
-    time: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-  };
-  return <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5 fill-none stroke-current" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{paths[kind]}</svg>;
+  if (kind === "calendar") return <BmCalendarIcon size={20} />;
+  if (kind === "sets") return <BmClipboardIcon size={20} />;
+  if (kind === "exercise") return <BmBarbellIcon size={20} />;
+  if (kind === "evaluation") return <BmEvaluationIcon size={20} />;
+  if (kind === "time") return <BmTimerIcon size={20} />;
+  return <BmProgressIcon size={20} />;
 }
 
 export function PortalProgressView() {
@@ -73,7 +80,7 @@ function ProgressContent({ data }: { data: PortalProgressData }) {
   const adherence = summary.adherencePercentage;
   return <div className="mx-auto max-w-5xl space-y-5 overflow-x-clip pb-2">
     <header className="flex min-w-0 items-center gap-3 px-1">
-      <Link href="/portal/rutina" aria-label="Volver a la rutina" className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-zinc-900 text-xl text-zinc-200 outline-none transition hover:border-yellow-400/30 hover:text-yellow-300 focus-visible:ring-2 focus-visible:ring-yellow-300">←</Link>
+      <Link href="/portal/rutina" aria-label="Volver a la rutina" className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-zinc-900 text-zinc-200 outline-none transition hover:border-yellow-400/30 hover:text-yellow-300 focus-visible:ring-2 focus-visible:ring-yellow-300"><BmBackIcon size={22} /></Link>
       <div className="min-w-0"><h1 className="text-2xl font-black tracking-tight text-white">Mi progreso</h1><p className="truncate text-sm text-zinc-500">Tu historial, evolución y avances</p></div>
     </header>
 
@@ -111,11 +118,11 @@ function ProgressContent({ data }: { data: PortalProgressData }) {
     </section>
 
     <section>
-      <div className="mb-2.5 flex items-center justify-between gap-3"><SectionTitle compact>Historial reciente</SectionTitle><Link href="/portal/historial" className="min-h-11 shrink-0 px-2 py-3 text-xs font-bold text-yellow-300">Ver todo ›</Link></div>
-      {data.recentSessions.length ? <div className="overflow-hidden rounded-2xl border border-white/[.08] bg-zinc-900/75">{data.recentSessions.map((session) => <Link key={session.id} href={`/portal/historial#historial-${session.id}`} className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-zinc-800 px-3.5 py-3 outline-none last:border-0 hover:bg-white/[.025] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300"><span className="grid size-9 place-items-center rounded-xl bg-yellow-400/[.07] text-yellow-300"><ProgressIcon kind="calendar" /></span><span className="min-w-0"><strong className="block truncate text-sm text-zinc-100">{session.dayName || `Día ${session.dayNumber}`}</strong><small className="mt-0.5 block truncate text-zinc-500">{formatDate(session.date)} · {session.durationMinutes ? `${session.durationMinutes} min` : "duración sin registrar"}</small></span><span className="text-xl text-zinc-600">›</span></Link>)}</div> : <EmptyState text="No tenés sesiones completadas todavía." />}
+      <div className="mb-2.5 flex items-center justify-between gap-3"><SectionTitle compact>Historial reciente</SectionTitle><Link href="/portal/historial" className="inline-flex min-h-11 shrink-0 items-center gap-1 px-2 py-3 text-xs font-bold text-yellow-300">Ver todo <BmChevronRightIcon size={16} /></Link></div>
+      {data.recentSessions.length ? <div className="overflow-hidden rounded-2xl border border-white/[.08] bg-zinc-900/75">{data.recentSessions.map((session) => <Link key={session.id} href={`/portal/historial#historial-${session.id}`} className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-zinc-800 px-3.5 py-3 outline-none last:border-0 hover:bg-white/[.025] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300"><span className="grid size-9 place-items-center rounded-xl bg-yellow-400/[.07] text-yellow-300"><ProgressIcon kind="calendar" /></span><span className="min-w-0"><strong className="block truncate text-sm text-zinc-100">{session.dayName || `Día ${session.dayNumber}`}</strong><small className="mt-0.5 block truncate text-zinc-500">{formatDate(session.date)} · {session.durationMinutes ? `${session.durationMinutes} min` : "duración sin registrar"}</small></span><BmChevronRightIcon size={20} className="text-zinc-600" /></Link>)}</div> : <EmptyState text="No tenés sesiones completadas todavía." />}
     </section>
 
-    <Link href="/portal/evaluaciones" className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] p-3.5 outline-none transition hover:border-yellow-400/25 focus-visible:ring-2 focus-visible:ring-yellow-300"><span className="grid size-12 place-items-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[.05] text-yellow-300"><ProgressIcon kind="evaluation" /></span><span className="min-w-0"><strong className="block text-base text-zinc-100">Ver evaluaciones</strong><small className="mt-1 block truncate text-zinc-500">Revisá tus evaluaciones y comparativas</small></span><span className="text-2xl text-zinc-600">›</span></Link>
+    <Link href="/portal/evaluaciones" className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] p-3.5 outline-none transition hover:border-yellow-400/25 focus-visible:ring-2 focus-visible:ring-yellow-300"><span className="grid size-12 place-items-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[.05] text-yellow-300"><ProgressIcon kind="evaluation" /></span><span className="min-w-0"><strong className="block text-base text-zinc-100">Ver evaluaciones</strong><small className="mt-1 block truncate text-zinc-500">Revisá tus evaluaciones y comparativas</small></span><BmChevronRightIcon size={22} className="text-zinc-600" /></Link>
   </div>;
 }
 

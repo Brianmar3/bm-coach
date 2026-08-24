@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NUTRITION_HABITS } from "@/lib/nutrition";
 import type { NutritionHabitKey } from "@/types/nutrition";
 import type { NutritionDashboardData } from "@/types/nutrition-intelligence";
+import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmShieldCheckIcon } from "@/componentes/icons";
 
 const emptyHabits: Record<NutritionHabitKey, boolean> = {
   hydration: false,
@@ -24,9 +25,9 @@ const quickLinks = [
 type LineIconName = "calendar" | "shield" | "comment" | "bookmark" | "star" | "cart" | "pot" | "book" | "learn";
 
 function LineIcon({ name, className = "size-5" }: { name: LineIconName; className?: string }) {
-  const paths: Record<LineIconName, ReactNode> = {
-    calendar: <><path d="M7 3v3m10-3v3M4.5 9h15M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" /></>,
-    shield: <><path d="M12 3 5.5 6v5.5c0 4 2.6 7.4 6.5 9 3.9-1.6 6.5-5 6.5-9V6L12 3Z" /><path d="m9 12 2 2 4-4" /></>,
+  if (name === "calendar") return <BmCalendarIcon className={className} />;
+  if (name === "shield") return <BmShieldCheckIcon className={className} />;
+  const paths: Record<Exclude<LineIconName, "calendar" | "shield">, ReactNode> = {
     comment: <path d="M5 5.5h14v10H10l-4 3v-3H5v-10Z" />,
     bookmark: <path d="M7 4.5h10v15l-5-3-5 3v-15Z" />,
     star: <path d="m12 3 2.7 5.5 6 .9-4.3 4.2 1 5.9-5.4-2.8-5.4 2.8 1-5.9-4.3-4.2 6-.9L12 3Z" />,
@@ -188,7 +189,7 @@ export function StudentNutrition() {
           </div>
           <span className="mt-3 inline-flex rounded-full border border-yellow-400/25 bg-yellow-400/[.045] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-yellow-200">
             {data?.contextStatus === "FULL" ? "Personalización completa" : data?.contextStatus === "LIMITED" ? "Personalización limitada" : "Guía base"}
-            {data?.contextStatus === "FULL" && <span aria-hidden="true" className="ml-2">✓</span>}
+            {data?.contextStatus === "FULL" && <BmCheckIcon size={14} className="ml-2" />}
           </span>
         </div>
         <div className="relative mt-5 flex items-center justify-between gap-3 border-t border-white/[.09] pt-3.5"><p className="flex min-w-0 items-center gap-2 truncate text-xs text-zinc-400"><span className="shrink-0 text-yellow-400"><LineIcon name="calendar" /></span>{data?.evaluation ? `Evaluación del ${showDate(data.evaluation.date)}` : "Guía basada en tu perfil actual"}</p><Link href="/portal/nutricion/preferencias" className="inline-flex min-h-11 shrink-0 items-center px-1 text-xs font-bold text-yellow-300">Preferencias →</Link></div>
@@ -237,7 +238,7 @@ export function StudentNutrition() {
                 <input type="checkbox" checked={habits[key]} onChange={(event) => setHabits((current) => ({ ...current, [key]: event.target.checked }))} className="peer sr-only" />
                 <span className={`grid size-9 place-items-center rounded-full border ${habits[key] ? "border-yellow-400/35 bg-yellow-400/[.07] text-yellow-300" : "border-zinc-700 text-zinc-500"}`}><HabitIcon habit={key} /></span>
                 <span className="text-[9px] font-medium leading-3 sm:text-[11px] sm:leading-4">{label}</span>
-                <span aria-hidden="true" className={`grid size-5 place-items-center rounded-full border text-[11px] font-black ${habits[key] ? "border-emerald-400/45 bg-emerald-400/[.08] text-emerald-300" : "border-zinc-500 text-transparent"}`}>✓</span>
+                <span className={`grid size-5 place-items-center rounded-full border ${habits[key] ? "border-emerald-400/45 bg-emerald-400/[.08] text-emerald-300" : "border-zinc-500 text-transparent"}`}><BmCheckIcon size={12} /></span>
               </label>
             ))}
           </div>
@@ -247,7 +248,7 @@ export function StudentNutrition() {
           </button>
       </section>
 
-      <section><p className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Accesos útiles</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{quickLinks.map(([title, description, href, icon]) => <Link key={href} href={href} className="group grid min-h-[4.5rem] min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#0c0c0c)] px-2.5 py-2 transition hover:border-yellow-400/25 focus-visible:outline-2 focus-visible:outline-yellow-300"><span className="grid size-8 shrink-0 place-items-center text-yellow-400"><LineIcon name={icon} /></span><span className="min-w-0"><span className="block truncate text-xs font-bold sm:text-sm">{title}</span><span className="mt-0.5 block truncate text-[9px] leading-3 text-zinc-500 sm:text-[10px]">{description}</span></span><span aria-hidden="true" className="text-zinc-600 transition group-hover:text-yellow-300">›</span></Link>)}</div></section>
+      <section><p className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Accesos útiles</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{quickLinks.map(([title, description, href, icon]) => <Link key={href} href={href} className="group grid min-h-[4.5rem] min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#0c0c0c)] px-2.5 py-2 transition hover:border-yellow-400/25 focus-visible:outline-2 focus-visible:outline-yellow-300"><span className="grid size-8 shrink-0 place-items-center text-yellow-400"><LineIcon name={icon} /></span><span className="min-w-0"><span className="block truncate text-xs font-bold sm:text-sm">{title}</span><span className="mt-0.5 block truncate text-[9px] leading-3 text-zinc-500 sm:text-[10px]">{description}</span></span><BmChevronRightIcon size={16} className="text-zinc-600 transition group-hover:text-yellow-300" /></Link>)}</div></section>
 
       <section className="space-y-3">
           <article className="rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#0c0c0c)] p-3.5 sm:p-4">

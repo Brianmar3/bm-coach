@@ -335,7 +335,8 @@ test("horarios semanales y registros conservan acceso y presentación móvil com
   assert.match(source, /title="Mis registros" subtitle="Ejercicios, cargas y marcas"/);
   assert.doesNotMatch(source, /Consultá tus ejercicios, cargas y marcas registradas/);
   assert.doesNotMatch(source, /<p[^>]*>Mis registros<\/p>/);
-  assert.match(source, /function RecordsIcon/);
+  assert.match(source, /BmHistoryIcon/);
+  assert.doesNotMatch(source, /function RecordsIcon/);
   assert.match(source, /grid-cols-2/);
   assert.match(source, /min-w-0/);
   assert.match(source, /min-h-12/);
@@ -343,7 +344,8 @@ test("horarios semanales y registros conservan acceso y presentación móvil com
   assert.match(source, /border-white\/\[\.08\]/);
   assert.match(actionCard, /border-white\/\[\.08\]/);
   assert.match(actionCard, /focus-visible:ring-offset-2/);
-  assert.match(actionCard, /<svg aria-hidden="true"/);
+  assert.match(actionCard, /BmChevronRightIcon/);
+  assert.doesNotMatch(actionCard, /<svg aria-hidden="true"/);
   assert.doesNotMatch(source, /overflow-x-auto/);
 });
 

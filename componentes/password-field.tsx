@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useId, useState, type InputHTMLAttributes, type KeyboardEvent } from "react";
+import { BmEyeIcon, BmEyeOffIcon } from "@/componentes/icons";
 
 type PasswordFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
   label: string;
@@ -48,7 +49,7 @@ export const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(fu
           onClick={() => setVisible((current) => !current)}
           className="absolute inset-y-0 right-1 my-auto grid size-11 place-items-center rounded-lg text-lg text-zinc-400 transition hover:bg-white/5 hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
         >
-          <span aria-hidden="true">{visible ? "◉" : "◎"}</span>
+          {visible ? <BmEyeOffIcon size={20} /> : <BmEyeIcon size={20} />}
         </button>
       </span>
       {capsLock && <span id={capsLockId} className="mt-1.5 block text-xs text-amber-300">Bloq Mayús está activado.</span>}

@@ -9,7 +9,7 @@ const finalModal = source.slice(source.indexOf("{finalOpen &&"), source.indexOf(
 test("la rutina del alumno no renderiza emojis decorativos", () => {
   assert.doesNotMatch(source, /[🔥💪🏽🏋🏽🍑🦵🏽⚡🤸🏽]/u);
   assert.doesNotMatch(source, /getMuscleGroupEmoji/);
-  assert.match(source, /viewBox="0 0 24 24"/);
+  assert.match(source, /BmBarbellIcon/);
 });
 
 test("dolor o molestias es un bloque visual propio sin cambiar su comportamiento", () => {
@@ -52,7 +52,7 @@ test("el resumen usa actividades reales, duración, estado y progreso", () => {
 
 test("el hero usa iconografía lineal neutral", () => {
   assert.doesNotMatch(source, /muscleGroupEmoji/);
-  assert.match(source, /<svg viewBox="0 0 24 24"/);
+  assert.match(source, /BmBarbellIcon/);
 });
 
 test("la entrada en calor aparece solo cuando existe y abre un modal accesible", () => {
