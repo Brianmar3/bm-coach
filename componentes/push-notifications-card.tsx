@@ -107,8 +107,10 @@ async function readyRegistration(timeoutMs = 12000) {
 
 export function PushNotificationsCard({
   audience = "student",
+  compact = false,
 }: {
   audience?: "student" | "trainer";
+  compact?: boolean;
 }) {
   const endpoint = useMemo(
     () => (audience === "trainer" ? "/api/admin/push" : "/api/portal/push"),
@@ -313,6 +315,14 @@ export function PushNotificationsCard({
             ? "Notificaciones activadas."
             : ""
   );
+
+  if (compact) {
+    const canToggle = state === "active" || state === "inactive";
+    return <div className="rounded-xl border border-white/10 bg-white/[.025] px-4 py-3">
+      <div className="flex min-h-8 items-center gap-3"><span className="text-xl text-yellow-400">♢</span><span className="flex-1 text-sm">Notificaciones</span><button type="button" role="switch" aria-checked={state === "active"} disabled={busy || !canToggle} onClick={state === "active" ? deactivate : activate} className={`relative h-7 w-12 rounded-full border transition ${state === "active" ? "border-yellow-300 bg-yellow-400/25" : "border-zinc-600 bg-zinc-800"} disabled:opacity-50`}><span className={`absolute top-0.5 size-5 rounded-full bg-white transition-transform ${state === "active" ? "translate-x-5" : "translate-x-0.5"}`} /></button></div>
+      {(contextualMessage || !canToggle) && <p role="status" className="mt-2 text-[11px] leading-relaxed text-zinc-500">{contextualMessage || label}</p>}
+    </div>;
+  }
 
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">

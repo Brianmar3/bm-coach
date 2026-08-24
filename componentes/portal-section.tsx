@@ -65,7 +65,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "puntos") return <PointsAndAchievementsView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
   if (section === "avatar") return <StudentAvatarPage profile={data.profile} />;
-  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><PushNotificationsCard /><PortalLogoutCard /><ExpandablePasswordCard /></PageHeader>;
+  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><div id="notificaciones" className="scroll-mt-24"><PushNotificationsCard /></div><div id="seguridad" className="scroll-mt-24"><ExpandablePasswordCard /></div><section id="privacidad" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Privacidad</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">Tus datos se muestran únicamente dentro de tu cuenta. Los cambios administrativos de plan, servicio y estado los gestiona tu entrenador.</p></section><section id="preferencias" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Preferencias</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">BM Training respeta las preferencias de movimiento y accesibilidad configuradas en tu dispositivo.</p></section><PortalLogoutCard /></PageHeader>;
   return <PortalOverview data={data} />;
 }
 
