@@ -6,6 +6,7 @@ import { resolvePushUiState } from "../lib/push-notification-state.ts";
 const view = readFileSync(new URL("../componentes/student-profile-view.tsx", import.meta.url), "utf8");
 const push = readFileSync(new URL("../componentes/push-notifications-card.tsx", import.meta.url), "utf8");
 const settings = readFileSync(new URL("../componentes/student-profile-settings-page.tsx", import.meta.url), "utf8");
+const icons = readFileSync(new URL("../componentes/settings-icons.tsx", import.meta.url), "utf8");
 
 test("push distingue default, granted, denied, unsupported y backend real", () => {
   const base = { supported: true, iphoneBrowser: false, configured: true, hasSubscription: false, backendActive: false };
@@ -35,4 +36,22 @@ test("seguridad reutiliza el formulario real y las páginas son vistas normales"
   assert.match(settings, /href="\/portal\/perfil"/);
   assert.match(settings, /prefers-reduced-motion: reduce/);
   assert.doesNotMatch(settings, /fixed inset|role="dialog"|bottom.sheet/i);
+});
+
+test("ajustes usa iconos SVG semánticos y conserva las rutas existentes", () => {
+  for (const name of ["bell", "security", "privacy", "preferences", "help", "logout"]) {
+    assert.match(icons, new RegExp(`${name}:`));
+  }
+  assert.match(view, /<SettingsIcon name=\{iconName\}/);
+  assert.match(view, /<SettingsIcon name="logout"/);
+  assert.match(push, /<SettingsIcon name="bell"/);
+  assert.doesNotMatch(view, /\["Seguridad"[^\n]+"♧"/);
+  assert.doesNotMatch(push, />♢</);
+});
+
+test("el switch compacto mantiene el thumb dentro de un track de 52 por 28 px", () => {
+  assert.match(push, /h-7 w-\[3\.25rem\].+shrink-0.+overflow-hidden.+p-0\.5/);
+  assert.match(push, /size-\[1\.375rem\].+translate-x-6.+translate-x-0/);
+  assert.match(push, /min-w-0 flex-1 text-sm">Notificaciones/);
+  assert.match(push, /border-yellow-300 bg-yellow-400/);
 });

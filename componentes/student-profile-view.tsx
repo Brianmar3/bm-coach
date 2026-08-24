@@ -8,6 +8,7 @@ import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 import { studentServiceLabel } from "@/lib/student-service";
 import type { PortalProfile } from "@/types/portal";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
+import { SettingsIcon, type SettingsIconName } from "@/componentes/settings-icons";
 
 const showDate = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("es-AR") : "Sin definir";
 const icon: Record<string, string> = { phone: "☎", email: "✉", birth: "▣", goal: "◎", service: "◫", plan: "▤", joined: "↪", status: "◇" };
@@ -69,11 +70,11 @@ export function StudentProfileView({ profile: initialProfile }: { profile: Porta
 function SettingsMenu({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   async function logout() { setBusy(true); try { await fetch("/api/portal/logout", { method: "POST" }); } finally { window.location.assign("/portal/login"); } }
-  const links = [["Seguridad", "/portal/perfil/seguridad", "♧"], ["Privacidad", "/portal/perfil/privacidad", "▣"], ["Preferencias", "/portal/perfil/preferencias", "☷"], ["Ayuda", "/portal/perfil/ayuda", "?"]] as const;
+  const links: ReadonlyArray<readonly [string, string, SettingsIconName]> = [["Seguridad", "/portal/perfil/seguridad", "security"], ["Privacidad", "/portal/perfil/privacidad", "privacy"], ["Preferencias", "/portal/perfil/preferencias", "preferences"], ["Ayuda", "/portal/perfil/ayuda", "help"]];
   return <div role="dialog" aria-label="Ajustes de cuenta" className="fixed inset-x-4 top-[max(5.5rem,env(safe-area-inset-top))] z-[80] max-h-[calc(100dvh-7rem)] overflow-auto rounded-[24px] border border-yellow-400/55 bg-[#111] p-4 shadow-[0_24px_80px_rgba(0,0,0,.8),0_0_24px_rgba(250,204,21,.1)] sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+1rem)] sm:w-80">
     <div className="flex items-start justify-between"><div><h2 className="text-xl font-bold">Ajustes</h2><p className="text-sm text-zinc-500">Cuenta y ajustes</p></div><button type="button" onClick={onClose} aria-label="Cerrar ajustes" className="size-10 rounded-xl text-xl text-zinc-400">×</button></div>
-    <div className="mt-4"><PushNotificationsCard compact /></div><nav className="mt-2 space-y-2">{links.map(([label, href, symbol]) => <Link key={label} href={href} onClick={onClose} className="flex min-h-14 items-center gap-3 rounded-xl border border-white/10 bg-white/[.025] px-4 transition hover:border-yellow-400/30"><span className="text-xl text-yellow-400">{symbol}</span><span className="flex-1 text-sm">{label}</span><span className="text-zinc-500">›</span></Link>)}</nav>
-    <button disabled={busy} onClick={logout} className="mt-3 flex min-h-14 w-full items-center gap-3 rounded-xl border border-red-400/30 px-4 text-left text-sm text-red-300"><span className="text-xl">↪</span>{busy ? "Cerrando…" : "Cerrar sesión"}</button>
+    <div className="mt-4"><PushNotificationsCard compact /></div><nav className="mt-2 space-y-2">{links.map(([label, href, iconName]) => <Link key={label} href={href} onClick={onClose} className="flex min-h-14 items-center gap-3 rounded-xl border border-white/10 bg-white/[.025] px-4 transition hover:border-yellow-400/30"><SettingsIcon name={iconName} className="size-6 shrink-0 text-yellow-400" /><span className="min-w-0 flex-1 text-sm">{label}</span><span aria-hidden="true" className="shrink-0 text-zinc-500">›</span></Link>)}</nav>
+    <button disabled={busy} onClick={logout} className="mt-3 flex min-h-14 w-full items-center gap-3 rounded-xl border border-red-400/30 px-4 text-left text-sm text-red-300"><SettingsIcon name="logout" className="size-6 shrink-0" /><span className="min-w-0 flex-1">{busy ? "Cerrando…" : "Cerrar sesión"}</span></button>
   </div>;
 }
 

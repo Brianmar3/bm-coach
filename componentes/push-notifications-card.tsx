@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { resolvePushUiState, sameApplicationServerKey, type PushUiState } from "@/lib/push-notification-state";
+import { SettingsIcon } from "@/componentes/settings-icons";
 
 type PushConfig = {
   configured: boolean;
@@ -326,7 +327,7 @@ export function PushNotificationsCard({
   if (compact) {
     const canToggle = state === "active" || state === "inactive" || state === "error";
     return <div className="rounded-xl border border-white/10 bg-white/[.025] px-4 py-3">
-      <div className="flex min-h-8 items-center gap-3"><span className="text-xl text-yellow-400">♢</span><span className="flex-1 text-sm">Notificaciones</span><button type="button" role="switch" aria-label={`Notificaciones: ${label}`} aria-checked={state === "active"} disabled={busy || !canToggle} onClick={state === "active" ? deactivate : activate} className={`relative h-7 w-12 rounded-full border transition ${state === "active" ? "border-yellow-300 bg-yellow-400/25" : "border-zinc-600 bg-zinc-800"} disabled:opacity-50`}><span className={`absolute top-0.5 size-5 rounded-full bg-white transition-transform ${state === "active" ? "translate-x-5" : "translate-x-0.5"}`} /></button></div>
+      <div className="flex min-h-8 items-center gap-3"><SettingsIcon name="bell" className="size-6 shrink-0 text-yellow-400" /><span className="min-w-0 flex-1 text-sm">Notificaciones</span><button type="button" role="switch" aria-label={`Notificaciones: ${label}`} aria-checked={state === "active"} disabled={busy || !canToggle} onClick={state === "active" ? deactivate : activate} className={`inline-flex h-7 w-[3.25rem] shrink-0 items-center overflow-hidden rounded-full border p-0.5 transition-colors ${state === "active" ? "border-yellow-300 bg-yellow-400" : "border-zinc-600 bg-zinc-800"} disabled:opacity-50`}><span className={`size-[1.375rem] shrink-0 rounded-full bg-white shadow-sm transition-transform ${state === "active" ? "translate-x-6" : "translate-x-0"}`} /></button></div>
       {(contextualMessage || !canToggle) && <p role="status" className="mt-2 text-[11px] leading-relaxed text-zinc-500">{contextualMessage || label}</p>}
     </div>;
   }
