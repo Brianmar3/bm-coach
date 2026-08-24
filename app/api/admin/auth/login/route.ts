@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE, adminSessionCookieOptions, createAdminSessionValue, verifyAdminCredential } from "@/lib/admin-auth";
 import { validRequestOrigin } from "@/lib/portal-auth";
+import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions } from "@/lib/portal-experience";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,8 @@ export async function POST(request: Request) {
   }
   const session = createAdminSessionValue();
   if (!session) return Response.json({ error: "La autenticación administrativa no está configurada." }, { status: 503 });
-  (await cookies()).set(ADMIN_SESSION_COOKIE, session.value, adminSessionCookieOptions(session.expiresAt));
+  const cookieStore = await cookies();
+  cookieStore.set(ADMIN_SESSION_COOKIE, session.value, adminSessionCookieOptions(session.expiresAt));
+  cookieStore.set(LAST_PORTAL_COOKIE, "admin", portalExperienceCookieOptions());
   return Response.json({ authenticated: true, role: "coach", expiresAt: session.expiresAt.toISOString() });
 }

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { consumePasswordVerificationTime, createPortalSession, normalizeUsername, portalCookieOptions, PORTAL_COOKIE, validRequestOrigin, verifyPassword } from "@/lib/portal-auth";
+import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions } from "@/lib/portal-experience";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,9 @@ export async function POST(request: Request) {
     await prisma.studentPortalCredential.update({ where: { studentId: credential.studentId }, data: { failedLoginAttempts: 0, lockedUntil: null } });
     await prisma.studentPortalSession.deleteMany({ where: { expiresAt: { lte: new Date() } } });
     const session = await createPortalSession(credential.studentId);
-    (await cookies()).set(PORTAL_COOKIE, session.token, portalCookieOptions(session.expiresAt));
+    const cookieStore = await cookies();
+    cookieStore.set(PORTAL_COOKIE, session.token, portalCookieOptions(session.expiresAt));
+    cookieStore.set(LAST_PORTAL_COOKIE, "student", portalExperienceCookieOptions());
     return Response.json({ ok: true, mustChangePassword: credential.mustChangePassword });
   } catch (error) {
     console.error("Error al iniciar sesión en el portal", error);
