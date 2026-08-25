@@ -9,6 +9,9 @@
 :root {
   --background: #000000;
   --foreground: #ffffff;
+  --portal-bottom-nav-height: 4.75rem;
+  --portal-bottom-nav-offset: 0.75rem;
+  --portal-bottom-nav-clearance: 1.5rem;
 }
 
 @theme inline {

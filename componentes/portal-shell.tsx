@@ -71,6 +71,7 @@ export function PortalShell({
     if (href === "/portal/rutina") return serviceType !== "CLASSES" || hasRoutine;
     return true;
   });
+  const isHome = pathname === "/portal";
   const showNavigationQuickLog = serviceType !== "MIXED";
   const mobileQuickLogIndex = Math.ceil(links.length / 2);
   const isLinkActive = (href: string) => {
@@ -94,7 +95,7 @@ export function PortalShell({
   };
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-[#070707] text-white">
+    <div className={`${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`}>
       <AchievementCelebration />
       <header className="sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
@@ -164,14 +165,14 @@ export function PortalShell({
         </nav>
       </header>
 
-      <main key={pathname} className="portal-route-enter mx-auto max-w-6xl p-2.5 pb-[calc(env(safe-area-inset-bottom)+8.25rem)] sm:p-6 md:pb-12">
+      <main key={pathname} className="portal-route-enter mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12">
         {children}
       </main>
 
       <nav
         aria-label="Navegación móvil del portal"
         style={{ gridTemplateColumns: `repeat(${links.length + (showNavigationQuickLog ? 1 : 0)}, minmax(0, 1fr))` }}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-5 right-5 z-40 mx-auto grid h-[76px] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+var(--portal-bottom-nav-offset))] left-5 right-5 z-40 mx-auto grid h-[var(--portal-bottom-nav-height)] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden"
       >
         {links.map(([title, href, Icon], index) => {
           const active = isLinkActive(href);
