@@ -6,7 +6,7 @@ import type { PortalClassOccurrence } from "@/types/classes";
 import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
 import { PortalActionCard } from "@/componentes/portal-action-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
-import { BmCalendarIcon, BmHistoryIcon } from "@/componentes/icons";
+import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmCloseIcon, BmHistoryIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
@@ -187,6 +187,9 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
     }
     return [...map.entries()];
   }, [data?.scheduleLabels]);
+  const nextClass = useMemo(() => {
+    return [...upcomingItems].sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`))[0] ?? null;
+  }, [upcomingItems]);
 
   if (!data) {
     if (!error) return <div className="h-44 animate-pulse rounded-2xl bg-zinc-900" />;
@@ -259,14 +262,23 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         {showQuickLogAction && <QuickNoteButton placement="inline" />}
       </header>
 
-      <nav aria-label="Vista de clases" className="mt-5 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]">
+      <section className="portal-home-class-row mt-5 flex min-h-24 items-center gap-3 rounded-[22px] border border-yellow-400/25 bg-[radial-gradient(circle_at_88%_12%,rgba(250,204,21,.12),transparent_34%),linear-gradient(145deg,#171717,#090909)] p-4 shadow-[0_16px_45px_rgba(0,0,0,.28)] sm:p-5">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-yellow-400/30 bg-yellow-400/[.07] text-yellow-300"><BmCalendarIcon size={24} /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">PRÓXIMA CLASE</p>
+          {nextClass ? <><p className="mt-1 text-xs font-semibold capitalize text-zinc-400">{dateLabel(nextClass.date)}</p><div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><strong className="text-sm tabular-nums text-yellow-300 sm:text-base">{nextClass.startTime}–{nextClass.endTime}</strong><span className="min-w-0 truncate text-base font-black text-zinc-50 sm:text-lg">{disciplineLabel(`${nextClass.name} ${nextClass.category}`, nextClass.name || nextClass.category)}</span></div></> : <><p className="mt-1 text-base font-black text-zinc-100">Sin próximas clases</p><p className="mt-1 text-xs text-zinc-500">{data.availability.message ?? noClassesMessage}</p></>}
+        </div>
+        <BmChevronRightIcon size={20} className="shrink-0 text-yellow-300" />
+      </section>
+
+      <nav aria-label="Vista de clases" className="portal-home-class-row mt-4 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]" style={{ animationDelay: "65ms" }}>
         <button
           type="button"
           aria-pressed={!showWeek}
           onClick={() => setShowWeek(false)}
           className={`min-h-12 border-b-2 px-2 py-3 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:text-sm ${!showWeek ? "border-yellow-400 text-yellow-300" : "border-transparent text-zinc-400 hover:text-zinc-100"}`}
         >
-          Clases de hoy
+          <span className="inline-flex items-center justify-center gap-2"><BmCalendarIcon size={16} />Clases de hoy</span>
         </button>
         <button
           type="button"
@@ -274,7 +286,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
           onClick={() => setShowWeek(true)}
           className={`min-h-12 border-b-2 border-l border-l-white/[.05] px-2 py-3 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300 sm:text-sm ${showWeek ? "border-b-yellow-400 text-yellow-300" : "border-b-transparent text-zinc-400 hover:text-zinc-100"}`}
         >
-          Próximos 7 días
+          <span className="inline-flex items-center justify-center gap-2"><BmCalendarIcon size={16} />Próximos 7 días</span>
         </button>
       </nav>
 
@@ -289,7 +301,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
           </p>
         </section>
       ) : showWeek ? (
-        <section className="mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl">
+        <section className="portal-home-class-row mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl" style={{ animationDelay: "130ms" }}>
           <div className="flex items-center gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300 sm:size-10"><BmCalendarIcon size={20} /></span>
             <div className="min-w-0">
@@ -309,7 +321,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
           </div>
         </section>
       ) : (
-        <section id="clases-del-dia" className="mt-4 overflow-hidden rounded-2xl border border-yellow-400/15 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.11),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_18px_50px_rgba(0,0,0,.28)] sm:rounded-3xl">
+        <section id="clases-del-dia" className="portal-home-class-row mt-4 overflow-hidden rounded-2xl border border-yellow-400/25 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.13),transparent_34%),linear-gradient(145deg,#191919,#0a0a0a)] shadow-[0_18px_50px_rgba(0,0,0,.28)] sm:rounded-3xl" style={{ animationDelay: "130ms" }}>
           <div className="flex items-center justify-between gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-6 sm:py-4">
             <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.09] text-yellow-300 sm:size-11 sm:rounded-2xl"><BmCalendarIcon size={20} /></span>
@@ -328,13 +340,13 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         </section>
       )}
 
-      <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[#151517] transition hover:border-yellow-400/25 sm:mt-5">
+      <details className="portal-home-class-row group mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[#151517] transition hover:border-yellow-400/25 sm:mt-5" style={{ animationDelay: "195ms" }}>
         <summary aria-label="Ver mis horarios semanales" className="flex min-h-20 cursor-pointer list-none items-center justify-between gap-3 p-3.5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300">
-          <div className="min-w-0">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-yellow-400/25 bg-yellow-400/[.07] text-yellow-300"><BmCalendarIcon size={21} /></span><div className="min-w-0 flex-1">
             <h2 className="font-black text-zinc-100">Mis horarios semanales</h2>
             <p className="mt-0.5 text-[11px] text-zinc-400 sm:mt-1 sm:text-xs">{data.scheduleLabels.length} {data.scheduleLabels.length === 1 ? "horario vigente" : "horarios vigentes"}</p>
           </div>
-          <span className="flex shrink-0 items-center gap-1 text-[11px] font-black text-yellow-300 sm:gap-2 sm:text-xs">Ver semana <span aria-hidden="true" className="text-lg transition group-open:rotate-90">›</span></span>
+          <span className="flex shrink-0 items-center gap-1 text-[11px] font-black text-yellow-300 sm:gap-2 sm:text-xs">Ver semana <BmChevronRightIcon size={16} className="transition group-open:rotate-90" /></span>
         </summary>
         <div className="border-t border-white/[.07] px-3 py-1 sm:px-6 sm:py-2">
           {weeklySchedules.length ? (
@@ -361,7 +373,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         </div>
       </details>
 
-      <div className="mt-4 sm:mt-5"><PortalActionCard href="/portal/registro" ariaLabel="Ver mis registros" title="Mis registros" subtitle="Ejercicios, cargas y marcas" icon={<BmHistoryIcon size={20} />} /></div>
+      <div className="portal-home-class-row mt-4 sm:mt-5" style={{ animationDelay: "260ms" }}><PortalActionCard href="/portal/registro" ariaLabel="Ver mis registros" title="Mis registros" subtitle="Ejercicios, cargas y marcas" icon={<BmHistoryIcon size={20} />} /></div>
     </div>
   );
 }
@@ -412,18 +424,16 @@ function ClassRow({
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   const confirmedLabel = `${item.confirmedCount} ${item.confirmedCount === 1 ? "confirmado" : "confirmados"}`;
   return (
-    <article className="grid min-w-0 grid-cols-[5.75rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 border-b border-white/[.065] py-3 last:border-0 min-[420px]:grid-cols-[6.5rem_minmax(0,1fr)_7.5rem] sm:gap-x-4 sm:py-3.5">
-      <p className="border-r border-white/[.08] pr-3 text-xs font-black tabular-nums text-yellow-300 sm:text-sm">{item.startTime}–{item.endTime}</p>
-      <div className="min-w-0">
-        <h3 className="truncate text-sm font-black text-zinc-100 sm:text-base">{discipline}</h3>
-        <p className={`mt-0.5 text-[11px] font-semibold ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-400"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</p>
-        <p className="mt-0.5 text-[10px] text-zinc-500 sm:text-[11px]">
-          {confirmedLabel}{item.capacity === null ? "" : ` · cupo ${item.capacity}`}
-        </p>
+    <article className="min-w-0 border-b border-white/[.075] py-4 last:border-0 sm:py-5">
+      <div className="grid min-w-0 grid-cols-[minmax(6.8rem,.8fr)_minmax(0,1.4fr)] items-center gap-3 sm:gap-5">
+        <p className="flex items-center gap-2 border-r border-white/[.1] pr-3 text-xs font-black tabular-nums text-yellow-300 sm:text-sm"><BmTimerIcon size={19} className="shrink-0" />{item.startTime}–{item.endTime}</p>
+        <div className="min-w-0">
+          <h3 className="line-clamp-2 text-sm font-black text-zinc-100 sm:text-base">{discipline}</h3>
+          <p className={`mt-1 flex items-center gap-1.5 text-[11px] font-semibold ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-400"}`}>{item.response === "GOING" && <BmCheckIcon size={13} />}{responseLabel}</p>
+          <p className="mt-1 flex items-center gap-1.5 text-[10px] text-zinc-500 sm:text-[11px]"><BmUserIcon size={13} />{confirmedLabel}{item.capacity === null ? "" : ` · cupo ${item.capacity}`}</p>
+        </div>
       </div>
-      {item.canRespond && (
-        <ResponseButtons item={item} saving={saving} respond={respond} compact />
-      )}
+      {item.canRespond && <ResponseButtons item={item} saving={saving} respond={respond} />}
     </article>
   );
 }
@@ -454,22 +464,22 @@ function ResponseButtons({
   compact?: boolean;
 }) {
   return (
-    <div className={`${compact ? "col-span-2 grid-cols-2 min-[420px]:col-span-1 min-[420px]:grid-cols-1" : "mt-2.5 grid-cols-2 sm:mt-3"} grid gap-1.5`}>
+    <div className={`${compact ? "col-span-2 grid-cols-2 min-[420px]:col-span-1 min-[420px]:grid-cols-1" : "mt-3 grid-cols-2 sm:mt-4"} grid gap-2`}>
       <button
         type="button"
         disabled={saving}
         onClick={() => respond(item, "GOING")}
-        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-black transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/45 bg-yellow-400/[.08] text-yellow-200" : "border-zinc-700 bg-zinc-950/70 text-zinc-200 hover:border-yellow-400/25 hover:bg-white/[.03]"}`}
+        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-12 rounded-xl px-3 py-2 text-xs"} inline-flex items-center justify-center gap-2 border font-black transition active:scale-[.98] disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-300 bg-gradient-to-r from-amber-400 to-yellow-300 text-zinc-950 shadow-[0_8px_25px_rgba(250,204,21,.14)]" : "border-zinc-700 bg-zinc-950/70 text-zinc-200 hover:border-yellow-400/25 hover:bg-white/[.03]"}`}
       >
-        {item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}
+        <BmCheckIcon size={17} /> Asistiré
       </button>
       <button
         type="button"
         disabled={saving}
         onClick={() => respond(item, "NOT_GOING")}
-        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] sm:min-h-10 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"} border font-bold transition disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-zinc-500 bg-white/[.04] text-zinc-100" : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-zinc-500"}`}
+        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-12 rounded-xl px-3 py-2 text-xs"} inline-flex items-center justify-center gap-2 border font-bold transition active:scale-[.98] disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-red-400/50 bg-red-400/[.08] text-red-200" : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-zinc-500"}`}
       >
-        No asistiré
+        <BmCloseIcon size={17} /> No asistiré
       </button>
     </div>
   );
