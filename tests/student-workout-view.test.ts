@@ -4,7 +4,8 @@ import test from "node:test";
 import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName } from "../lib/workout-presentation.ts";
 
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
-const finalModal = source.slice(source.indexOf("{finalOpen &&"), source.indexOf("function WorkoutHistoryView"));
+const overlay = readFileSync(new URL("../componentes/routine-overlay.tsx", import.meta.url), "utf8");
+const finalModal = source.slice(source.indexOf("<RoutineOverlay open={finalOpen}"), source.indexOf("function WorkoutHistoryView"));
 
 test("la rutina del alumno no renderiza emojis decorativos", () => {
   assert.doesNotMatch(source, /[🔥💪🏽🏋🏽🍑🦵🏽⚡🤸🏽]/u);
@@ -17,12 +18,13 @@ test("dolor o molestias es un bloque visual propio sin cambiar su comportamiento
   assert.match(source, /Marcá esta opción si sentiste dolor durante la sesión\./);
   assert.match(source, /checked=\{draft\.hasPain\}/);
   assert.match(source, /onChange=\{\(event\) => setDraft\(\{ \.\.\.draft, hasPain: event\.target\.checked \}\)\}/);
-  assert.match(source, /role="dialog"/);
+  assert.match(overlay, /role="dialog"/);
   assert.match(source, /onClick=\{\(\) => save\(true\)\}/);
 });
 
 test("el modal sigue adaptado a movil y conserva el payload de finalizacion", () => {
-  assert.match(source, /max-h-\[92dvh\] w-full overflow-y-auto/);
+  assert.match(overlay, /max-h-\[min\(90dvh/);
+  assert.match(finalModal, /min-h-0 overflow-y-auto/);
   assert.match(source, /flex min-w-0 items-start/);
   assert.match(source, /const payload = \{ \.\.\.draft, durationMinutes: duration, generalFeeling:.*finalComment, painDetails, status:/);
 });
@@ -61,22 +63,43 @@ test("la entrada en calor aparece solo cuando existe y abre un modal accesible",
   assert.match(source, />Entrada en calor<\/strong>/);
   assert.match(source, /Prepará tu cuerpo para entrenar/);
   assert.match(source, /setWarmupOpen\(true\)/);
-  assert.match(source, /role="dialog"/);
-  assert.match(source, /aria-modal="true"/);
+  assert.match(overlay, /role="dialog"/);
+  assert.match(overlay, /aria-modal="true"/);
   assert.match(source, /Entrada en calor/);
   assert.match(source, /\{selectedDay\.warmup\}/);
   assert.match(source, /whitespace-pre-wrap/);
 });
 
 test("el modal se cierra de forma segura y queda sobre la navegación móvil", () => {
-  assert.match(source, /event\.key === "Escape"/);
-  assert.match(source, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(source, /document\.body\.style\.overflow = previousOverflow/);
+  assert.match(overlay, /event\.key === "Escape"/);
+  assert.match(overlay, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(overlay, /document\.body\.style\.overflow = previousOverflow/);
+  assert.match(overlay, /createPortal/);
+  assert.match(overlay, /document\.body/);
   assert.match(source, /aria-label="Cerrar entrada en calor"/);
-  assert.match(source, /event\.target === event\.currentTarget/);
-  assert.match(source, /z-\[120\]/);
-  assert.match(source, /safe-area-inset-bottom/);
-  assert.match(source, /max-h-\[82dvh\]/);
+  assert.match(source, /<BmCloseIcon size=\{22\} \/>/);
+  assert.match(overlay, /event\.target === event\.currentTarget/);
+  assert.match(overlay, /z-\[210\]/);
+  assert.match(overlay, /items-center justify-center/);
+  assert.match(overlay, /safe-area-inset-top/);
+  assert.match(overlay, /safe-area-inset-bottom/);
+  assert.match(overlay, /max-h-\[min\(90dvh/);
+});
+
+test("el selector de un solo día ocupa únicamente el ancho necesario", () => {
+  assert.match(source, /aria-label="Días de la rutina"[^>]*w-fit max-w-full/);
+  assert.match(source, /overflow-x-auto/);
+  assert.match(source, /shrink-0 rounded-full/);
+});
+
+test("finalizar entrenamiento reutiliza el overlay seguro y conserva sus acciones", () => {
+  assert.match(finalModal, /<RoutineOverlay open=\{finalOpen\}/);
+  assert.match(finalModal, /maxWidth="max-w-xl"/);
+  assert.match(finalModal, /aria-label="Cerrar finalización"/);
+  assert.match(finalModal, /Continuar entrenando/);
+  assert.match(finalModal, /Guardar para continuar después/);
+  assert.match(finalModal, /Confirmar y finalizar/);
+  assert.match(finalModal, /min-h-0 overflow-y-auto/);
 });
 
 test("abre el primer ejercicio incompleto y mantiene un único acordeón controlado", () => {

@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ExerciseDetail } from "@/componentes/exercise-library";
+import { BmCloseIcon } from "@/componentes/icons";
+import { RoutineOverlay } from "@/componentes/routine-overlay";
 import { resolveManualVideoPlayback, resolveRoutineExerciseMedia } from "@/lib/routine-exercise-media";
 import type { BMExercise } from "@/types/exercise-library";
 
@@ -54,28 +56,19 @@ export function RoutineExerciseMediaButton({ exercise, libraryMediaEnabled, thum
     return () => controller.abort();
   }, [libraryExercise?.id, media.libraryExerciseId, media.source, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeWithEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("keydown", closeWithEscape);
-    return () => document.removeEventListener("keydown", closeWithEscape);
-  }, [open]);
-
   if (!media.hasMedia) return null;
   const action = thumbnail && media.thumbnailUrl
       ? <button type="button" onClick={() => setOpen(true)} aria-label={`Ver video de ${exercise.name}`} className="group relative size-16 shrink-0 overflow-hidden rounded-xl border border-zinc-800 bg-black"><Image src={media.thumbnailUrl} alt="" width={72} height={72} loading="lazy" unoptimized className="size-full object-cover opacity-90" /><span className="absolute inset-0 grid place-items-center bg-black/20 text-white opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><PlayIcon /></span></button>
       : <button type="button" onClick={() => setOpen(true)} className={`inline-flex items-center gap-2 border border-zinc-700 bg-zinc-950/70 text-xs font-semibold text-zinc-200 outline-none transition hover:border-zinc-500 hover:bg-zinc-900 focus-visible:ring-2 focus-visible:ring-yellow-300 ${compact ? "min-h-8 rounded-lg px-2.5" : "min-h-10 rounded-xl px-3.5"}`}><PlayIcon />{label}</button>;
   return <>
     {separated ? <div data-exercise-video-action className="mt-4 border-t border-zinc-800 pt-3">{action}</div> : action}
-    {open && <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }} className="fixed inset-0 z-[140] flex items-end overflow-y-auto bg-black/80 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby="routine-video-title" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-zinc-700 bg-[#0b0b0b] p-4 text-white shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-5">
-        <header className="mb-4 flex items-center justify-between gap-3"><p id="routine-video-title" className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Ver video</p><button type="button" onClick={() => setOpen(false)} aria-label="Cerrar video" className="grid size-10 place-items-center rounded-xl border border-zinc-800 text-xl text-zinc-400 outline-none hover:bg-zinc-900 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300">×</button></header>
-        {media.source === "LIBRARY"
+    <RoutineOverlay open={open} onClose={() => setOpen(false)} labelledBy="routine-video-title">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-800 p-4"><p id="routine-video-title" className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Ver video</p><button type="button" onClick={() => setOpen(false)} aria-label="Cerrar video" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-zinc-400 outline-none hover:bg-zinc-900 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300"><BmCloseIcon size={22} /></button></header>
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-5">{media.source === "LIBRARY"
           ? activeLibraryExercise
             ? <ExerciseDetail exercise={activeLibraryExercise} mediaEnabled />
             : <p className="py-12 text-center text-sm text-zinc-500">Cargando ejercicio…</p>
-          : media.mediaUrl && <ManualExerciseDetail exercise={exercise} mediaUrl={media.mediaUrl} />}
-      </section>
-    </div>}
+          : media.mediaUrl && <ManualExerciseDetail exercise={exercise} mediaUrl={media.mediaUrl} />}</div>
+    </RoutineOverlay>
   </>;
 }
