@@ -135,13 +135,12 @@ test("Personalizado puro no puede resolver una misión basada en clases", () => 
 test("Puntos oculta por completo la misión inexistente y conserva puntos y logros", () => {
   const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
   const missionCard = source.slice(source.indexOf("function WeeklyMissionAchievement"), source.indexOf("function PointsSummary"));
-  const pointsView = source.slice(source.indexOf("function PointsAndAchievementsView"), source.indexOf("function RoutineView"));
+  const pointsView = source.slice(source.indexOf("function PointsAndAchievementsView"), source.indexOf("const reducedMotionQuery"));
   assert.match(missionCard, /if \(!mission\) return null/);
   assert.doesNotMatch(missionCard, /No tenés una misión semanal disponible/);
   assert.match(pointsView, /<PointsSummary data=\{data\} ranking=\{ranking\} \/>/);
-  assert.match(pointsView, /<RankingPreview ranking=\{ranking\} \/>/);
   assert.match(pointsView, /<AchievementsOverview data=\{data\} \/>/);
-  assert.match(pointsView, /<PointsHistory data=\{data\} \/>/);
+  assert.doesNotMatch(pointsView, /<RankingPreview|<PointsHistory data=\{data\}/);
 });
 
 test("la oferta general no contamina el target: cinco turnos disponibles y dos asignados dan target 2", () => {

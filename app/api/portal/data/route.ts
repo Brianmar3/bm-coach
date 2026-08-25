@@ -164,8 +164,8 @@ export async function GET(request: Request) {
     const today = dateKeyToDatabase(todayKey);
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const student = session.credential.student.data as unknown as Student;
-    const homeInsightsPromise = section === "inicio" || section === "puntos"
-      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, serviceType, todayKey, weekStart, groupClassesEnabled, section === "puntos" ? 40 : 8)
+    const homeInsightsPromise = section === "inicio" || section === "puntos" || section === "puntos-historial"
+      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, serviceType, todayKey, weekStart, groupClassesEnabled, section === "puntos-historial" ? 40 : 8)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules, paymentObligationRecords, paidAmountsByPeriod] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
@@ -304,7 +304,7 @@ export async function GET(request: Request) {
         weeklyMission: homeInsights.weeklyMission,
       },
     };
-    if (section === "inicio" || section === "puntos") data.weeklyWorkouts = homeInsights.weeklyWorkoutCount;
+    if (section === "inicio" || section === "puntos" || section === "puntos-historial") data.weeklyWorkouts = homeInsights.weeklyWorkoutCount;
     return Response.json(data);
   } catch (error) {
     console.error("Error al cargar datos del portal", error);

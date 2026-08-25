@@ -49,7 +49,7 @@ import {
 } from "@/componentes/icons";
 import type { StudentPointMovement } from "@/types/points";
 
-type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "perfil" | "avatar" | "configuracion";
+type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "puntos-historial" | "perfil" | "avatar" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 const date = (value: string) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR") : "—";
 const number = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
@@ -83,6 +83,7 @@ export function PortalSection({ section }: { section: Section }) {
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
   if (section === "puntos") return <PointsAndAchievementsView data={data} />;
+  if (section === "puntos-historial") return <PointsHistoryPageView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
   if (section === "avatar") return <StudentAvatarPage profile={data.profile} />;
   if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><div id="notificaciones" className="scroll-mt-24"><PushNotificationsCard /></div><div id="seguridad" className="scroll-mt-24"><ExpandablePasswordCard /></div><section id="privacidad" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Privacidad</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">Tus datos se muestran únicamente dentro de tu cuenta. Los cambios administrativos de plan, servicio y estado los gestiona tu entrenador.</p></section><section id="preferencias" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Preferencias</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">BM Training respeta las preferencias de movimiento y accesibilidad configuradas en tu dispositivo.</p></section><PortalLogoutCard /></PageHeader>;
@@ -188,7 +189,7 @@ function PointsSummary({ data, ranking }: { data: PortalData; ranking: PointsRan
       <span className="portal-points-emblem relative grid size-16 place-items-center justify-self-center rounded-[22px] border border-yellow-300/55 bg-yellow-400/[.08] text-yellow-300 sm:size-[86px]"><BmPointsIcon size={38} strokeWidth={1.55} /></span>
       <div className="min-w-0 text-right"><p className="text-[9px] font-black uppercase tracking-[.12em] text-zinc-400 sm:text-[11px]">Este mes</p><strong className="mt-2 block truncate text-4xl font-black tabular-nums text-yellow-300 sm:text-5xl"><HomeAnimatedNumber value={points.monthlyTotal} /></strong><span className="mt-1 block text-[10px] text-zinc-500">{ranking?.currentPosition ? `Posición #${ranking.currentPosition}` : "Ranking mensual"}</span></div>
     </div>
-    <div className="relative mt-5 grid grid-cols-2 gap-2.5"><Link href="/portal/ranking" aria-label="Ver ranking mensual" className="portal-points-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-3 text-xs font-black text-zinc-950 transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-200 sm:text-sm"><BmRankingIcon size={20} />Ver ranking<BmChevronRightIcon size={17} /></Link><a href="#historial-puntos" className="portal-points-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-yellow-400/40 bg-black/25 px-3 text-xs font-black text-yellow-200 transition hover:bg-yellow-400/[.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:text-sm"><BmHistoryIcon size={20} />Historial<BmChevronRightIcon size={17} /></a></div>
+    <div className="relative mt-5 grid grid-cols-2 gap-2.5"><Link href="/portal/ranking" aria-label="Ver ranking mensual" className="portal-points-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-2 text-[11px] font-black text-zinc-950 transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-200 min-[390px]:px-3 min-[390px]:text-xs sm:text-sm"><BmRankingIcon size={20} />Ver ranking<BmChevronRightIcon size={17} /></Link><Link href="/portal/puntos/historial" aria-label="Ver historial de puntos" className="portal-points-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-yellow-400/40 bg-black/25 px-2 text-[11px] font-black text-yellow-200 transition hover:bg-yellow-400/[.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:px-3 min-[390px]:text-xs sm:text-sm"><BmHistoryIcon size={20} />Ver historial<BmChevronRightIcon size={17} /></Link></div>
     <div className="relative mt-4 flex items-center justify-between gap-3 text-[10px] text-zinc-500"><span>Próximo objetivo: {points.nextTarget} pts</span><span>{points.pointsToNextTarget} pts restantes</span></div>
     <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="portal-points-progress h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${progress}%` }} /></div>
   </section>;
@@ -204,14 +205,11 @@ function PointsAndAchievementsView({ data }: { data: PortalData }) {
       .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setRanking(null); });
     return () => controller.abort();
   }, []);
-  return <div className="portal-points-page mx-auto max-w-5xl space-y-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:space-y-5">
+  return <div className="portal-points-page mx-auto max-w-5xl space-y-4 sm:space-y-5">
     <header className="portal-points-enter [--points-delay:0ms]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400">Tu evolución</p><h1 className="mt-1 text-2xl font-black uppercase tracking-[.02em] text-zinc-100 sm:text-3xl">Puntos y logros</h1><p className="mt-1 text-sm text-zinc-500">Tus avances, movimientos y próximos hitos</p></header>
     <PointsSummary data={data} ranking={ranking} />
-    <nav aria-label="Secciones de Puntos y logros" className="portal-points-enter grid grid-cols-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[#101010] p-1 [--points-delay:140ms]"><a href="#puntos" className="grid min-h-11 place-items-center rounded-xl px-1 text-[10px] font-bold text-zinc-300 hover:bg-white/[.04] hover:text-yellow-300">Resumen</a><a href="#ranking-mensual" className="grid min-h-11 place-items-center rounded-xl px-1 text-center text-[10px] font-bold leading-tight text-zinc-300 hover:bg-white/[.04] hover:text-yellow-300">Ranking mensual</a><a href="#logros" className="grid min-h-11 place-items-center rounded-xl px-1 text-[10px] font-bold text-zinc-300 hover:bg-white/[.04] hover:text-yellow-300">Logros</a><a href="#historial-puntos" className="grid min-h-11 place-items-center rounded-xl px-1 text-[10px] font-bold text-zinc-300 hover:bg-white/[.04] hover:text-yellow-300">Historial</a></nav>
     <WeeklyMissionAchievement data={data} />
-    <RankingPreview ranking={ranking} />
     <AchievementsOverview data={data} />
-    <PointsHistory data={data} />
   </div>;
 }
 
@@ -270,14 +268,6 @@ function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
   </Link>;
 }
 
-function RankingPreview({ ranking }: { ranking: PointsRankingPreview | null }) {
-  return <section id="ranking-mensual" className="portal-points-enter scroll-mt-24 rounded-[22px] border border-white/[.08] bg-[linear-gradient(145deg,#151515,#090909)] p-4 [--points-delay:280ms] sm:p-5">
-    <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Ranking mensual</p><h2 className="mt-1 text-lg font-black text-white">Tu lugar este mes</h2></div><div className="text-right"><strong className="block text-xl font-black text-yellow-300">{ranking?.currentPosition ? `#${ranking.currentPosition}` : "—"}</strong><span className="text-[10px] text-zinc-500">{ranking ? `${ranking.currentPoints} pts` : "Cargando"}</span></div></div>
-    {ranking?.ranking.length ? <ol className="mt-4 space-y-2">{ranking.ranking.slice(0, 3).map((entry, index) => <li key={entry.studentId} className="grid min-h-12 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.06] bg-black/30 px-3 py-2"><span className={`grid size-8 place-items-center rounded-full text-xs font-black ${index === 0 ? "bg-yellow-400/15 text-yellow-300" : "bg-zinc-800 text-zinc-300"}`}>{index + 1}</span><span className="truncate text-sm font-semibold text-zinc-200">{entry.studentName}</span><strong className="text-xs text-yellow-300">{entry.total} pts</strong></li>)}</ol> : <p className="mt-4 rounded-xl border border-dashed border-white/[.08] p-4 text-center text-xs text-zinc-500">El ranking mensual aparecerá cuando haya movimientos.</p>}
-    <Link href="/portal/ranking" className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-yellow-400/35 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmRankingIcon size={19} />Ver ranking completo<BmChevronRightIcon size={17} /></Link>
-  </section>;
-}
-
 function AchievementsOverview({ data }: { data: PortalData }) {
   const unlocked = data.home.achievements.filter((achievement) => achievement.unlocked).sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt));
   const upcoming = data.home.achievements.filter((achievement) => !achievement.unlocked && achievement.progress > 0).sort((left, right) => right.progress / right.target - left.progress / left.target);
@@ -330,6 +320,14 @@ function movementIcon(eventType: StudentPointMovement["eventType"]) {
   if (eventType === "PERSONAL_RECORD") return <BmMedalIcon size={19} />;
   if (eventType === "RECORD") return <BmBarbellIcon size={19} />;
   return <BmChallengeIcon size={19} />;
+}
+
+function PointsHistoryPageView({ data }: { data: PortalData }) {
+  return <div className="mx-auto w-full max-w-3xl overflow-x-clip px-0.5 sm:px-0">
+    <Link href="/portal/puntos" className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/55 px-4 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver a Puntos y logros">← Volver</Link>
+    <header className="portal-points-enter mt-6 [--points-delay:0ms]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400">Historial</p><h1 className="mt-1 text-2xl font-black tracking-tight text-zinc-100 sm:text-3xl">Movimientos de puntos</h1><p className="mt-1 text-sm text-zinc-500">Consultá cómo sumaste tus puntos en BM Training.</p></header>
+    <div className="mt-5"><PointsHistory data={data} /></div>
+  </div>;
 }
 
 function PointsHistory({ data }: { data: PortalData }) {
