@@ -300,6 +300,8 @@ test("la vista de clases usa jerarquia premium y selector segmentado", () => {
   assert.match(source, /aria-pressed=\{!showWeek\}/);
   assert.match(source, /onClick=\{\(\) => setShowWeek\(false\)\}/);
   assert.match(source, /onClick=\{\(\) => setShowWeek\(true\)\}/);
+  assert.doesNotMatch(source, /PRÓXIMA CLASE|nextClass/);
+  assert.match(source, /aria-label="Vista de clases" className="portal-home-class-row mt-6/);
 });
 
 test("Funcional, GAP y Kids conservan el nombre real sin emojis ni variantes visuales", () => {

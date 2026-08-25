@@ -187,10 +187,6 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
     }
     return [...map.entries()];
   }, [data?.scheduleLabels]);
-  const nextClass = useMemo(() => {
-    return [...upcomingItems].sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`))[0] ?? null;
-  }, [upcomingItems]);
-
   if (!data) {
     if (!error) return <div className="h-44 animate-pulse rounded-2xl bg-zinc-900" />;
     return (
@@ -262,16 +258,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
         {showQuickLogAction && <QuickNoteButton placement="inline" />}
       </header>
 
-      <section className="portal-home-class-row mt-5 flex min-h-24 items-center gap-3 rounded-[22px] border border-yellow-400/25 bg-[radial-gradient(circle_at_88%_12%,rgba(250,204,21,.12),transparent_34%),linear-gradient(145deg,#171717,#090909)] p-4 shadow-[0_16px_45px_rgba(0,0,0,.28)] sm:p-5">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl border border-yellow-400/30 bg-yellow-400/[.07] text-yellow-300"><BmCalendarIcon size={24} /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">PRÓXIMA CLASE</p>
-          {nextClass ? <><p className="mt-1 text-xs font-semibold capitalize text-zinc-400">{dateLabel(nextClass.date)}</p><div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><strong className="text-sm tabular-nums text-yellow-300 sm:text-base">{nextClass.startTime}–{nextClass.endTime}</strong><span className="min-w-0 truncate text-base font-black text-zinc-50 sm:text-lg">{disciplineLabel(`${nextClass.name} ${nextClass.category}`, nextClass.name || nextClass.category)}</span></div></> : <><p className="mt-1 text-base font-black text-zinc-100">Sin próximas clases</p><p className="mt-1 text-xs text-zinc-500">{data.availability.message ?? noClassesMessage}</p></>}
-        </div>
-        <BmChevronRightIcon size={20} className="shrink-0 text-yellow-300" />
-      </section>
-
-      <nav aria-label="Vista de clases" className="portal-home-class-row mt-4 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]" style={{ animationDelay: "65ms" }}>
+      <nav aria-label="Vista de clases" className="portal-home-class-row mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]" style={{ animationDelay: "65ms" }}>
         <button
           type="button"
           aria-pressed={!showWeek}
