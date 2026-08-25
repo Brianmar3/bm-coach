@@ -6,7 +6,7 @@ import { deduplicateEvaluations, toStudentEvaluation } from "@/lib/evaluation-re
 import { serializeEvent } from "@/lib/eventos";
 import type { CoachSettings, Student } from "@/types/gestion";
 import type { PortalData } from "@/types/portal";
-import type { Prisma, StudentServiceType } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { calculatePortalAchievements } from "@/lib/portal-achievements";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
@@ -19,7 +19,8 @@ import { activePortalRoutineWhere } from "@/lib/portal-service-access";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 import { loadStudentPointSummary } from "@/lib/student-points";
 import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements";
-import { mergePortalAttendanceRecords, summarizeExpectedPortalAttendancePeriod, type PortalAttendanceRecord } from "@/lib/portal-attendance";
+import { mergePortalAttendanceRecords, type PortalAttendanceRecord } from "@/lib/portal-attendance";
+import { loadPortalAttendance } from "@/lib/portal-attendance-data";
 import { loadCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 import { exerciseMediaAvailable } from "@/lib/exercise-library-server";
 import { obligationStatus } from "@/lib/monthly-calculations";
@@ -28,11 +29,7 @@ import { normalizeTransferDetails } from "@/lib/transfer-payment";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, serviceType: StudentServiceType, todayKey: string, weekStart: Date, includeClasses: boolean, pointMovementLimit = 8) {
-  const today = dateKeyToDatabase(todayKey);
-  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-  const previousMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
-  const nextMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1));
+async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date, includeClasses: boolean, pointMovementLimit = 8) {
   const activityStartKey = joinedAt && joinedAt > BM_TRAINING_START_DATE ? joinedAt : BM_TRAINING_START_DATE;
   const activityStart = dateKeyToDatabase(activityStartKey);
   const meaningfulEvaluation = {
@@ -48,8 +45,8 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     weeklyWorkoutCount,
     newAttendanceDates,
     legacyAttendanceDates,
-    membershipHistory,
-    scheduleAssignments,
+    currentMonthAttendance,
+    previousMonthAttendance,
     evaluationDates,
     firstStrengthLog,
     strengthAchievements,
@@ -62,8 +59,8 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: weekStart } } }),
     includeClasses ? prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: { in: ["PRESENT", "ABSENT"] }, occurrence: { date: { gte: activityStart }, status: { not: "CANCELLED" } } }, select: { id: true, actualAttendance: true, occurrence: { select: { date: true, classNameSnapshot: true, startTime: true, endTime: true, scheduleId: true } } }, orderBy: { occurrence: { date: "asc" } } }) : Promise.resolve([]),
     includeClasses ? prisma.classAttendance.findMany({ where: { studentId, date: { gte: activityStart } }, select: { id: true, date: true, status: true, scheduleLabel: true, scheduleStartTime: true, scheduleId: true, schedule: { select: { endTime: true } } }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }) : Promise.resolve([]),
-    includeClasses ? prisma.studentMembershipHistory.findMany({ where: { studentId, startDate: { lt: nextMonthStart }, OR: [{ endDate: null }, { endDate: { gte: previousMonthStart } }] }, select: { startDate: true, endDate: true, frequencyDays: true, serviceType: true, status: true, createdAt: true }, orderBy: [{ startDate: "asc" }, { createdAt: "asc" }] }) : Promise.resolve([]),
-    includeClasses ? prisma.weeklyClassAssignment.findMany({ where: { studentId, assignedAt: { lt: nextMonthStart }, OR: [{ endedAt: null }, { endedAt: { gte: previousMonthStart } }] }, select: { assignedAt: true, endedAt: true, schedule: { select: { dayOfWeek: true } } }, orderBy: { assignedAt: "asc" } }) : Promise.resolve([]),
+    includeClasses ? loadPortalAttendance(studentId, "current-month", todayKey) : Promise.resolve(null),
+    includeClasses ? loadPortalAttendance(studentId, "previous-month", todayKey) : Promise.resolve(null),
     prisma.physicalEvaluation.findMany({ where: { ...meaningfulEvaluation, date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
     loadStrengthAchievements(studentId, activityStart),
@@ -95,41 +92,16 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
   const attendanceRecords = mergePortalAttendanceRecords(currentAttendance, legacyAttendance);
   const attendedClassDates = attendanceRecords.filter((record) => record.status === "PRESENT").map((record) => record.date).sort();
   const evaluationDateKeys = evaluationDates.map((item) => item.date.toISOString().slice(0, 10));
-  const monthStartKey = monthStart.toISOString().slice(0, 10);
-  const previousMonthStartKey = previousMonthStart.toISOString().slice(0, 10);
-  const nextMonthStartKey = nextMonthStart.toISOString().slice(0, 10);
   const hasClassParticipation = includeClasses && (Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog));
-  const membershipTimeline = membershipHistory.map((item) => ({
-    start: item.startDate.toISOString().slice(0, 10),
-    end: item.endDate?.toISOString().slice(0, 10) ?? null,
-    frequencyDays: item.frequencyDays,
-    serviceType: item.serviceType,
-    status: item.status,
-    recordedAt: item.createdAt.toISOString(),
-  }));
-  if (includeClasses && !membershipTimeline.some((item) => item.start <= todayKey && (!item.end || item.end >= todayKey))) {
-    membershipTimeline.push({ start: monthStartKey, end: null, frequencyDays: planDays(plan), serviceType, status: "ACTIVE", recordedAt: new Date(0).toISOString() });
-  }
-  const attendanceContext = {
-    memberships: membershipTimeline,
-    assignments: scheduleAssignments.map((assignment) => ({
-      dayOfWeek: assignment.schedule.dayOfWeek,
-      assignedAt: argentinaDateKey(assignment.assignedAt),
-      endedAt: assignment.endedAt ? argentinaDateKey(assignment.endedAt) : null,
-    })),
-    records: attendanceRecords,
-  };
-  const currentMonthAttendance = summarizeExpectedPortalAttendancePeriod({ ...attendanceContext, start: monthStartKey, endExclusive: nextMonthStartKey, today: todayKey });
-  const previousMonthAttendance = summarizeExpectedPortalAttendancePeriod({ ...attendanceContext, start: previousMonthStartKey, endExclusive: monthStartKey, today: todayKey });
   const weeklyGoal = includeClasses ? planDays(plan) ?? 0 : 0;
-  const hasPreviousMonthData = previousMonthAttendance.total > 0;
+  const hasPreviousMonthData = (previousMonthAttendance?.total ?? 0) > 0;
   const weeklyMission = await loadCurrentWeeklyMission(studentId, todayKey);
   return {
     weeklyWorkoutCount,
-    classesAttendedThisMonth: currentMonthAttendance.completedDays ?? currentMonthAttendance.present,
-    monthlyAttendancePercentage: currentMonthAttendance.percentage,
-    classesAttendedPreviousMonth: hasPreviousMonthData ? previousMonthAttendance.completedDays ?? previousMonthAttendance.present : null,
-    previousMonthAttendancePercentage: previousMonthAttendance.percentage,
+    classesAttendedThisMonth: currentMonthAttendance?.completedDays ?? currentMonthAttendance?.present ?? 0,
+    monthlyAttendancePercentage: currentMonthAttendance?.percentage ?? null,
+    classesAttendedPreviousMonth: hasPreviousMonthData ? previousMonthAttendance?.completedDays ?? previousMonthAttendance?.present ?? 0 : null,
+    previousMonthAttendancePercentage: previousMonthAttendance?.percentage ?? null,
     hasClassParticipation,
     weeklyMission,
     achievements: [...calculatePortalAchievements({
@@ -165,7 +137,7 @@ export async function GET(request: Request) {
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio" || section === "puntos" || section === "puntos-historial"
-      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, serviceType, todayKey, weekStart, groupClassesEnabled, section === "puntos-historial" ? 40 : 8)
+      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled, section === "puntos-historial" ? 40 : 8)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules, paymentObligationRecords, paidAmountsByPeriod] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),

@@ -162,6 +162,59 @@ test("cero sesiones esperadas produce cero seguro", () => {
   assert.deepEqual(summarizePortalAttendance([], 0), { present: 0, absent: 0, justified: 0, total: 0, percentage: 0, completedDays: 0 });
 });
 
+test("tres presentes sobre nueve esperadas producen 33,3 en cualquier consumidor", () => {
+  const records = [
+    record({ id: "p1", status: "PRESENT", date: "2026-08-03" }),
+    record({ id: "p2", status: "PRESENT", date: "2026-08-10" }),
+    record({ id: "p3", status: "PRESENT", date: "2026-08-17" }),
+    ...Array.from({ length: 6 }, (_, index) => record({ id: `a${index}`, status: "ABSENT", date: `2026-08-${String(4 + index).padStart(2, "0")}` })),
+  ];
+  const official = summarizePortalAttendance(records, 9);
+  assert.equal(official.total, 9);
+  assert.equal(official.completedDays, 3);
+  assert.equal(official.percentage, 33.3);
+});
+
+test("frecuencias 2, 3 y 5 conservan su expectativa semanal", () => {
+  for (const frequencyDays of [2, 3, 5]) {
+    const expected = expectedPortalAttendanceSessions({
+      start: "2026-08-03",
+      endExclusive: "2026-08-10",
+      today: "2026-08-09",
+      memberships: [{ start: "2026-08-01", end: null, frequencyDays, serviceType: "CLASSES", status: "ACTIVE" }],
+      assignments: [],
+    });
+    assert.equal(expected, frequencyDays);
+  }
+});
+
+test("justificadas y ausencias integran el denominador sin contar como presentes", () => {
+  const summary = summarizePortalAttendance([
+    record({ id: "p1", status: "PRESENT" }),
+    record({ id: "j1", status: "JUSTIFIED" }),
+    record({ id: "a1", status: "ABSENT" }),
+  ], 3);
+  assert.equal(summary.percentage, 33.3);
+  assert.equal(summary.justified, 1);
+  assert.equal(summary.absent, 1);
+});
+
+test("registros futuros quedan fuera del resumen oficial", () => {
+  const summary = summarizeExpectedPortalAttendancePeriod({
+    start: "2026-08-01",
+    endExclusive: "2026-09-01",
+    today: "2026-08-12",
+    memberships,
+    assignments,
+    records: [
+      record({ id: "past", status: "PRESENT", date: "2026-08-10" }),
+      record({ id: "future", status: "PRESENT", date: "2026-08-14" }),
+    ],
+  });
+  assert.equal(summary.present, 1);
+  assert.equal(summary.completedDays, 1);
+});
+
 test("Personalizado puro no genera cumplimiento de clases", () => {
   assert.equal(expectedPortalAttendanceSessions({ start: "2026-08-01", endExclusive: "2026-09-01", today: "2026-08-12", memberships: [{ ...memberships[0], serviceType: "PERSONALIZED" }], assignments }), 0);
 });
@@ -186,7 +239,9 @@ test("Home y detalle comparten el mismo resumen y nunca consultan confirmaciones
   const home = readFileSync(new URL("../app/api/portal/data/route.ts", import.meta.url), "utf8");
   const detail = readFileSync(new URL("../lib/portal-attendance-data.ts", import.meta.url), "utf8");
   const endpoint = readFileSync(new URL("../app/api/portal/asistencias/route.ts", import.meta.url), "utf8");
-  assert.match(home, /summarizeExpectedPortalAttendancePeriod/);
+  assert.match(home, /loadPortalAttendance\(studentId, "current-month", todayKey\)/);
+  assert.match(home, /loadPortalAttendance\(studentId, "previous-month", todayKey\)/);
+  assert.doesNotMatch(home, /summarizeExpectedPortalAttendancePeriod/);
   assert.match(detail, /summarizeExpectedPortalAttendancePeriod/);
   assert.doesNotMatch(detail, /\bresponse\b/);
   assert.match(detail, /actualAttendance/);
