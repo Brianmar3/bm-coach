@@ -233,6 +233,7 @@ async function notifyPointGain(
         : `Sumaste puntos por ${gained.length} avances registrados.`,
     url: "/portal#puntos",
     tag: `student-points-${studentId}`,
+    type: "POINTS",
   }).catch((error) => {
     console.error("No se pudo enviar el puntaje por push", error);
   });

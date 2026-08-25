@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
+import { getNotificationDestination } from "@/lib/student-notification-destination";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export async function GET() {
       select: {
         id: true,
         type: true,
+        eventKey: true,
         title: true,
         message: true,
         url: true,
@@ -33,7 +35,13 @@ export async function GET() {
     }),
   ]);
 
-  return Response.json({ notifications, unreadCount });
+  return Response.json({
+    notifications: notifications.map((notification) => ({
+      ...notification,
+      destination: getNotificationDestination(notification),
+    })),
+    unreadCount,
+  });
 }
 
 export async function PATCH(request: Request) {

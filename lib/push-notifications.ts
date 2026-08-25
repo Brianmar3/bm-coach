@@ -6,6 +6,16 @@ import webpush from "web-push";
 import { loadNotifiableAchievements } from "@/lib/notifiable-achievements";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { prisma } from "@/lib/prisma";
+import { getNotificationDestination } from "@/lib/student-notification-destination";
+
+type StudentPushMessage = {
+  title: string;
+  body: string;
+  url?: string;
+  tag: string;
+  type?: string;
+  eventKey?: string;
+};
 
 function vapidConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT);
@@ -13,14 +23,17 @@ function vapidConfigured() {
 
 async function deliverStudentPush(
   studentId: string,
-  message: { title: string; body: string; url: string; tag: string },
+  message: StudentPushMessage,
 ) {
   try {
     if (!vapidConfigured()) return;
     const subscriptions = await prisma.studentPushSubscription.findMany({ where: { studentId, active: true } });
     if (!subscriptions.length) return;
     webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
-    const payload = JSON.stringify(message);
+    const payload = JSON.stringify({
+      ...message,
+      url: getNotificationDestination(message),
+    });
     await Promise.all(subscriptions.map(async (subscription) => {
       try {
         await webpush.sendNotification(
@@ -44,7 +57,7 @@ async function deliverStudentPush(
 
 export async function sendStudentPush(
   studentId: string,
-  message: { title: string; body: string; url: string; tag: string },
+  message: StudentPushMessage,
 ) {
   after(() => deliverStudentPush(studentId, message));
 }
@@ -100,7 +113,12 @@ async function deliverAchievementPush(studentId: string, claimed: ClaimedAchieve
   }
   webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
   const message = content(claimed.map((item) => item.achievement));
-  const payload = JSON.stringify({ ...message, url: "/portal#logros", tag: "bm-training-achievements", event: "achievement" });
+  const payload = JSON.stringify({
+    ...message,
+    url: getNotificationDestination({ type: "ACHIEVEMENT" }),
+    tag: "bm-training-achievements",
+    event: "achievement",
+  });
   let delivered = false;
   const errors: string[] = [];
   await Promise.all(subscriptions.map(async (subscription) => {

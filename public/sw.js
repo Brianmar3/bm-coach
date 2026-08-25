@@ -1,4 +1,34 @@
-self.__BM_TRAINING_SW_VERSION__ = "push-v6-immediate-achievements";
+self.__BM_TRAINING_SW_VERSION__ = "push-v7-contextual-navigation";
+
+const BM_PORTAL_FALLBACK = "/portal";
+const BM_ALLOWED_NOTIFICATION_PATHS = [
+  "/portal/pagos",
+  "/portal/puntos",
+  "/portal/ranking",
+  "/portal/clases",
+  "/portal/rutina",
+  "/portal/entrenamiento",
+  "/portal/evaluaciones",
+  "/portal/registro",
+  "/portal/nutricion",
+  "/portal/progreso",
+  "/portal",
+];
+
+function safeNotificationTarget(value) {
+  try {
+    if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return BM_PORTAL_FALLBACK;
+    const parsed = new URL(value, self.location.origin);
+    const allowed = parsed.origin === self.location.origin && BM_ALLOWED_NOTIFICATION_PATHS.some((root) =>
+      root === BM_PORTAL_FALLBACK
+        ? parsed.pathname === root
+        : parsed.pathname === root || parsed.pathname.startsWith(`${root}/`),
+    );
+    return allowed ? `${parsed.pathname}${parsed.search}${parsed.hash}` : BM_PORTAL_FALLBACK;
+  } catch {
+    return BM_PORTAL_FALLBACK;
+  }
+}
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -12,7 +42,7 @@ self.addEventListener("push", (event) => {
   let data = {
     title: "Nuevo logro en BM Training",
     body: "Entrá a la app para ver tu progreso.",
-    url: "/portal#logros",
+    url: BM_PORTAL_FALLBACK,
     tag: "bm-training-achievements",
   };
   try {
@@ -38,7 +68,7 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = new URL(
-    event.notification.data?.url || "/portal#logros",
+    safeNotificationTarget(event.notification.data?.url),
     self.location.origin,
   ).href;
   event.waitUntil(

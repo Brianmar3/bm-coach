@@ -12,6 +12,7 @@ type HeaderNotification = {
   title: string;
   message: string;
   url: string;
+  destination?: string;
   response?: "GOING" | "NOT_GOING";
   readAt: string | null;
   createdAt: string;
@@ -135,7 +136,11 @@ function NotificationCenter({ audience }: { audience: Audience }) {
 
   async function openNotification(notification: HeaderNotification) {
     await openNotificationSafely(
-      { id: notification.id, readAt: notification.readAt, destination: notification.url },
+      {
+        id: notification.id,
+        readAt: notification.readAt,
+        destination: audience === "student" ? notification.destination ?? "/portal" : notification.url,
+      },
       openingRef.current,
       markRead,
       (destination) => {
