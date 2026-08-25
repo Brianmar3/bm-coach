@@ -13,7 +13,7 @@ import {
   BmClassesIcon,
   BmEvaluationIcon,
   BmHomeIcon,
-  BmNutritionIcon,
+  BmAppleIcon,
   BmRoutineIcon,
   type BmIconProps,
 } from "@/componentes/icons";
@@ -25,7 +25,7 @@ const allLinks: PortalLink[] = [
   ["Inicio", "/portal", BmHomeIcon],
   ["Rutina", "/portal/rutina", BmRoutineIcon],
   ["Clases", "/portal/clases", BmClassesIcon],
-  ["Nutrición", "/portal/nutricion", BmNutritionIcon],
+  ["Nutrición", "/portal/nutricion", BmAppleIcon],
   ["Evaluación", "/portal/evaluaciones", BmEvaluationIcon],
 ];
 

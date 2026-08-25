@@ -6,7 +6,7 @@ import type { PortalClassOccurrence } from "@/types/classes";
 import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
 import { PortalActionCard } from "@/componentes/portal-action-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
-import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmCloseIcon, BmHistoryIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
+import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmCloseIcon, BmHistoryIcon, BmRoutineIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
@@ -199,32 +199,32 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
 
   if (compact)
     return (
-      <section className="h-full overflow-hidden rounded-[22px] border border-white/[.07] bg-[linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_14px_35px_rgba(0,0,0,.28)] sm:p-4">
-        <div className="flex items-start justify-between gap-3">
+      <section className="h-full overflow-hidden rounded-[26px] border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.32),inset_0_1px_rgba(255,255,255,.025)] sm:p-5">
+        <div className="flex items-start justify-between gap-3 sm:gap-5">
           <div className="min-w-0">
-            <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">
+            <p className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-[11px]">
               <BmCalendarIcon size={14} />{data.summary.mode === "TODAY" ? "Clases de hoy" : data.summary.mode === "NEXT_DAY" ? "Próximo día" : "Agenda de clases"}
             </p>
-            <h2 className="mt-1.5 text-lg font-black leading-tight text-zinc-50">
+            <h2 className="mt-2 text-xl font-black leading-tight tracking-[-.025em] text-zinc-50 sm:text-2xl">
               {data.summary.total
                 ? `${data.summary.total} ${data.summary.total === 1 ? "clase disponible" : "clases disponibles"}`
                 : "Sin próximas clases"}
             </h2>
           </div>
           <div className="shrink-0 text-right">
-            {data.summary.dateLabel && <span className="block max-w-32 text-[10px] font-medium leading-tight text-zinc-500">{data.summary.dateLabel}</span>}
-            <Link href="/portal/clases" className="mt-2 inline-flex min-h-7 items-center text-[10px] font-black text-yellow-300 transition hover:text-yellow-200">Ver agenda completa ›</Link>
+            {data.summary.dateLabel && <span className="block max-w-36 text-[10px] font-medium leading-tight text-zinc-400 sm:text-xs">{data.summary.dateLabel}</span>}
+            <Link href="/portal/clases" className="portal-home-interactive mt-2 inline-flex min-h-8 items-center text-[10px] font-black text-yellow-300 transition hover:text-yellow-200 sm:text-xs">Ver agenda completa ›</Link>
           </div>
         </div>
         {data.summary.total ? (
           <>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-zinc-500">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-zinc-500 sm:text-xs">
               {data.summary.firstStartTime && data.summary.lastStartTime && (
                 <span className="tabular-nums">◷ {data.summary.firstStartTime}–{data.summary.lastStartTime}</span>
               )}
               <span>· {data.summary.mode === "TODAY" ? "Elegí tu horario." : "Tu próximo día con actividad."}</span>
             </div>
-            <div className="mt-3 space-y-2">
+            <div className="mt-4 space-y-2.5">
               {data.summary.preview.map((item, index) => (
                 <CompactClassRow
                   key={item.id}
@@ -384,13 +384,16 @@ function CompactClassRow({
   const discipline = disciplineLabel(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className={`portal-home-class-row grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-white/[.065] bg-black/35 p-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] ${confirmed ? "portal-home-confirmed" : ""}`} style={{ animationDelay: `${index * 75}ms` }}>
+    <article className={`portal-home-class-row grid min-w-0 grid-cols-[2.65rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-2xl border border-white/[.075] bg-black/35 p-2.5 shadow-[inset_0_1px_rgba(255,255,255,.02)] sm:grid-cols-[2.9rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:p-3 ${confirmed ? "portal-home-confirmed" : ""}`} style={{ animationDelay: `${index * 75}ms` }}>
+      <span className="grid size-10 place-items-center rounded-full border border-yellow-400/25 bg-yellow-400/[.07] text-yellow-300 sm:size-11">
+        <BmRoutineIcon size={19} />
+      </span>
       <div className="min-w-0">
-        <p className="truncate text-[11px] font-black tabular-nums text-zinc-100">{item.startTime}–{item.endTime}</p>
-        <p className="mt-0.5 truncate text-[10px] text-zinc-500">{discipline}</p>
+        <p className="truncate text-xs font-black tabular-nums text-zinc-100 sm:text-sm">{item.startTime}–{item.endTime}</p>
+        <p className="mt-0.5 truncate text-[10px] text-zinc-400 sm:text-xs">{discipline}</p>
       </div>
       <span className={`hidden shrink-0 text-[9px] font-bold sm:inline ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</span>
-      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-9 shrink-0 rounded-lg border px-2.5 text-[10px] font-bold transition disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-400/35 bg-yellow-400/[.055] text-yellow-200" : "border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-yellow-400/25"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
+      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-10 shrink-0 rounded-xl border px-3 text-[10px] font-black transition disabled:opacity-50 sm:min-h-11 sm:px-4 sm:text-xs ${item.response === "GOING" ? "border-yellow-300/55 bg-yellow-400/[.08] text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-yellow-400/35 bg-zinc-950 text-yellow-200 hover:border-yellow-300/60"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
     </article>
   );
 }

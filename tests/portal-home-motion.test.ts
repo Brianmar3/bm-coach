@@ -47,3 +47,11 @@ test("los CTA conservan sus rutas y el acceso rápido central conserva su compon
   assert.match(home, /href="\/portal\/puntos"/);
   assert.match(shell, /<QuickNoteButton placement="navigation"/);
 });
+
+test("la Home premium conserva ornamentos acotados y usa la manzana oficial", () => {
+  assert.match(home, /portal-home-focus-lines/);
+  assert.match(home, /portal-home-stat/);
+  assert.match(styles, /\.portal-home-hero::after/);
+  assert.match(styles, /\.portal-home-focus-lines/);
+  assert.match(shell, /"\/portal\/nutricion", BmAppleIcon/);
+});

@@ -30,10 +30,10 @@ test("BM Icons expone una API visual y accesible única", () => {
 
 test("los nombres públicos de BM Icons son únicos y cubren el catálogo V1", () => {
   const names = [...library.matchAll(/export const (Bm[A-Za-z]+Icon)/g)].map((match) => match[1]);
-  assert.equal(names.length, 56);
+  assert.equal(names.length, 57);
   assert.equal(new Set(names).size, names.length);
   for (const required of [
-    "BmHomeIcon", "BmClassesIcon", "BmRoutineIcon", "BmNutritionIcon", "BmEvaluationIcon",
+    "BmHomeIcon", "BmClassesIcon", "BmRoutineIcon", "BmNutritionIcon", "BmAppleIcon", "BmEvaluationIcon",
     "BmSettingsIcon", "BmBellIcon", "BmShieldCheckIcon", "BmLockIcon", "BmSlidersIcon",
     "BmHelpCircleIcon", "BmLogoutIcon", "BmPlusIcon", "BmEditIcon", "BmSearchIcon",
     "BmRankingIcon", "BmPointsIcon", "BmAttendanceIcon", "BmPaymentIcon", "BmTargetIcon",
@@ -48,9 +48,10 @@ test("Ajustes conserva compatibilidad sin mantener una segunda fuente SVG", () =
 });
 
 test("la primera migración usa BM Icons y elimina Unicode de navegación y Perfil", () => {
-  for (const icon of ["BmHomeIcon", "BmRoutineIcon", "BmClassesIcon", "BmNutritionIcon", "BmEvaluationIcon"]) {
+  for (const icon of ["BmHomeIcon", "BmRoutineIcon", "BmClassesIcon", "BmAppleIcon", "BmEvaluationIcon"]) {
     assert.match(shell, new RegExp(icon));
   }
+  assert.doesNotMatch(shell, /icon: BmNutritionIcon/);
   assert.doesNotMatch(shell, /[⌂◫▷◉◇]/);
   for (const icon of ["BmSettingsIcon", "BmUserPlusIcon", "BmEditIcon", "BmPhoneIcon", "BmMailIcon"]) {
     assert.match(profile, new RegExp(icon));

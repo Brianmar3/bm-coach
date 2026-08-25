@@ -40,6 +40,7 @@ export const BmHomeIcon = createBmIcon("BmHomeIcon", <><path d="m3 11 9-8 9 8" /
 export const BmClassesIcon = createBmIcon("BmClassesIcon", <><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 9h18M7 14h2M15 14h2M7 18h2" /></>);
 export const BmRoutineIcon = createBmIcon("BmRoutineIcon", <><path d="M6 8v8M18 8v8M3 10v4M21 10v4M6 12h12" /></>);
 export const BmNutritionIcon = createBmIcon("BmNutritionIcon", <><circle cx="12" cy="13" r="7" /><path d="M3 3v7M6 3v7M4.5 3v7M19 3v18M19 3c2 2 2 5 0 7" /></>);
+export const BmAppleIcon = createBmIcon("BmAppleIcon", <><path d="M12 7.2C10.2 5 6.1 4.7 4.6 7.5 2.3 11.8 5.5 19 8.2 20.7c1.2.8 2.2-.7 3.8-.7s2.6 1.5 3.8.7c2.7-1.7 5.9-8.9 3.6-13.2C17.9 4.7 13.8 5 12 7.2Z" /><path d="M12 7.2c-.2-2.8 1.2-4.6 4-5.2M13.5 3.8c-1.4-.8-2.8-.8-4.1-.2" /></>);
 export const BmEvaluationIcon = createBmIcon("BmEvaluationIcon", <><path d="M6 2h9l4 4v16H6zM15 2v5h5" /><path d="m9 17 3-4 2 2 3-5" /></>);
 export const BmProfileIcon = createBmIcon("BmProfileIcon", <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>);
 export const BmUserIcon = BmProfileIcon;
