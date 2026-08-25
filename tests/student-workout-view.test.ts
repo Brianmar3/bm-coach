@@ -42,12 +42,13 @@ test("el selector horizontal funciona con cualquier cantidad de días", () => {
   assert.match(source, /aria-pressed/);
 });
 
-test("el resumen usa actividades reales, duración, estado y progreso", () => {
+test("el resumen usa bloques reales, duración, estado y progreso", () => {
   assert.equal(completedExerciseCount([{ exerciseId: "a", sets: [{ completed: true }] }, { exerciseId: "b", sets: [{ completed: false }] }]), 1);
-  for (const value of ["actividades completadas", "Día sugerido", "Sin comenzar", "En curso", "Completado"]) assert.match(source, new RegExp(value));
-  assert.match(source, /conic-gradient\(#facc15/);
-  assert.match(source, /completados<\/small>/);
-  assert.match(source, /min duración/);
+  for (const value of ["bloques completados", "Día sugerido", "Sin comenzar", "En curso", "Completado"]) assert.match(source, new RegExp(value));
+  assert.match(source, /portal-routine-progress-ring/);
+  assert.match(source, /\{completedBlocks\}\/\{totalBlocks\}/);
+  assert.match(source, /\{selectedDay\.estimatedMinutes\} min/);
+  assert.match(source, /width: `\$\{dayProgress\}%`/);
 });
 
 test("el hero usa iconografía lineal neutral", () => {
@@ -57,7 +58,8 @@ test("el hero usa iconografía lineal neutral", () => {
 
 test("la entrada en calor aparece solo cuando existe y abre un modal accesible", () => {
   assert.match(source, /selectedDay\.warmup\.trim\(\) && <button/);
-  assert.match(source, />Ver entrada en calor</);
+  assert.match(source, />Entrada en calor<\/strong>/);
+  assert.match(source, /Prepará tu cuerpo para entrenar/);
   assert.match(source, /setWarmupOpen\(true\)/);
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);

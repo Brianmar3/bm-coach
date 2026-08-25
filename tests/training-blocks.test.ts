@@ -253,7 +253,9 @@ test("el portal ordena bloques, abre uno por vez y muestra el formulario según 
   assert.match(student, /isTimedBlockType/);
   for (const type of ["INTERVAL", "EMOM", "AMRAP", "FOR_TIME"]) assert.match(blockTimer, new RegExp(`"${type}"`));
   for (const type of ["ROUNDS", "FREE"]) assert.match(student, new RegExp(`"${type}"`));
-  assert.match(student, /Comenzar bloque/);
+  assert.match(student, /active \? "Continuar" : "Comenzar"/);
+  assert.match(student, /Recorrido de hoy/);
+  assert.match(student, /portal-routine-timeline/);
   assert.match(student, /overflow-hidden/);
   assert.match(student, /block\.blockType === "MOBILITY"/);
   assert.match(student, /RoutineExerciseMediaButton exercise=\{source\} libraryMediaEnabled=\{libraryMediaEnabled\} compact/);
