@@ -199,7 +199,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
 
   if (compact)
     return (
-      <section className="h-full overflow-hidden rounded-[26px] border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_18px_45px_rgba(0,0,0,.32),inset_0_1px_rgba(255,255,255,.025)] sm:p-5">
+      <section className="h-full overflow-hidden rounded-[26px] border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_18px_45px_rgba(0,0,0,.32),inset_0_1px_rgba(255,255,255,.025)] sm:p-4">
         <div className="flex items-start justify-between gap-3 sm:gap-5">
           <div className="min-w-0">
             <p className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-[11px]">
@@ -224,7 +224,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
               )}
               <span>· {data.summary.mode === "TODAY" ? "Elegí tu horario." : "Tu próximo día con actividad."}</span>
             </div>
-            <div className="mt-4 space-y-2.5">
+            <div className="mt-3 space-y-2">
               {data.summary.preview.map((item, index) => (
                 <CompactClassRow
                   key={item.id}
@@ -384,7 +384,7 @@ function CompactClassRow({
   const discipline = disciplineLabel(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className={`portal-home-class-row grid min-w-0 grid-cols-[2.65rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-2xl border border-white/[.075] bg-black/35 p-2.5 shadow-[inset_0_1px_rgba(255,255,255,.02)] sm:grid-cols-[2.9rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:p-3 ${confirmed ? "portal-home-confirmed" : ""}`} style={{ animationDelay: `${index * 75}ms` }}>
+    <article className={`portal-home-class-row grid min-w-0 grid-cols-[2.65rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-2xl border border-white/[.075] bg-black/35 px-2.5 py-3 shadow-[inset_0_1px_rgba(255,255,255,.02)] sm:grid-cols-[2.9rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-3 ${confirmed ? "portal-home-confirmed" : ""}`} style={{ animationDelay: `${index * 75}ms` }}>
       <span className="grid size-10 place-items-center rounded-full border border-yellow-400/25 bg-yellow-400/[.07] text-yellow-300 sm:size-11">
         <BmRoutineIcon size={19} />
       </span>
@@ -393,7 +393,7 @@ function CompactClassRow({
         <p className="mt-0.5 truncate text-[10px] text-zinc-400 sm:text-xs">{discipline}</p>
       </div>
       <span className={`hidden shrink-0 text-[9px] font-bold sm:inline ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</span>
-      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-10 shrink-0 rounded-xl border px-3 text-[10px] font-black transition disabled:opacity-50 sm:min-h-11 sm:px-4 sm:text-xs ${item.response === "GOING" ? "border-yellow-300/55 bg-yellow-400/[.08] text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-yellow-400/35 bg-zinc-950 text-yellow-200 hover:border-yellow-300/60"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
+      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-11 shrink-0 rounded-xl border px-3 text-[10px] font-black transition disabled:opacity-50 sm:min-h-12 sm:px-4 sm:text-xs ${item.response === "GOING" ? "border-yellow-300/55 bg-yellow-400/[.08] text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-yellow-400/35 bg-zinc-950 text-yellow-200 hover:border-yellow-300/60"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
     </article>
   );
 }

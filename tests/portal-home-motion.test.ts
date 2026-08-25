@@ -55,3 +55,14 @@ test("la Home premium conserva ornamentos acotados y usa la manzana oficial", ()
   assert.match(styles, /\.portal-home-focus-lines/);
   assert.match(shell, /"\/portal\/nutricion", BmAppleIcon/);
 });
+
+test("la Home premium mantiene una densidad compacta en mobile", () => {
+  assert.match(home, /space-y-4/);
+  assert.match(home, /min-h-\[8rem\]/);
+  assert.doesNotMatch(home, /min-h-\[10rem\]/);
+  assert.doesNotMatch(home, /sm:min-h-40/);
+  assert.match(home, /size-\[92px\]/);
+  assert.match(home, /min-\[390px\]:size-24/);
+  assert.match(classes, /mt-3 space-y-2/);
+  assert.match(classes, /min-h-11 shrink-0/);
+});
