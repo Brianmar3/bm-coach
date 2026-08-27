@@ -29,6 +29,17 @@ test("las animaciones de Home son acotadas y reduced motion elimina movimiento d
   assert.match(homeStyles, /portal-home-progress-fill/);
   assert.doesNotMatch(homeStyles, /infinite/);
   assert.match(homeStyles, /\.portal-home-enter \{ opacity: 1; transform: none; \}/);
+  assert.match(homeStyles, /portal-home-objective-celebration 1100ms/);
+  assert.match(homeStyles, /portal-home-objective-icon-pop 900ms/);
+  assert.match(homeStyles, /portal-home-objective-celebrating \.portal-home-objective-check/);
+});
+
+test("el objetivo semanal es compacto y su celebración no queda en loop", () => {
+  assert.match(home, /px-5 py-\[15px\]/);
+  assert.match(home, /grid-cols-\[44px_minmax\(0,1fr\)_auto\]/);
+  assert.match(home, /className="h-1\.5 overflow-hidden rounded-full bg-zinc-800"/);
+  assert.doesNotMatch(homeStyles, /portal-home-objective[^\n]*infinite/);
+  assert.match(homeStyles, /prefers-reduced-motion: reduce[\s\S]*portal-home-objective-celebrating/);
 });
 
 test("la confirmación visual de asistencia ocurre después de guardar y recargar", () => {

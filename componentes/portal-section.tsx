@@ -151,9 +151,11 @@ function RoutineHomeCard({ plan }: { plan: PersonalizedHomePlan }) {
 function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["home"]["weeklyMission"]> }) {
   const completed = mission.state === "COMPLETED";
   const expired = mission.state === "EXPIRED";
-  const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";
+  const [celebrating, setCelebrating] = useState(false);
+  const previousMission = useRef({ id: mission.id, state: mission.state });
+  const stateLabel = completed ? "Cumplido" : expired ? "Vencida" : "Activa";
   const remainingMessage = completed
-    ? `Objetivo cumplido · +${mission.maximumReward} pts obtenidos`
+    ? `Objetivo semanal completado · +${mission.completionBonus} pts`
     : expired
       ? "La semana finalizó."
       : mission.progress === 0
@@ -162,16 +164,25 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
           ? `Te falta 1 clase para ganar +${mission.completionBonus} pts`
           : `Te faltan ${mission.remaining} clases para ganar +${mission.completionBonus} pts`;
 
-  return <section className={`portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-4 py-4 shadow-[0_14px_34px_rgba(0,0,0,.28)] sm:px-5 ${completed ? "portal-home-objective-complete border-emerald-400/25" : "border-yellow-400/35"}`}>
-    <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[48px_minmax(0,1fr)_auto]">
-      <span aria-hidden="true" className={`grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-yellow-300"}`}>{completed ? <BmCheckIcon size={23} /> : <BmTargetIcon size={23} />}</span>
+  useEffect(() => {
+    const previous = previousMission.current;
+    previousMission.current = { id: mission.id, state: mission.state };
+    if (previous.id !== mission.id || previous.state === "COMPLETED" || mission.state !== "COMPLETED") return;
+    setCelebrating(true);
+    const timeout = window.setTimeout(() => setCelebrating(false), 1100);
+    return () => window.clearTimeout(timeout);
+  }, [mission.id, mission.state]);
+
+  return <section aria-live="polite" className={`portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)] ${completed ? "border-emerald-400/25" : "border-yellow-400/35"} ${celebrating ? "portal-home-objective-celebrating" : ""}`}>
+    <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5">
+      <span aria-hidden="true" className={`portal-home-objective-icon grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-yellow-300"}`}>{completed ? <BmCheckIcon size={22} className="portal-home-objective-check" /> : <BmTargetIcon size={22} />}</span>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2"><p className="text-[9px] font-black uppercase tracking-[.18em] text-yellow-400 sm:text-[10px]">Objetivo semanal</p><span className={`rounded-full border px-2 py-0.5 text-[8px] font-bold ${completed ? "border-emerald-400/25 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-zinc-400" : "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300"}`}>{stateLabel}</span></div>
         <h2 className="mt-1 text-sm font-bold leading-snug text-zinc-100 sm:text-base">{mission.progress} de {mission.target} clases completadas</h2>
       </div>
       <strong className={`text-lg font-black tabular-nums sm:text-xl ${completed ? "text-emerald-300" : "text-yellow-300"}`}>{mission.percentage}%</strong>
     </div>
-    <div className="mt-3 pl-0 sm:pl-[60px]"><div role="progressbar" aria-label="Progreso del objetivo semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)} className="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={`portal-home-progress-fill h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div><div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] leading-relaxed text-zinc-500 sm:text-xs"><span>{remainingMessage}</span><span>+{mission.pointsPerSession} por clase · +{mission.completionBonus} bonus</span></div></div>
+    <div className="mt-2"><div role="progressbar" aria-label="Progreso del objetivo semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)} className="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={`portal-home-progress-fill h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[10px] leading-snug text-zinc-500 sm:text-xs"><span>{remainingMessage}</span><span>+{mission.pointsPerSession} por clase · +{mission.completionBonus} bonus</span></div></div>
   </section>;
 }
 

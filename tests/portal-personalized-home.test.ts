@@ -43,7 +43,18 @@ test("el objetivo semanal reutiliza la misión real sólo para servicios con cla
   assert.match(overview, /mission\.target/);
   assert.match(overview, /mission\.pointsPerSession/);
   assert.match(overview, /mission\.completionBonus/);
+  assert.match(overview, /completed \? "Cumplido"/);
+  assert.match(overview, /Objetivo semanal completado · \+\$\{mission\.completionBonus\} pts/);
+  assert.doesNotMatch(overview, /maximumReward\} pts obtenidos/);
   assert.doesNotMatch(overview, /Confirmadas/);
+});
+
+test("la celebración semanal responde sólo a la transición real del mismo objetivo", () => {
+  assert.match(overview, /previousMission = useRef\(\{ id: mission\.id, state: mission\.state \}\)/);
+  assert.match(overview, /previous\.id !== mission\.id \|\| previous\.state === "COMPLETED" \|\| mission\.state !== "COMPLETED"/);
+  assert.match(overview, /setCelebrating\(true\)/);
+  assert.match(overview, /setTimeout\(\(\) => setCelebrating\(false\), 1100\)/);
+  assert.doesNotMatch(overview, /completed \? "portal-home-objective-celebrating"/);
 });
 
 test("el resumen usa dos cards para Clases y agrega progreso real cuando hay plan", () => {
