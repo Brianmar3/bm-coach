@@ -101,8 +101,9 @@ function PortalOverview({ data }: { data: PortalData }) {
   const todayLabel = `${rawTodayLabel.charAt(0).toLocaleUpperCase("es")}${rawTodayLabel.slice(1)}`;
   const dailyFocus = dailyFocusForInstant(now);
   const groupClassesEnabled = hasGroupClasses(data.profile.serviceType);
-  const routineFocused = data.profile.serviceType === "PERSONALIZED" || (data.profile.serviceType === "MIXED" && Boolean(data.routine));
+  const routineFocused = data.profile.serviceType === "PERSONALIZED";
   const homePlan = routineFocused ? personalizedHomePlan(data) : null;
+  const quickStatsPlan = homePlan ?? (data.profile.serviceType === "MIXED" && data.routine ? personalizedHomePlan(data) : null);
   return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4">
     <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-5 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 min-[390px]:py-6 sm:p-8">
       <span aria-hidden="true" className="portal-home-light-sweep" />
@@ -110,12 +111,13 @@ function PortalOverview({ data }: { data: PortalData }) {
         <p className="flex items-center gap-2.5 text-xs text-zinc-500 sm:text-sm"><BmCalendarIcon size={19} className="shrink-0 text-yellow-400" />{todayLabel}</p>
         <h1 className="mt-6 text-[clamp(1.85rem,8vw,3.15rem)] font-black leading-none tracking-[-.045em] text-zinc-50 sm:mt-7">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
         <p className="mt-2.5 max-w-md text-sm leading-relaxed text-zinc-500 sm:text-base">{routineFocused ? "Hoy avanzás una parte más de tu plan." : "Vamos por un día más de progreso."}</p>
-        {groupClassesEnabled && !routineFocused && <MonthlyAttendanceIndicator data={data} />}
+        {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </header>
     <section className="portal-home-enter portal-home-focus relative overflow-hidden rounded-[26px] border border-white/[.1] bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-5 shadow-[0_14px_34px_rgba(0,0,0,.28)] min-[390px]:px-6 sm:px-7 sm:py-6"><span aria-hidden="true" className="portal-home-focus-lines" /><div className="relative z-[1]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-xs">Enfoque de hoy</p><div className="mt-3 flex items-start gap-3 sm:gap-4"><span aria-hidden="true" className="portal-home-focus-quote text-4xl font-black leading-none text-yellow-400/90">“</span><div className="min-w-0 max-w-2xl"><h2 className="break-words text-base font-semibold italic leading-snug text-zinc-100 sm:text-xl">{dailyFocus.title}</h2><p className="mt-1.5 break-words text-xs leading-relaxed text-zinc-500 sm:mt-2 sm:text-sm">{dailyFocus.reflection}</p></div></div></div></section>
+    {groupClassesEnabled && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
     <div className="portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
-    <HomeQuickStats data={data} plan={homePlan} />
+    <HomeQuickStats data={data} plan={quickStatsPlan} />
   </div>;
 }
 
@@ -146,12 +148,38 @@ function RoutineHomeCard({ plan }: { plan: PersonalizedHomePlan }) {
   </section>;
 }
 
+function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["home"]["weeklyMission"]> }) {
+  const completed = mission.state === "COMPLETED";
+  const expired = mission.state === "EXPIRED";
+  const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";
+  const remainingMessage = completed
+    ? `Objetivo cumplido · +${mission.maximumReward} pts obtenidos`
+    : expired
+      ? "La semana finalizó."
+      : mission.progress === 0
+        ? "Tu semana recién empieza."
+        : mission.remaining === 1
+          ? `Te falta 1 clase para ganar +${mission.completionBonus} pts`
+          : `Te faltan ${mission.remaining} clases para ganar +${mission.completionBonus} pts`;
+
+  return <section className={`portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-4 py-4 shadow-[0_14px_34px_rgba(0,0,0,.28)] sm:px-5 ${completed ? "portal-home-objective-complete border-emerald-400/25" : "border-yellow-400/35"}`}>
+    <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[48px_minmax(0,1fr)_auto]">
+      <span aria-hidden="true" className={`grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-yellow-300"}`}>{completed ? <BmCheckIcon size={23} /> : <BmTargetIcon size={23} />}</span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2"><p className="text-[9px] font-black uppercase tracking-[.18em] text-yellow-400 sm:text-[10px]">Objetivo semanal</p><span className={`rounded-full border px-2 py-0.5 text-[8px] font-bold ${completed ? "border-emerald-400/25 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-zinc-400" : "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300"}`}>{stateLabel}</span></div>
+        <h2 className="mt-1 text-sm font-bold leading-snug text-zinc-100 sm:text-base">{mission.progress} de {mission.target} clases completadas</h2>
+      </div>
+      <strong className={`text-lg font-black tabular-nums sm:text-xl ${completed ? "text-emerald-300" : "text-yellow-300"}`}>{mission.percentage}%</strong>
+    </div>
+    <div className="mt-3 pl-0 sm:pl-[60px]"><div role="progressbar" aria-label="Progreso del objetivo semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)} className="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={`portal-home-progress-fill h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div><div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] leading-relaxed text-zinc-500 sm:text-xs"><span>{remainingMessage}</span><span>+{mission.pointsPerSession} por clase · +{mission.completionBonus} bonus</span></div></div>
+  </section>;
+}
+
 function HomeQuickStats({ data, plan }: { data: PortalData; plan: PersonalizedHomePlan | null }) {
   const account = data.paymentAccount;
   const status = accountStatus[account.status];
-  const mission = data.home.weeklyMission;
-  const progressValue = plan ? plan.available ? `${plan.completed}/${plan.target}` : "—" : mission ? `${mission.progress}/${mission.target}` : `${data.weeklyWorkouts}`;
-  const progressLabel = plan ? plan.available ? "Días completados" : "Plan para continuar" : mission ? "Clases esta semana" : "Entrenamientos esta semana";
+  const progressValue = plan?.available ? `${plan.completed}/${plan.target}` : "—";
+  const progressLabel = plan?.available ? "Días completados" : "Plan para continuar";
   const weekStart = new Date(`${argentinaDateKey()}T12:00:00.000Z`);
   weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
   const weekStartKey = weekStart.toISOString().slice(0, 10);
@@ -159,9 +187,9 @@ function HomeQuickStats({ data, plan }: { data: PortalData; plan: PersonalizedHo
   const dueLabel = account.nextDueDate ? `${account.status === "VENCIDA" ? "Venció" : "Renueva"} el ${date(account.nextDueDate)}` : account.configured ? "Cuota configurada" : "Consultá con tu entrenador";
   const cardClass = "portal-home-stat portal-home-interactive group relative min-w-0 overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] px-2.5 py-3 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:px-3 sm:min-h-32 sm:p-4";
   const progressContent = <><BmProgressIcon size={17} className="absolute right-2.5 top-2.5 text-yellow-400/60 sm:right-4 sm:top-4" /><p className="pr-5 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">{plan ? "Progreso del plan" : "Progreso resumido"}</p><div className="mt-4 flex items-end gap-1.5"><p className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">{progressValue}</p><span aria-hidden="true" className="portal-home-mini-bars flex h-6 items-end gap-0.5"><i className="h-1.5 w-1 bg-yellow-400/30" /><i className="h-3 w-1 bg-yellow-400/45" /><i className="h-5 w-1 bg-yellow-400/65" /><i className="h-2.5 w-1 bg-zinc-700" /></span></div><p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">{progressLabel}</p></>;
-  return <section aria-label="Resumen del alumno" className="portal-home-enter grid grid-cols-3 gap-2 sm:gap-3">
+  return <section aria-label="Resumen del alumno" className={`portal-home-enter grid ${plan ? "grid-cols-3" : "grid-cols-2"} gap-2 sm:gap-3`}>
     <Link href="/portal/pagos" className={cardClass}><BmPaymentIcon size={17} className="absolute right-2.5 top-2.5 text-yellow-400/60 sm:right-4 sm:top-4" /><p className="pr-5 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tu cuota</p><p className={`mt-4 line-clamp-2 text-sm font-semibold leading-tight sm:text-xl ${status.className.includes("emerald") ? "text-emerald-400" : "text-zinc-100"}`}>{status.label}</p><p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">{dueLabel}</p></Link>
-    {plan ? <Link href="/portal/rutina" className={cardClass}>{progressContent}</Link> : <Link href="/portal/evaluaciones" className={cardClass}>{progressContent}</Link>}
+    {plan && <Link href="/portal/progreso" className={cardClass}>{progressContent}</Link>}
     <Link href="/portal/puntos" className={`portal-home-points ${cardClass}`}><span aria-hidden="true" className="portal-home-points-sweep" /><span className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/30 text-yellow-300 sm:right-4 sm:top-4 sm:size-8"><BmPointsIcon size={15} /></span><p className="relative pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tus puntos</p><p className="relative mt-4 truncate text-xl font-semibold leading-none text-zinc-100 sm:text-2xl"><HomeAnimatedNumber value={data.home.points.total} /></p><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><p className="relative mt-1.5 truncate text-[9px] text-zinc-500 sm:text-[11px]">+{weeklyPoints} esta semana</p></Link>
   </section>;
 }

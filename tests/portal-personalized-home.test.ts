@@ -5,9 +5,9 @@ import test from "node:test";
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const overview = source.slice(source.indexOf("function PortalOverview"), source.indexOf("function WeeklyMissionAchievement"));
 
-test("Personalizado y Mixto con rutina priorizan el plan sin romper Clases", () => {
+test("Personalizado prioriza la rutina y Mixto conserva la agenda de clases", () => {
   assert.match(overview, /serviceType === "PERSONALIZED"/);
-  assert.match(overview, /serviceType === "MIXED" && Boolean\(data\.routine\)/);
+  assert.match(overview, /serviceType === "MIXED" && data\.routine/);
   assert.match(overview, /homePlan \? <RoutineHomeCard/);
   assert.match(overview, /groupClassesEnabled && <PortalClasses compact/);
 });
@@ -36,11 +36,21 @@ test("los fallbacks son claros y la acción permanece dentro del portal", () => 
   assert.match(overview, /Ver rutina/);
 });
 
-test("las tres cards adaptan sólo el progreso para el plan", () => {
-  assert.match(overview, /grid grid-cols-3/);
+test("el objetivo semanal reutiliza la misión real sólo para servicios con clases", () => {
+  assert.match(overview, /groupClassesEnabled && data\.home\.weeklyMission/);
+  assert.match(overview, /<WeeklyObjectiveCard mission=\{data\.home\.weeklyMission\}/);
+  assert.match(overview, /mission\.progress/);
+  assert.match(overview, /mission\.target/);
+  assert.match(overview, /mission\.pointsPerSession/);
+  assert.match(overview, /mission\.completionBonus/);
+  assert.doesNotMatch(overview, /Confirmadas/);
+});
+
+test("el resumen usa dos cards para Clases y agrega progreso real cuando hay plan", () => {
+  assert.match(overview, /plan \? "grid-cols-3" : "grid-cols-2"/);
   assert.match(overview, /Tu cuota/);
   assert.match(overview, /Progreso del plan/);
   assert.match(overview, /Tus puntos/);
-  assert.match(overview, /href="\/portal\/rutina"/);
-  assert.match(overview, /href="\/portal\/evaluaciones"/);
+  assert.match(overview, /href="\/portal\/progreso"/);
+  assert.doesNotMatch(overview, /href="\/portal\/evaluaciones"/);
 });
