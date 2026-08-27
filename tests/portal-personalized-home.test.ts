@@ -50,10 +50,12 @@ test("el objetivo semanal reutiliza la misión real sólo para servicios con cla
 });
 
 test("la celebración semanal responde sólo a la transición real del mismo objetivo", () => {
-  assert.match(overview, /previousMission = useRef\(\{ id: mission\.id, state: mission\.state \}\)/);
-  assert.match(overview, /previous\.id !== mission\.id \|\| previous\.state === "COMPLETED" \|\| mission\.state !== "COMPLETED"/);
+  assert.match(overview, /previousMission = useRef\(\{ id: mission\.id, state: mission\.state, progress: mission\.progress/);
+  assert.match(overview, /if \(previous\.id !== mission\.id\) return/);
+  assert.match(overview, /previous\.state !== "COMPLETED" && mission\.state === "COMPLETED"/);
+  assert.match(overview, /bm:weekly-mission-celebrated:/);
   assert.match(overview, /setCelebrating\(true\)/);
-  assert.match(overview, /setTimeout\(\(\) => setCelebrating\(false\), 1100\)/);
+  assert.match(overview, /setTimeout\(\(\) => setCelebrating\(false\), 1200\)/);
   assert.doesNotMatch(overview, /completed \? "portal-home-objective-celebrating"/);
 });
 

@@ -6,6 +6,7 @@ const home = readFileSync(new URL("../componentes/portal-section.tsx", import.me
 const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+const serviceWorker = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
 const homeStyles = styles.slice(styles.indexOf("@keyframes portal-home-enter"), styles.indexOf("@keyframes portal-ranking-enter"));
 
 test("la Home anima únicamente su contenido y mantiene header y navegación estables", () => {
@@ -29,9 +30,41 @@ test("las animaciones de Home son acotadas y reduced motion elimina movimiento d
   assert.match(homeStyles, /portal-home-progress-fill/);
   assert.doesNotMatch(homeStyles, /infinite/);
   assert.match(homeStyles, /\.portal-home-enter \{ opacity: 1; transform: none; \}/);
-  assert.match(homeStyles, /portal-home-objective-celebration 1100ms/);
+  assert.match(homeStyles, /portal-home-objective-celebration 1200ms/);
   assert.match(homeStyles, /portal-home-objective-icon-pop 900ms/);
   assert.match(homeStyles, /portal-home-objective-celebrating \.portal-home-objective-check/);
+});
+
+test("la Home refresca en primer plano sin superponer solicitudes", () => {
+  assert.match(home, /inFlightRefresh\.current/);
+  assert.match(home, /setInterval\(refreshWhenVisible, 8000\)/);
+  assert.match(home, /document\.visibilityState === "visible"/);
+  assert.match(home, /addEventListener\("focus", refresh\)/);
+  assert.match(home, /addEventListener\("visibilitychange", refreshWhenVisible\)/);
+  assert.match(home, /BM_PORTAL_DATA_CHANGED/);
+  const portalLoader = home.slice(
+    home.indexOf("export function PortalSection"),
+    home.indexOf("function PortalOverview"),
+  );
+  assert.doesNotMatch(portalLoader, /window\.location\.reload/);
+});
+
+test("el service worker avisa a las ventanas abiertas cuando llega un push", () => {
+  assert.match(serviceWorker, /push-v8-live-home/);
+  assert.match(serviceWorker, /includeUncontrolled: true/);
+  assert.match(serviceWorker, /BM_PORTAL_DATA_CHANGED/);
+  assert.match(serviceWorker, /BM_ACHIEVEMENT_AVAILABLE/);
+});
+
+test("los efectos responden a diferencias reales posteriores al montaje", () => {
+  assert.match(home, /useState\(value\)/);
+  assert.match(home, /const previousValue = useRef\(value\)/);
+  assert.match(home, /previous\.progress !== mission\.progress/);
+  assert.match(home, /next\.total - previous\.total/);
+  assert.match(home, /bm:weekly-mission-celebrated:/);
+  assert.match(homeStyles, /portal-home-objective-advance 650ms/);
+  assert.match(homeStyles, /portal-home-points-change 1000ms/);
+  assert.match(homeStyles, /portal-home-objective-progress[\s\S]*width 620ms/);
 });
 
 test("el objetivo semanal es compacto y su celebración no queda en loop", () => {

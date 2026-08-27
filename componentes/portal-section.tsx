@@ -70,16 +70,63 @@ const billingPeriod = (value: string) => value
   : "";
 
 export function PortalSection({ section }: { section: Section }) {
-  const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false); const [reload, setReload] = useState(0);
-  useEffect(() => { const controller = new AbortController(); const dataSection = section === "historial" ? "rutina" : section === "avatar" ? "perfil" : section; fetch(`/api/portal/data?section=${dataSection}`, { cache: "no-store", signal: controller.signal }).then(async (response) => { const body = await response.json() as PortalData & { error?: string; code?: string }; if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); } if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; } if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información."); return body; }).then((body) => { if (body) setData(body); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [reload, section]);
+  const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false);
+  const dataSection = section === "historial" ? "rutina" : section === "avatar" ? "perfil" : section;
+  const inFlightRefresh = useRef<Promise<void> | null>(null);
+  const activeController = useRef<AbortController | null>(null);
+  const hasLoadedData = useRef(false);
+  const refreshPortalData = useCallback((showLoading = false) => {
+    if (inFlightRefresh.current) return inFlightRefresh.current;
+    if (showLoading) setLoading(true);
+    const controller = new AbortController();
+    activeController.current = controller;
+    const request = fetch(`/api/portal/data?section=${dataSection}`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const body = await response.json() as PortalData & { error?: string; code?: string };
+        if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); }
+        if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; }
+        if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información.");
+        return body;
+      })
+      .then((body) => { if (body) { hasLoadedData.current = true; setError(""); setData(body); } })
+      .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError" && !hasLoadedData.current) setError(loadError.message); })
+      .finally(() => {
+        if (activeController.current === controller) { inFlightRefresh.current = null; activeController.current = null; }
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    inFlightRefresh.current = request;
+    return request;
+  }, [dataSection]);
   useEffect(() => {
-    const refresh = () => setReload((value) => value + 1);
+    activeController.current?.abort(); inFlightRefresh.current = null; hasLoadedData.current = false;
+    const resetTimeout = window.setTimeout(() => {
+      setData(null); setError(""); setChangeRequired(false);
+      void refreshPortalData(true);
+    }, 0);
+    return () => { window.clearTimeout(resetTimeout); activeController.current?.abort(); };
+  }, [refreshPortalData]);
+  useEffect(() => {
+    const refresh = () => { void refreshPortalData(); };
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    const onServiceWorkerMessage = (event: MessageEvent<{ type?: string }>) => {
+      if (event.data?.type === "BM_PORTAL_DATA_CHANGED" || event.data?.type === "BM_ACHIEVEMENT_AVAILABLE") refresh();
+    };
     window.addEventListener("bm:portal-data-refresh", refresh);
-    return () => window.removeEventListener("bm:portal-data-refresh", refresh);
-  }, []);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    navigator.serviceWorker?.addEventListener("message", onServiceWorkerMessage);
+    const poll = section === "inicio" ? window.setInterval(refreshWhenVisible, 8000) : null;
+    return () => {
+      window.removeEventListener("bm:portal-data-refresh", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      navigator.serviceWorker?.removeEventListener("message", onServiceWorkerMessage);
+      if (poll !== null) window.clearInterval(poll);
+    };
+  }, [refreshPortalData, section]);
   if (loading) return <PortalLoading />;
-  if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); setLoading(true); setReload((value) => value + 1); }} />;
-  if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
+  if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); void refreshPortalData(true); }} />;
+  if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setError(""); void refreshPortalData(true); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
   if (!data) return null;
   if (section === "rutina") return <WorkoutView data={data} />;
   if (section === "historial") return <WorkoutHistoryView data={data} />;
@@ -152,7 +199,10 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
   const completed = mission.state === "COMPLETED";
   const expired = mission.state === "EXPIRED";
   const [celebrating, setCelebrating] = useState(false);
-  const previousMission = useRef({ id: mission.id, state: mission.state });
+  const [advancing, setAdvancing] = useState(false);
+  const previousMission = useRef({ id: mission.id, state: mission.state, progress: mission.progress, target: mission.target, percentage: mission.percentage });
+  const animatedProgress = useHomeAnimatedValue(mission.progress, 620);
+  const animatedPercentage = useHomeAnimatedValue(mission.percentage, 620);
   const stateLabel = completed ? "Cumplido" : expired ? "Vencida" : "Activa";
   const remainingMessage = completed
     ? `Objetivo semanal completado · +${mission.completionBonus} pts`
@@ -166,23 +216,39 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
 
   useEffect(() => {
     const previous = previousMission.current;
-    previousMission.current = { id: mission.id, state: mission.state };
-    if (previous.id !== mission.id || previous.state === "COMPLETED" || mission.state !== "COMPLETED") return;
-    setCelebrating(true);
-    const timeout = window.setTimeout(() => setCelebrating(false), 1100);
-    return () => window.clearTimeout(timeout);
-  }, [mission.id, mission.state]);
+    previousMission.current = { id: mission.id, state: mission.state, progress: mission.progress, target: mission.target, percentage: mission.percentage };
+    if (previous.id !== mission.id) return;
+    const changed = previous.progress !== mission.progress || previous.target !== mission.target || previous.state !== mission.state || previous.percentage !== mission.percentage;
+    if (!changed) return;
+    setAdvancing(true);
+    const advanceTimeout = window.setTimeout(() => setAdvancing(false), 650);
+    let celebrationTimeout: number | undefined;
+    if (previous.state !== "COMPLETED" && mission.state === "COMPLETED") {
+      const celebrationKey = `bm:weekly-mission-celebrated:${getWeekKey()}:${mission.id}`;
+      let alreadyCelebrated = false;
+      try { alreadyCelebrated = window.sessionStorage.getItem(celebrationKey) === "1"; } catch { /* Storage can be unavailable in restricted browser modes. */ }
+      if (!alreadyCelebrated) {
+        try { window.sessionStorage.setItem(celebrationKey, "1"); } catch { /* The in-memory transition still remains one-shot for this mount. */ }
+        setCelebrating(true);
+        celebrationTimeout = window.setTimeout(() => setCelebrating(false), 1200);
+      }
+    }
+    return () => {
+      window.clearTimeout(advanceTimeout);
+      if (celebrationTimeout !== undefined) window.clearTimeout(celebrationTimeout);
+    };
+  }, [mission.id, mission.percentage, mission.progress, mission.state, mission.target]);
 
-  return <section aria-live="polite" className={`portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)] ${completed ? "border-emerald-400/25" : "border-yellow-400/35"} ${celebrating ? "portal-home-objective-celebrating" : ""}`}>
+  return <section aria-live="polite" className={`portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)] ${completed ? "border-emerald-400/25" : "border-yellow-400/35"} ${advancing ? "portal-home-objective-advancing" : ""} ${celebrating ? "portal-home-objective-celebrating" : ""}`}>
     <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5">
       <span aria-hidden="true" className={`portal-home-objective-icon grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-yellow-300"}`}>{completed ? <BmCheckIcon size={22} className="portal-home-objective-check" /> : <BmTargetIcon size={22} />}</span>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2"><p className="text-[9px] font-black uppercase tracking-[.18em] text-yellow-400 sm:text-[10px]">Objetivo semanal</p><span className={`rounded-full border px-2 py-0.5 text-[8px] font-bold ${completed ? "border-emerald-400/25 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-zinc-400" : "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300"}`}>{stateLabel}</span></div>
-        <h2 className="mt-1 text-sm font-bold leading-snug text-zinc-100 sm:text-base">{mission.progress} de {mission.target} clases completadas</h2>
+        <h2 className="mt-1 text-sm font-bold leading-snug text-zinc-100 sm:text-base">{Math.round(animatedProgress)} de {mission.target} clases completadas</h2>
       </div>
-      <strong className={`text-lg font-black tabular-nums sm:text-xl ${completed ? "text-emerald-300" : "text-yellow-300"}`}>{mission.percentage}%</strong>
+      <strong className={`text-lg font-black tabular-nums sm:text-xl ${completed ? "text-emerald-300" : "text-yellow-300"}`}>{Math.round(animatedPercentage)}%</strong>
     </div>
-    <div className="mt-2"><div role="progressbar" aria-label="Progreso del objetivo semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)} className="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={`portal-home-progress-fill h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[10px] leading-snug text-zinc-500 sm:text-xs"><span>{remainingMessage}</span><span>+{mission.pointsPerSession} por clase · +{mission.completionBonus} bonus</span></div></div>
+    <div className="mt-2"><div role="progressbar" aria-label="Progreso del objetivo semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)} className="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={`portal-home-objective-progress h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${animatedPercentage}%` }} /></div><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[10px] leading-snug text-zinc-500 sm:text-xs"><span>{remainingMessage}</span><span>+{mission.pointsPerSession} por clase · +{mission.completionBonus} bonus</span></div></div>
   </section>;
 }
 
@@ -195,13 +261,26 @@ function HomeQuickStats({ data, plan }: { data: PortalData; plan: PersonalizedHo
   weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
   const weekStartKey = weekStart.toISOString().slice(0, 10);
   const weeklyPoints = data.home.points.recent.filter((item) => item.occurredAt.slice(0, 10) >= weekStartKey).reduce((sum, item) => sum + item.points, 0);
+  const [pointsDelta, setPointsDelta] = useState<number | null>(null);
+  const previousPoints = useRef({ total: data.home.points.total, weekly: weeklyPoints, monthly: data.home.points.monthlyTotal });
+  useEffect(() => {
+    const previous = previousPoints.current;
+    const next = { total: data.home.points.total, weekly: weeklyPoints, monthly: data.home.points.monthlyTotal };
+    previousPoints.current = next;
+    if (previous.total === next.total && previous.weekly === next.weekly && previous.monthly === next.monthly) return;
+    const delta = next.total - previous.total;
+    if (delta <= 0) return;
+    setPointsDelta(delta);
+    const timeout = window.setTimeout(() => setPointsDelta(null), 1000);
+    return () => window.clearTimeout(timeout);
+  }, [data.home.points.monthlyTotal, data.home.points.total, weeklyPoints]);
   const dueLabel = account.nextDueDate ? `${account.status === "VENCIDA" ? "Venció" : "Renueva"} el ${date(account.nextDueDate)}` : account.configured ? "Cuota configurada" : "Consultá con tu entrenador";
   const cardClass = "portal-home-stat portal-home-interactive group relative min-w-0 overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] px-2.5 py-3 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:px-3 sm:min-h-32 sm:p-4";
   const progressContent = <><BmProgressIcon size={17} className="absolute right-2.5 top-2.5 text-yellow-400/60 sm:right-4 sm:top-4" /><p className="pr-5 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">{plan ? "Progreso del plan" : "Progreso resumido"}</p><div className="mt-4 flex items-end gap-1.5"><p className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">{progressValue}</p><span aria-hidden="true" className="portal-home-mini-bars flex h-6 items-end gap-0.5"><i className="h-1.5 w-1 bg-yellow-400/30" /><i className="h-3 w-1 bg-yellow-400/45" /><i className="h-5 w-1 bg-yellow-400/65" /><i className="h-2.5 w-1 bg-zinc-700" /></span></div><p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">{progressLabel}</p></>;
   return <section aria-label="Resumen del alumno" className={`portal-home-enter grid ${plan ? "grid-cols-3" : "grid-cols-2"} gap-2 sm:gap-3`}>
     <Link href="/portal/pagos" className={cardClass}><BmPaymentIcon size={17} className="absolute right-2.5 top-2.5 text-yellow-400/60 sm:right-4 sm:top-4" /><p className="pr-5 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tu cuota</p><p className={`mt-4 line-clamp-2 text-sm font-semibold leading-tight sm:text-xl ${status.className.includes("emerald") ? "text-emerald-400" : "text-zinc-100"}`}>{status.label}</p><p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">{dueLabel}</p></Link>
     {plan && <Link href="/portal/progreso" className={cardClass}>{progressContent}</Link>}
-    <Link href="/portal/puntos" className={`portal-home-points ${cardClass}`}><span aria-hidden="true" className="portal-home-points-sweep" /><span className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/30 text-yellow-300 sm:right-4 sm:top-4 sm:size-8"><BmPointsIcon size={15} /></span><p className="relative pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tus puntos</p><p className="relative mt-4 truncate text-xl font-semibold leading-none text-zinc-100 sm:text-2xl"><HomeAnimatedNumber value={data.home.points.total} /></p><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><p className="relative mt-1.5 truncate text-[9px] text-zinc-500 sm:text-[11px]">+{weeklyPoints} esta semana</p></Link>
+    <Link href="/portal/puntos" aria-live="polite" className={`portal-home-points ${pointsDelta !== null ? "portal-home-points-changed" : ""} ${cardClass}`}>{pointsDelta !== null && <><span aria-hidden="true" className="portal-home-points-sweep" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><span className="portal-home-points-delta">+{pointsDelta}</span></>}<span className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/30 text-yellow-300 sm:right-4 sm:top-4 sm:size-8"><BmPointsIcon size={15} /></span><p className="relative pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tus puntos</p><p className="relative mt-4 truncate text-xl font-semibold leading-none text-zinc-100 sm:text-2xl"><HomeAnimatedNumber value={data.home.points.total} /></p><p className="relative mt-1.5 truncate text-[9px] text-zinc-500 sm:text-[11px]">+{weeklyPoints} esta semana</p></Link>
   </section>;
 }
 
@@ -272,17 +351,20 @@ function usePrefersReducedMotion() {
 
 function useHomeAnimatedValue(value: number, duration: number) {
   const reducedMotion = usePrefersReducedMotion();
-  const [visibleValue, setVisibleValue] = useState(0);
+  const [visibleValue, setVisibleValue] = useState(value);
+  const previousValue = useRef(value);
 
   useEffect(() => {
-    if (reducedMotion) return;
+    const from = previousValue.current;
+    previousValue.current = value;
+    if (reducedMotion || from === value) { setVisibleValue(value); return; }
     let frame = 0;
     let start: number | null = null;
     const tick = (now: number) => {
       start ??= now;
       const progress = Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setVisibleValue(value * eased);
+      setVisibleValue(from + (value - from) * eased);
       if (progress < 1) frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
@@ -299,7 +381,7 @@ function HomeAnimatedNumber({ value }: { value: number }) {
 
 function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
   const percentage = data.home.monthlyAttendancePercentage;
-  const animatedPercentage = useHomeAnimatedValue(percentage ?? 0, 820);
+  const animatedPercentage = useHomeAnimatedValue(percentage ?? 0, 650);
   const visiblePercentage = percentage === null ? 0 : animatedPercentage;
   const angle = Math.min(100, Math.max(0, visiblePercentage)) * 3.6;
   const attended = data.home.classesAttendedThisMonth;

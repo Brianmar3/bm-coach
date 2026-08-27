@@ -1,4 +1,4 @@
-self.__BM_TRAINING_SW_VERSION__ = "push-v7-contextual-navigation";
+self.__BM_TRAINING_SW_VERSION__ = "push-v8-live-home";
 
 const BM_PORTAL_FALLBACK = "/portal";
 const BM_ALLOWED_NOTIFICATION_PATHS = [
@@ -57,11 +57,12 @@ self.addEventListener("push", (event) => {
       vibrate: [120, 60, 120],
       data: { url: data.url },
     }),
-    data.event === "achievement"
-      ? self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
-          windows.forEach((client) => client.postMessage({ type: "BM_ACHIEVEMENT_AVAILABLE" }));
-        })
-      : Promise.resolve(),
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      windows.forEach((client) => {
+        client.postMessage({ type: "BM_PORTAL_DATA_CHANGED", event: data.event ?? null });
+        if (data.event === "achievement") client.postMessage({ type: "BM_ACHIEVEMENT_AVAILABLE" });
+      });
+    }),
   ]));
 });
 
