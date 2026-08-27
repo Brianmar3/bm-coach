@@ -150,7 +150,6 @@ function PortalOverview({ data }: { data: PortalData }) {
   const groupClassesEnabled = hasGroupClasses(data.profile.serviceType);
   const routineFocused = data.profile.serviceType === "PERSONALIZED";
   const homePlan = routineFocused ? personalizedHomePlan(data) : null;
-  const quickStatsPlan = homePlan ?? (data.profile.serviceType === "MIXED" && data.routine ? personalizedHomePlan(data) : null);
   return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4">
     <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-5 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 min-[390px]:py-6 sm:p-8">
       <span aria-hidden="true" className="portal-home-light-sweep" />
@@ -164,7 +163,7 @@ function PortalOverview({ data }: { data: PortalData }) {
     <section className="portal-home-enter portal-home-focus relative overflow-hidden rounded-[26px] border border-white/[.1] bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-5 shadow-[0_14px_34px_rgba(0,0,0,.28)] min-[390px]:px-6 sm:px-7 sm:py-6"><span aria-hidden="true" className="portal-home-focus-lines" /><div className="relative z-[1]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-xs">Enfoque de hoy</p><div className="mt-3 flex items-start gap-3 sm:gap-4"><span aria-hidden="true" className="portal-home-focus-quote text-4xl font-black leading-none text-yellow-400/90">“</span><div className="min-w-0 max-w-2xl"><h2 className="break-words text-base font-semibold italic leading-snug text-zinc-100 sm:text-xl">{dailyFocus.title}</h2><p className="mt-1.5 break-words text-xs leading-relaxed text-zinc-500 sm:mt-2 sm:text-sm">{dailyFocus.reflection}</p></div></div></div></section>
     {groupClassesEnabled && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
     <div className="portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
-    <HomeQuickStats data={data} plan={quickStatsPlan} />
+    <HomeQuickStats data={data} />
   </div>;
 }
 
@@ -252,11 +251,23 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
   </section>;
 }
 
-function HomeQuickStats({ data, plan }: { data: PortalData; plan: PersonalizedHomePlan | null }) {
+function paymentDueCountdown(nextDueDate: string) {
+  if (!nextDueDate) return "Sin vencimiento configurado";
+  const parseDateKey = (value: string) => {
+    const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  const days = Math.round((parseDateKey(nextDueDate) - parseDateKey(argentinaDateKey())) / 86_400_000);
+  if (days > 1) return `Faltan ${days} días`;
+  if (days === 1) return "Falta 1 día";
+  if (days === 0) return "Vence hoy";
+  if (days === -1) return "Venció hace 1 día";
+  return `Venció hace ${Math.abs(days)} días`;
+}
+
+function HomeQuickStats({ data }: { data: PortalData }) {
   const account = data.paymentAccount;
   const status = accountStatus[account.status];
-  const progressValue = plan?.available ? `${plan.completed}/${plan.target}` : "—";
-  const progressLabel = plan?.available ? "Días completados" : "Plan para continuar";
   const weekStart = new Date(`${argentinaDateKey()}T12:00:00.000Z`);
   weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
   const weekStartKey = weekStart.toISOString().slice(0, 10);
@@ -274,12 +285,19 @@ function HomeQuickStats({ data, plan }: { data: PortalData; plan: PersonalizedHo
     const timeout = window.setTimeout(() => setPointsDelta(null), 1000);
     return () => window.clearTimeout(timeout);
   }, [data.home.points.monthlyTotal, data.home.points.total, weeklyPoints]);
-  const dueLabel = account.nextDueDate ? `${account.status === "VENCIDA" ? "Venció" : "Renueva"} el ${date(account.nextDueDate)}` : account.configured ? "Cuota configurada" : "Consultá con tu entrenador";
-  const cardClass = "portal-home-stat portal-home-interactive group relative min-w-0 overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] px-2.5 py-3 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:px-3 sm:min-h-32 sm:p-4";
-  const progressContent = <><BmProgressIcon size={17} className="absolute right-2.5 top-2.5 text-yellow-400/60 sm:right-4 sm:top-4" /><p className="pr-5 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">{plan ? "Progreso del plan" : "Progreso resumido"}</p><div className="mt-4 flex items-end gap-1.5"><p className="text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">{progressValue}</p><span aria-hidden="true" className="portal-home-mini-bars flex h-6 items-end gap-0.5"><i className="h-1.5 w-1 bg-yellow-400/30" /><i className="h-3 w-1 bg-yellow-400/45" /><i className="h-5 w-1 bg-yellow-400/65" /><i className="h-2.5 w-1 bg-zinc-700" /></span></div><p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">{progressLabel}</p></>;
-  return <section aria-label="Resumen del alumno" className={`portal-home-enter grid ${plan ? "grid-cols-3" : "grid-cols-2"} gap-2 sm:gap-3`}>
-    <Link href="/portal/pagos" className={cardClass}><BmPaymentIcon size={17} className="absolute right-2.5 top-2.5 text-yellow-400/60 sm:right-4 sm:top-4" /><p className="pr-5 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tu cuota</p><p className={`mt-4 line-clamp-2 text-sm font-semibold leading-tight sm:text-xl ${status.className.includes("emerald") ? "text-emerald-400" : "text-zinc-100"}`}>{status.label}</p><p className="mt-1.5 line-clamp-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">{dueLabel}</p></Link>
-    {plan && <Link href="/portal/progreso" className={cardClass}>{progressContent}</Link>}
+  const dueLabel = account.nextDueDate ? `${account.status === "VENCIDA" ? "Venció" : "Vence"} el ${date(account.nextDueDate)}` : account.configured ? "Cuota configurada" : "Consultá con tu entrenador";
+  const amountLabel = account.monthlyFee > 0 ? money(account.monthlyFee) : "Sin importe configurado";
+  const dueCountdown = paymentDueCountdown(account.nextDueDate);
+  const paymentTone = account.status === "AL_DIA"
+    ? "text-emerald-300"
+    : account.status === "VENCE_PRONTO"
+      ? "text-amber-300"
+      : account.status === "VENCIDA"
+        ? "text-red-300"
+        : "text-zinc-100";
+  const cardClass = "portal-home-stat portal-home-interactive group relative min-h-[7.75rem] min-w-0 overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:p-4";
+  return <section aria-label="Resumen del alumno" className="portal-home-enter grid grid-cols-2 gap-2 sm:gap-3">
+    <Link href="/portal/pagos" className={cardClass}><BmPaymentIcon size={17} className="absolute right-3.5 top-3.5 text-yellow-400/60 min-[390px]:right-4 min-[390px]:top-4" /><p className="pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 min-[390px]:text-[10px]">Tu cuota</p><p className={`mt-3 text-base font-semibold leading-tight min-[390px]:text-lg ${paymentTone}`}>{status.label}</p><p className="mt-1 text-[9px] font-medium leading-snug text-zinc-300 min-[390px]:text-[10px]">{amountLabel}<span className="text-zinc-500"> · {dueLabel}</span></p><p className={`mt-1 text-[9px] leading-snug min-[390px]:text-[10px] ${paymentTone}`}>{dueCountdown}</p></Link>
     <Link href="/portal/puntos" aria-live="polite" className={`portal-home-points ${pointsDelta !== null ? "portal-home-points-changed" : ""} ${cardClass}`}>{pointsDelta !== null && <><span aria-hidden="true" className="portal-home-points-sweep" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><span className="portal-home-points-delta">+{pointsDelta}</span></>}<span className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/30 text-yellow-300 sm:right-4 sm:top-4 sm:size-8"><BmPointsIcon size={15} /></span><p className="relative pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tus puntos</p><p className="relative mt-4 truncate text-xl font-semibold leading-none text-zinc-100 sm:text-2xl"><HomeAnimatedNumber value={data.home.points.total} /></p><p className="relative mt-1.5 truncate text-[9px] text-zinc-500 sm:text-[11px]">+{weeklyPoints} esta semana</p></Link>
   </section>;
 }

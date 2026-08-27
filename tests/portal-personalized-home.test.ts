@@ -7,7 +7,7 @@ const overview = source.slice(source.indexOf("function PortalOverview"), source.
 
 test("Personalizado prioriza la rutina y Mixto conserva la agenda de clases", () => {
   assert.match(overview, /serviceType === "PERSONALIZED"/);
-  assert.match(overview, /serviceType === "MIXED" && data\.routine/);
+  assert.match(overview, /const groupClassesEnabled = hasGroupClasses/);
   assert.match(overview, /homePlan \? <RoutineHomeCard/);
   assert.match(overview, /groupClassesEnabled && <PortalClasses compact/);
 });
@@ -59,11 +59,18 @@ test("la celebración semanal responde sólo a la transición real del mismo obj
   assert.doesNotMatch(overview, /completed \? "portal-home-objective-celebrating"/);
 });
 
-test("el resumen usa dos cards para Clases y agrega progreso real cuando hay plan", () => {
-  assert.match(overview, /plan \? "grid-cols-3" : "grid-cols-2"/);
+test("el resumen conserva sólo Tu cuota y Tus puntos con datos reales", () => {
+  assert.match(overview, /<HomeQuickStats data=\{data\} \/>/);
+  assert.match(overview, /grid grid-cols-2/);
   assert.match(overview, /Tu cuota/);
-  assert.match(overview, /Progreso del plan/);
   assert.match(overview, /Tus puntos/);
-  assert.match(overview, /href="\/portal\/progreso"/);
+  assert.doesNotMatch(overview, /Progreso del plan|Progreso resumido/);
+  assert.doesNotMatch(overview, /href="\/portal\/progreso"/);
+  assert.match(overview, /href="\/portal\/pagos"/);
+  assert.match(overview, /href="\/portal\/puntos"/);
+  assert.match(overview, /account\.monthlyFee/);
+  assert.match(overview, /account\.nextDueDate/);
+  assert.match(overview, /paymentDueCountdown/);
+  for (const state of ["AL_DIA", "VENCE_PRONTO", "VENCIDA", "SIN_CONFIGURAR"]) assert.match(source, new RegExp(`${state}:`));
   assert.doesNotMatch(overview, /href="\/portal\/evaluaciones"/);
 });

@@ -408,10 +408,13 @@ test("Inicio replica la jerarquía compacta y conecta todos los accesos de la re
   assert.match(home, /Activa/);
   assert.match(home, /Completada/);
   assert.match(home, /Vencida/);
-  for (const href of ["/portal/asistencias", "/portal/pagos", "/portal/evaluaciones", "/portal/puntos"]) assert.match(home, new RegExp(`href="${href}"`));
+  for (const href of ["/portal/asistencias", "/portal/pagos", "/portal/puntos"]) assert.match(home, new RegExp(`href="${href}"`));
+  assert.match(shell, /"\/portal\/evaluaciones"/);
   assert.match(pointsPage, /section="puntos"/);
   for (const label of ["Inicio", "Rutina", "Clases", "Nutrición", "Evaluación"]) assert.match(shell, new RegExp(label));
-  assert.match(home, /grid grid-cols-3/);
+  assert.match(home, /grid grid-cols-2/);
+  const quickStats = home.slice(home.indexOf("function HomeQuickStats"), home.indexOf("function WeeklyMissionAchievement"));
+  assert.doesNotMatch(quickStats, /Progreso del plan|Progreso resumido|href="\/portal\/progreso"/);
   assert.doesNotMatch(overview, /overflow-x-auto/);
 });
 
