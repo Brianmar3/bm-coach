@@ -66,16 +66,34 @@ function unlockedAt(value: string) {
   return new Date(`${value.slice(0, 10)}T12:00:00.000Z`);
 }
 
+const ACHIEVEMENT_BASELINE_KEY = "__achievement-baseline:v1__";
+
 export async function establishAchievementBaseline(studentId: string) {
+  const existingBaseline = await prisma.achievementNotification.findFirst({
+    where: { studentId, achievementKey: ACHIEVEMENT_BASELINE_KEY },
+    select: { id: true },
+  });
+  if (existingBaseline) return;
+
   const achievements = await loadNotifiableAchievements(studentId, { includeAll: true });
+  const baselineAt = new Date();
   await prisma.achievementNotification.createMany({
-    data: achievements.map((item) => ({
-      studentId,
-      achievementKey: item.id,
-      unlockedAt: unlockedAt(item.unlockedAt),
-      celebratedAt: new Date(),
-      status: "BASELINE" as const,
-    })),
+    data: [
+      {
+        studentId,
+        achievementKey: ACHIEVEMENT_BASELINE_KEY,
+        unlockedAt: baselineAt,
+        celebratedAt: baselineAt,
+        status: "BASELINE" as const,
+      },
+      ...achievements.map((item) => ({
+        studentId,
+        achievementKey: item.id,
+        unlockedAt: unlockedAt(item.unlockedAt),
+        celebratedAt: baselineAt,
+        status: "BASELINE" as const,
+      })),
+    ],
     skipDuplicates: true,
   });
 }
