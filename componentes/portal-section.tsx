@@ -37,11 +37,13 @@ import {
   BmCheckIcon,
   BmChevronRightIcon,
   BmCloseIcon,
+  BmDumbbellIcon,
   BmEvaluationIcon,
   BmFlameIcon,
   BmHistoryIcon,
   BmMedalIcon,
   BmPaymentIcon,
+  BmPlayIcon,
   BmPointsIcon,
   BmProgressIcon,
   BmRankingIcon,
@@ -150,7 +152,8 @@ function PortalOverview({ data }: { data: PortalData }) {
   const dailyFocus = dailyFocusForInstant(now);
   const groupClassesEnabled = hasGroupClasses(data.profile.serviceType);
   const routineFocused = data.profile.serviceType === "PERSONALIZED";
-  const homePlan = routineFocused ? personalizedHomePlan(data) : null;
+  const showRoutineHomeCard = hasPersonalizedService(data.profile.serviceType) && (routineFocused || Boolean(data.routine));
+  const homePlan = showRoutineHomeCard ? personalizedHomePlan(data) : null;
   return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4">
     <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-5 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 min-[390px]:py-6 sm:p-8">
       <span aria-hidden="true" className="portal-home-light-sweep" />
@@ -188,10 +191,13 @@ function personalizedHomePlan(data: PortalData) {
 
 function RoutineHomeCard({ plan }: { plan: PersonalizedHomePlan }) {
   const progress = plan.target ? Math.min(100, (plan.completed / plan.target) * 100) : 0;
-  return <section className="relative overflow-hidden rounded-[22px] border border-white/[.08] bg-[radial-gradient(circle_at_88%_18%,rgba(250,204,21,.05),transparent_34%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_16px_36px_rgba(0,0,0,.3)] sm:p-5">
-    <p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Tu rutina de hoy</p>
-    <div className="mt-3 flex items-start gap-3"><span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.04] text-lg text-yellow-300">▦</span><div className="min-w-0"><h2 className="text-lg font-black leading-tight text-zinc-50 sm:text-xl">{plan.title}</h2><p className="mt-1 text-xs text-zinc-500">{plan.available ? <>{plan.activityCount} {plan.activityCount === 1 ? "ejercicio" : "ejercicios"}{plan.estimatedMinutes ? ` · ${plan.estimatedMinutes} min` : ""}</> : "Continuá desde tu planificación activa"}</p></div></div>
-    <div className="mt-4 grid gap-3 border-t border-white/[.07] pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><div>{plan.target > 0 ? <><div className="flex items-center justify-between gap-3 text-[10px] text-zinc-500"><span>Progreso semanal</span><strong className="text-xs text-yellow-300">{plan.completed}/{plan.target} días</strong></div><div role="progressbar" aria-label="Progreso semanal del plan" aria-valuemin={0} aria-valuemax={plan.target} aria-valuenow={plan.completed} className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="portal-home-progress-fill h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${progress}%` }} /></div></> : <p className="text-xs leading-relaxed text-zinc-500">Revisá tu planificación para conocer el próximo bloque.</p>}</div><Link href="/portal/rutina" className="portal-home-interactive inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-yellow-400/45 px-4 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><span aria-hidden="true">▶</span>{plan.available ? plan.inProgress ? "Continuar rutina" : "Empezar rutina" : "Ver rutina"}</Link></div>
+  const heading = plan.inProgress ? "Continuá tu entrenamiento" : plan.available ? "Tu entrenamiento está listo" : "Tu plan está listo para continuar";
+  const subtitle = plan.available ? plan.title : "Continuá desde tu planificación activa";
+  return <section className="relative overflow-hidden rounded-[22px] border border-yellow-400/25 bg-[radial-gradient(circle_at_88%_18%,rgba(250,204,21,.065),transparent_34%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_16px_36px_rgba(0,0,0,.3)] sm:p-5">
+    <div className="flex items-center justify-between gap-3"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Tu rutina de hoy</p><span className="rounded-full border border-yellow-400/25 bg-yellow-400/[.05] px-2 py-1 text-[9px] font-bold text-yellow-200">Personalizado</span></div>
+    <div className="mt-2.5 flex items-center gap-3"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full border border-yellow-400/25 bg-yellow-400/[.05] text-yellow-300 shadow-[0_0_18px_rgba(250,204,21,.08)]"><BmDumbbellIcon size={22} /></span><div className="min-w-0"><h2 className="text-base font-black leading-tight text-zinc-50 min-[390px]:text-lg">{heading}</h2><p className="mt-1 line-clamp-2 text-xs leading-snug text-zinc-500">{subtitle}</p></div></div>
+    <div className="mt-2.5 border-t border-white/[.07] pt-2.5">{plan.target > 0 ? <><div className="flex min-w-0 items-center gap-1.5 text-[10px] leading-snug text-zinc-500"><BmCheckIcon size={13} className="shrink-0 text-yellow-400" /><span><strong className="font-bold text-yellow-300">{plan.completed} de {plan.target}</strong> sesiones completadas esta semana</span></div><div role="progressbar" aria-label="Progreso semanal del plan" aria-valuemin={0} aria-valuemax={plan.target} aria-valuenow={plan.completed} className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800"><div className="portal-home-progress-fill h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${progress}%` }} /></div></> : <p className="text-xs leading-relaxed text-zinc-500">Revisá tu planificación para conocer el próximo bloque.</p>}</div>
+    <Link href="/portal/rutina" className="portal-home-interactive mt-2.5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-yellow-400/45 px-4 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmPlayIcon size={18} />{plan.available ? plan.inProgress ? "Continuar rutina" : "Empezar rutina" : "Ver rutina"}</Link>
   </section>;
 }
 

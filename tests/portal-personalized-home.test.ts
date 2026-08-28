@@ -5,26 +5,29 @@ import test from "node:test";
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const overview = source.slice(source.indexOf("function PortalOverview"), source.indexOf("function WeeklyMissionAchievement"));
 
-test("Personalizado prioriza la rutina y Mixto conserva la agenda de clases", () => {
+test("Personalizado prioriza la rutina, Mixto lo hace con plan activo y Clases conserva su agenda", () => {
   assert.match(overview, /serviceType === "PERSONALIZED"/);
   assert.match(overview, /const groupClassesEnabled = hasGroupClasses/);
+  assert.match(overview, /hasPersonalizedService\(data\.profile\.serviceType\)/);
+  assert.match(overview, /routineFocused \|\| Boolean\(data\.routine\)/);
   assert.match(overview, /homePlan \? <RoutineHomeCard/);
   assert.match(overview, /groupClassesEnabled && <PortalClasses compact/);
 });
 
 test("Enfoque de hoy aparece antes de Tu rutina de hoy", () => {
-  assert.ok(overview.indexOf("Enfoque de hoy") < overview.indexOf("RoutineHomeCard"));
+  assert.ok(overview.indexOf("Enfoque de hoy") < overview.indexOf("<RoutineHomeCard"));
   assert.match(overview, /Tu rutina de hoy/);
   assert.doesNotMatch(overview, /Último entrenamiento/);
 });
 
-test("la tarjeta usa rutina, día, ejercicios, duración y sesiones reales", () => {
+test("la tarjeta usa rutina, día, sesiones y progreso semanal reales", () => {
   assert.match(overview, /data\.routine/);
   assert.match(overview, /data\.workoutSessions/);
   assert.match(overview, /sessionBelongsToWeek/);
-  assert.match(overview, /block\.exercises\.length/);
-  assert.match(overview, /suggestedDay\?\.estimatedMinutes/);
+  assert.match(overview, /completedDayIds\.size/);
+  assert.match(overview, /trainingDays\.length/);
   assert.match(overview, /Progreso semanal del plan/);
+  assert.match(overview, /sesiones completadas esta semana/);
 });
 
 test("los fallbacks son claros y la acción permanece dentro del portal", () => {
@@ -34,6 +37,19 @@ test("los fallbacks son claros y la acción permanece dentro del portal", () => 
   assert.match(overview, /Empezar rutina/);
   assert.match(overview, /Continuar rutina/);
   assert.match(overview, /Ver rutina/);
+});
+
+test("la mejora visual permanece compacta, usa BM Icons y un CTA completo", () => {
+  const card = overview.slice(overview.indexOf("function RoutineHomeCard"), overview.indexOf("function WeeklyObjectiveCard"));
+  assert.match(card, /Personalizado/);
+  assert.match(card, /BmDumbbellIcon/);
+  assert.match(card, /BmPlayIcon/);
+  assert.match(card, /Tu entrenamiento está listo/);
+  assert.match(card, /Continuá tu entrenamiento/);
+  assert.match(card, /min-h-12 w-full/);
+  assert.match(card, /p-4/);
+  assert.doesNotMatch(card, /min-h-\[(?:1[0-9]|[2-9][0-9])rem\]/);
+  assert.doesNotMatch(card, /[▦▶]/);
 });
 
 test("el objetivo semanal reutiliza la misión real sólo para servicios con clases", () => {

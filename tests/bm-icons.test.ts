@@ -30,12 +30,12 @@ test("BM Icons expone una API visual y accesible única", () => {
 
 test("los nombres públicos de BM Icons son únicos y cubren el catálogo V1", () => {
   const names = [...library.matchAll(/export const (Bm[A-Za-z]+Icon)/g)].map((match) => match[1]);
-  assert.equal(names.length, 57);
+  assert.equal(names.length, 58);
   assert.equal(new Set(names).size, names.length);
   for (const required of [
     "BmHomeIcon", "BmClassesIcon", "BmRoutineIcon", "BmNutritionIcon", "BmAppleIcon", "BmEvaluationIcon",
     "BmSettingsIcon", "BmBellIcon", "BmShieldCheckIcon", "BmLockIcon", "BmSlidersIcon",
-    "BmHelpCircleIcon", "BmLogoutIcon", "BmPlusIcon", "BmEditIcon", "BmSearchIcon",
+    "BmHelpCircleIcon", "BmLogoutIcon", "BmPlusIcon", "BmPlayIcon", "BmEditIcon", "BmSearchIcon",
     "BmRankingIcon", "BmPointsIcon", "BmAttendanceIcon", "BmPaymentIcon", "BmTargetIcon",
     "BmTimerIcon", "BmWorkoutIcon", "BmHydrationIcon",
   ]) assert.ok(names.includes(required), `${required} debe estar registrado`);

@@ -57,6 +57,7 @@ export const BmLogoutIcon = createBmIcon("BmLogoutIcon", <><path d="M10 17l5-5-5
 
 // General actions
 export const BmPlusIcon = createBmIcon("BmPlusIcon", <path d="M12 5v14M5 12h14" />);
+export const BmPlayIcon = createBmIcon("BmPlayIcon", <path d="m8 5 11 7-11 7Z" />);
 export const BmEditIcon = createBmIcon("BmEditIcon", <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" /></>);
 export const BmBackIcon = createBmIcon("BmBackIcon", <><path d="m15 18-6-6 6-6M9 12h12" /></>);
 export const BmChevronRightIcon = createBmIcon("BmChevronRightIcon", <path d="m9 18 6-6-6-6" />);
