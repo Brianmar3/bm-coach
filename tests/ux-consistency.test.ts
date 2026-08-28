@@ -7,6 +7,13 @@ const moduleShell = readFileSync(new URL("../componentes/module-shell.tsx", impo
 const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 const splash = readFileSync(new URL("../componentes/bm-training-splash.tsx", import.meta.url), "utf8");
 const portalLoading = readFileSync(new URL("../app/portal/(student)/loading.tsx", import.meta.url), "utf8");
+const rootLayout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const portalLayout = readFileSync(new URL("../app/portal/layout.tsx", import.meta.url), "utf8");
+const appManifest = readFileSync(new URL("../app/manifest.ts", import.meta.url), "utf8");
+const portalManifest = readFileSync(
+  new URL("../public/portal/manifest.webmanifest", import.meta.url),
+  "utf8",
+);
 
 test("la tipografía y los campos reutilizados conservan legibilidad móvil", () => {
   assert.match(globals, /font-family: var\(--font-geist-sans\)/);
@@ -18,7 +25,10 @@ test("la tipografía y los campos reutilizados conservan legibilidad móvil", ()
 
 test("la navegación móvil respeta safe area y deja espacio al contenido", () => {
   assert.match(portalShell, /env\(safe-area-inset-bottom\)/);
-  assert.match(portalShell, /pb-\[calc\(env\(safe-area-inset-bottom\)\+8\.25rem\)\]/);
+  assert.match(
+    portalShell,
+    /pb-\[calc\(var\(--portal-bottom-nav-height\)\+var\(--portal-bottom-nav-offset\)\+var\(--portal-bottom-nav-clearance\)\+env\(safe-area-inset-bottom\)\)\]/,
+  );
   assert.match(portalShell, /min-h-11 min-w-0/);
   assert.match(portalShell, /aria-current=\{active \? "page" : undefined\}/);
 });
@@ -56,6 +66,27 @@ test("el aro del splash rodea el asset real y usa un único destello orbital", (
   assert.match(globals, /\.bm-splash-orbit \{\s+opacity: 0;/);
   assert.match(splash, /phase === "exiting" \? "bm-splash-content-enter"/);
   assert.match(globals, /\.bm-splash-content-enter > \* \{/);
+});
+
+test("cada arranque de documento conserva el puente visual sin depender de la sesión", () => {
+  assert.doesNotMatch(splash, /sessionStorage/);
+  assert.doesNotMatch(splash, /SPLASH_SESSION_KEY/);
+  assert.match(splash, /useState<SplashPhase>\("showing"\)/);
+});
+
+test("los manifests y metadatos usan la identidad oficial v5 y su variante maskable", () => {
+  for (const source of [rootLayout, portalLayout, appManifest, portalManifest]) {
+    assert.match(source, /bm-training-pwa-192-v5\.png/);
+    assert.match(source, /bm-training-pwa-512-v5\.png/);
+    assert.doesNotMatch(source, /bm-training-(?:pwa|maskable|apple-touch)-[^"']*-v4\.png/);
+  }
+
+  assert.match(rootLayout, /bm-training-apple-touch-v5\.png/);
+  assert.match(portalLayout, /bm-training-apple-touch-v5\.png/);
+  assert.match(appManifest, /bm-training-maskable-512-v5\.png/);
+  assert.match(appManifest, /purpose: "maskable"/);
+  assert.match(portalManifest, /bm-training-maskable-512-v5\.png/);
+  assert.match(portalManifest, /"purpose": "maskable"/);
 });
 
 test("las esperas reales del portal usan skeleton sin duplicar el logo", () => {

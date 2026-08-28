@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useCallback, useEffect, useState, type AnimationEvent, type ReactNode, type TransitionEvent } from "react";
 
-const SPLASH_SESSION_KEY = "bmTrainingSplashShown";
 const SPLASH_DURATION_MS = 1_450;
 const REDUCED_MOTION_DURATION_MS = 120;
 
@@ -14,11 +13,6 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
   const [animationStarted, setAnimationStarted] = useState(false);
 
   const finish = useCallback((immediate = false) => {
-    try {
-      window.sessionStorage.setItem(SPLASH_SESSION_KEY, "true");
-    } catch {
-      // Storage can be unavailable. The presentation must still close.
-    }
     if (immediate) {
       setPhase("hidden");
       return;
@@ -27,16 +21,7 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    let alreadyShown = false;
-    try {
-      alreadyShown = window.sessionStorage.getItem(SPLASH_SESSION_KEY) === "true";
-    } catch {
-      // Continue once when storage is unavailable.
-    }
-    const frame = window.requestAnimationFrame(() => {
-      if (alreadyShown) setPhase("hidden");
-      else setAnimationStarted(true);
-    });
+    const frame = window.requestAnimationFrame(() => setAnimationStarted(true));
     return () => window.cancelAnimationFrame(frame);
   }, []);
 

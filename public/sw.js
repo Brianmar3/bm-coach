@@ -51,8 +51,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(Promise.all([
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/icons/bm-training-pwa-192-v4.png",
-      badge: "/icons/bm-training-pwa-192-v4.png",
+      icon: "/icons/bm-training-pwa-192-v5.png",
+      badge: "/icons/bm-training-pwa-192-v5.png",
       tag: data.tag,
       vibrate: [120, 60, 120],
       data: { url: data.url },
