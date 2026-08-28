@@ -68,9 +68,10 @@ test("el resumen conserva sólo Tu cuota y Tus puntos con datos reales", () => {
   assert.doesNotMatch(overview, /href="\/portal\/progreso"/);
   assert.match(overview, /href="\/portal\/pagos"/);
   assert.match(overview, /href="\/portal\/puntos"/);
-  assert.match(overview, /account\.monthlyFee/);
   assert.match(overview, /account\.nextDueDate/);
-  assert.match(overview, /paymentDueCountdown/);
+  assert.match(overview, /homePaymentCardCopy/);
+  assert.match(overview, /aria-label=\{`Tu cuota\. \$\{paymentCopy\.title\}/);
+  assert.match(overview, /portal-home-interactive/);
   for (const state of ["AL_DIA", "VENCE_PRONTO", "VENCIDA", "SIN_CONFIGURAR"]) assert.match(source, new RegExp(`${state}:`));
   assert.doesNotMatch(overview, /href="\/portal\/evaluaciones"/);
 });
