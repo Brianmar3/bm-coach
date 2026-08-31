@@ -59,7 +59,12 @@ test("el aro del splash rodea el asset real y usa un único destello orbital", (
   assert.match(splash, /bm-app-splash-logo-image/);
   assert.match(splash, /\bpreload\b/);
   assert.doesNotMatch(splash, /\bpriority\b/);
+  assert.match(splash, /backgroundColor: "#000000"/);
+  assert.match(splash, /height: "100dvh"/);
+  assert.match(splash, /width: "min\(88vw, 74dvh, 42rem\)"/);
   assert.match(splash, /onAnimationEnd=\{completeVisibleAnimation\}/);
+  assert.doesNotMatch(globals, /bm-splash-logo-enter/);
+  assert.doesNotMatch(globals, /bm-splash-ring-enter/);
   assert.match(globals, /bm-splash-orbit-travel 1100ms linear 150ms/);
   assert.match(globals, /\.bm-app-splash--playing \.bm-splash-orbit/);
   assert.match(globals, /transform: rotate\(360deg\)/);

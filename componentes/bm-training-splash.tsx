@@ -54,9 +54,36 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
       onTransitionEnd={completeExit}
       aria-label="Presentación de BM Training"
       className={`bm-app-splash fixed inset-0 z-[200] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-black p-6 sm:p-10 ${animationStarted ? "bm-app-splash--playing" : ""} ${phase === "exiting" ? "bm-app-splash--exiting" : ""}`}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 200,
+        display: "grid",
+        width: "100vw",
+        height: "100dvh",
+        placeItems: "center",
+        overflow: "hidden",
+        padding: "clamp(1.5rem, 4vw, 2.5rem)",
+        backgroundColor: "#000000",
+      }}
     >
-      <div className="bm-app-splash-stage relative grid aspect-square place-items-center">
-        <svg className="bm-app-splash-ring absolute inset-0 size-full overflow-visible" viewBox="0 0 200 200" aria-hidden="true">
+      <div
+        className="bm-app-splash-stage relative grid aspect-square place-items-center"
+        style={{
+          position: "relative",
+          display: "grid",
+          width: "min(88vw, 74dvh, 42rem)",
+          maxWidth: "calc(100vw - 2rem)",
+          aspectRatio: "1 / 1",
+          placeItems: "center",
+        }}
+      >
+        <svg
+          className="bm-app-splash-ring absolute inset-0 size-full overflow-visible"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+          viewBox="0 0 200 200"
+          aria-hidden="true"
+        >
           <defs>
             <linearGradient id="bm-splash-ring-gold" x1="30" y1="28" x2="170" y2="172" gradientUnits="userSpaceOnUse">
               <stop offset="0" stopColor="#f59e0b" />
@@ -76,7 +103,10 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
             <circle className="bm-splash-orbit-spark" cx="100" cy="6" r="1.65" fill="#fffbea" />
           </g>
         </svg>
-        <div className="bm-app-splash-logo relative z-10 w-[96%]">
+        <div
+          className="bm-app-splash-logo relative z-10 w-[96%]"
+          style={{ position: "relative", zIndex: 10, width: "96%" }}
+        >
           <Image
             src="/bm-training-splash.png"
             alt="BM Training — Gestión, entrenamiento y seguimiento"
@@ -87,6 +117,7 @@ export function BmTrainingSplash({ children }: { children: ReactNode }) {
             onError={() => finish(true)}
             onAnimationEnd={completeVisibleAnimation}
             className="bm-app-splash-logo-image h-auto w-full object-contain"
+            style={{ display: "block", width: "100%", height: "auto", objectFit: "contain" }}
           />
         </div>
       </div>

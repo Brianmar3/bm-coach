@@ -34,26 +34,6 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-@keyframes bm-splash-logo-enter {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes bm-splash-ring-enter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 0.78;
-  }
-}
-
 @keyframes bm-splash-orbit-travel {
   0% { opacity: 0; transform: rotate(0deg); }
   2% { opacity: 1; }
@@ -137,20 +117,12 @@ body {
   will-change: filter, transform;
 }
 
-.bm-app-splash--playing .bm-app-splash-ring {
-  animation: bm-splash-ring-enter 150ms ease-out both;
-}
-
 .bm-app-splash--playing .bm-splash-ring-base {
   animation: bm-splash-ring-finish 180ms ease-out 1250ms both;
 }
 
 .bm-app-splash--playing .bm-splash-orbit {
   animation: bm-splash-orbit-travel 1100ms linear 150ms both;
-}
-
-.bm-app-splash--playing .bm-app-splash-logo {
-  animation: bm-splash-logo-enter 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .bm-app-splash--playing .bm-app-splash-logo-image {
