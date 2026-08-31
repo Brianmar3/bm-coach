@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppFrame } from "@/componentes/app-frame";
+import { BmTrainingSplash } from "@/componentes/bm-training-splash";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,8 +30,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="h-full bg-black" style={{ backgroundColor: "#000000" }}>
-      <body className="min-h-full bg-black text-white" style={{ backgroundColor: "#000000" }}><AppFrame>{children}</AppFrame></body>
+    <html lang="es" className="h-full" style={{ backgroundColor: "#0B0B0C" }}>
+      <body className="min-h-full text-white" style={{ backgroundColor: "#0B0B0C" }}>
+        <BmTrainingSplash />
+        <div id="bm-app-root">
+          <AppFrame>{children}</AppFrame>
+        </div>
+      </body>
     </html>
   );
 }

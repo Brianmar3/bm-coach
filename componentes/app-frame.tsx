@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { AdminTopbar } from "@/componentes/admin-topbar";
-import { BmTrainingSplash } from "@/componentes/bm-training-splash";
+import { BmBootReady } from "@/componentes/bm-boot-ready";
 import { ClassesModuleHeader } from "@/componentes/classes-module-header";
 import { Sidebar } from "@/componentes/sidebar";
 import { TrainerCommandPalette } from "@/componentes/trainer-command-palette";
@@ -13,7 +13,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const standalone = pathname.startsWith("/portal") || pathname === "/admin/login";
   const classesModule = pathname === "/clases" || pathname === "/asistencias";
   return (
-    <BmTrainingSplash>
+    <>
+      <BmBootReady />
       {standalone ? children : (
         <div className="admin-panel min-h-full max-w-full overflow-x-clip bg-black text-white">
           <AdminTopbar />
@@ -25,6 +26,6 @@ export function AppFrame({ children }: { children: ReactNode }) {
           </div>
         </div>
       )}
-    </BmTrainingSplash>
+    </>
   );
 }

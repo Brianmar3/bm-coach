@@ -6,9 +6,12 @@ const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "ut
 const moduleShell = readFileSync(new URL("../componentes/module-shell.tsx", import.meta.url), "utf8");
 const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 const splash = readFileSync(new URL("../componentes/bm-training-splash.tsx", import.meta.url), "utf8");
+const bootReady = readFileSync(new URL("../componentes/bm-boot-ready.tsx", import.meta.url), "utf8");
+const appFrame = readFileSync(new URL("../componentes/app-frame.tsx", import.meta.url), "utf8");
 const portalLoading = readFileSync(new URL("../app/portal/(student)/loading.tsx", import.meta.url), "utf8");
 const rootLayout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const portalLayout = readFileSync(new URL("../app/portal/layout.tsx", import.meta.url), "utf8");
+const portalLogin = readFileSync(new URL("../app/portal/login/page.tsx", import.meta.url), "utf8");
 const appManifest = readFileSync(new URL("../app/manifest.ts", import.meta.url), "utf8");
 const portalManifest = readFileSync(
   new URL("../public/portal/manifest.webmanifest", import.meta.url),
@@ -33,13 +36,19 @@ test("la navegación móvil respeta safe area y deja espacio al contenido", () =
   assert.match(portalShell, /aria-current=\{active \? "page" : undefined\}/);
 });
 
-test("App Motion V1 anima sólo logo y contenido mientras mantiene estable la navegación", () => {
-  const splashDuration = Number(splash.match(/SPLASH_DURATION_MS = ([\d_]+)/)?.[1].replaceAll("_", ""));
-  assert.ok(splashDuration >= 1_400 && splashDuration <= 1_500);
-  assert.match(splash, /useState<SplashPhase>\("showing"\)/);
-  assert.doesNotMatch(splash, /"checking"/);
-  assert.match(splash, /onTransitionEnd=\{completeExit\}/);
-  assert.match(splash, /bm-app-splash-logo/);
+test("el puente de arranque existe en el HTML inicial y se retira por hidratación real", () => {
+  const splashIndex = rootLayout.indexOf("<BmTrainingSplash />");
+  const appIndex = rootLayout.indexOf('id="bm-app-root"');
+  assert.ok(splashIndex >= 0 && appIndex > splashIndex);
+  assert.match(appFrame, /<BmBootReady \/>/);
+  assert.match(bootReady, /useLayoutEffect/);
+  assert.match(bootReady, /dataset\.bmAppReady = "true"/);
+  assert.match(globals, /html\[data-bm-app-ready="true"\] \.bm-app-splash/);
+  assert.match(globals, /html\[data-bm-app-ready="true"\] #bm-app-root/);
+  assert.doesNotMatch(splash, /"use client"/);
+  for (const source of [splash, bootReady]) {
+    assert.doesNotMatch(source, /setTimeout|requestAnimationFrame|SPLASH_DURATION/);
+  }
   assert.match(portalShell, /key=\{pathname\}/);
   assert.match(portalShell, /portal-route-enter/);
   assert.match(portalShell, /portal-nav-active-icon/);
@@ -48,35 +57,34 @@ test("App Motion V1 anima sólo logo y contenido mientras mantiene estable la na
   assert.doesNotMatch(globals, /@keyframes bm-[^{]+\{[^}]*(?:width|height|top|left):/s);
 });
 
-test("el aro del splash rodea el asset real y usa un único destello orbital", () => {
+test("el shell SSR conserva el logo oficial, un aro liviano y el fondo nativo", () => {
   assert.match(splash, /src="\/bm-training-splash\.png"/);
   assert.match(splash, /<svg[^>]+viewBox="0 0 200 200"/);
   assert.match(splash, /className="bm-splash-ring-base"/);
-  assert.match(splash, /className="bm-splash-orbit"/);
-  assert.match(splash, /d="M 70\.95 10\.6 A 94 94 0 0 1 100 6"/);
-  assert.equal((splash.match(/className="bm-splash-orbit-spark"/g) ?? []).length, 1);
   assert.match(splash, /className="bm-app-splash-logo relative z-10 w-\[96%\]"/);
   assert.match(splash, /bm-app-splash-logo-image/);
   assert.match(splash, /\bpreload\b/);
   assert.doesNotMatch(splash, /\bpriority\b/);
-  assert.match(splash, /backgroundColor: "#000000"/);
-  assert.match(splash, /height: "100dvh"/);
-  assert.match(splash, /width: "min\(88vw, 74dvh, 42rem\)"/);
-  assert.match(splash, /onAnimationEnd=\{completeVisibleAnimation\}/);
-  assert.doesNotMatch(globals, /bm-splash-logo-enter/);
-  assert.doesNotMatch(globals, /bm-splash-ring-enter/);
-  assert.match(globals, /bm-splash-orbit-travel 1100ms linear 150ms/);
-  assert.match(globals, /\.bm-app-splash--playing \.bm-splash-orbit/);
-  assert.match(globals, /transform: rotate\(360deg\)/);
-  assert.match(globals, /\.bm-splash-orbit \{\s+opacity: 0;/);
-  assert.match(splash, /phase === "exiting" \? "bm-splash-content-enter"/);
-  assert.match(globals, /\.bm-splash-content-enter > \* \{/);
+  assert.match(rootLayout, /backgroundColor: "#0B0B0C"/);
+  assert.match(globals, /--background: #0b0b0c/);
+  assert.match(splash, /h-\[100dvh\]/);
+  assert.match(globals, /width: min\(88vw, 74dvh, 42rem\)/);
+  assert.match(splash, /width=\{1536\}/);
+  assert.match(splash, /height=\{1024\}/);
+  assert.doesNotMatch(splash, /onAnimationEnd|onTransitionEnd/);
+  assert.doesNotMatch(globals, /bm-splash-orbit|bm-app-splash--playing/);
 });
 
-test("cada arranque de documento conserva el puente visual sin depender de la sesión", () => {
+test("cada documento comparte el puente SSR y los redirects de sesión ocurren antes del HTML final", () => {
   assert.doesNotMatch(splash, /sessionStorage/);
   assert.doesNotMatch(splash, /SPLASH_SESSION_KEY/);
-  assert.match(splash, /useState<SplashPhase>\("showing"\)/);
+  assert.match(rootLayout, /<BmTrainingSplash \/>/);
+  assert.match(rootLayout, /<AppFrame>\{children\}<\/AppFrame>/);
+  assert.match(portalLogin, /getPortalSession/);
+  assert.match(portalLogin, /redirect\("\/portal"\)/);
+  assert.match(portalLogin, /redirect\("\/dashboard"\)/);
+  assert.match(globals, /prefers-reduced-motion: reduce/);
+  assert.match(globals, /\.bm-app-splash \{\s+transition-duration: 0ms;/);
 });
 
 test("los manifests y metadatos usan la identidad oficial v5 y su variante maskable", () => {

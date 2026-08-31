@@ -7,7 +7,7 @@
 }
 
 :root {
-  --background: #000000;
+  --background: #0b0b0c;
   --foreground: #ffffff;
   --portal-bottom-nav-height: 4.75rem;
   --portal-bottom-nav-offset: 0.75rem;
@@ -23,7 +23,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #0b0b0c;
     --foreground: #ededed;
   }
 }
@@ -32,23 +32,6 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-}
-
-@keyframes bm-splash-orbit-travel {
-  0% { opacity: 0; transform: rotate(0deg); }
-  2% { opacity: 1; }
-  98% { opacity: 1; }
-  100% { opacity: 0; transform: rotate(360deg); }
-}
-
-@keyframes bm-splash-ring-finish {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.22)); }
-  55% { filter: drop-shadow(0 0 11px rgba(250, 204, 21, 0.5)); }
-}
-
-@keyframes bm-splash-logo-finish {
-  0%, 100% { filter: brightness(1); transform: scale(1); }
-  55% { filter: brightness(1.14); transform: scale(1.025); }
 }
 
 @keyframes bm-content-enter {
@@ -75,11 +58,25 @@ body {
 
 .bm-app-splash {
   opacity: 1;
-  transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  visibility: visible;
+  background: #0b0b0c;
+  transition:
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 140ms;
 }
 
-.bm-app-splash--exiting {
+#bm-app-root {
+  visibility: hidden;
+}
+
+html[data-bm-app-ready="true"] .bm-app-splash {
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+html[data-bm-app-ready="true"] #bm-app-root {
+  visibility: visible;
 }
 
 .bm-app-splash-stage {
@@ -95,42 +92,13 @@ body {
   filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.22));
 }
 
-.bm-splash-orbit {
-  opacity: 0;
-  transform-origin: 100px 100px;
-  will-change: opacity, transform;
-}
-
-.bm-splash-orbit-spark {
-  filter: drop-shadow(0 0 2px #fffbea) drop-shadow(0 0 5px rgba(250, 204, 21, 0.9));
-}
-
 .bm-app-splash-logo {
   isolation: isolate;
-  will-change: opacity, transform;
 }
 
 .bm-app-splash-logo-image {
   display: block;
   filter: brightness(1);
-  transform: scale(1);
-  will-change: filter, transform;
-}
-
-.bm-app-splash--playing .bm-splash-ring-base {
-  animation: bm-splash-ring-finish 180ms ease-out 1250ms both;
-}
-
-.bm-app-splash--playing .bm-splash-orbit {
-  animation: bm-splash-orbit-travel 1100ms linear 150ms both;
-}
-
-.bm-app-splash--playing .bm-app-splash-logo-image {
-  animation: bm-splash-logo-finish 180ms ease-out 1250ms both;
-}
-
-.bm-splash-content-enter > * {
-  animation: bm-content-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .portal-route-enter {
@@ -379,14 +347,9 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .bm-app-splash {
-    transition-duration: 80ms;
+    transition-duration: 0ms;
   }
 
-  .bm-app-splash-logo,
-  .bm-app-splash-logo-image,
-  .bm-app-splash-ring,
-  .bm-splash-ring-base,
-  .bm-splash-orbit,
   .portal-nav-active-icon,
   .portal-home-enter,
   .portal-home-light-sweep,
@@ -419,15 +382,7 @@ body {
     opacity: 0.62;
   }
 
-  .bm-splash-orbit {
-    opacity: 0;
-  }
-
   .portal-route-enter {
-    animation: bm-content-enter 80ms linear both;
-  }
-
-  .bm-splash-content-enter > * {
     animation: bm-content-enter 80ms linear both;
   }
 
