@@ -216,6 +216,7 @@ export type PaymentDashboard = {
 
 export type EventStatus = "pendiente" | "completado";
 export type EventType = "evaluacion" | "reunion" | "competencia" | "recordatorio";
+export type EventAudience = "todos" | StudentServiceType;
 
 export type CoachEvent = {
   id: string;
@@ -225,8 +226,12 @@ export type CoachEvent = {
   time: string;
   color: string;
   description: string;
+  location: string;
   status: EventStatus;
+  showToStudents: boolean;
+  audience: EventAudience;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type PhysicalEvaluation = {

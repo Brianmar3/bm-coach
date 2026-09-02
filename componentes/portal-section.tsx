@@ -29,6 +29,7 @@ import { PasswordField } from "@/componentes/password-field";
 import { apiRequest } from "@/lib/client-api";
 import { PortalTransferPaymentSheet } from "@/componentes/portal-transfer-payment-sheet";
 import { openTransferObligations } from "@/lib/transfer-payment";
+import { portalEventDismissalKey } from "@/lib/portal-events";
 import {
   BmAttendanceIcon,
   BmBarbellIcon,
@@ -164,11 +165,45 @@ function PortalOverview({ data }: { data: PortalData }) {
         {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </header>
+    <PortalEventAnnouncement events={data.events} studentId={data.profile.id} />
     <section className="portal-home-enter portal-home-focus relative overflow-hidden rounded-[26px] border border-white/[.1] bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-5 shadow-[0_14px_34px_rgba(0,0,0,.28)] min-[390px]:px-6 sm:px-7 sm:py-6"><span aria-hidden="true" className="portal-home-focus-lines" /><div className="relative z-[1]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-xs">Enfoque de hoy</p><div className="mt-3 flex items-start gap-3 sm:gap-4"><span aria-hidden="true" className="portal-home-focus-quote text-4xl font-black leading-none text-yellow-400/90">“</span><div className="min-w-0 max-w-2xl"><h2 className="break-words text-base font-semibold italic leading-snug text-zinc-100 sm:text-xl">{dailyFocus.title}</h2><p className="mt-1.5 break-words text-xs leading-relaxed text-zinc-500 sm:mt-2 sm:text-sm">{dailyFocus.reflection}</p></div></div></div></section>
     {groupClassesEnabled && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
     <div className="portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
     <HomeQuickStats data={data} />
   </div>;
+}
+
+function eventDateLabel(date: string, time: string) {
+  const label = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00-03:00`));
+  const capitalized = `${label.charAt(0).toLocaleUpperCase("es")}${label.slice(1)}`;
+  return time ? `${capitalized} · ${time}` : capitalized;
+}
+
+function PortalEventAnnouncement({ events, studentId }: { events: PortalData["events"]; studentId: string }) {
+  const [dismissed, setDismissed] = useState(false);
+  const [detail, setDetail] = useState<PortalData["events"][number] | null>(null);
+  const event = events[0] ?? null;
+  useEffect(() => {
+    if (!event) return;
+    const frame = window.requestAnimationFrame(() => {
+      const hiddenVersion = window.localStorage.getItem(portalEventDismissalKey(studentId, event.id));
+      setDismissed(hiddenVersion === event.updatedAt);
+      const linkedEvent = events.find((item) => window.location.hash === `#evento-${item.id}`);
+      if (linkedEvent) setDetail(linkedEvent);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [event, events, studentId]);
+  if (!event) return null;
+  function dismiss() {
+    window.localStorage.setItem(portalEventDismissalKey(studentId, event!.id), event!.updatedAt);
+    setDismissed(true);
+  }
+  return <>
+    {!dismissed && <section className="portal-home-enter relative overflow-hidden rounded-2xl border border-yellow-400/25 bg-[linear-gradient(145deg,rgba(250,204,21,.08),#101010_70%)] px-4 py-4 shadow-[0_12px_30px_rgba(0,0,0,.24)] sm:px-5">
+      <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/10 text-yellow-300"><BmCalendarIcon size={20} /></span><div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Evento BM Training</p><h2 className="mt-1 break-words text-base font-bold text-white sm:text-lg">{event.title}</h2><p className="mt-1 text-xs text-zinc-400 sm:text-sm">{eventDateLabel(event.date, event.time)}</p>{event.location && <p className="mt-1 break-words text-xs text-zinc-500 sm:text-sm">{event.location}</p>}<div className="mt-3 flex flex-wrap items-center gap-3"><button type="button" onClick={() => setDetail(event)} className="min-h-10 text-sm font-bold text-yellow-300">Ver detalles →</button>{events.length > 1 && <span className="text-xs text-zinc-500">+ {events.length - 1} evento{events.length === 2 ? "" : "s"}</span>}</div></div><button type="button" onClick={dismiss} aria-label="Ocultar anuncio" className="grid size-10 shrink-0 place-items-center rounded-xl text-zinc-500 hover:bg-white/5 hover:text-white"><BmCloseIcon size={18} /></button></div>
+    </section>}
+    {detail && <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/80 p-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:grid sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetail(null); }}><section role="dialog" aria-modal="true" aria-labelledby="portal-event-title" className="mx-auto w-full max-w-lg rounded-2xl border border-yellow-400/25 bg-zinc-950 p-5 text-white shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Evento BM Training</p><h2 id="portal-event-title" className="mt-2 text-xl font-bold">{detail.title}</h2></div><button type="button" onClick={() => setDetail(null)} aria-label="Cerrar detalle" className="grid size-10 shrink-0 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-900"><BmCloseIcon size={20} /></button></div><dl className="mt-5 space-y-3 text-sm"><div><dt className="text-xs text-zinc-500">Fecha y hora</dt><dd className="mt-1">{eventDateLabel(detail.date, detail.time)}</dd></div>{detail.location && <div><dt className="text-xs text-zinc-500">Lugar</dt><dd className="mt-1 break-words">{detail.location}</dd></div>}</dl>{detail.description && <p className="mt-5 border-t border-zinc-800 pt-4 text-sm leading-relaxed text-zinc-300">{detail.description}</p>}</section></div>}
+  </>;
 }
 
 type PersonalizedHomePlan = ReturnType<typeof personalizedHomePlan>;

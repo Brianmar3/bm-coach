@@ -144,7 +144,7 @@ export async function GET(request: Request) {
       prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
       prisma.evaluationRecord.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.studentPayment.findMany({ where: { studentId, status: "PAGADO" }, include: { student: true }, orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? 50 : section === "inicio" ? 1 : 0 }),
-      prisma.coachEvent.findMany({ where: { status: "PENDIENTE", date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
+      prisma.coachEvent.findMany({ where: { status: "PENDIENTE", showToStudents: true, audience: { in: ["ALL", serviceType] }, date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
         where: { studentId },
         include: { day: true, routine: true, blocks: true, exercises: { include: { exercise: true, sets: { orderBy: { setNumber: "asc" } } } } },

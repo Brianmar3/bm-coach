@@ -2,9 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
-import type { CoachEvent, EventStatus, EventType } from "@/types/gestion";
+import type { CoachEvent, EventAudience, EventStatus, EventType } from "@/types/gestion";
 
-type EventDraft = Omit<CoachEvent, "id" | "createdAt">;
+type EventDraft = Omit<CoachEvent, "id" | "createdAt" | "updatedAt">;
 type ViewMode = "list" | "calendar";
 
 const eventTypes: { value: EventType; label: string }[] = [
@@ -23,11 +23,14 @@ const today = () => new Date().toISOString().slice(0, 10);
 const blank = (): EventDraft => ({
   title: "",
   description: "",
+  location: "",
   date: today(),
   time: "09:00",
   color: "#facc15",
   type: "recordatorio",
   status: "pendiente",
+  showToStudents: false,
+  audience: "todos",
 });
 
 function showDate(value: string) {
@@ -97,11 +100,14 @@ export default function EventosPage() {
     setForm(item ? {
       title: item.title,
       description: item.description,
+      location: item.location,
       date: item.date,
       time: item.time,
       color: item.color,
       type: item.type,
       status: item.status,
+      showToStudents: item.showToStudents,
+      audience: item.audience,
     } : blank());
     setError("");
     setOpen(true);
@@ -140,11 +146,14 @@ export default function EventosPage() {
         body: JSON.stringify({
           title: item.title,
           description: item.description,
+          location: item.location,
           date: item.date,
           time: item.time,
           color: item.color,
           type: item.type,
           status: "completado",
+          showToStudents: item.showToStudents,
+          audience: item.audience,
         } satisfies EventDraft),
       });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo completar el evento."));
@@ -231,11 +240,11 @@ function EventForm({ form, setForm, error, onClose, onSubmit, editing, saving }:
   function change<K extends keyof EventDraft>(key: K, value: EventDraft[K]) {
     setForm({ ...form, [key]: value });
   }
-  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><form onSubmit={onSubmit} className="mx-auto my-8 w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">{editing ? "Editar evento" : "Nuevo evento"}</h2><p className="mt-1 text-sm text-zinc-400">Completá los datos de la actividad.</p></div><button type="button" onClick={onClose} className="self-start text-zinc-400">Cerrar</button></div>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}<div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="sm:col-span-2">Título<input required maxLength={120} value={form.title} onChange={(event) => change("title", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Fecha<input required type="date" value={form.date} onChange={(event) => change("date", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Hora<input required type="time" value={form.time} onChange={(event) => change("time", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Tipo<select value={form.type} onChange={(event) => change("type", event.target.value as EventType)} className={`${inputClass} mt-1`}>{eventTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label><label>Estado<select value={form.status} onChange={(event) => change("status", event.target.value as EventStatus)} className={`${inputClass} mt-1`}>{statuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label className="sm:col-span-2">Color<div className="mt-1 flex items-center gap-3"><input aria-label="Color del evento" type="color" value={form.color} onChange={(event) => change("color", event.target.value)} className="h-11 w-16 cursor-pointer rounded-lg border border-zinc-700 bg-zinc-950 p-1" /><input required pattern="#[0-9a-fA-F]{6}" value={form.color} onChange={(event) => change("color", event.target.value)} className={inputClass} /></div></label><label className="sm:col-span-2">Descripción<textarea maxLength={1000} value={form.description} onChange={(event) => change("description", event.target.value)} rows={4} className={`${inputClass} mt-1`} /></label></div><button disabled={saving} className="mt-6 w-full rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300 disabled:opacity-60">{saving ? "Guardando…" : "Guardar evento"}</button></form></div>;
+  return <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><form onSubmit={onSubmit} className="mx-auto my-8 w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">{editing ? "Editar evento" : "Nuevo evento"}</h2><p className="mt-1 text-sm text-zinc-400">Completá los datos de la actividad.</p></div><button type="button" onClick={onClose} className="self-start text-zinc-400">Cerrar</button></div>{error && <p role="alert" className="mt-4 rounded-lg bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}<div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="sm:col-span-2">Título<input required maxLength={120} value={form.title} onChange={(event) => change("title", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Fecha<input required type="date" value={form.date} onChange={(event) => change("date", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Hora <span className="text-xs text-zinc-500">(opcional)</span><input type="time" value={form.time} onChange={(event) => change("time", event.target.value)} className={`${inputClass} mt-1`} /></label><label>Tipo<select value={form.type} onChange={(event) => change("type", event.target.value as EventType)} className={`${inputClass} mt-1`}>{eventTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label><label>Estado<select value={form.status} onChange={(event) => change("status", event.target.value as EventStatus)} className={`${inputClass} mt-1`}>{statuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><label className="sm:col-span-2">Lugar <span className="text-xs text-zinc-500">(opcional)</span><input maxLength={160} value={form.location} onChange={(event) => change("location", event.target.value)} className={`${inputClass} mt-1`} /></label><label className="sm:col-span-2">Color<div className="mt-1 flex items-center gap-3"><input aria-label="Color del evento" type="color" value={form.color} onChange={(event) => change("color", event.target.value)} className="h-11 w-16 cursor-pointer rounded-lg border border-zinc-700 bg-zinc-950 p-1" /><input required pattern="#[0-9a-fA-F]{6}" value={form.color} onChange={(event) => change("color", event.target.value)} className={inputClass} /></div></label><label className="sm:col-span-2">Descripción<textarea maxLength={1000} value={form.description} onChange={(event) => change("description", event.target.value)} rows={4} className={`${inputClass} mt-1`} /></label><fieldset className="sm:col-span-2 rounded-xl border border-zinc-800 bg-zinc-950 p-4"><legend className="px-1 text-sm font-bold text-yellow-300">Visibilidad</legend><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={form.showToStudents} onChange={(event) => change("showToStudents", event.target.checked)} className="size-5 accent-yellow-400" />Mostrar a los alumnos</label>{form.showToStudents && <label className="mt-3 block text-sm">Visible para<select value={form.audience} onChange={(event) => change("audience", event.target.value as EventAudience)} className={`${inputClass} mt-1`}><option value="todos">Todos</option><option value="CLASSES">Clases</option><option value="PERSONALIZED">Personalizado</option><option value="MIXED">Mixto</option></select></label>}</fieldset></div><button disabled={saving} className="mt-6 w-full rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 transition hover:bg-yellow-300 disabled:opacity-60">{saving ? "Guardando…" : "Guardar evento"}</button></form></div>;
 }
 
 function EventDetail({ item, onClose, onComplete }: { item: CoachEvent; onClose: () => void; onComplete: (item: CoachEvent) => void }) {
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4"><section className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div className="border-l-4 pl-3" style={{ borderLeftColor: item.color }}><h2 className="text-xl font-bold">{item.title}</h2><p className="mt-1 text-sm text-zinc-400">{typeLabel(item.type)}</p></div><button onClick={onClose} className="self-start text-zinc-400">Cerrar</button></div><div className="mt-6 space-y-4 text-sm"><div className="grid grid-cols-2 gap-4 rounded-xl bg-zinc-950 p-4"><p><span className="block text-xs text-zinc-500">Fecha</span>{showDate(item.date)}</p><p><span className="block text-xs text-zinc-500">Hora</span>{item.time}</p></div><p><span className="mr-2 text-zinc-500">Estado:</span><StatusBadge status={item.status} /></p><p className="border-t border-zinc-800 pt-4 text-zinc-300">{item.description || "Sin descripción."}</p></div>{item.status === "pendiente" && <button onClick={() => onComplete(item)} className="mt-6 w-full rounded-xl border border-emerald-400/40 px-4 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-400/10">Marcar como completado</button>}</section></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4"><section className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-white"><div className="flex justify-between gap-4"><div className="border-l-4 pl-3" style={{ borderLeftColor: item.color }}><h2 className="text-xl font-bold">{item.title}</h2><p className="mt-1 text-sm text-zinc-400">{typeLabel(item.type)}</p></div><button onClick={onClose} className="self-start text-zinc-400">Cerrar</button></div><div className="mt-6 space-y-4 text-sm"><div className="grid grid-cols-2 gap-4 rounded-xl bg-zinc-950 p-4"><p><span className="block text-xs text-zinc-500">Fecha</span>{showDate(item.date)}</p><p><span className="block text-xs text-zinc-500">Hora</span>{item.time || "Sin horario"}</p>{item.location && <p className="col-span-2"><span className="block text-xs text-zinc-500">Lugar</span>{item.location}</p>}</div><p><span className="mr-2 text-zinc-500">Estado:</span><StatusBadge status={item.status} /></p><p className="border-t border-zinc-800 pt-4 text-zinc-300">{item.description || "Sin descripción."}</p></div>{item.status === "pendiente" && <button onClick={() => onComplete(item)} className="mt-6 w-full rounded-xl border border-emerald-400/40 px-4 py-3 font-semibold text-emerald-300 transition hover:bg-emerald-400/10">Marcar como completado</button>}</section></div>;
 }
 
 function StatusBadge({ status }: { status: EventStatus }) {

@@ -1,5 +1,6 @@
 import { eventData, serializeEvent, validateEvent, type EventInput } from "@/lib/eventos";
 import { prisma } from "@/lib/prisma";
+import { notifyPublishedCoachEvent } from "@/lib/event-publication-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
     const record = await prisma.coachEvent.create({ data: eventData(input) });
+    await notifyPublishedCoachEvent(record);
     return Response.json(serializeEvent(record), { status: 201 });
   } catch (error) {
     console.error("Error al crear evento", error);

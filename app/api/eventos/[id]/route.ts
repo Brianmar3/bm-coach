@@ -1,6 +1,7 @@
 import { eventData, serializeEvent, validateEvent, type EventInput } from "@/lib/eventos";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { notifyPublishedCoachEvent } from "@/lib/event-publication-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,11 @@ export async function PUT(request: Request, context: RouteContext<"/api/eventos/
     const validationError = validateEvent(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
+    const previous = await prisma.coachEvent.findUnique({ where: { id }, select: { showToStudents: true, status: true } });
+    if (!previous) return Response.json({ error: "Evento no encontrado." }, { status: 404 });
     const record = await prisma.coachEvent.update({ where: { id }, data: eventData(input) });
+    const newlyPublished = record.showToStudents && record.status === "PENDIENTE" && (!previous.showToStudents || previous.status !== "PENDIENTE");
+    if (newlyPublished) await notifyPublishedCoachEvent(record);
     return Response.json(serializeEvent(record));
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Evento no encontrado." }, { status: 404 });
