@@ -14,7 +14,7 @@ import { portalPaymentAccount, serializePayment } from "@/lib/payments";
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 import { planDays } from "@/lib/student-enrollment";
 import { BM_TRAINING_START_DATE } from "@/lib/bm-training";
-import { hasGroupClasses } from "@/lib/student-service";
+import { hasGroupClasses, isAchievementEligibleForService } from "@/lib/student-service";
 import { activePortalRoutineWhere } from "@/lib/portal-service-access";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
 import { loadStudentPointSummary } from "@/lib/student-points";
@@ -29,7 +29,7 @@ import { normalizeTransferDetails } from "@/lib/transfer-payment";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date, includeClasses: boolean, pointMovementLimit = 8) {
+async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date, includeClasses: boolean, serviceType: "CLASSES" | "PERSONALIZED" | "MIXED", pointMovementLimit = 8) {
   const activityStartKey = joinedAt && joinedAt > BM_TRAINING_START_DATE ? joinedAt : BM_TRAINING_START_DATE;
   const activityStart = dateKeyToDatabase(activityStartKey);
   const meaningfulEvaluation = {
@@ -115,7 +115,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
       active: studentStatus !== "inactivo",
       hasRoutine: activeRoutineCount > 0 || completedWorkoutDates.length > 0,
       hasClassParticipation,
-    }), ...strengthAchievements.filter((item) => !item.id.includes("-weight-") && !item.id.includes("-reps-")), ...quickLogAchievements.filter((item) => item.id.includes(":milestone:")), ...unifiedRecordAchievements].sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
+    }), ...strengthAchievements.filter((item) => !item.id.includes("-weight-") && !item.id.includes("-reps-")), ...quickLogAchievements.filter((item) => item.id.includes(":milestone:")), ...unifiedRecordAchievements].filter((item) => isAchievementEligibleForService(serviceType, item)).sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt)),
     points,
   };
 }
@@ -137,7 +137,7 @@ export async function GET(request: Request) {
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio" || section === "puntos" || section === "puntos-historial"
-      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled, section === "puntos-historial" ? 40 : 8)
+      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled, serviceType, section === "puntos-historial" ? 40 : 8)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules, paymentObligationRecords, paidAmountsByPeriod] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),

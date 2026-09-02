@@ -5,25 +5,29 @@ import { studentName } from "@/lib/attendance";
 import { pointPeriodStart, type PointRankingPeriod } from "@/lib/point-period";
 import type { Student } from "@/types/gestion";
 import type { StudentRankingEntry } from "@/types/points";
+import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } from "@/lib/student-service";
 
 export async function loadPointRanking(period: PointRankingPeriod = "month") {
   const from = pointPeriodStart(period);
-  const periodWhere = { active: true, ...(from ? { occurredAt: { gte: from } } : {}) } as const;
-  const allStudents = await prisma.studentRecord.findMany({ select: { id: true, data: true }, orderBy: { createdAt: "asc" } });
-  const students = allStudents.filter((record) => (record.data as unknown as Student).status !== "inactivo");
+  const allStudents = await prisma.studentRecord.findMany({ select: { id: true, data: true, serviceType: true }, orderBy: { createdAt: "asc" } });
+  const students = allStudents.filter((record) => (record.data as unknown as Student).status !== "inactivo" && isCompetitiveGamificationEligible(record.serviceType));
   const studentIds = students.map((student) => student.id);
-  const [totals, historicalTotals, details, movements] = await Promise.all([
-    prisma.studentPointTransaction.groupBy({ by: ["studentId"], where: { ...periodWhere, studentId: { in: studentIds } }, _sum: { points: true } }),
-    prisma.studentPointTransaction.groupBy({ by: ["studentId"], where: { active: true, studentId: { in: studentIds } }, _sum: { points: true } }),
-    prisma.studentPointTransaction.groupBy({ by: ["studentId", "eventType"], where: { ...periodWhere, studentId: { in: studentIds } }, _count: { _all: true } }),
-    prisma.studentPointTransaction.findMany({ where: { ...periodWhere, studentId: { in: studentIds } }, select: { id: true, studentId: true, eventType: true, points: true, description: true, occurredAt: true }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }] }),
+  const [allMovements, membershipPeriods] = await Promise.all([
+    prisma.studentPointTransaction.findMany({ where: { active: true, studentId: { in: studentIds } }, select: { id: true, studentId: true, eventType: true, points: true, description: true, occurredAt: true }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }] }),
+    prisma.studentMembershipHistory.findMany({ where: { studentId: { in: studentIds } }, select: { studentId: true, startDate: true, endDate: true, serviceType: true } }),
   ]);
-  const totalByStudent = new Map(totals.map((item) => [item.studentId, item._sum.points ?? 0]));
-  const historicalByStudent = new Map(historicalTotals.map((item) => [item.studentId, item._sum.points ?? 0]));
+  const periodsByStudent = new Map<string, typeof membershipPeriods>();
+  for (const membership of membershipPeriods) periodsByStudent.set(membership.studentId, [...(periodsByStudent.get(membership.studentId) ?? []), membership]);
+  const eligibleMovements = allMovements.filter((item) => wasCompetitiveDuringMembership(item.occurredAt, periodsByStudent.get(item.studentId) ?? []));
+  const movements = eligibleMovements.filter((item) => !from || item.occurredAt >= from);
+  const totalByStudent = new Map<string, number>();
+  const historicalByStudent = new Map<string, number>();
+  for (const item of eligibleMovements) historicalByStudent.set(item.studentId, (historicalByStudent.get(item.studentId) ?? 0) + item.points);
+  for (const item of movements) totalByStudent.set(item.studentId, (totalByStudent.get(item.studentId) ?? 0) + item.points);
   const detail = new Map<string, Map<string, number>>();
-  for (const item of details) {
+  for (const item of movements) {
     const values = detail.get(item.studentId) ?? new Map<string, number>();
-    values.set(item.eventType, item._count._all);
+    values.set(item.eventType, (values.get(item.eventType) ?? 0) + 1);
     detail.set(item.studentId, values);
   }
   const movementsByStudent = new Map<string, StudentRankingEntry["movements"]>();
@@ -43,7 +47,7 @@ export async function loadPointRanking(period: PointRankingPeriod = "month") {
       total: totalByStudent.get(record.id) ?? 0,
       historicalTotal,
       level: historicalTotal >= 500 ? "Hito" : historicalTotal >= 250 ? "Progreso" : historicalTotal >= 100 ? "Constancia" : "Inicio",
-      serviceType: data.serviceType ?? "CLASSES",
+      serviceType: record.serviceType,
       achievementCount: (counts.get("ACHIEVEMENT") ?? 0) + (counts.get("MILESTONE") ?? 0),
       attendanceThisMonth: counts.get("ATTENDANCE") ?? 0,
       recordCount: counts.get("RECORD") ?? 0,
@@ -51,4 +55,3 @@ export async function loadPointRanking(period: PointRankingPeriod = "month") {
     };
   }).sort((left, right) => right.total - left.total || right.historicalTotal - left.historicalTotal || left.studentName.localeCompare(right.studentName, "es"));
 }
-

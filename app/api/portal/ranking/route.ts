@@ -1,10 +1,12 @@
 import { getPortalSession } from "@/lib/portal-auth";
 import { loadPointRanking } from "@/lib/point-ranking";
+import { isCompetitiveGamificationEligible } from "@/lib/student-service";
 
 export async function GET() {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
   if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal." }, { status: 403 });
+  if (!isCompetitiveGamificationEligible(session.credential.student.serviceType)) return Response.json({ redirectTo: "/portal/progreso" }, { status: 403 });
 
   const ranking = await loadPointRanking("month");
   const currentIndex = ranking.findIndex((entry) => entry.studentId === session.studentId);

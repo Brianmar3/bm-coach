@@ -12,7 +12,7 @@ import type { PortalAchievement } from "@/lib/portal-achievements";
 import { StudentProfileView } from "@/componentes/student-profile-view";
 import { StudentAvatarPage } from "@/componentes/student-avatar-page";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
-import { hasGroupClasses, hasPersonalizedService } from "@/lib/student-service";
+import { hasGroupClasses, hasPersonalizedService, isCompetitiveGamificationEligible } from "@/lib/student-service";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
 import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName } from "@/lib/workout-presentation";
 import { separateWorkoutInstructions } from "@/lib/workout-instructions";
@@ -294,6 +294,7 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
 }
 
 function HomeQuickStats({ data }: { data: PortalData }) {
+  const competitive = isCompetitiveGamificationEligible(data.profile.serviceType);
   const account = data.paymentAccount;
   const weekStart = new Date(`${argentinaDateKey()}T12:00:00.000Z`);
   weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
@@ -323,7 +324,7 @@ function HomeQuickStats({ data }: { data: PortalData }) {
   const cardClass = "portal-home-stat portal-home-interactive group relative min-h-[7.75rem] min-w-0 overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:p-4";
   return <section aria-label="Resumen del alumno" className="portal-home-enter grid grid-cols-2 gap-2 sm:gap-3">
     <Link href="/portal/pagos" aria-label={`Tu cuota. ${paymentCopy.title}. ${paymentCopy.detail}. Ir a pagos.`} className={cardClass}><BmPaymentIcon size={17} className="absolute right-3.5 top-3.5 text-yellow-400/60 min-[390px]:right-4 min-[390px]:top-4" /><p className="pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 min-[390px]:text-[10px]">Tu cuota</p><p className={`mt-3 text-base font-semibold leading-tight min-[390px]:text-lg ${paymentTone}`}>{paymentCopy.title}</p><p className="mt-2 text-[9px] font-medium leading-snug text-zinc-500 min-[390px]:text-[10px]">{paymentCopy.detail}</p></Link>
-    <Link href="/portal/puntos" aria-live="polite" className={`portal-home-points ${pointsDelta !== null ? "portal-home-points-changed" : ""} ${cardClass}`}>{pointsDelta !== null && <><span aria-hidden="true" className="portal-home-points-sweep" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><span className="portal-home-points-delta">+{pointsDelta}</span></>}<span className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/30 text-yellow-300 sm:right-4 sm:top-4 sm:size-8"><BmPointsIcon size={15} /></span><p className="relative pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tus puntos</p><p className="relative mt-4 truncate text-xl font-semibold leading-none text-zinc-100 sm:text-2xl"><HomeAnimatedNumber value={data.home.points.total} /></p><p className="relative mt-1.5 truncate text-[9px] text-zinc-500 sm:text-[11px]">+{weeklyPoints} esta semana</p></Link>
+    {competitive ? <Link href="/portal/puntos" aria-live="polite" className={`portal-home-points ${pointsDelta !== null ? "portal-home-points-changed" : ""} ${cardClass}`}>{pointsDelta !== null && <><span aria-hidden="true" className="portal-home-points-sweep" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><span className="portal-home-points-delta">+{pointsDelta}</span></>}<span className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/30 text-yellow-300 sm:right-4 sm:top-4 sm:size-8"><BmPointsIcon size={15} /></span><p className="relative pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tus puntos</p><p className="relative mt-4 truncate text-xl font-semibold leading-none text-zinc-100 sm:text-2xl"><HomeAnimatedNumber value={data.home.points.total} /></p><p className="relative mt-1.5 truncate text-[9px] text-zinc-500 sm:text-[11px]">+{weeklyPoints} esta semana</p></Link> : <Link href="/portal/progreso" className={cardClass}><BmProgressIcon size={17} className="absolute right-3.5 top-3.5 text-yellow-400/60 min-[390px]:right-4 min-[390px]:top-4" /><p className="pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 min-[390px]:text-[10px]">Tu progreso</p><p className="mt-3 text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">{data.weeklyWorkouts}</p><p className="mt-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">entrenamientos completados esta semana</p></Link>}
   </section>;
 }
 
@@ -363,19 +364,21 @@ function PointsSummary({ data, ranking }: { data: PortalData; ranking: PointsRan
 }
 
 function PointsAndAchievementsView({ data }: { data: PortalData }) {
+  const competitive = isCompetitiveGamificationEligible(data.profile.serviceType);
   const [ranking, setRanking] = useState<PointsRankingPreview | null>(null);
   useEffect(() => {
     const controller = new AbortController();
+    if (!competitive) return () => controller.abort();
     fetch("/api/portal/ranking", { cache: "no-store", signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as PointsRankingPreview : null)
       .then((body) => { if (body) setRanking(body); })
       .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setRanking(null); });
     return () => controller.abort();
-  }, []);
+  }, [competitive]);
   return <div className="portal-points-page mx-auto max-w-5xl space-y-4 sm:space-y-5">
-    <header className="portal-points-enter [--points-delay:0ms]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400">Tu evolución</p><h1 className="mt-1 text-2xl font-black uppercase tracking-[.02em] text-zinc-100 sm:text-3xl">Puntos y logros</h1><p className="mt-1 text-sm text-zinc-500">Tus avances, movimientos y próximos hitos</p></header>
-    <PointsSummary data={data} ranking={ranking} />
-    <WeeklyMissionAchievement data={data} />
+    <header className="portal-points-enter [--points-delay:0ms]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400">Tu evolución</p><h1 className="mt-1 text-2xl font-black uppercase tracking-[.02em] text-zinc-100 sm:text-3xl">{competitive ? "Puntos y logros" : "Progreso y logros"}</h1><p className="mt-1 text-sm text-zinc-500">{competitive ? "Tus avances, movimientos y próximos hitos" : "Tu constancia, evolución y logros personales"}</p></header>
+    {competitive && <PointsSummary data={data} ranking={ranking} />}
+    {competitive && <WeeklyMissionAchievement data={data} />}
     <AchievementsOverview data={data} />
   </div>;
 }

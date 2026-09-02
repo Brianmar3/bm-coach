@@ -25,8 +25,19 @@ import type {
 import { resolveCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 import { paymentWasOnTime } from "@/lib/payment-notification-rules";
 import { pointPeriodStart } from "@/lib/point-period";
+import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } from "@/lib/student-service";
 
 type PointEvent = ValidPointEvent;
+
+type CompetitiveMembershipPeriod = {
+  startDate: Date;
+  endDate: Date | null;
+  serviceType: "CLASSES" | "PERSONALIZED" | "MIXED";
+};
+
+export function pointEventWasCompetitivelyEligible(eventDate: Date, periods: CompetitiveMembershipPeriod[]) {
+  return wasCompetitiveDuringMembership(eventDate, periods);
+}
 
 function isIndividualExercisePointEvent(item: {
   eventKey: string;
@@ -292,8 +303,32 @@ export async function syncStudentPoints(
   studentId: string,
   options: { notify?: boolean; cleanupHistoricalMarks?: boolean } = {},
 ) {
+  const student = await prisma.studentRecord.findUnique({
+    where: { id: studentId },
+    select: { serviceType: true },
+  });
+  if (!student || !isCompetitiveGamificationEligible(student.serviceType)) {
+    const historical = await prisma.studentPointTransaction.aggregate({
+      where: { studentId, active: true },
+      _sum: { points: true },
+    });
+    return {
+      total: historical._sum.points ?? 0,
+      gained: [] as PointEvent[],
+      desiredCount: 0,
+      sourceCounts: { quickLogs: 0, routineSessions: 0, attendances: 0, achievements: 0 },
+      individualExerciseEventsRemoved: 0,
+      eventsInvalidated: 0,
+      activityEventCount: 0,
+    };
+  }
   await resolveCurrentWeeklyMission(studentId);
-  const desired = await desiredPointEvents(studentId);
+  const periods = await prisma.studentMembershipHistory.findMany({
+    where: { studentId },
+    select: { startDate: true, endDate: true, serviceType: true },
+    orderBy: { startDate: "asc" },
+  });
+  const desired = (await desiredPointEvents(studentId)).filter((event) => pointEventWasCompetitivelyEligible(event.occurredAt, periods));
   const previous = await prisma.studentPointTransaction.findMany({
     where: { studentId },
     select: { eventKey: true, active: true, sourceType: true, sourceId: true },

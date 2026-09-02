@@ -8,6 +8,7 @@ import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { planDays } from "@/lib/student-enrollment";
 import { prisma } from "@/lib/prisma";
 import { loadQuickLogAchievements } from "@/lib/quick-log-achievements";
+import { isAchievementEligibleForService } from "@/lib/student-service";
 
 const notifiableCategories = new Set(["ASISTENCIA", "CONSTANCIA", "FUERZA", "REPETICIONES", "VOLUMEN", "RECORDS_PERSONALES", "PROGRESO"]);
 
@@ -15,7 +16,7 @@ export async function loadNotifiableAchievements(
   studentId: string,
   options: { includeAll?: boolean } = {},
 ) {
-  const record = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { data: true, primaryScheduleId: true, weeklyClasses: { where: { active: true }, select: { scheduleId: true }, take: 1 } } });
+  const record = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { data: true, serviceType: true, primaryScheduleId: true, weeklyClasses: { where: { active: true }, select: { scheduleId: true }, take: 1 } } });
   if (!record) return [];
   const student = record.data as unknown as Student;
   const today = argentinaDateKey();
@@ -53,7 +54,7 @@ export async function loadNotifiableAchievements(
         ),
         ...quickLogs,
       ];
-  return selected.filter(
+  return selected.filter((item) => isAchievementEligibleForService(record.serviceType, item)).filter(
     (item): item is PortalAchievement & { unlockedAt: string } =>
       item.unlocked && Boolean(item.unlockedAt),
   );

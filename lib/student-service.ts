@@ -37,3 +37,23 @@ export function hasGroupClasses(value: StudentServiceType) {
 export function hasPersonalizedService(value: StudentServiceType) {
   return value === "PERSONALIZED" || value === "MIXED";
 }
+
+export function isCompetitiveGamificationEligible(value: StudentServiceType) {
+  return value === "CLASSES" || value === "MIXED";
+}
+
+export function isAchievementEligibleForService(
+  value: StudentServiceType,
+  achievement: { category?: string; source?: string },
+) {
+  if (isCompetitiveGamificationEligible(value)) return true;
+  return achievement.source !== "CLASS" && achievement.category !== "ASISTENCIA" && achievement.category !== "CLASES";
+}
+
+export function wasCompetitiveDuringMembership(
+  occurredAt: Date,
+  periods: Array<{ startDate: Date; endDate: Date | null; serviceType: StudentServiceType }>,
+) {
+  if (!periods.length) return true;
+  return periods.some((period) => isCompetitiveGamificationEligible(period.serviceType) && occurredAt >= period.startDate && (!period.endDate || occurredAt < period.endDate));
+}

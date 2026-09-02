@@ -15,6 +15,7 @@ import {
 } from "@/lib/payment-notification-rules";
 import { sendStudentPush } from "@/lib/push-notifications";
 import type { Student } from "@/types/gestion";
+import { isCompetitiveGamificationEligible } from "@/lib/student-service";
 
 const PAYMENT_PORTAL_URL = "/portal/pagos";
 
@@ -47,8 +48,10 @@ export async function persistPaymentConfirmation(
   transaction: Prisma.TransactionClient,
   payment: Pick<StudentPayment, "id" | "studentId" | "paidDate" | "dueDate">,
 ) {
+  const student = await transaction.studentRecord.findUnique({ where: { id: payment.studentId }, select: { serviceType: true } });
   const onTime = Boolean(payment.paidDate && paymentWasOnTime(payment.paidDate, payment.dueDate));
-  const message = onTime
+  const awardsPoints = onTime && Boolean(student && isCompetitiveGamificationEligible(student.serviceType));
+  const message = awardsPoints
     ? `Tu pago fue cargado correctamente. Sumaste +${ON_TIME_PAYMENT_POINTS} puntos por pagar en término.`
     : "Tu pago fue cargado correctamente.";
   await transaction.studentNotification.upsert({
@@ -63,7 +66,7 @@ export async function persistPaymentConfirmation(
     },
     update: {},
   });
-  if (onTime && payment.paidDate) {
+  if (awardsPoints && payment.paidDate) {
     await transaction.studentPointTransaction.upsert({
       where: {
         studentId_eventKey: {
@@ -85,14 +88,17 @@ export async function persistPaymentConfirmation(
       update: { active: true, invalidatedAt: null },
     });
   }
-  return { onTime, message };
+  return { onTime, awardsPoints, message };
 }
 
 export async function sendPaymentConfirmationPush(
   payment: Pick<StudentPayment, "id" | "studentId" | "paidDate" | "dueDate">,
 ) {
-  const onTime = Boolean(payment.paidDate && paymentWasOnTime(payment.paidDate, payment.dueDate));
-  const body = onTime
+  const [student, onTime] = await Promise.all([
+    prisma.studentRecord.findUnique({ where: { id: payment.studentId }, select: { serviceType: true } }),
+    Promise.resolve(Boolean(payment.paidDate && paymentWasOnTime(payment.paidDate, payment.dueDate))),
+  ]);
+  const body = onTime && student && isCompetitiveGamificationEligible(student.serviceType)
     ? `Tu pago fue cargado correctamente. Sumaste +${ON_TIME_PAYMENT_POINTS} puntos por pagar en término.`
     : "Tu pago fue cargado correctamente.";
   await sendStudentPush(payment.studentId, {

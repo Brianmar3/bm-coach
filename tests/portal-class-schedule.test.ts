@@ -414,7 +414,8 @@ test("Inicio replica la jerarquía compacta y conecta todos los accesos de la re
   for (const label of ["Inicio", "Rutina", "Clases", "Nutrición", "Evaluación"]) assert.match(shell, new RegExp(label));
   assert.match(home, /grid grid-cols-2/);
   const quickStats = home.slice(home.indexOf("function HomeQuickStats"), home.indexOf("function WeeklyMissionAchievement"));
-  assert.doesNotMatch(quickStats, /Progreso del plan|Progreso resumido|href="\/portal\/progreso"/);
+  assert.match(quickStats, /competitive \? <Link href="\/portal\/puntos"/);
+  assert.match(quickStats, /href="\/portal\/progreso"/);
   assert.doesNotMatch(overview, /overflow-x-auto/);
 });
 
