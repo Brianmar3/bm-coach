@@ -241,11 +241,9 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                               }`}
                             />
                             <span className="min-w-0">
-                              {audience === "student" && (
-                                <span className="mb-0.5 block text-xs font-bold text-yellow-300">
+                              <span className="mb-0.5 block text-xs font-bold text-yellow-300">
                                   {notification.title}
-                                </span>
-                              )}
+                              </span>
                               <span
                                 className={`block text-sm leading-5 ${
                                   notification.readAt

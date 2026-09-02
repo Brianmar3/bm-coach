@@ -639,6 +639,7 @@ model StudentNotification {
 enum TrainerNotificationType {
   CLASS_RESPONSE
   POINTS
+  WORKOUT_COMPLETED
 }
 
 model TrainerPushSubscription {

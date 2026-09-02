@@ -5,6 +5,7 @@ import webpush from "web-push";
 import { ClassResponseStatus, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { buildWorkoutCompletionNotification, type WorkoutCompletionNotificationInput } from "@/lib/workout-completion-notification";
 
 export const TRAINER_OWNER_KEY = "coach";
 
@@ -249,6 +250,37 @@ export async function createAttendanceTrainerNotification(
 
     console.error("[trainer-notification] No se pudo crear la notificación", {
       eventKey: input.eventKey,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+export async function createWorkoutCompletedTrainerNotification(
+  input: WorkoutCompletionNotificationInput,
+) {
+  const content = buildWorkoutCompletionNotification(input);
+  try {
+    const notification = await prisma.trainerNotification.create({
+      data: {
+        ownerKey: TRAINER_OWNER_KEY,
+        type: "WORKOUT_COMPLETED",
+        eventKey: content.eventKey,
+        title: content.title,
+        message: content.message,
+        url: content.url,
+        studentId: input.studentId,
+      },
+    });
+    return {
+      notification,
+      payload: { title: content.title, body: content.message, url: content.url, tag: content.tag },
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return null;
+    console.error("[trainer-notification] No se pudo crear la notificación de entrenamiento", {
+      eventKey: content.eventKey,
       errorName: error instanceof Error ? error.name : "UnknownError",
       errorMessage: error instanceof Error ? error.message : String(error),
     });

@@ -10,6 +10,9 @@ import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import { validateWorkoutSessionInput } from "@/lib/workout-session-validation";
 import { getWeekKey, getWorkoutWeekRange, weeklySessionLockKey } from "@/lib/workout-week";
+import { after } from "next/server";
+import { createWorkoutCompletedTrainerNotification, dispatchTrainerPush } from "@/lib/trainer-notifications";
+import { isWorkoutTrainerNotificationEligible } from "@/lib/workout-completion-notification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -268,6 +271,21 @@ export async function POST(request: Request) {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     saveStage = "post-save";
     const student = session.credential.student.data as unknown as Student;
+    if (input.status === "finalizado" && isWorkoutTrainerNotificationEligible(session.credential.student.serviceType)) {
+      const studentName = [student.firstName, student.lastName].filter(Boolean).join(" ").trim();
+      const result = await createWorkoutCompletedTrainerNotification({
+        studentId: session.studentId,
+        sessionId: saved.id,
+        serviceType: session.credential.student.serviceType,
+        studentName,
+        sessionName: routineDayNameSnapshot || routineNameSnapshot,
+        durationMinutes: input.durationMinutes,
+        exerciseCount: input.exercises.length || null,
+      });
+      if (result) after(() => dispatchTrainerPush(result.notification.id, result.payload).catch((pushError) => {
+        console.error("No se pudo enviar el entrenamiento completado por push", pushError);
+      }));
+    }
     const achievements = input.status === "finalizado"
       ? (await loadStrengthAchievements(session.studentId, new Date(`${bmTrainingActivityStart(student.joinedAt)}T12:00:00Z`))).filter((achievement) => achievement.sessionId === saved.id)
       : [];
