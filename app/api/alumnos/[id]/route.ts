@@ -2,7 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInput, serializeStudent, studentInclude, studentJsonData } from "@/lib/student-enrollment";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
-import { recordStudentHistoryChange } from "@/lib/student-history";
+import { recordStudentDeactivation, recordStudentHistoryChange } from "@/lib/student-history";
+import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
       if (normalizedPhone && await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
       const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
-        where: { id: { in: input.scheduleIds } },
+        where: { id: { in: input.scheduleIds }, archivedAt: null },
         select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { active: true } }, _count: { select: { assignments: { where: { active: true } } } } },
       }) : [];
       if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("El horario seleccionado no es válido.");
@@ -72,11 +73,32 @@ export async function PATCH(request: Request, context: RouteContext<"/api/alumno
 export async function DELETE(_request: Request, context: RouteContext<"/api/alumnos/[id]">) {
   try {
     const { id } = await context.params;
-    await prisma.studentRecord.delete({ where: { id } });
-    return new Response(null, { status: 204 });
+    const record = await prisma.$transaction(async (transaction) => {
+      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, data: true, serviceType: true } });
+      if (!current) throw new EnrollmentError("Alumno no encontrado.");
+      const now = new Date();
+      const currentPeriod = dateKeyToDatabase(argentinaDateKey());
+      await recordStudentDeactivation(transaction, id, current.data, current.serviceType);
+      await Promise.all([
+        transaction.weeklyClassAssignment.updateMany({ where: { studentId: id, active: true }, data: { active: false, endedAt: now } }),
+        transaction.trainingRoutineAssignment.updateMany({ where: { studentId: id, active: true }, data: { active: false, archivedAt: now } }),
+        transaction.studentPortalCredential.updateMany({ where: { studentId: id }, data: { active: false } }),
+        transaction.studentPushSubscription.updateMany({ where: { studentId: id, active: true }, data: { active: false } }),
+        transaction.monthlyStudentObligation.updateMany({
+          where: { studentId: id, period: { gt: currentPeriod }, paidAmount: 0, status: { in: ["PENDING", "OVERDUE"] } },
+          data: { status: "VOID", balance: 0 },
+        }),
+      ]);
+      await transaction.studentRecord.update({
+        where: { id },
+        data: { primaryScheduleId: null, data: { ...(current.data as Prisma.JsonObject), status: "inactivo", lifecycleStatus: "inactivo" } },
+      });
+      return transaction.studentRecord.findUniqueOrThrow({ where: { id }, include: studentInclude });
+    });
+    return Response.json({ action: "deactivated", student: serializeStudent(record) });
   } catch (error) {
     console.error("Error al eliminar alumno", error);
-    if (missingRecord(error)) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
-    return Response.json({ error: databaseUnavailable(error) ? "Neon no está disponible temporalmente." : "No se pudo eliminar el alumno porque tiene información relacionada." }, { status: databaseUnavailable(error) ? 503 : 409 });
+    if (error instanceof EnrollmentError || missingRecord(error)) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
+    return Response.json({ error: databaseUnavailable(error) ? "Neon no está disponible temporalmente." : "No se pudo dar de baja al alumno." }, { status: databaseUnavailable(error) ? 503 : 500 });
   }
 }

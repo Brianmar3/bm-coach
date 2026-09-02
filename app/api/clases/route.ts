@@ -15,6 +15,7 @@ function databaseError(error: unknown) {
 export async function GET() {
   try {
     const schedules = await prisma.weeklyClassSchedule.findMany({
+      where: { archivedAt: null },
       include: weeklyClassInclude,
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }, { classType: "asc" }],
     });

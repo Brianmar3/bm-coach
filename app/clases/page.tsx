@@ -162,13 +162,13 @@ export default function ClasesPage() {
   }
 
   async function remove(schedule: WeeklyClassSchedule) {
-    if (!window.confirm(`¿Eliminar definitivamente el horario de ${schedule.classType} del ${dayName(schedule.dayOfWeek).toLowerCase()}?`)) return;
+    if (!window.confirm(`¿Eliminar el horario de ${schedule.classType} del ${dayName(schedule.dayOfWeek).toLowerCase()}?\n\nSe quitará de la planificación futura. Las clases y asistencias anteriores se conservarán.`)) return;
     setError("");
     try {
       const response = await fetch(`/api/clases/${schedule.id}`, { method: "DELETE" });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo eliminar el horario."));
-      const result = await response.json() as { action: "archived" | "deleted"; message: string };
-      setSchedules((current) => result.action === "deleted" ? current.filter((item) => item.id !== schedule.id) : current.map((item) => item.id === schedule.id ? { ...item, active: false } : item));
+      await response.json() as { action: "deleted"; message: string };
+      setSchedules((current) => current.filter((item) => item.id !== schedule.id));
       setViewing(null);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el horario.");
@@ -273,7 +273,7 @@ function ScheduleDetail({ schedule, close, edit, changeActive, remove }: { sched
           >
             Tomar asistencia
           </Link>
-          <button onClick={edit} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950">Editar y asignar alumnos</button><button onClick={changeActive} className="rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-white">{schedule.active ? "Desactivar horario" : "Activar horario"}</button><button onClick={remove} className="rounded-xl border border-red-400/30 px-4 py-3 text-sm font-semibold text-red-300 sm:col-span-2">Eliminar definitivamente</button>
+          <button onClick={edit} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950">Editar y asignar alumnos</button><button onClick={changeActive} className="rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-white">{schedule.active ? "Desactivar horario" : "Activar horario"}</button><button onClick={remove} className="rounded-xl border border-red-400/30 px-4 py-3 text-sm font-semibold text-red-300 sm:col-span-2">Eliminar horario</button>
         </div>
       </section>
     </div>

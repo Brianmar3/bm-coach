@@ -1,12 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseWeeklyClassInput, serializeWeeklyClass, studentsExist, weeklyClassInclude } from "@/lib/weekly-classes";
-import { syncFutureOccurrenceNamesForSchedule } from "@/lib/class-occurrences";
+import { syncFutureOccurrenceNamesForSchedule, syncScheduleFutureVisibility } from "@/lib/class-occurrences";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 class UnknownStudentError extends Error {}
+class ArchivedScheduleError extends Error {}
 
 function databaseError(error: unknown) {
   return error instanceof Prisma.PrismaClientInitializationError ||
@@ -20,7 +21,7 @@ function notFound(error: unknown) {
 export async function GET(_request: Request, context: RouteContext<"/api/clases/[id]">) {
   try {
     const { id } = await context.params;
-    const schedule = await prisma.weeklyClassSchedule.findUnique({ where: { id }, include: weeklyClassInclude });
+    const schedule = await prisma.weeklyClassSchedule.findFirst({ where: { id, archivedAt: null }, include: weeklyClassInclude });
     if (!schedule) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });
     return Response.json(serializeWeeklyClass(schedule));
   } catch (error) {
@@ -36,6 +37,8 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
     if (!parsed.data) return Response.json({ error: parsed.error }, { status: 400 });
     const { studentIds, ...scheduleData } = parsed.data;
     const schedule = await prisma.$transaction(async (transaction) => {
+      const currentSchedule = await transaction.weeklyClassSchedule.findFirst({ where: { id, archivedAt: null }, select: { active: true } });
+      if (!currentSchedule) throw new ArchivedScheduleError();
       if (!await studentsExist(transaction, studentIds)) throw new UnknownStudentError();
       const previousAssignments = await transaction.weeklyClassAssignment.findMany({
         where: { scheduleId: id, active: true },
@@ -67,6 +70,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
         include: weeklyClassInclude,
       });
       await syncFutureOccurrenceNamesForSchedule(updatedSchedule, transaction);
+      if (currentSchedule.active !== updatedSchedule.active) await syncScheduleFutureVisibility(id, updatedSchedule.active, transaction);
       return updatedSchedule;
     });
     return Response.json(serializeWeeklyClass(schedule));
@@ -74,6 +78,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
     console.error("Error al actualizar horario semanal", error);
     if (error instanceof SyntaxError) return Response.json({ error: "El cuerpo de la solicitud no es válido." }, { status: 400 });
     if (error instanceof UnknownStudentError) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 400 });
+    if (error instanceof ArchivedScheduleError) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });
     if (notFound(error)) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });
     return Response.json({ error: databaseError(error) ? "Neon no está disponible temporalmente." : "No se pudo actualizar el horario semanal." }, { status: databaseError(error) ? 503 : 500 });
   }
@@ -82,17 +87,19 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
 export async function DELETE(_request: Request, context: RouteContext<"/api/clases/[id]">) {
   try {
     const { id } = await context.params;
-    const schedule = await prisma.weeklyClassSchedule.findUnique({
-      where: { id },
-      select: { id: true, _count: { select: { occurrences: true, attendances: true } } },
+    const schedule = await prisma.weeklyClassSchedule.findFirst({
+      where: { id, archivedAt: null },
+      select: { id: true },
     });
     if (!schedule) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });
-    if (schedule._count.occurrences > 0 || schedule._count.attendances > 0) {
-      await prisma.weeklyClassSchedule.update({ where: { id }, data: { active: false } });
-      return Response.json({ action: "archived", message: "El horario fue desactivado porque tiene historial asociado." });
-    }
-    await prisma.weeklyClassSchedule.delete({ where: { id } });
-    return Response.json({ action: "deleted", message: "Horario eliminado definitivamente." });
+    await prisma.$transaction(async (transaction) => {
+      const now = new Date();
+      await transaction.weeklyClassAssignment.updateMany({ where: { scheduleId: id, active: true }, data: { active: false, endedAt: now } });
+      await transaction.studentRecord.updateMany({ where: { primaryScheduleId: id }, data: { primaryScheduleId: null } });
+      await transaction.weeklyClassSchedule.update({ where: { id }, data: { active: false, archivedAt: now } });
+      await syncScheduleFutureVisibility(id, false, transaction);
+    });
+    return Response.json({ action: "deleted", message: "El horario se eliminó de la planificación futura. El historial anterior se conservó." });
   } catch (error) {
     console.error("Error al eliminar horario semanal", error);
     if (notFound(error)) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });

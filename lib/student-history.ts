@@ -86,3 +86,34 @@ export async function recordStudentHistoryChange(
     });
   }
 }
+
+export async function recordStudentDeactivation(
+  transaction: Prisma.TransactionClient,
+  studentId: string,
+  currentData: Prisma.JsonValue,
+  currentServiceType: ParsedStudentInput["serviceType"],
+) {
+  const current = currentData as unknown as Partial<Student>;
+  if (currentStudentStatus(current) === "inactivo") return;
+  const effectiveDate = dateKeyToDatabase(argentinaDateKey());
+  await transaction.studentMembershipHistory.updateMany({
+    where: { studentId, endDate: null },
+    data: { endDate: effectiveDate, endReason: "Baja registrada desde la ficha del alumno" },
+  });
+  await Promise.all([
+    transaction.studentMembershipHistory.create({
+      data: {
+        studentId,
+        startDate: effectiveDate,
+        planName: current.plan ?? "Sin plan",
+        frequencyDays: planDays(current.plan ?? ""),
+        serviceType: currentServiceType,
+        monthlyAmount: Number(current.monthlyFee ?? 0) > 0 ? Number(current.monthlyFee) : null,
+        status: "INACTIVE",
+      },
+    }),
+    transaction.studentStatusEvent.create({
+      data: { studentId, type: "DEACTIVATION", eventDate: effectiveDate, actor: HISTORY_ACTOR },
+    }),
+  ]);
+}

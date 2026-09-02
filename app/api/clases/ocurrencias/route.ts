@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     await ensureClassOccurrences(35);
     const url = new URL(request.url);
     const date = url.searchParams.get("date");
-    const where = date && isDateKey(date) ? { date: dateKeyToDatabase(date) } : undefined;
+    const where = { suppressedBySchedule: false, ...(date && isDateKey(date) ? { date: dateKeyToDatabase(date) } : {}) };
     const occurrences = await prisma.classOccurrence.findMany({
       where,
       include: {

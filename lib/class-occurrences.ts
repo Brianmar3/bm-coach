@@ -96,7 +96,7 @@ export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = 
   const today = argentinaDateKey();
   const end = addDateKeyDays(today, daysAhead);
   const schedules = await client.weeklyClassSchedule.findMany({
-    where: { active: true },
+    where: { active: true, archivedAt: null },
     select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true, capacity: true },
   });
   const rows: Prisma.ClassOccurrenceCreateManyInput[] = [];
@@ -121,6 +121,20 @@ export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = 
     await syncFutureOccurrenceNamesForSchedule(schedule, client);
   }
   return { from: today, to: end };
+}
+
+export async function syncScheduleFutureVisibility(scheduleId: string, active: boolean, client: DbClient = prisma) {
+  const today = dateKeyToDatabase(argentinaDateKey());
+  if (active) {
+    return client.classOccurrence.updateMany({
+      where: { scheduleId, date: { gte: today }, suppressedBySchedule: true },
+      data: { status: "SCHEDULED", suppressedBySchedule: false },
+    });
+  }
+  return client.classOccurrence.updateMany({
+    where: { scheduleId, date: { gte: today }, status: "SCHEDULED" },
+    data: { status: "CANCELLED", suppressedBySchedule: true },
+  });
 }
 
 export function occurrenceStatusLabel(status: string, started: boolean, ended = started) {

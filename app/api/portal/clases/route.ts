@@ -83,7 +83,7 @@ export async function GET() {
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
         date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) },
-        schedule: { active: true },
+        schedule: { active: true, archivedAt: null },
       },
       include: occurrenceInclude(session.studentId),
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
@@ -126,6 +126,7 @@ export async function POST(request: Request) {
             select: {
               classType: true,
               active: true,
+              archivedAt: true,
             },
           },
           _count: { select: { responses: { where: { response: "GOING" } } } },
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
         },
       });
       if (!occurrence) throw new Error("NOT_FOUND");
-      if (!occurrence.schedule?.active || !classIsEligibleForStudent(occurrence.schedule.classType, student.studentType)) throw new Error("NOT_FOUND");
+      if (!occurrence.schedule?.active || occurrence.schedule.archivedAt || !classIsEligibleForStudent(occurrence.schedule.classType, student.studentType)) throw new Error("NOT_FOUND");
       if (occurrence.status !== "SCHEDULED" || occurrenceHasStarted(occurrence.date, occurrence.startTime)) throw new Error("CLOSED");
       const previousResponse = occurrence.responses[0]?.response ?? null;
       const alreadyGoing = previousResponse === "GOING";

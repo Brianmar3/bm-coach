@@ -253,7 +253,7 @@ test("la API deriva el alumno desde sesión y consulta la agenda general activa"
   const source = readFileSync(new URL("../app/api/portal/clases/route.ts", import.meta.url), "utf8");
   assert.match(source, /session\.studentId/);
   assert.doesNotMatch(source, /input\.studentId/);
-  assert.match(source, /schedule: \{ active: true \}/);
+  assert.match(source, /schedule: \{ active: true, archivedAt: null \}/);
   assert.doesNotMatch(source, /assignedScheduleIds/);
   assert.doesNotMatch(source, /occurrenceBelongsToStudent/);
 });
