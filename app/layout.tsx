@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppFrame } from "@/componentes/app-frame";
 import { BmTrainingSplash } from "@/componentes/bm-training-splash";
+import { PwaServiceWorkerRegistration } from "@/componentes/pwa-service-worker-registration";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="h-full" style={{ backgroundColor: "#0B0B0C" }}>
       <body className="min-h-full text-white" style={{ backgroundColor: "#0B0B0C" }}>
+        <PwaServiceWorkerRegistration />
         <BmTrainingSplash />
         <div id="bm-app-root">
           <AppFrame>{children}</AppFrame>

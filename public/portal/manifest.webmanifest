@@ -3,9 +3,10 @@
   "short_name": "BM Training",
   "description": "Gestión, entrenamiento y seguimiento",
   "id": "/portal",
-  "start_url": "/portal/login",
+  "start_url": "/portal",
   "scope": "/portal/",
   "display": "standalone",
+  "display_override": ["standalone"],
   "background_color": "#000000",
   "theme_color": "#000000",
   "icons": [
