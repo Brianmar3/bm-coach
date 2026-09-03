@@ -156,12 +156,12 @@ function PortalOverview({ data }: { data: PortalData }) {
   const showRoutineHomeCard = hasPersonalizedService(data.profile.serviceType) && (routineFocused || Boolean(data.routine));
   const homePlan = showRoutineHomeCard ? personalizedHomePlan(data) : null;
   return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4">
-    <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-5 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 min-[390px]:py-6 sm:p-8">
+    <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-4 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 sm:p-8">
       <span aria-hidden="true" className="portal-home-light-sweep" />
-      <div className={`relative min-h-[8rem] sm:min-h-[9rem] ${groupClassesEnabled && !routineFocused ? "pr-[6.4rem] min-[390px]:pr-[7.2rem] sm:pr-36" : ""}`}>
+      <div className={`relative min-h-[7rem] sm:min-h-[9rem] ${groupClassesEnabled && !routineFocused ? "pr-[6.4rem] min-[390px]:pr-[7.2rem] sm:pr-36" : ""}`}>
         <p className="flex items-center gap-2.5 text-xs text-zinc-500 sm:text-sm"><BmCalendarIcon size={19} className="shrink-0 text-yellow-400" />{todayLabel}</p>
-        <h1 className="mt-6 text-[clamp(1.85rem,8vw,3.15rem)] font-black leading-none tracking-[-.045em] text-zinc-50 sm:mt-7">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
-        <p className="mt-2.5 max-w-md text-sm leading-relaxed text-zinc-500 sm:text-base">{routineFocused ? "Hoy avanzás una parte más de tu plan." : "Vamos por un día más de progreso."}</p>
+        <h1 className="mt-4 text-[clamp(1.85rem,8vw,3.15rem)] font-black leading-none tracking-[-.045em] text-zinc-50 sm:mt-7">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
+        <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500 sm:mt-2.5 sm:text-base">{routineFocused ? "Hoy avanzás una parte más de tu plan." : "Vamos por un día más de progreso."}</p>
         {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </header>
