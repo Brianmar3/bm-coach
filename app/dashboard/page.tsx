@@ -69,9 +69,8 @@ export default function Home() {
 function Hero({ data, coachName }: { data: DashboardData | null; coachName: string }) {
   return <header className="admin-welcome mb-3 rounded-2xl px-4 py-4 sm:px-5 sm:py-4">
     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
-    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400 sm:text-sm">
+    <p className="mt-2 text-xs text-zinc-400 sm:text-sm">
       <span className="inline-flex items-center gap-1.5 font-medium capitalize text-zinc-300"><DashboardIcon name="calendar" />{data ? showDate(data.today, true) : "—"}</span>
-      {data && <><span aria-hidden="true">·</span><span>{data.metrics.activeStudents} alumnos activos</span><span aria-hidden="true">·</span><span className={data.metrics.pendingCount ? "text-red-300" : "text-zinc-400"}>{data.metrics.pendingCount} pendientes</span></>}
     </p>
   </header>;
 }
