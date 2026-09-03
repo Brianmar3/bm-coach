@@ -83,10 +83,9 @@ export type DashboardActivityCandidate = {
 };
 
 export function lowActivityStudentIds(candidates: DashboardActivityCandidate[]) {
-  return candidates.filter((student) => {
+  return [...new Set(candidates.filter((student) => {
     if (student.status !== "activo") return false;
-    if (student.serviceType === "PERSONALIZED") return student.hasEstablishedRoutine && !student.hasRecentWorkout;
-    if (student.serviceType === "CLASSES") return student.hasEstablishedClasses && !student.hasRecentAttendance;
-    return (student.hasEstablishedRoutine || student.hasEstablishedClasses) && !student.hasRecentWorkout && !student.hasRecentAttendance;
-  }).map((student) => student.studentId);
+    if (student.serviceType === "PERSONALIZED") return false;
+    return student.hasEstablishedClasses && !student.hasRecentAttendance;
+  }).map((student) => student.studentId))];
 }

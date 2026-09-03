@@ -24,10 +24,12 @@ test("baja actividad respeta servicio, actividad real, vigencia y estado activo 
   assert.deepEqual(lowActivityStudentIds([
     { ...base, studentId: "personal", serviceType: "PERSONALIZED", hasEstablishedRoutine: true },
     { ...base, studentId: "class", serviceType: "CLASSES", hasEstablishedClasses: true },
-    { ...base, studentId: "mixed", serviceType: "MIXED", hasEstablishedRoutine: true, hasRecentAttendance: true },
+    { ...base, studentId: "class", serviceType: "CLASSES", hasEstablishedClasses: true },
+    { ...base, studentId: "mixed", serviceType: "MIXED", hasEstablishedClasses: true },
+    { ...base, studentId: "present", serviceType: "CLASSES", hasEstablishedClasses: true, hasRecentAttendance: true },
     { ...base, studentId: "inactive", serviceType: "PERSONALIZED", status: "inactivo", hasEstablishedRoutine: true },
     { ...base, studentId: "new", serviceType: "CLASSES" },
-  ]), ["personal", "class"]);
+  ]), ["class", "mixed"]);
 });
 
 test("la evaluación más reciente por alumno define reevaluaciones y trabajos en curso", () => {
@@ -73,11 +75,23 @@ test("Atención hoy usa datos reales, rutas válidas y no incluye confirmaciones
   const route = readFileSync(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8");
   const attention = page.slice(page.indexOf("function AttentionToday"), page.indexOf("function TodayClasses"));
   for (const value of ["cuotas requieren atención", "baja actividad", "entrenamiento completado", "registrados hoy", "Todo al día por hoy"]) assert.match(attention, new RegExp(value));
-  for (const href of ["/pagos", "/rutinas?tab=seguimiento", "/resumen-mensual"]) assert.match(attention, new RegExp(href.replace(/[?]/g, "\\?")));
+  for (const href of ["/pagos", "/asistencias?view=low-activity", "/resumen-mensual"]) assert.match(attention, new RegExp(href.replace(/[?]/g, "\\?")));
+  const lowActivityRow = attention.split("\n").find((line) => line.includes('id: "activity"')) ?? "";
+  assert.doesNotMatch(lowActivityRow, /\/rutinas\?tab=seguimiento/);
   assert.doesNotMatch(attention, /confirmad|sin confirmar/i);
   assert.match(route, /registeredTodaySummary/);
   assert.match(route, /requireAdminApiResponse/);
   assert.match(route, /status: "COMPLETED"/);
+});
+
+test("la vista de baja actividad expone asistencia, frecuencia y contacto con teléfono real", () => {
+  const page = readFileSync(new URL("../app/asistencias/page.tsx", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8");
+  for (const label of ["Última asistencia", "Días desde última asistencia", "Frecuencia semanal", "Sin teléfono"]) assert.match(page, new RegExp(label));
+  assert.match(page, /https:\/\/wa\.me\/\$\{student\.phoneNormalized\}/);
+  assert.match(route, /String\(student\.phone \?\? ""\)\.replace\(\/\\D\/g, ""\)/);
+  assert.match(route, /actualAttendance: "PRESENT"/);
+  assert.match(route, /status: "PRESENT"/);
 });
 
 test("el endpoint recorta listados, agrupa puntos y evita consultas por fila", () => {

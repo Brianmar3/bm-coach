@@ -9,6 +9,7 @@ import { toggledAttendanceStatus } from "@/lib/attendance-state";
 import { nextRosterIndex, rosterStatusForKey } from "@/lib/trainer-keyboard-interactions";
 import { apiRequest } from "@/lib/client-api";
 import type { AttendanceGeneralSummary, AttendanceRoster, AttendanceRosterStudent, AttendanceStatus, Student, WeeklyClassDay, WeeklyClassSchedule } from "@/types/gestion";
+import type { DashboardData, DashboardLowActivityStudent } from "@/types/dashboard";
 
 const DAY_FROM_JS: Partial<Record<number, WeeklyClassDay>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
 const DAY_LABEL: Record<WeeklyClassDay, string> = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" };
@@ -35,6 +36,7 @@ function AttendancePageContent() {
   const targetStudentId = searchParams.get("studentId") ?? "";
   const calendarMode = Boolean(entryScheduleId);
   const historyMode = searchParams.get("view") === "history";
+  const lowActivityMode = searchParams.get("view") === "low-activity";
   const weeklyHistoryMode = historyMode && searchParams.get("mode") !== "day";
   const [date, setDate] = useState(searchParams.get("date") || todayKey());
   const [schedules, setSchedules] = useState<WeeklyClassSchedule[]>([]);
@@ -42,6 +44,7 @@ function AttendancePageContent() {
   const [scheduleId, setScheduleId] = useState(entryScheduleId);
   const [roster, setRoster] = useState<AttendanceRosterStudent[]>([]);
   const [summary, setSummary] = useState<AttendanceGeneralSummary | null>(null);
+  const [lowActivityStudents, setLowActivityStudents] = useState<DashboardLowActivityStudent[]>([]);
   const [studentQuery, setStudentQuery] = useState("");
   const [addingStudent, setAddingStudent] = useState(false);
   const [addStudentQuery, setAddStudentQuery] = useState("");
@@ -56,14 +59,25 @@ function AttendancePageContent() {
   const [activeRosterIndex, setActiveRosterIndex] = useState(-1);
 
   useEffect(() => {
-    if (historyMode) return;
+    if (historyMode || lowActivityMode) return;
     const controller = new AbortController();
     Promise.all([
       fetch("/api/clases", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los horarios.")); return response.json() as Promise<WeeklyClassSchedule[]>; }),
       fetch("/api/alumnos", { cache: "no-store", signal: controller.signal }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los alumnos.")); return response.json() as Promise<Student[]>; }),
     ]).then(([weeklySchedules, realStudents]) => { setSchedules(weeklySchedules); setStudents(realStudents); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); }).finally(() => setReady(true));
     return () => controller.abort();
-  }, [historyMode]);
+  }, [historyMode, lowActivityMode]);
+
+  useEffect(() => {
+    if (!lowActivityMode) return;
+    const controller = new AbortController();
+    fetch("/api/dashboard", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los alumnos con baja actividad.")); return response.json() as Promise<DashboardData>; })
+      .then((result) => setLowActivityStudents(result.attentionToday.lowActivityStudents))
+      .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setError(loadError.message); })
+      .finally(() => setReady(true));
+    return () => controller.abort();
+  }, [lowActivityMode]);
 
   const dateSchedules = useMemo(() => {
     const day = dateDay(date);
@@ -73,13 +87,13 @@ function AttendancePageContent() {
   const selectedSchedule = schedules.find((schedule) => schedule.id === effectiveScheduleId) ?? null;
 
   useEffect(() => {
-    if (weeklyHistoryMode) return;
+    if (weeklyHistoryMode || lowActivityMode) return;
     const controller = new AbortController();
     fetch(`/api/asistencias/resumen?date=${date}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudo cargar el resumen.")); return response.json() as Promise<AttendanceGeneralSummary>; })
       .then(setSummary).catch((summaryError: unknown) => { if (summaryError instanceof Error && summaryError.name !== "AbortError") setError(summaryError.message); });
     return () => controller.abort();
-  }, [date, weeklyHistoryMode]);
+  }, [date, lowActivityMode, weeklyHistoryMode]);
 
   const loadRoster = useCallback((targetScheduleId: string, targetDate = date) => {
     const controller = new AbortController();
@@ -100,10 +114,10 @@ function AttendancePageContent() {
   }, [date]);
 
   useEffect(() => {
-    if (historyMode) return;
+    if (historyMode || lowActivityMode) return;
     const controller = loadRoster(effectiveScheduleId || "", date);
     return () => controller.abort();
-  }, [date, effectiveScheduleId, historyMode, loadRoster]);
+  }, [date, effectiveScheduleId, historyMode, loadRoster, lowActivityMode]);
 
   const rosterStudents = useMemo(() => {
     const normalized = studentQuery.trim().toLocaleLowerCase("es");
@@ -214,8 +228,9 @@ function AttendancePageContent() {
       {error && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
       {refreshWarning && <p role="status" className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">{refreshWarning}</p>}
       {saved && <p className="mb-4 text-sm font-medium text-emerald-300">✓ Asistencia actualizada</p>}
-      {selectedSchedule && <section className="mb-3 rounded-xl border border-zinc-800 bg-zinc-900/80 px-4 py-3"><p className="text-[11px] font-bold uppercase tracking-wider text-yellow-400">{DAY_LABEL[selectedSchedule.dayOfWeek]} · {selectedSchedule.startTime}–{selectedSchedule.endTime}</p><div className="mt-1 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold">{selectedSchedule.classType}</h2><p className="text-xs text-zinc-500">{selectedSchedule.students.length} alumnos asignados</p></div></section>}
-      <section className={`${historyMode ? "hidden " : ""}overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80`}>
+      {lowActivityMode && <LowActivityView students={lowActivityStudents} ready={ready} />}
+      {!lowActivityMode && selectedSchedule && <section className="mb-3 rounded-xl border border-zinc-800 bg-zinc-900/80 px-4 py-3"><p className="text-[11px] font-bold uppercase tracking-wider text-yellow-400">{DAY_LABEL[selectedSchedule.dayOfWeek]} · {selectedSchedule.startTime}–{selectedSchedule.endTime}</p><div className="mt-1 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold">{selectedSchedule.classType}</h2><p className="text-xs text-zinc-500">{selectedSchedule.students.length} alumnos asignados</p></div></section>}
+      <section className={`${historyMode || lowActivityMode ? "hidden " : ""}overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80`}>
         <div className="grid gap-3 border-b border-zinc-800 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><label className="text-xs text-zinc-400">Fecha<input type="date" value={date} onChange={(event) => changeDate(event.target.value)} className={`${inputClass} mt-1`} /></label><button disabled={saving || !roster.some((student) => student.assigned)} onClick={markAllPresent} className="min-h-11 rounded-xl border border-emerald-400/40 px-4 text-sm font-bold text-emerald-300 disabled:opacity-50">Marcar todos presentes</button></div>
         <div className="border-b border-zinc-800 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-end"><label className="min-w-0 flex-1 text-sm">Buscar alumno<input value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Nombre o apellido" className={`${inputClass} mt-1`} /></label><button type="button" onClick={() => setAddingStudent((value) => !value)} className="min-h-11 shrink-0 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-yellow-300">+ Agregar alumno</button></div>{addingStudent && <div className="mt-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3"><label className="text-xs text-zinc-400">Buscar alumno activo<input autoFocus value={addStudentQuery} onChange={(event) => setAddStudentQuery(event.target.value)} placeholder="Nombre, apellido o teléfono" className={`${inputClass} mt-1`} /></label>{addStudentQuery.trim() && <div className="mt-2 overflow-hidden rounded-lg border border-zinc-800">{!ready ? <p className="p-3 text-sm text-zinc-500">Buscando alumnos…</p> : addableStudents.length ? addableStudents.map((student) => <button key={student.id} type="button" onClick={() => addExceptional(student)} className="flex w-full items-center justify-between gap-3 border-b border-zinc-800 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-zinc-900"><span>{student.firstName} {student.lastName}</span><span className="text-xs text-zinc-500">{student.phone}</span></button>) : <p className="p-3 text-sm text-zinc-500">No se encontraron alumnos activos.</p>}</div>}</div>}</div>
         {!calendarMode && <div className="border-b border-zinc-800 p-4"><label className="text-sm">Horario o grupo (opcional)<select value={effectiveScheduleId} onChange={(event) => changeSchedule(event.target.value)} className={`${inputClass} mt-1`}><option value="">Sin horario fijo</option>{dateSchedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}</select><span className="mt-1 block text-xs text-zinc-500">Podés usar el registro sin horario y corregirlo después.</span></label></div>}
@@ -229,6 +244,37 @@ function AttendancePageContent() {
         {weeklyHistoryMode ? <WeeklyAttendanceHistory /> : <AttendanceHistory summary={summary} />}
       </div>
     </ModuleShell>
+  );
+}
+
+function LowActivityView({ students, ready }: { students: DashboardLowActivityStudent[]; ready: boolean }) {
+  return (
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-800 pb-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-yellow-400">Atención hoy</p>
+          <h1 className="mt-1 text-2xl font-bold">Alumnos con baja actividad</h1>
+          <p className="mt-1 max-w-2xl text-sm text-zinc-400">Alumnos activos de clases sin asistencias presentes en los últimos 7 días.</p>
+        </div>
+        <Link href="/dashboard" className="rounded-xl border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-300">Volver</Link>
+      </div>
+      {!ready ? <p className="py-10 text-center text-zinc-500">Cargando alumnos…</p> : students.length === 0 ? <p className="py-10 text-center text-zinc-400">No hay alumnos con baja actividad.</p> : <div className="mt-4 grid gap-3">{students.map((student) => (
+        <article key={student.studentId} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="truncate font-bold text-zinc-100">{student.studentName}</h2>
+              <p className="mt-0.5 text-xs font-bold text-yellow-400">{student.serviceType}</p>
+            </div>
+            {student.phoneNormalized ? <a href={`https://wa.me/${student.phoneNormalized}`} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-3 py-2 text-sm font-bold text-emerald-300">Contactar</a> : <span className="shrink-0 text-xs text-zinc-500">Sin teléfono</span>}
+          </div>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+            <div><dt className="text-xs text-zinc-500">Última asistencia</dt><dd className="mt-0.5 font-medium">{student.lastAttendanceDate ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date(`${student.lastAttendanceDate}T12:00:00Z`)) : "Sin asistencias registradas"}</dd></div>
+            <div><dt className="text-xs text-zinc-500">Días desde última asistencia</dt><dd className="mt-0.5 font-medium">{student.daysSinceLastAttendance === null ? "Más de 7 días" : `${student.daysSinceLastAttendance} días sin venir`}</dd></div>
+            <div><dt className="text-xs text-zinc-500">Frecuencia semanal</dt><dd className="mt-0.5 font-medium">Plan: {student.weeklyFrequency} {student.weeklyFrequency === 1 ? "día" : "días"}/semana</dd></div>
+          </dl>
+        </article>
+      ))}</div>}
+    </section>
   );
 }
 

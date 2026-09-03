@@ -8,6 +8,16 @@ export type DashboardPriority = {
   tone: "danger" | "warning" | "gold" | "info" | "neutral";
 };
 
+export type DashboardLowActivityStudent = {
+  studentId: string;
+  studentName: string;
+  serviceType: "CLASSES" | "MIXED";
+  phoneNormalized: string;
+  lastAttendanceDate: string | null;
+  daysSinceLastAttendance: number | null;
+  weeklyFrequency: number;
+};
+
 export type DashboardData = {
   generatedAt: string;
   today: string;
@@ -32,6 +42,7 @@ export type DashboardData = {
     overdueCount: number;
     dueSoonCount: number;
     lowActivityStudentCount: number;
+    lowActivityStudents: DashboardLowActivityStudent[];
     completedWorkoutCount: number;
     registeredPaymentTotal: number;
     registeredPaymentCount: number;

@@ -73,7 +73,7 @@ export async function GET() {
     const todayDate = dateKeyToDatabase(today);
     const tomorrowDate = dateKeyToDatabase(addDays(today, 1));
     const recentActivityStart = dateKeyToDatabase(addDays(today, -6));
-    const establishedBefore = argentinaDateTimeBoundary(addDays(today, -6));
+    const establishedBefore = argentinaDateTimeBoundary(addDays(today, -7));
     const weekday = WEEKDAY[todayDate.getUTCDay()];
     await ensureClassOccurrences(35);
 
@@ -151,14 +151,13 @@ export async function GET() {
         select: { studentId: true, date: true },
       }),
       prisma.classAttendance.findMany({
-        where: { status: "PRESENT", date: { gte: recentActivityStart, lt: tomorrowDate } },
-        select: { studentId: true },
-        distinct: ["studentId"],
+        where: { status: "PRESENT", date: { lt: tomorrowDate } },
+        select: { studentId: true, date: true },
+        orderBy: { date: "desc" },
       }),
       prisma.classOccurrenceAttendance.findMany({
-        where: { actualAttendance: "PRESENT", occurrence: { date: { gte: recentActivityStart, lt: tomorrowDate } } },
-        select: { studentId: true },
-        distinct: ["studentId"],
+        where: { actualAttendance: "PRESENT", occurrence: { date: { lt: tomorrowDate } } },
+        select: { studentId: true, occurrence: { select: { date: true } } },
       }),
     ]);
 
@@ -220,13 +219,44 @@ export async function GET() {
     })), today.slice(0, 7), monthIncome, namesByStudent);
     const establishedRoutineIds = new Set(routineAssignments.map((item) => item.studentId));
     const establishedClassIds = new Set(classAssignments.map((item) => item.studentId));
+    const weeklyFrequencyByStudent = new Map<string, number>();
+    for (const assignment of classAssignments) weeklyFrequencyByStudent.set(assignment.studentId, (weeklyFrequencyByStudent.get(assignment.studentId) ?? 0) + 1);
     const recentWorkoutIds = new Set(recentWorkouts.map((item) => item.studentId));
-    const recentAttendanceIds = new Set([...recentAttendances, ...recentOccurrenceAttendances].map((item) => item.studentId));
+    const lastAttendanceByStudent = new Map<string, string>();
+    for (const attendance of recentAttendances) {
+      const date = databaseDateKey(attendance.date);
+      if (date > (lastAttendanceByStudent.get(attendance.studentId) ?? "")) lastAttendanceByStudent.set(attendance.studentId, date);
+    }
+    for (const attendance of recentOccurrenceAttendances) {
+      const date = databaseDateKey(attendance.occurrence.date);
+      if (date > (lastAttendanceByStudent.get(attendance.studentId) ?? "")) lastAttendanceByStudent.set(attendance.studentId, date);
+    }
+    const recentActivityStartKey = databaseDateKey(recentActivityStart);
+    const recentAttendanceIds = new Set([...lastAttendanceByStudent].filter(([, date]) => date >= recentActivityStartKey).map(([studentId]) => studentId));
     const lowActivityIds = lowActivityStudentIds(students.map(({ id, student }) => ({
       studentId: id, status: student.status, serviceType: student.serviceType,
       hasEstablishedRoutine: establishedRoutineIds.has(id), hasEstablishedClasses: establishedClassIds.has(id),
       hasRecentWorkout: recentWorkoutIds.has(id), hasRecentAttendance: recentAttendanceIds.has(id),
     })));
+    const studentById = new Map(students.map(({ id, student }) => [id, student]));
+    const lowActivityStudents = lowActivityIds.map((studentId) => {
+      const student = studentById.get(studentId)!;
+      const lastAttendanceDate = lastAttendanceByStudent.get(studentId) ?? null;
+      return {
+        studentId,
+        studentName: studentName(student),
+        serviceType: student.serviceType as "CLASSES" | "MIXED",
+        phoneNormalized: String(student.phone ?? "").replace(/\D/g, ""),
+        lastAttendanceDate,
+        daysSinceLastAttendance: lastAttendanceDate
+          ? Math.floor((todayDate.getTime() - dateKeyToDatabase(lastAttendanceDate).getTime()) / 86_400_000)
+          : null,
+        weeklyFrequency: weeklyFrequencyByStudent.get(studentId) ?? 0,
+      };
+    }).sort((left, right) =>
+      (right.daysSinceLastAttendance ?? Number.MAX_SAFE_INTEGER) - (left.daysSinceLastAttendance ?? Number.MAX_SAFE_INTEGER)
+      || left.studentName.localeCompare(right.studentName, "es"),
+    );
     const incomeByDate = new Map<string, number>();
     for (const payment of currentPayments) {
       if (!payment.paidDate) continue;
@@ -296,6 +326,7 @@ export async function GET() {
         overdueCount: paymentPriorityCounts.overdue,
         dueSoonCount: dueSoonThreeDaysCount,
         lowActivityStudentCount: new Set(lowActivityIds).size,
+        lowActivityStudents,
         completedWorkoutCount: recentWorkouts.filter((session) => personalizedStudentIds.has(session.studentId) && databaseDateKey(session.date) === today).length,
         registeredPaymentTotal: todayPaymentSummary.registeredTotal,
         registeredPaymentCount: todayPaymentSummary.registeredCount,
