@@ -12,11 +12,12 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const standalone = pathname.startsWith("/portal") || pathname === "/admin/login";
   const classesModule = pathname === "/clases" || pathname === "/asistencias";
+  const viewportStickyPage = pathname === "/resumen-mensual";
   return (
     <>
       <BmBootReady />
       {standalone ? children : (
-        <div className="admin-panel min-h-full max-w-full overflow-x-clip bg-black text-white">
+        <div className={`admin-panel min-h-full max-w-full bg-black text-white ${viewportStickyPage ? "admin-panel--viewport-sticky" : "overflow-x-clip"}`}>
           <AdminTopbar />
           <Sidebar />
           <TrainerCommandPalette />

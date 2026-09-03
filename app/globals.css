@@ -539,6 +539,12 @@ html[data-bm-app-ready="true"] #bm-app-root {
   overflow-x: clip;
 }
 
+/* El resumen mensual contiene un control sticky de página completa. Evitar que
+   el wrapper global cree un límite de recorte distinto en WebView/TWA. */
+.admin-panel.admin-panel--viewport-sticky {
+  overflow-x: visible;
+}
+
 .admin-page {
   background:
     linear-gradient(180deg, rgba(250, 204, 21, 0.018), transparent 15rem),
