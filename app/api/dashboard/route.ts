@@ -16,7 +16,10 @@ import {
   compactRanking,
   countPaymentStatuses,
   latestEvaluationPriorityCounts,
+  lowActivityStudentIds,
 } from "@/lib/dashboard-read-model";
+import { registeredTodaySummary, type TraceablePayment } from "@/lib/monthly-traceability";
+import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,6 +61,8 @@ function databaseUnavailable(error: unknown) {
 
 export async function GET() {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
     const today = argentinaDateKey();
     const monthStart = `${today.slice(0, 7)}-01`;
     const nextMonthStart = addMonthsToDateKey(monthStart);
@@ -67,10 +72,12 @@ export async function GET() {
     const nextWeekStart = addDays(weekStart, 7);
     const todayDate = dateKeyToDatabase(today);
     const tomorrowDate = dateKeyToDatabase(addDays(today, 1));
+    const recentActivityStart = dateKeyToDatabase(addDays(today, -6));
+    const establishedBefore = argentinaDateTimeBoundary(addDays(today, -6));
     const weekday = WEEKDAY[todayDate.getUTCDay()];
     await ensureClassOccurrences(35);
 
-    const [studentRecords, paymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events, evaluations, pointTotals] = await Promise.all([
+    const [studentRecords, paymentRecords, todayPaymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events, evaluations, pointTotals, routineAssignments, classAssignments, recentWorkouts, recentAttendances, recentOccurrenceAttendances] = await Promise.all([
       prisma.studentRecord.findMany({
         select: {
           id: true,
@@ -84,6 +91,11 @@ export async function GET() {
         where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
         select: { amount: true, paidDate: true },
         orderBy: { paidDate: "asc" },
+      }),
+      prisma.studentPayment.findMany({
+        where: { status: "PAGADO", createdAt: { gte: argentinaDateTimeBoundary(today), lt: argentinaDateTimeBoundary(addDays(today, 1)) } },
+        select: { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true, method: true, status: true, createdAt: true },
+        orderBy: [{ createdAt: "desc" }],
       }),
       weekday ? prisma.classOccurrence.findMany({
         where: { date: todayDate },
@@ -126,11 +138,34 @@ export async function GET() {
         where: { active: true, occurredAt: { gte: argentinaDateTimeBoundary(monthStart) } },
         _sum: { points: true },
       }),
+      prisma.trainingRoutineAssignment.findMany({
+        where: { active: true, assignedAt: { lte: establishedBefore }, routine: { kind: "ASSIGNED", status: "ACTIVA", days: { some: { active: true } } } },
+        select: { studentId: true },
+      }),
+      prisma.weeklyClassAssignment.findMany({
+        where: { active: true, assignedAt: { lte: establishedBefore }, schedule: { active: true } },
+        select: { studentId: true },
+      }),
+      prisma.workoutSession.findMany({
+        where: { status: "COMPLETED", date: { gte: recentActivityStart, lt: tomorrowDate } },
+        select: { studentId: true, date: true },
+      }),
+      prisma.classAttendance.findMany({
+        where: { status: "PRESENT", date: { gte: recentActivityStart, lt: tomorrowDate } },
+        select: { studentId: true },
+        distinct: ["studentId"],
+      }),
+      prisma.classOccurrenceAttendance.findMany({
+        where: { actualAttendance: "PRESENT", occurrence: { date: { gte: recentActivityStart, lt: tomorrowDate } } },
+        select: { studentId: true },
+        distinct: ["studentId"],
+      }),
     ]);
 
     const students = studentRecords.map((record) => ({ ...record, student: studentData(record.data) }));
     const active = students.filter(({ student }) => student.status !== "inactivo");
     const activeStudentIds = new Set(active.map(({ id }) => id));
+    const personalizedStudentIds = new Set(active.filter(({ student }) => student.serviceType === "PERSONALIZED" || student.serviceType === "MIXED").map(({ id }) => id));
     const namesByStudent = new Map(active.map(({ id, student }) => [id, studentName(student)]));
     const accounts = active.map(({ id, student, payments }) => ({
       studentId: id,
@@ -177,6 +212,21 @@ export async function GET() {
     const previousPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) < monthStart);
     const monthIncome = currentPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const previousIncome = previousPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const todayPaymentSummary = registeredTodaySummary(todayPaymentRecords.map((payment): TraceablePayment => ({
+      id: payment.id, studentId: payment.studentId, amount: Number(payment.amount), status: payment.status,
+      billingPeriod: payment.billingPeriod ? databaseDateKey(payment.billingPeriod) : null,
+      paidDate: payment.paidDate ? databaseDateKey(payment.paidDate) : null,
+      createdAt: payment.createdAt.toISOString(), method: payment.method,
+    })), today.slice(0, 7), monthIncome, namesByStudent);
+    const establishedRoutineIds = new Set(routineAssignments.map((item) => item.studentId));
+    const establishedClassIds = new Set(classAssignments.map((item) => item.studentId));
+    const recentWorkoutIds = new Set(recentWorkouts.map((item) => item.studentId));
+    const recentAttendanceIds = new Set([...recentAttendances, ...recentOccurrenceAttendances].map((item) => item.studentId));
+    const lowActivityIds = lowActivityStudentIds(students.map(({ id, student }) => ({
+      studentId: id, status: student.status, serviceType: student.serviceType,
+      hasEstablishedRoutine: establishedRoutineIds.has(id), hasEstablishedClasses: establishedClassIds.has(id),
+      hasRecentWorkout: recentWorkoutIds.has(id), hasRecentAttendance: recentAttendanceIds.has(id),
+    })));
     const incomeByDate = new Map<string, number>();
     for (const payment of currentPayments) {
       if (!payment.paidDate) continue;
@@ -242,6 +292,14 @@ export async function GET() {
       },
       income,
       priorities,
+      attentionToday: {
+        overdueCount: paymentPriorityCounts.overdue,
+        dueSoonCount: dueSoonThreeDaysCount,
+        lowActivityStudentCount: new Set(lowActivityIds).size,
+        completedWorkoutCount: recentWorkouts.filter((session) => personalizedStudentIds.has(session.studentId) && databaseDateKey(session.date) === today).length,
+        registeredPaymentTotal: todayPaymentSummary.registeredTotal,
+        registeredPaymentCount: todayPaymentSummary.registeredCount,
+      },
       ranking,
       todayClasses: todayClasses.slice(0, 3),
       upcomingPayments: actionableAccounts.slice(0, 3),

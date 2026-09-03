@@ -1,6 +1,7 @@
 import type { EvaluationStatus } from "@prisma/client";
 import type { DashboardPriority } from "@/types/dashboard";
 import type { PaymentAccountStatus } from "@/types/gestion";
+import type { StudentServiceType } from "@/types/gestion";
 
 export type EvaluationPriorityRecord = {
   studentId: string;
@@ -69,4 +70,23 @@ export function countPaymentStatuses(statuses: PaymentAccountStatus[]) {
     dueSoon: statuses.filter((status) => status === "VENCE_PRONTO").length,
     unconfigured: statuses.filter((status) => status === "SIN_CONFIGURAR").length,
   };
+}
+
+export type DashboardActivityCandidate = {
+  studentId: string;
+  status: string;
+  serviceType: StudentServiceType;
+  hasEstablishedRoutine: boolean;
+  hasEstablishedClasses: boolean;
+  hasRecentWorkout: boolean;
+  hasRecentAttendance: boolean;
+};
+
+export function lowActivityStudentIds(candidates: DashboardActivityCandidate[]) {
+  return candidates.filter((student) => {
+    if (student.status !== "activo") return false;
+    if (student.serviceType === "PERSONALIZED") return student.hasEstablishedRoutine && !student.hasRecentWorkout;
+    if (student.serviceType === "CLASSES") return student.hasEstablishedClasses && !student.hasRecentAttendance;
+    return (student.hasEstablishedRoutine || student.hasEstablishedClasses) && !student.hasRecentWorkout && !student.hasRecentAttendance;
+  }).map((student) => student.studentId);
 }

@@ -5,8 +5,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { DashboardFloatingActions } from "@/componentes/dashboard-floating-actions";
 import { useBrowserStore } from "@/lib/browser-store";
 import { RANKING_PAGE_HREF } from "@/lib/ranking-navigation";
-import type { DashboardData, DashboardPriority } from "@/types/dashboard";
+import type { DashboardData } from "@/types/dashboard";
 import type { CoachSettings, PaymentAccountStatus } from "@/types/gestion";
+import { BmCheckIcon, BmChevronRightIcon, BmPaymentIcon, BmProgressIcon, BmRoutineIcon } from "@/componentes/icons";
 
 const accountStyle: Record<PaymentAccountStatus, { label: string; className: string }> = {
   VENCIDA: { label: "Vencida", className: "bg-red-400/15 text-red-300" },
@@ -83,7 +84,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
       <MetricCard label="Cuotas pendientes" value={String(metrics.pendingCount)} href="/pagos" icon="warning" tone={metrics.overdueCount ? "red" : "yellow"} />
     </section>
 
-    <PrioritiesPanel priorities={data.priorities} />
+    <AttentionToday data={data.attentionToday} />
 
     <section className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <TodayClasses items={data.todayClasses} total={metrics.classesToday} />
@@ -121,19 +122,22 @@ function SectionLink({ href, children }: { href: string; children: ReactNode }) 
   return <Link href={href} className="inline-flex min-h-10 shrink-0 items-center text-xs font-bold text-yellow-300/80 transition hover:text-yellow-300 focus-visible:text-yellow-300">{children} →</Link>;
 }
 
-function PrioritiesPanel({ priorities }: { priorities: DashboardPriority[] }) {
-  const styles: Record<DashboardPriority["tone"], string> = {
-    danger: "bg-red-400/10 text-red-300",
-    warning: "bg-orange-400/10 text-orange-300",
-    gold: "bg-yellow-400/10 text-yellow-300",
-    info: "bg-sky-400/10 text-sky-300",
-    neutral: "bg-zinc-700/60 text-zinc-300",
-  };
-  return <Panel title="Prioridades de hoy">
-    {priorities.length ? <div className="mt-2.5 grid gap-2 lg:grid-cols-3">{priorities.map((priority) => <Link key={priority.id} href={priority.href} className="flex min-h-12 items-center gap-3 rounded-xl border border-zinc-800 bg-black/20 px-3 py-2 transition hover:border-yellow-400/30">
-      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-black ${styles[priority.tone]}`}>{priority.count}</span>
-      <span className="min-w-0 flex-1 text-sm font-medium">{priority.label}</span><span aria-hidden="true" className="text-zinc-500">›</span>
-    </Link>)}</div> : <p className="mt-3 rounded-xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-200">No hay prioridades pendientes para hoy.</p>}
+function AttentionToday({ data }: { data: DashboardData["attentionToday"] }) {
+  const quotaCount = data.overdueCount + data.dueSoonCount;
+  const quotaTitle = data.overdueCount && data.dueSoonCount ? `${quotaCount} cuotas requieren atención` : data.overdueCount ? `${data.overdueCount} ${data.overdueCount === 1 ? "cuota vencida" : "cuotas vencidas"}` : `${data.dueSoonCount} ${data.dueSoonCount === 1 ? "cuota por vencer" : "cuotas por vencer"}`;
+  const quotaSubtitle = [data.overdueCount ? `${data.overdueCount} vencida${data.overdueCount === 1 ? "" : "s"}` : "", data.dueSoonCount ? `${data.dueSoonCount} por vencer` : ""].filter(Boolean).join(" · ");
+  const rows = [
+    quotaCount ? { id: "quotas", title: quotaTitle, subtitle: quotaSubtitle, href: "/pagos", tone: "danger", icon: <BmPaymentIcon size={18}/> } : null,
+    data.lowActivityStudentCount ? { id: "activity", title: `${data.lowActivityStudentCount} ${data.lowActivityStudentCount === 1 ? "alumno con baja actividad" : "alumnos con baja actividad"}`, subtitle: "Sin registros en los últimos 7 días", href: "/rutinas?tab=seguimiento", tone: "warning", icon: <BmProgressIcon size={18}/> } : null,
+    data.completedWorkoutCount ? { id: "workouts", title: `${data.completedWorkoutCount} ${data.completedWorkoutCount === 1 ? "entrenamiento completado" : "entrenamientos completados"}`, subtitle: "Revisar seguimiento", href: "/rutinas?tab=seguimiento", tone: "gold", icon: <BmRoutineIcon size={18}/> } : null,
+    data.registeredPaymentCount ? { id: "payments", title: `${money(data.registeredPaymentTotal)} registrados hoy`, subtitle: `${data.registeredPaymentCount} ${data.registeredPaymentCount === 1 ? "pago" : "pagos"}`, href: "/resumen-mensual", tone: "positive", icon: <BmCheckIcon size={18}/> } : null,
+  ].filter((row): row is NonNullable<typeof row> => Boolean(row)).slice(0, 4);
+  const hasPriority = quotaCount > 0 || data.lowActivityStudentCount > 0 || data.completedWorkoutCount > 0;
+  const visibleRows = rows.filter((row) => hasPriority || row.id === "payments");
+  const tones: Record<string, string> = { danger: "bg-red-400/10 text-red-300", warning: "bg-orange-400/10 text-orange-300", gold: "bg-yellow-400/10 text-yellow-300", positive: "bg-emerald-400/10 text-emerald-300" };
+  return <Panel title="ATENCIÓN HOY" subtitle="Prioridades de gestión">
+    {!hasPriority && <div className="mt-2.5 flex min-h-12 items-center gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[.04] px-3 py-2"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-emerald-400/10 text-emerald-300"><BmCheckIcon size={18}/></span><span><strong className="block text-sm text-emerald-200">Todo al día por hoy</strong><small className="text-xs text-zinc-500">No hay prioridades pendientes.</small></span></div>}
+    {visibleRows.length > 0 && <div className={`${hasPriority ? "mt-2.5" : "mt-2"} divide-y divide-zinc-800 overflow-hidden rounded-xl border border-zinc-800 bg-black/20`}>{visibleRows.map((row) => <Link key={row.id} href={row.href} className="flex min-h-14 items-center gap-3 px-3 py-2 transition hover:bg-yellow-400/[.03]"><span className={`grid size-8 shrink-0 place-items-center rounded-full ${tones[row.tone]}`}>{row.icon}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm font-semibold">{row.title}</strong><small className="mt-0.5 block truncate text-xs text-zinc-500">{row.subtitle}</small></span><BmChevronRightIcon size={17} className="shrink-0 text-zinc-600"/></Link>)}</div>}
   </Panel>;
 }
 

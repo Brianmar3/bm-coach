@@ -28,6 +28,14 @@ export type DashboardData = {
   };
   income: Array<{ date: string; label: string; amount: number }>;
   priorities: DashboardPriority[];
+  attentionToday: {
+    overdueCount: number;
+    dueSoonCount: number;
+    lowActivityStudentCount: number;
+    completedWorkoutCount: number;
+    registeredPaymentTotal: number;
+    registeredPaymentCount: number;
+  };
   ranking: Array<{
     studentId: string;
     studentName: string;
