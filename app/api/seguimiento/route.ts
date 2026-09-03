@@ -5,6 +5,7 @@ import type { Student } from "@/types/gestion";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { isActivePainReport } from "@/lib/routine-follow-up-filters";
+import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -331,6 +332,8 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json().catch(() => null) as { sessionId?: string; classWorkoutLogId?: string; studentId?: string; routineId?: string; deleteAll?: boolean } | null;
     if (input?.classWorkoutLogId?.trim()) {
