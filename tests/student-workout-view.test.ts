@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName } from "../lib/workout-presentation.ts";
+import { cleanRoutineDisplayName, completedExerciseCount, exerciseCompletesWithSetChange, initialOpenExerciseId, nextIncompleteExerciseId, usefulDayName } from "../lib/workout-presentation.ts";
 
 const source = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const overlay = readFileSync(new URL("../componentes/routine-overlay.tsx", import.meta.url), "utf8");
@@ -111,6 +111,36 @@ test("abre el primer ejercicio incompleto y mantiene un único acordeón control
   assert.match(source, /openExerciseId === exercise\.exerciseId/);
   assert.match(source, /aria-expanded=\{open\}/);
   assert.match(source, /setOpenExerciseId\(open \? null : exercise\.exerciseId\)/);
+});
+
+test("avanza únicamente al completar la última serie pendiente", () => {
+  const exercise = { exerciseId: "current", sets: [{ completed: true }, { completed: false }] };
+  assert.equal(exerciseCompletesWithSetChange(exercise, 1, true), true);
+  assert.equal(exerciseCompletesWithSetChange(exercise, 0, false), false);
+  assert.equal(exerciseCompletesWithSetChange({ exerciseId: "current", sets: [{ completed: false }, { completed: false }] }, 0, true), false);
+});
+
+test("busca el siguiente incompleto, saltea completos y termina sin abrir otro", () => {
+  const exercises = [
+    { exerciseId: "current", sets: [{ completed: true }] },
+    { exerciseId: "done", sets: [{ completed: true }] },
+    { exerciseId: "next", sets: [{ completed: false }] },
+  ];
+  assert.equal(nextIncompleteExerciseId(exercises, "current"), "next");
+  assert.equal(nextIncompleteExerciseId(exercises, "next"), null);
+  assert.equal(nextIncompleteExerciseId(exercises, "missing"), null);
+});
+
+test("el avance espera la persistencia, contrae, abre y desplaza sin temporizadores arbitrarios", () => {
+  const completion = source.slice(source.indexOf("async function updateSetCompletion"), source.indexOf("function updateBlockResult"));
+  assert.match(completion, /await apiRequest/);
+  assert.match(completion, /setOpenExerciseId\(nextExerciseId\)/);
+  assert.match(completion, /requestAnimationFrame/);
+  assert.match(completion, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.match(completion, /scrollIntoView\(\{ behavior: .* \? "auto" : "smooth", block: "start" \}\)/);
+  assert.doesNotMatch(completion, /setTimeout/);
+  assert.match(completion, /setCompletionLocksRef\.current\.has\(lockKey\)/);
+  assert.match(source, /onChange=\{\(event\) => void updateSetCompletion\(exerciseIndex, setIndex, event\.target\.checked\)\}/);
 });
 
 test("contraer no elimina el borrador ni cambia el guardado existente", () => {

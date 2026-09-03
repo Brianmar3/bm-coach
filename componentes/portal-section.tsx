@@ -14,7 +14,7 @@ import { StudentAvatarPage } from "@/componentes/student-avatar-page";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { hasGroupClasses, hasPersonalizedService, isCompetitiveGamificationEligible } from "@/lib/student-service";
 import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
-import { cleanRoutineDisplayName, completedExerciseCount, initialOpenExerciseId, usefulDayName } from "@/lib/workout-presentation";
+import { cleanRoutineDisplayName, completedExerciseCount, exerciseCompletesWithSetChange, initialOpenExerciseId, nextIncompleteExerciseId, usefulDayName } from "@/lib/workout-presentation";
 import { separateWorkoutInstructions } from "@/lib/workout-instructions";
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { createFreshWorkoutSets, findCurrentWeekSession, getLocalWeekEnd, getWeekKey, legacyWorkoutDraftStorageKey, sessionBelongsToWeek, workoutDraftStorageKey } from "@/lib/workout-week";
@@ -637,6 +637,8 @@ function WorkoutView({ data }: { data: PortalData }) {
   const autosaveSignature = useRef("");
   const autosaveAbortRef = useRef<AbortController | null>(null);
   const saveLockRef = useRef(false);
+  const setCompletionLocksRef = useRef(new Set<string>());
+  const exerciseHeaderRefs = useRef(new Map<string, HTMLButtonElement>());
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
@@ -722,6 +724,43 @@ function WorkoutView({ data }: { data: PortalData }) {
     const next = beginWith({ ...draft, exercises: exercises.map((item, index) => index === exerciseIndex ? { ...exercise, sets } : item) });
     setDraft(next);
     window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
+  }
+
+  async function updateSetCompletion(exerciseIndex: number, setIndex: number, completed: boolean) {
+    if (!draft) return;
+    const exercise = draft.exercises[exerciseIndex];
+    const set = exercise?.sets[setIndex];
+    if (!exercise || !set || set.completed === completed) return;
+    const lockKey = `${exercise.exerciseId}:${set.setNumber}`;
+    if (setCompletionLocksRef.current.has(lockKey)) return;
+    setCompletionLocksRef.current.add(lockKey);
+    const shouldAdvance = exerciseCompletesWithSetChange(exercise, setIndex, completed);
+    const sets = exercise.sets.map((item, index) => index === setIndex ? { ...item, completed } : item);
+    const exercises = draft.exercises.map((item, index) => index === exerciseIndex ? { ...exercise, sets } : item);
+    const next = beginWith({ ...draft, exercises });
+    const signature = JSON.stringify(next);
+    autosaveAbortRef.current?.abort();
+    autosaveSignature.current = signature;
+    setDraft(next);
+    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
+    setError("");
+    try {
+      const body = await apiRequest<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) }, { fallback: "No se pudo guardar el entrenamiento.", scope: "portal" });
+      const saved = { ...next, id: body.id ?? next.id };
+      autosaveSignature.current = JSON.stringify(saved);
+      window.localStorage.setItem(storageKey(saved.dayId), JSON.stringify(saved));
+      setDraft((current) => current?.dayId === saved.dayId ? { ...current, id: saved.id } : current);
+      if (shouldAdvance) {
+        const nextExerciseId = nextIncompleteExerciseId(saved.exercises, exercise.exerciseId);
+        setOpenExerciseId(nextExerciseId);
+        if (nextExerciseId) window.requestAnimationFrame(() => exerciseHeaderRefs.current.get(nextExerciseId)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
+      }
+    } catch (value) {
+      autosaveSignature.current = "";
+      setError(value instanceof Error ? value.message : "No se pudo guardar el entrenamiento.");
+    } finally {
+      setCompletionLocksRef.current.delete(lockKey);
+    }
   }
 
   function updateBlockResult(blockId: string, changes: Partial<NonNullable<PortalWorkoutSession["blocks"]>[number]["result"]>) {
@@ -860,7 +899,7 @@ function WorkoutView({ data }: { data: PortalData }) {
         const open = openExerciseId === exercise.exerciseId;
         const completed = completedSets === exercise.sets.length && exercise.sets.length > 0;
         return <article key={exercise.exerciseId} className={`overflow-hidden rounded-2xl border bg-zinc-900/90 transition ${open ? "border-yellow-400/25 shadow-[0_12px_28px_rgba(0,0,0,.22)]" : "border-zinc-800"}`}>
-          <button type="button" aria-expanded={open} aria-controls={`exercise-${exercise.exerciseId}`} onClick={() => setOpenExerciseId(open ? null : exercise.exerciseId)} className="w-full p-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300">
+          <button ref={(node) => { if (node) exerciseHeaderRefs.current.set(exercise.exerciseId, node); else exerciseHeaderRefs.current.delete(exercise.exerciseId); }} type="button" aria-expanded={open} aria-controls={`exercise-${exercise.exerciseId}`} onClick={() => setOpenExerciseId(open ? null : exercise.exerciseId)} className="w-full scroll-mt-24 p-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300">
             <span className="flex items-start gap-3"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-black ${completed ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{completed ? "✓" : exerciseIndex + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-zinc-100">{exercise.exerciseName}</span><span className="mt-1 block text-[10px] leading-relaxed text-zinc-500">{programmed ? `${programmed.sets} series · ${programmed.repetitions} reps${programmed.restSeconds !== null ? ` · ${programmed.restSeconds} s` : ""}${programmed.weight !== null ? ` · ${programmed.weight} kg` : ""}` : `${exercise.sets.length} series`}</span></span><span className="shrink-0 text-right"><span className="block text-[10px] font-semibold text-zinc-400">{completedSets}/{exercise.sets.length}</span><span aria-hidden="true" className={`mt-1 block text-sm text-yellow-300 transition-transform ${open ? "rotate-180" : ""}`}>⌄</span></span></span>
             <span className="mt-3 block h-1 overflow-hidden rounded-full bg-zinc-800"><span className="block h-full rounded-full bg-yellow-400 transition-[width]" style={{ width: `${exercise.sets.length ? completedSets / exercise.sets.length * 100 : 0}%` }} /></span>
           </button>
@@ -869,7 +908,7 @@ function WorkoutView({ data }: { data: PortalData }) {
             <div className="mb-3 flex items-center justify-between gap-3 text-[10px] text-zinc-500">{programmed?.muscleGroup ? <span>{programmed.muscleGroup}</span> : <span />}{exercise.previous ? <span>Última: {exercise.previous.weight ?? "—"} kg × {exercise.previous.repetitions ?? "—"} · {date(exercise.previous.date)}</span> : <span>Sin registros anteriores</span>}</div>
             <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/80">
               <div aria-hidden="true" className="grid grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-1 border-b border-zinc-800 px-2 py-2 text-center text-[9px] font-bold uppercase tracking-wide text-zinc-500"><span>Serie</span><span>Kg</span><span>Reps</span><span>{programmed?.effortType ?? "RIR"}</span><span>✓</span></div>
-              {exercise.sets.map((set, setIndex) => <div key={set.setNumber} className={`grid grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-1 border-b border-zinc-800/70 px-2 py-2 last:border-0 ${set.completed ? "bg-emerald-400/[.06]" : ""}`}><span className="text-center text-xs font-black text-yellow-300">{set.setNumber}</span><label><span className="sr-only">Kilogramos de la serie {set.setNumber}</span><input aria-label={`Kg de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" step=".25" value={set.weight ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { weight: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">Repeticiones de la serie {set.setNumber}</span><input aria-label={`Reps de la serie ${set.setNumber}`} inputMode="numeric" type="number" min="0" value={set.repetitions ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { repetitions: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">{programmed?.effortType ?? "RIR"} de la serie {set.setNumber}</span><input aria-label={`${programmed?.effortType ?? "RIR"} de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" max="10" step=".5" value={set.effort ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { effort: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label className="grid min-h-10 place-items-center"><span className="sr-only">Serie {set.setNumber} completada</span><input aria-label={`Serie ${set.setNumber} completada`} type="checkbox" checked={set.completed} onChange={(event) => updateSet(exerciseIndex, setIndex, { completed: event.target.checked })} className="h-5 w-5 accent-yellow-400" /></label></div>)}
+              {exercise.sets.map((set, setIndex) => <div key={set.setNumber} className={`grid grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-1 border-b border-zinc-800/70 px-2 py-2 last:border-0 ${set.completed ? "bg-emerald-400/[.06]" : ""}`}><span className="text-center text-xs font-black text-yellow-300">{set.setNumber}</span><label><span className="sr-only">Kilogramos de la serie {set.setNumber}</span><input aria-label={`Kg de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" step=".25" value={set.weight ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { weight: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">Repeticiones de la serie {set.setNumber}</span><input aria-label={`Reps de la serie ${set.setNumber}`} inputMode="numeric" type="number" min="0" value={set.repetitions ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { repetitions: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">{programmed?.effortType ?? "RIR"} de la serie {set.setNumber}</span><input aria-label={`${programmed?.effortType ?? "RIR"} de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" max="10" step=".5" value={set.effort ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { effort: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label className="grid min-h-10 place-items-center"><span className="sr-only">Serie {set.setNumber} completada</span><input aria-label={`Serie ${set.setNumber} completada`} type="checkbox" checked={set.completed} onChange={(event) => void updateSetCompletion(exerciseIndex, setIndex, event.target.checked)} className="h-5 w-5 accent-yellow-400" /></label></div>)}
             </div>
             {instructions.technicalText && <details className="mt-3 rounded-xl border border-zinc-800 bg-black/30 px-3 py-2 text-sm text-zinc-400"><summary className="cursor-pointer list-none font-semibold text-yellow-300 outline-none focus-visible:ring-2 focus-visible:ring-yellow-300">Indicaciones</summary><div className="mt-3 border-t border-zinc-800 pt-3"><p className="whitespace-pre-line text-xs leading-relaxed text-zinc-300">{instructions.technicalText}</p></div></details>}
             {programmed && <RoutineExerciseMediaButton exercise={programmed} libraryMediaEnabled={data.exerciseMediaEnabled} separated />}

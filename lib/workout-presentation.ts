@@ -29,3 +29,15 @@ export function initialOpenExerciseId(exercises: WorkoutExerciseProgress[]) {
     ?? exercises[0]?.exerciseId
     ?? null;
 }
+
+export function exerciseCompletesWithSetChange(exercise: WorkoutExerciseProgress, setIndex: number, completed: boolean) {
+  return completed
+    && exercise.sets[setIndex]?.completed === false
+    && exercise.sets.every((set, index) => index === setIndex || set.completed);
+}
+
+export function nextIncompleteExerciseId(exercises: WorkoutExerciseProgress[], currentExerciseId: string) {
+  const currentIndex = exercises.findIndex((exercise) => exercise.exerciseId === currentExerciseId);
+  if (currentIndex < 0) return null;
+  return exercises.slice(currentIndex + 1).find((exercise) => !exercise.sets.length || exercise.sets.some((set) => !set.completed))?.exerciseId ?? null;
+}
