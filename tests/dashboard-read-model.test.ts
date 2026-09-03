@@ -5,6 +5,7 @@ import {
   buildDashboardPriorities,
   compactRanking,
   countPaymentStatuses,
+  dashboardPaymentAttention,
   latestEvaluationPriorityCounts,
   lowActivityStudentIds,
 } from "../lib/dashboard-read-model.ts";
@@ -36,6 +37,22 @@ test("las prioridades muestran únicamente datos accionables y destinos reales",
 
 test("los estados de cuotas se cuentan sin mezclar al día o sin pagos", () => {
   assert.deepEqual(countPaymentStatuses(["VENCIDA", "VENCIDA", "VENCE_PRONTO", "SIN_CONFIGURAR", "AL_DIA", "SIN_PAGOS"]), { overdue: 2, dueSoon: 1, unconfigured: 1 });
+});
+
+test("cuotas pendientes usa vencidas más las que vencen dentro de 3 días, sin duplicar", () => {
+  const attention = dashboardPaymentAttention([
+    { studentId: "overdue", status: "VENCIDA", dueDate: "2026-09-01" },
+    { studentId: "overdue", status: "VENCE_PRONTO", dueDate: "2026-09-04" },
+    { studentId: "soon", status: "VENCE_PRONTO", dueDate: "2026-09-06" },
+    { studentId: "far", status: "VENCE_PRONTO", dueDate: "2026-09-07" },
+    { studentId: "paid", status: "AL_DIA", dueDate: "2026-09-03" },
+    { studentId: "unconfigured", status: "SIN_CONFIGURAR", dueDate: "" },
+    { studentId: "no-payments", status: "SIN_PAGOS", dueDate: "2026-09-03" },
+  ], "2026-09-03", "2026-09-06");
+  assert.deepEqual(attention.overdueStudentIds, ["overdue"]);
+  assert.deepEqual(attention.dueSoonStudentIds, ["soon"]);
+  assert.equal(attention.attentionCount, attention.overdueCount + attention.dueSoonCount);
+  assert.equal(attention.attentionCount, 2);
 });
 
 test("baja actividad respeta servicio, actividad real, vigencia y estado activo sin duplicados", () => {
@@ -101,6 +118,9 @@ test("Atención hoy usa datos reales, rutas válidas y no incluye confirmaciones
   assert.match(route, /registeredTodaySummary/);
   assert.match(route, /requireAdminApiResponse/);
   assert.match(route, /status: "COMPLETED"/);
+  assert.match(attention, /const quotaCount = data\.attentionCount/);
+  assert.match(route, /pendingCount: paymentAttention\.attentionCount/);
+  assert.match(route, /attentionCount: paymentAttention\.attentionCount/);
 });
 
 test("la vista de baja actividad expone asistencia, frecuencia y contacto con teléfono real", () => {

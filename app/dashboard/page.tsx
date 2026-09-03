@@ -123,7 +123,7 @@ function SectionLink({ href, children }: { href: string; children: ReactNode }) 
 }
 
 function AttentionToday({ data }: { data: DashboardData["attentionToday"] }) {
-  const quotaCount = data.overdueCount + data.dueSoonCount;
+  const quotaCount = data.attentionCount;
   const quotaTitle = data.overdueCount && data.dueSoonCount ? `${quotaCount} cuotas requieren atención` : data.overdueCount ? `${data.overdueCount} ${data.overdueCount === 1 ? "cuota vencida" : "cuotas vencidas"}` : `${data.dueSoonCount} ${data.dueSoonCount === 1 ? "cuota por vencer" : "cuotas por vencer"}`;
   const quotaSubtitle = [data.overdueCount ? `${data.overdueCount} vencida${data.overdueCount === 1 ? "" : "s"}` : "", data.dueSoonCount ? `${data.dueSoonCount} por vencer` : ""].filter(Boolean).join(" · ");
   const rows = [

@@ -72,6 +72,41 @@ export function countPaymentStatuses(statuses: PaymentAccountStatus[]) {
   };
 }
 
+export type DashboardPaymentAttentionCandidate = {
+  studentId: string;
+  status: PaymentAccountStatus;
+  dueDate: string;
+};
+
+export function dashboardPaymentAttention(
+  candidates: DashboardPaymentAttentionCandidate[],
+  today: string,
+  dueSoonThrough: string,
+) {
+  const statusByStudent = new Map<string, "overdue" | "dueSoon">();
+  for (const candidate of candidates) {
+    if (candidate.status === "VENCIDA") {
+      statusByStudent.set(candidate.studentId, "overdue");
+      continue;
+    }
+    if (
+      candidate.status === "VENCE_PRONTO"
+      && candidate.dueDate >= today
+      && candidate.dueDate <= dueSoonThrough
+      && !statusByStudent.has(candidate.studentId)
+    ) statusByStudent.set(candidate.studentId, "dueSoon");
+  }
+  const overdueStudentIds = [...statusByStudent].filter(([, status]) => status === "overdue").map(([studentId]) => studentId);
+  const dueSoonStudentIds = [...statusByStudent].filter(([, status]) => status === "dueSoon").map(([studentId]) => studentId);
+  return {
+    overdueStudentIds,
+    dueSoonStudentIds,
+    overdueCount: overdueStudentIds.length,
+    dueSoonCount: dueSoonStudentIds.length,
+    attentionCount: overdueStudentIds.length + dueSoonStudentIds.length,
+  };
+}
+
 export type DashboardActivityCandidate = {
   studentId: string;
   status: string;

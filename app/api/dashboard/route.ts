@@ -15,6 +15,7 @@ import {
   buildDashboardPriorities,
   compactRanking,
   countPaymentStatuses,
+  dashboardPaymentAttention,
   latestEvaluationPriorityCounts,
   lowActivityStudentIds,
 } from "@/lib/dashboard-read-model";
@@ -187,13 +188,14 @@ export async function GET() {
       account.dueDate &&
       (account.dueDate < today || (account.dueDate >= today && account.dueDate <= threeDaysFromToday)),
     );
-    const dueSoonThreeDaysCount = accounts.filter((account) =>
-      account.status === "VENCE_PRONTO" && account.dueDate >= today && account.dueDate <= threeDaysFromToday,
-    ).length;
+    const paymentAttention = dashboardPaymentAttention(accounts, today, threeDaysFromToday);
+    const dueSoonThreeDaysCount = paymentAttention.dueSoonCount;
+    const attentionStudentIds = new Set([...paymentAttention.overdueStudentIds, ...paymentAttention.dueSoonStudentIds]);
+    const attentionAccounts = accounts.filter((account) => attentionStudentIds.has(account.studentId));
     const paymentPriorityCounts = countPaymentStatuses(accounts.map((account) => account.status));
     const evaluationPriorityCounts = latestEvaluationPriorityCounts(evaluations, activeStudentIds, today);
     const priorities = buildDashboardPriorities({
-      overdue: paymentPriorityCounts.overdue,
+      overdue: paymentAttention.overdueCount,
       dueSoon: dueSoonThreeDaysCount,
       unconfigured: paymentPriorityCounts.unconfigured,
       reassessments: evaluationPriorityCounts.reassessments,
@@ -315,9 +317,9 @@ export async function GET() {
         monthIncome,
         monthPaymentCount: currentPayments.length,
         incomeChangePercent: previousIncome > 0 ? Math.round(((monthIncome - previousIncome) / previousIncome) * 100) : null,
-        pendingCount: actionableAccounts.length,
-        pendingAmount: actionableAccounts.reduce((sum, account) => sum + account.amount, 0),
-        overdueCount: actionableAccounts.filter((account) => account.status === "VENCIDA").length,
+        pendingCount: paymentAttention.attentionCount,
+        pendingAmount: attentionAccounts.reduce((sum, account) => sum + account.amount, 0),
+        overdueCount: paymentAttention.overdueCount,
         dueSoonThreeDaysCount,
         estimatedPendingBalance,
         classesToday: todayClasses.length,
@@ -327,7 +329,8 @@ export async function GET() {
       income,
       priorities,
       attentionToday: {
-        overdueCount: paymentPriorityCounts.overdue,
+        attentionCount: paymentAttention.attentionCount,
+        overdueCount: paymentAttention.overdueCount,
         dueSoonCount: dueSoonThreeDaysCount,
         lowActivityStudentCount: new Set(lowActivityIds).size,
         lowActivityStudents,
