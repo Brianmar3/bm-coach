@@ -158,7 +158,7 @@ function PortalOverview({ data }: { data: PortalData }) {
   return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4">
     <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-4 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 sm:p-8">
       <span aria-hidden="true" className="portal-home-light-sweep" />
-      <div className={`relative min-h-[7rem] sm:min-h-[9rem] ${groupClassesEnabled && !routineFocused ? "pr-[6.4rem] min-[390px]:pr-[7.2rem] sm:pr-36" : ""}`}>
+      <div className={`relative ${groupClassesEnabled && !routineFocused ? "min-h-[7.5rem] pr-[5.6rem] min-[390px]:pr-[6.4rem] sm:min-h-[9rem] sm:pr-36" : "min-h-[7rem] sm:min-h-[9rem]"}`}>
         <p className="flex items-center gap-2.5 text-xs text-zinc-500 sm:text-sm"><BmCalendarIcon size={19} className="shrink-0 text-yellow-400" />{todayLabel}</p>
         <h1 className="mt-4 text-[clamp(1.85rem,8vw,3.15rem)] font-black leading-none tracking-[-.045em] text-zinc-50 sm:mt-7">¡Hola, <span className="text-yellow-400">{data.profile.firstName}</span>!</h1>
         <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500 sm:mt-2.5 sm:text-base">{routineFocused ? "Hoy avanzás una parte más de tu plan." : "Vamos por un día más de progreso."}</p>
@@ -434,10 +434,10 @@ function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
   const detail = percentage === null ? "Sin registros este mes" : `${attended} ${attended === 1 ? "presente" : "presentes"} este mes`;
   const finalDisplay = percentage === null ? "—" : `${percentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
   const display = percentage === null ? "—" : `${visiblePercentage.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
-  return <Link href="/portal/asistencias" aria-label={`Ver detalle de asistencia mensual. ${percentage === null ? "Sin registros este mes." : `${finalDisplay}. ${detail}.`}`} className="portal-home-interactive group absolute right-0 top-0 z-10 flex w-[6rem] cursor-pointer flex-col items-center gap-1.5 rounded-2xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:w-[6.8rem] sm:w-[9rem]" title="Ver detalle de asistencias">
-    <span className="relative grid size-[92px] place-items-center rounded-full border border-zinc-700/70 shadow-[0_8px_22px_rgba(0,0,0,.28)] transition group-hover:border-yellow-400/40 min-[390px]:size-24 sm:size-[6.5rem]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[7px] rounded-full bg-[#0b0b0b] sm:inset-2" /><strong className="relative text-lg font-black tabular-nums text-yellow-300 sm:text-xl">{display}</strong></span>
+  return <Link href="/portal/asistencias" aria-label={`Ver detalle de asistencia mensual. ${percentage === null ? "Sin registros este mes." : `${finalDisplay}. ${detail}.`}`} className="portal-home-interactive group absolute right-0 top-0 z-10 flex w-[5.4rem] cursor-pointer flex-col items-center gap-1 rounded-2xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:w-[6.2rem] sm:w-[9rem] sm:gap-1.5" title="Ver detalle de asistencias">
+    <span className="relative grid size-[82px] place-items-center rounded-full border border-zinc-700/70 shadow-[0_8px_22px_rgba(0,0,0,.28)] transition group-hover:border-yellow-400/40 min-[390px]:size-[86px] sm:size-[6.5rem]" style={{ background: `conic-gradient(#facc15 ${angle}deg,#27272a 0deg)` }}><span className="absolute inset-[7px] rounded-full bg-[#0b0b0b] sm:inset-2" /><strong className="relative text-lg font-black tabular-nums text-yellow-300 sm:text-xl">{display}</strong></span>
     <span className="text-[8px] font-bold uppercase tracking-[.2em] text-zinc-500 sm:text-[10px]">Asistencia</span>
-    <span className="text-[10px] font-semibold text-yellow-300 sm:text-xs">Ver detalle ›</span>
+    <span className="text-[10px] font-semibold leading-none text-yellow-300 sm:text-xs">Ver detalle ›</span>
   </Link>;
 }
 
