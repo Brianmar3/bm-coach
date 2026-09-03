@@ -265,7 +265,7 @@ function LowActivityView({ students, ready }: { students: DashboardLowActivitySt
               <h2 className="truncate font-bold text-zinc-100">{student.studentName}</h2>
               <p className="mt-0.5 text-xs font-bold text-yellow-400">{student.serviceType}</p>
             </div>
-            {student.phoneNormalized ? <a href={`https://wa.me/${student.phoneNormalized}`} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-3 py-2 text-sm font-bold text-emerald-300">Contactar</a> : <span className="shrink-0 text-xs text-zinc-500">Sin teléfono</span>}
+            {student.phoneState === "valid" ? <a href={`https://wa.me/${student.phoneNormalized}`} target="_blank" rel="noreferrer" className="shrink-0 rounded-lg border border-emerald-500/40 px-3 py-2 text-sm font-bold text-emerald-300">Contactar</a> : <span className="shrink-0 text-xs text-zinc-500">{student.phoneState === "invalid" ? "Revisar teléfono" : "Sin teléfono"}</span>}
           </div>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
             <div><dt className="text-xs text-zinc-500">Última asistencia</dt><dd className="mt-0.5 font-medium">{student.lastAttendanceDate ? new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date(`${student.lastAttendanceDate}T12:00:00Z`)) : "Sin asistencias registradas"}</dd></div>

@@ -13,6 +13,7 @@ export type DashboardLowActivityStudent = {
   studentName: string;
   serviceType: "CLASSES" | "MIXED";
   phoneNormalized: string;
+  phoneState: "missing" | "invalid" | "valid";
   lastAttendanceDate: string | null;
   daysSinceLastAttendance: number | null;
   weeklyFrequency: number;

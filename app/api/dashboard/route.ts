@@ -20,6 +20,7 @@ import {
 } from "@/lib/dashboard-read-model";
 import { registeredTodaySummary, type TraceablePayment } from "@/lib/monthly-traceability";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
+import { normalizeArgentineWhatsAppPhone } from "@/lib/argentine-phone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -242,11 +243,14 @@ export async function GET() {
     const lowActivityStudents = lowActivityIds.map((studentId) => {
       const student = studentById.get(studentId)!;
       const lastAttendanceDate = lastAttendanceByStudent.get(studentId) ?? null;
+      const rawPhone = String(student.phone ?? "").trim();
+      const phoneNormalized = normalizeArgentineWhatsAppPhone(rawPhone);
       return {
         studentId,
         studentName: studentName(student),
         serviceType: student.serviceType as "CLASSES" | "MIXED",
-        phoneNormalized: String(student.phone ?? "").replace(/\D/g, ""),
+        phoneNormalized: phoneNormalized ?? "",
+        phoneState: !rawPhone ? "missing" as const : phoneNormalized ? "valid" as const : "invalid" as const,
         lastAttendanceDate,
         daysSinceLastAttendance: lastAttendanceDate
           ? Math.floor((todayDate.getTime() - dateKeyToDatabase(lastAttendanceDate).getTime()) / 86_400_000)

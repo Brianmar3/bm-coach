@@ -8,6 +8,25 @@ import {
   latestEvaluationPriorityCounts,
   lowActivityStudentIds,
 } from "../lib/dashboard-read-model.ts";
+import { normalizeArgentineWhatsAppPhone } from "../lib/argentine-phone.ts";
+
+test("WhatsApp normaliza celulares argentinos locales e internacionales", () => {
+  for (const phone of [
+    "03404 596699",
+    "03404-596699",
+    "03404 15 596699",
+    "03404-15-596699",
+    "3404 596699",
+    "3404596699",
+    "+54 9 3404 596699",
+    "5493404596699",
+    "+54 3404 596699",
+  ]) assert.equal(normalizeArgentineWhatsAppPhone(phone), "5493404596699", phone);
+});
+
+test("WhatsApp rechaza teléfonos vacíos, sin dígitos o demasiado cortos", () => {
+  for (const phone of ["", "sin teléfono", "0340-123"]) assert.equal(normalizeArgentineWhatsAppPhone(phone), null, phone);
+});
 
 test("las prioridades muestran únicamente datos accionables y destinos reales", () => {
   const priorities = buildDashboardPriorities({ overdue: 4, dueSoon: 2, unconfigured: 0, reassessments: 1, evaluationsInProgress: 0 });
@@ -87,9 +106,9 @@ test("Atención hoy usa datos reales, rutas válidas y no incluye confirmaciones
 test("la vista de baja actividad expone asistencia, frecuencia y contacto con teléfono real", () => {
   const page = readFileSync(new URL("../app/asistencias/page.tsx", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8");
-  for (const label of ["Última asistencia", "Días desde última asistencia", "Frecuencia semanal", "Sin teléfono"]) assert.match(page, new RegExp(label));
+  for (const label of ["Última asistencia", "Días desde última asistencia", "Frecuencia semanal", "Sin teléfono", "Revisar teléfono"]) assert.match(page, new RegExp(label));
   assert.match(page, /https:\/\/wa\.me\/\$\{student\.phoneNormalized\}/);
-  assert.match(route, /String\(student\.phone \?\? ""\)\.replace\(\/\\D\/g, ""\)/);
+  assert.match(route, /normalizeArgentineWhatsAppPhone\(rawPhone\)/);
   assert.match(route, /actualAttendance: "PRESENT"/);
   assert.match(route, /status: "PRESENT"/);
 });
