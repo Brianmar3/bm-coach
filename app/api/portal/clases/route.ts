@@ -11,6 +11,7 @@ import {
 } from "@/lib/trainer-notifications";
 import type { Student } from "@/types/gestion";
 import { hasGroupClasses } from "@/lib/student-service";
+import { effectiveOccurrenceId, effectiveSessionForStudentsOnDate } from "@/lib/effective-class-session";
 import {
   classIsEligibleForStudent,
   PORTAL_CLASS_SEARCH_DAYS,
@@ -22,21 +23,23 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const occurrenceInclude = (studentId: string) => ({
+const occurrenceInclude = {
   schedule: { select: { classType: true } },
-  responses: { where: { studentId }, select: { response: true } },
-  _count: { select: { responses: { where: { response: "GOING" as const } } } },
-});
+  responses: { select: { studentId: true, response: true, actualAttendance: true, respondedAt: true, checkedInAt: true, updatedAt: true, createdAt: true } },
+};
 
-function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ include: ReturnType<typeof occurrenceInclude> }>) {
+function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ include: typeof occurrenceInclude }>, studentId: string, effectiveSessions: ReadonlyMap<string, string>) {
   const started = occurrenceHasStarted(occurrence.date, occurrence.startTime);
   const ended = occurrenceHasEnded(occurrence.date, occurrence.endTime);
-  const response = occurrence.responses[0]?.response ?? null;
-  const full = occurrence.capacityOverride !== null && occurrence._count.responses >= occurrence.capacityOverride;
+  const date = databaseDateKey(occurrence.date);
+  const ownResponse = occurrence.responses.find((item) => item.studentId === studentId)?.response ?? null;
+  const response = ownResponse === "GOING" && effectiveOccurrenceId(effectiveSessions, studentId, date) !== occurrence.id ? null : ownResponse;
+  const confirmedCount = occurrence.responses.filter((item) => item.response === "GOING" && effectiveOccurrenceId(effectiveSessions, item.studentId, date) === occurrence.id).length;
+  const full = occurrence.capacityOverride !== null && confirmedCount >= occurrence.capacityOverride;
   return {
     id: occurrence.id,
     scheduleId: occurrence.scheduleId,
-    date: databaseDateKey(occurrence.date),
+    date,
     startTime: occurrence.startTime,
     endTime: occurrence.endTime,
     name: occurrenceClassName(occurrence),
@@ -44,7 +47,7 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
     status: occurrence.status,
     statusLabel: full && response !== "GOING" ? "Cupo completo" : occurrenceStatusLabel(occurrence.status, started, ended),
     capacity: occurrence.capacityOverride,
-    confirmedCount: occurrence._count.responses,
+    confirmedCount,
     response,
     canRespond: occurrence.status === "SCHEDULED" && !started && (!full || response === "GOING"),
     strengthAvailable: false,
@@ -85,10 +88,17 @@ export async function GET() {
         date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) },
         schedule: { active: true, archivedAt: null },
       },
-      include: occurrenceInclude(session.studentId),
+      include: occurrenceInclude,
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     });
-    const agenda = selectPortalClassAgenda(occurrences.map(serializeOccurrence), student.studentType);
+    const effectiveSessions = effectiveSessionForStudentsOnDate(occurrences.map((occurrence) => ({
+      id: occurrence.id,
+      scheduleId: occurrence.scheduleId,
+      date: databaseDateKey(occurrence.date),
+      startTime: occurrence.startTime,
+      responses: occurrence.responses,
+    })));
+    const agenda = selectPortalClassAgenda(occurrences.map((occurrence) => serializeOccurrence(occurrence, session.studentId, effectiveSessions)), student.studentType);
     return Response.json({
       availability,
       scheduleLabels,
@@ -129,25 +139,51 @@ export async function POST(request: Request) {
               archivedAt: true,
             },
           },
-          _count: { select: { responses: { where: { response: "GOING" } } } },
           responses: { where: { studentId: session.studentId } },
         },
       });
       if (!occurrence) throw new Error("NOT_FOUND");
       if (!occurrence.schedule?.active || occurrence.schedule.archivedAt || !classIsEligibleForStudent(occurrence.schedule.classType, student.studentType)) throw new Error("NOT_FOUND");
       if (occurrence.status !== "SCHEDULED" || occurrenceHasStarted(occurrence.date, occurrence.startTime)) throw new Error("CLOSED");
+      const dateOccurrences = await transaction.classOccurrence.findMany({
+        where: { date: occurrence.date, suppressedBySchedule: false },
+        select: {
+          id: true,
+          scheduleId: true,
+          date: true,
+          startTime: true,
+          responses: { select: { studentId: true, response: true, actualAttendance: true, respondedAt: true, checkedInAt: true, updatedAt: true, createdAt: true } },
+        },
+      });
+      const occurrenceDate = databaseDateKey(occurrence.date);
+      const effectiveSessions = effectiveSessionForStudentsOnDate(dateOccurrences.map((item) => ({ ...item, date: occurrenceDate })));
+      const effectiveOccurrence = effectiveOccurrenceId(effectiveSessions, session.studentId, occurrenceDate);
       const previousResponse = occurrence.responses[0]?.response ?? null;
-      const alreadyGoing = previousResponse === "GOING";
-      if (requestedResponse === "GOING" && !alreadyGoing && occurrence.capacityOverride !== null && occurrence._count.responses >= occurrence.capacityOverride) throw new Error("FULL");
-      if (previousResponse === requestedResponse) {
+      const alreadyGoing = effectiveOccurrence === occurrence.id && previousResponse === "GOING";
+      const effectiveConfirmedCount = dateOccurrences
+        .find((item) => item.id === occurrence.id)?.responses
+        .filter((item) => item.response === "GOING" && effectiveOccurrenceId(effectiveSessions, item.studentId, occurrenceDate) === occurrence.id).length ?? 0;
+      if (requestedResponse === "GOING" && !alreadyGoing && occurrence.capacityOverride !== null && effectiveConfirmedCount >= occurrence.capacityOverride) throw new Error("FULL");
+      const otherGoingOccurrenceIds = dateOccurrences
+        .filter((item) => item.id !== occurrence.id && item.responses.some((response) => response.studentId === session.studentId && response.response === "GOING"))
+        .map((item) => item.id);
+      const shouldClearOtherGoing = requestedResponse === "GOING" || requestedResponse === "NOT_GOING" && alreadyGoing;
+      const responseChanged = requestedResponse === "GOING" ? !alreadyGoing : previousResponse !== requestedResponse;
+      if (!responseChanged && (!shouldClearOtherGoing || otherGoingOccurrenceIds.length === 0)) {
         return { occurrence, changed: false, responseUpdatedAt: null };
+      }
+      if (shouldClearOtherGoing && otherGoingOccurrenceIds.length > 0) {
+        await transaction.classOccurrenceAttendance.updateMany({
+          where: { occurrenceId: { in: otherGoingOccurrenceIds }, studentId: session.studentId, response: "GOING" },
+          data: { response: null },
+        });
       }
       const savedResponse = await transaction.classOccurrenceAttendance.upsert({
         where: { occurrenceId_studentId: { occurrenceId: occurrence.id, studentId: session.studentId } },
         create: { occurrenceId: occurrence.id, studentId: session.studentId, response: requestedResponse, respondedAt: new Date() },
         update: { response: requestedResponse, respondedAt: new Date() },
       });
-      return { occurrence, changed: true, responseUpdatedAt: savedResponse.updatedAt };
+      return { occurrence, changed: responseChanged, responseUpdatedAt: savedResponse.updatedAt };
     }, { isolationLevel: "Serializable" });
     const occurrence = result.occurrence;
     const className = occurrenceClassName(occurrence);

@@ -23,6 +23,7 @@ import {
 import { registeredTodaySummary, type TraceablePayment } from "@/lib/monthly-traceability";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { normalizeArgentineWhatsAppPhone } from "@/lib/argentine-phone";
+import { effectiveOccurrenceId, effectiveSessionForStudentsOnDate } from "@/lib/effective-class-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -277,6 +278,13 @@ export async function GET() {
     });
 
     const attendanceTodayBySchedule = new Map(todayAttendances.map((item) => [item.scheduleId ?? "", item._count._all]));
+    const effectiveSessions = effectiveSessionForStudentsOnDate(todayOccurrences.map((occurrence) => ({
+      id: occurrence.id,
+      scheduleId: occurrence.scheduleId,
+      date: today,
+      startTime: occurrence.startTime,
+      responses: occurrence.responses,
+    })));
     const todayClasses = todayOccurrences.map((occurrence) => ({
       id: occurrence.id,
       startTime: occurrence.startTime,
@@ -286,8 +294,8 @@ export async function GET() {
       attendance: occurrence.responses.some((item) => item.actualAttendance !== "UNKNOWN")
         ? occurrence.responses.filter((item) => item.actualAttendance === "PRESENT").length
         : occurrence.scheduleId ? attendanceTodayBySchedule.get(occurrence.scheduleId) ?? 0 : 0,
-      confirmed: occurrence.responses.filter((item) => item.response === "GOING").length,
-      confirmedStudents: occurrence.responses.filter((item) => item.response === "GOING").map(({ student }) => studentName(studentData(student.data))),
+      confirmed: occurrence.responses.filter((item) => item.response === "GOING" && effectiveOccurrenceId(effectiveSessions, item.studentId, today) === occurrence.id).length,
+      confirmedStudents: occurrence.responses.filter((item) => item.response === "GOING" && effectiveOccurrenceId(effectiveSessions, item.studentId, today) === occurrence.id).map(({ student }) => studentName(studentData(student.data))),
     }));
     const currentArgentinaTime = new Intl.DateTimeFormat("en-GB", {
       timeZone: "America/Argentina/Buenos_Aires",

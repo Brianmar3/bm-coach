@@ -6,6 +6,7 @@ import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 import type { AttendanceRoster, AttendanceStatus, Student } from "@/types/gestion";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { effectiveOccurrenceId, effectiveSessionForStudentsOnDate } from "@/lib/effective-class-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,26 +64,39 @@ export async function GET(request: Request) {
       include: {
         assignments: { where: { active: true }, include: { student: true } },
         attendances: { where: { date }, include: { student: true } },
-        occurrences: {
-          where: { date },
-          take: 1,
-          include: {
-            responses: { include: { student: true } },
-          },
-        },
       },
     });
     if (!schedule) return Response.json({ error: "Horario no encontrado." }, { status: 404 });
     if (classDayForDate(date) !== schedule.dayOfWeek) return Response.json({ error: "La fecha elegida no corresponde al día semanal de este horario." }, { status: 400 });
 
     const attendanceByStudent = new Map(schedule.attendances.map((attendance) => [attendance.studentId, attendance]));
-    const occurrence = schedule.occurrences[0] ?? null;
+    const dateOccurrences = await prisma.classOccurrence.findMany({
+      where: { date, suppressedBySchedule: false },
+      include: {
+        responses: { include: { student: true } },
+        schedule: { include: { assignments: { where: { active: true }, include: { student: true } } } },
+      },
+      orderBy: { startTime: "asc" },
+    });
+    const occurrence = dateOccurrences.find((item) => item.scheduleId === schedule.id) ?? null;
+    const dateKey = dateValue;
+    const effectiveSessions = effectiveSessionForStudentsOnDate(dateOccurrences.map((item) => ({
+      id: item.id,
+      scheduleId: item.scheduleId,
+      date: dateKey,
+      startTime: item.startTime,
+      assignments: item.schedule?.assignments.map((assignment) => ({ studentId: assignment.studentId, primaryScheduleId: assignment.student.primaryScheduleId })) ?? [],
+      responses: item.responses,
+    })));
     const occurrenceByStudent = new Map(
-      (occurrence?.responses ?? []).map((response) => [response.studentId, response]),
+      (occurrence?.responses ?? [])
+        .filter((response) => effectiveOccurrenceId(effectiveSessions, response.studentId, dateKey) === occurrence?.id)
+        .map((response) => [response.studentId, response]),
     );
     const assignedIds = new Set(schedule.assignments.map((assignment) => assignment.studentId));
     const assigned = schedule.assignments
-      .filter((assignment) => (assignment.student.data as unknown as Partial<Student>).status === "activo" || attendanceByStudent.has(assignment.studentId))
+      .filter((assignment) => (!occurrence || effectiveOccurrenceId(effectiveSessions, assignment.studentId, dateKey) === occurrence.id)
+        && ((assignment.student.data as unknown as Partial<Student>).status === "activo" || attendanceByStudent.has(assignment.studentId)))
       .map((assignment) => {
         const attendance = attendanceByStudent.get(assignment.studentId);
         const occurrenceAttendance = occurrenceByStudent.get(assignment.studentId);
@@ -106,7 +120,7 @@ export async function GET(request: Request) {
         exceptionalStudents.set(attendance.studentId, attendance.student),
       );
     (occurrence?.responses ?? [])
-      .filter((response) => !assignedIds.has(response.studentId))
+      .filter((response) => !assignedIds.has(response.studentId) && effectiveOccurrenceId(effectiveSessions, response.studentId, dateKey) === occurrence?.id)
       .forEach((response) =>
         exceptionalStudents.set(response.studentId, response.student),
       );

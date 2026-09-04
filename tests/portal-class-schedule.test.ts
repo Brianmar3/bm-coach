@@ -261,7 +261,7 @@ test("la API deriva el alumno desde sesión y consulta la agenda general activa"
 test("la API materializa recurrencias y devuelve una única agenda elegible calculada en servidor", () => {
   const source = readFileSync(new URL("../app/api/portal/clases/route.ts", import.meta.url), "utf8");
   assert.ok(source.indexOf("ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS)") < source.indexOf("prisma.classOccurrence.findMany"));
-  assert.match(source, /selectPortalClassAgenda\(occurrences\.map\(serializeOccurrence\), student\.studentType\)/);
+  assert.match(source, /selectPortalClassAgenda\(occurrences\.map\(\(occurrence\) => serializeOccurrence\(occurrence, session\.studentId, effectiveSessions\)\), student\.studentType\)/);
   assert.match(source, /selectActivePortalSchedules\(assignments\)/);
   assert.match(source, /summary: agenda\.summary/);
   const query = source.slice(source.indexOf("prisma.classOccurrence.findMany"), source.indexOf("const agenda = selectPortalClassAgenda"));
@@ -423,7 +423,9 @@ test("la confirmación del servidor admite clases generales elegibles y conserva
   const source = readFileSync(new URL("../app/api/portal/clases/route.ts", import.meta.url), "utf8");
   assert.match(source, /prisma\.\$transaction/);
   assert.match(source, /classIsEligibleForStudent\(occurrence\.schedule\.classType, student\.studentType\)/);
-  assert.match(source, /occurrence\._count\.responses >= occurrence\.capacityOverride/);
+  assert.match(source, /effectiveConfirmedCount >= occurrence\.capacityOverride/);
+  assert.match(source, /classOccurrenceAttendance\.updateMany/);
+  assert.match(source, /response: null/);
   assert.match(source, /classOccurrenceAttendance\.upsert/);
   assert.doesNotMatch(source, /occurrence\.schedule\?\.assignments\.length/);
 });
