@@ -16,6 +16,7 @@ import {
   compactRanking,
   countPaymentStatuses,
   dashboardPaymentAttention,
+  dashboardTodayAttendance,
   latestEvaluationPriorityCounts,
   lowActivityStudentIds,
 } from "@/lib/dashboard-read-model";
@@ -288,6 +289,17 @@ export async function GET() {
       confirmed: occurrence.responses.filter((item) => item.response === "GOING").length,
       confirmedStudents: occurrence.responses.filter((item) => item.response === "GOING").map(({ student }) => studentName(studentData(student.data))),
     }));
+    const currentArgentinaTime = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date());
+    const attendanceClassesToday = todayClasses.filter((_, index) => {
+      const occurrence = todayOccurrences[index];
+      return !occurrence.suppressedBySchedule && occurrence.status !== "CANCELLED";
+    });
+    const attendanceToday = dashboardTodayAttendance(attendanceClassesToday, currentArgentinaTime);
 
     const weeklyAttendance = Array.from({ length: 7 }, (_, index) => {
       const date = addDays(weekStart, index);
@@ -323,7 +335,10 @@ export async function GET() {
         dueSoonThreeDaysCount,
         estimatedPendingBalance,
         classesToday: todayClasses.length,
-        attendanceToday: todayAttendances.reduce((sum, item) => sum + item._count._all, 0),
+        attendanceClassesToday: attendanceClassesToday.length,
+        attendanceToday: attendanceToday.present,
+        attendanceExpectedToday: attendanceToday.expected,
+        attendanceTodayPercentage: attendanceToday.percentage,
         newStudents: currentNewStudents,
       },
       income,

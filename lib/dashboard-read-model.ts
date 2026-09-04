@@ -124,3 +124,27 @@ export function lowActivityStudentIds(candidates: DashboardActivityCandidate[]) 
     return student.hasEstablishedClasses && !student.hasRecentAttendance;
   }).map((student) => student.studentId))];
 }
+
+export type DashboardTodayClass = {
+  id: string;
+  startTime: string;
+  enrolled: number;
+  attendance: number;
+};
+
+export function dashboardTodayAttendance(classes: DashboardTodayClass[], currentTime: string) {
+  const uniqueClasses = new Map(classes.map((item) => [item.id, item]));
+  let present = 0;
+  let expected = 0;
+
+  for (const item of uniqueClasses.values()) {
+    expected += Math.max(0, item.enrolled);
+    if (item.startTime <= currentTime) present += Math.max(0, item.attendance);
+  }
+
+  return {
+    present,
+    expected,
+    percentage: expected > 0 ? Math.round((present / expected) * 100) : 0,
+  };
+}

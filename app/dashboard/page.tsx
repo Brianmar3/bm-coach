@@ -7,7 +7,7 @@ import { useBrowserStore } from "@/lib/browser-store";
 import { RANKING_PAGE_HREF } from "@/lib/ranking-navigation";
 import type { DashboardData } from "@/types/dashboard";
 import type { CoachSettings, PaymentAccountStatus } from "@/types/gestion";
-import { BmCheckIcon, BmChevronRightIcon, BmPaymentIcon, BmProgressIcon, BmRoutineIcon } from "@/componentes/icons";
+import { BmAttendanceIcon, BmCheckIcon, BmChevronRightIcon, BmPaymentIcon, BmProgressIcon, BmRoutineIcon } from "@/componentes/icons";
 
 const accountStyle: Record<PaymentAccountStatus, { label: string; className: string }> = {
   VENCIDA: { label: "Vencida", className: "bg-red-400/15 text-red-300" },
@@ -69,18 +69,33 @@ export default function Home() {
 function Hero({ data, coachName }: { data: DashboardData | null; coachName: string }) {
   return <header className="admin-welcome mb-3 rounded-2xl px-4 py-4 sm:px-5 sm:py-4">
     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
-    <p className="mt-2 text-xs text-zinc-400 sm:text-sm">
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400 sm:text-sm">
       <span className="inline-flex items-center gap-1.5 font-medium capitalize text-zinc-300"><DashboardIcon name="calendar" />{data ? showDate(data.today, true) : "—"}</span>
-    </p>
+      <span aria-hidden="true" className="text-zinc-600">·</span>
+      <WeatherLine weather={null} />
+    </div>
   </header>;
+}
+
+type DashboardWeather = { temperatureC: number; condition: string };
+
+function WeatherLine({ weather }: { weather: DashboardWeather | null }) {
+  return <span className="text-[11px] text-zinc-500 sm:text-xs">{weather ? `${Math.round(weather.temperatureC)}°C · ${weather.condition}` : "Clima no disponible"}</span>;
 }
 
 function DashboardContent({ data }: { data: DashboardData }) {
   const metrics = data.metrics;
   return <div className="space-y-3">
     <section aria-label="Resumen general" className="grid grid-cols-2 gap-2.5">
-      <MetricCard label="Alumnos activos" value={String(metrics.activeStudents)} href="/alumnos?estado=activo" icon="students" />
-      <MetricCard label="Cuotas pendientes" value={String(metrics.pendingCount)} href="/pagos" icon="warning" tone={metrics.overdueCount ? "red" : "yellow"} />
+      <MetricCard label="Alumnos activos" value={String(metrics.activeStudents)} href="/alumnos?estado=activo" icon={<DashboardIcon name="students" />} />
+      <MetricCard
+        label="Asistencia hoy"
+        value={`${metrics.attendanceToday} / ${metrics.attendanceExpectedToday}`}
+        subtitle={metrics.attendanceClassesToday > 0 ? `${metrics.attendanceTodayPercentage}% completado` : "Sin clases programadas"}
+        href="/asistencias"
+        icon={<BmAttendanceIcon size={20} />}
+        tone="green"
+      />
     </section>
 
     <AttentionToday data={data.attentionToday} />
@@ -102,11 +117,11 @@ function DashboardContent({ data }: { data: DashboardData }) {
   </div>;
 }
 
-function MetricCard({ label, value, href, icon, tone = "yellow" }: { label: string; value: string; href: string; icon: IconName; tone?: "yellow" | "green" | "red" }) {
+function MetricCard({ label, value, subtitle, href, icon, tone = "yellow" }: { label: string; value: string; subtitle?: string; href: string; icon: ReactNode; tone?: "yellow" | "green" | "red" }) {
   const colors = { yellow: "bg-yellow-400/10 text-yellow-300", green: "bg-emerald-400/10 text-emerald-300", red: "bg-red-400/10 text-red-300" }[tone];
   return <Link href={href} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3.5 shadow-lg shadow-black/10 transition hover:border-yellow-400/35 sm:min-h-20 sm:p-4">
-    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${colors}`}><DashboardIcon name={icon} /></span>
-    <span className="min-w-0"><span className="block text-[11px] text-zinc-500 sm:text-sm">{label}</span><strong className="mt-1 block truncate text-lg tracking-tight text-white sm:text-2xl">{value}</strong></span>
+    <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${colors}`}>{icon}</span>
+    <span className="min-w-0"><span className="block text-[11px] text-zinc-500 sm:text-sm">{label}</span><strong className="mt-0.5 block truncate text-lg tracking-tight text-white sm:text-2xl">{value}</strong>{subtitle && <small className="block truncate text-[10px] text-zinc-500 sm:text-xs">{subtitle}</small>}</span>
   </Link>;
 }
 

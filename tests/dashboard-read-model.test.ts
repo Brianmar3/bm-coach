@@ -6,6 +6,7 @@ import {
   compactRanking,
   countPaymentStatuses,
   dashboardPaymentAttention,
+  dashboardTodayAttendance,
   latestEvaluationPriorityCounts,
   lowActivityStudentIds,
 } from "../lib/dashboard-read-model.ts";
@@ -87,16 +88,36 @@ test("el ranking mensual conserva sólo activos, ordena empates y limita a tres"
   assert.deepEqual(ranking.map((item) => item.studentId), ["d", "c", "b"]);
 });
 
+test("asistencia de hoy usa ocurrencias reales, evita duplicados y omite presentes de clases futuras", () => {
+  const result = dashboardTodayAttendance([
+    { id: "morning", startTime: "08:00", enrolled: 10, attendance: 4 },
+    { id: "morning", startTime: "08:00", enrolled: 10, attendance: 4 },
+    { id: "midday", startTime: "11:00", enrolled: 8, attendance: 2 },
+    { id: "future", startTime: "18:00", enrolled: 0, attendance: 3 },
+  ], "12:00");
+  assert.deepEqual(result, { present: 6, expected: 18, percentage: 33 });
+  const route = readFileSync(new URL("../app/api/dashboard/route.ts", import.meta.url), "utf8");
+  assert.match(route, /dashboardTodayAttendance\(attendanceClassesToday, currentArgentinaTime\)/);
+  assert.match(route, /assignments\.filter\(\(\{ student \}\)/);
+  assert.match(route, /occurrence\.status !== "CANCELLED"/);
+});
+
+test("asistencia de hoy devuelve un estado válido cuando no hay clases", () => {
+  assert.deepEqual(dashboardTodayAttendance([], "12:00"), { present: 0, expected: 0, percentage: 0 });
+});
+
 test("el Dashboard respeta la jerarquía compacta y elimina los bloques pesados", () => {
   const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
-  const summary = page.slice(page.indexOf('aria-label="Resumen general"'), page.indexOf("<PrioritiesPanel"));
+  const summary = page.slice(page.indexOf('aria-label="Resumen general"'), page.indexOf("<AttentionToday"));
   assert.match(page, /ATENCIÓN HOY/);
   assert.match(page, /Agenda de hoy/);
   assert.match(page, /Ranking mensual/);
   assert.match(page, /Ver ranking/);
   assert.match(page, /Actividad semanal/);
   assert.match(summary, /Alumnos activos/);
-  assert.match(summary, /Cuotas pendientes/);
+  assert.match(summary, /Asistencia hoy/);
+  assert.match(summary, /attendanceTodayPercentage/);
+  assert.doesNotMatch(summary, /Cuotas pendientes/);
   assert.doesNotMatch(summary, /Cobrado este mes/);
   assert.doesNotMatch(summary, /Clases hoy/);
   assert.match(page, /title="Cobros"/);
@@ -104,6 +125,13 @@ test("el Dashboard respeta la jerarquía compacta y elimina los bloques pesados"
   assert.doesNotMatch(page, /PaymentSummary|PointsRanking|QuickAccess|Accesos rápidos/);
   assert.match(page, /aria-label="Resumen general" className="grid grid-cols-2 gap-2\.5"/);
   assert.match(page, /overflow-x-clip/);
+});
+
+test("el clima usa un fallback no bloqueante sin inventar datos ni hacer requests externos", () => {
+  const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /<WeatherLine weather=\{null\}/);
+  assert.match(page, /Clima no disponible/);
+  assert.doesNotMatch(page, /openweather|weatherapi|navigator\.geolocation/i);
 });
 
 test("Atención hoy usa datos reales, rutas válidas y no incluye confirmaciones", () => {

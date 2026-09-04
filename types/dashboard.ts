@@ -34,7 +34,10 @@ export type DashboardData = {
     dueSoonThreeDaysCount: number;
     estimatedPendingBalance: number | null;
     classesToday: number;
+    attendanceClassesToday: number;
     attendanceToday: number;
+    attendanceExpectedToday: number;
+    attendanceTodayPercentage: number;
     newStudents: number;
   };
   income: Array<{ date: string; label: string; amount: number }>;
