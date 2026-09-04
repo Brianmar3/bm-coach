@@ -129,7 +129,12 @@ test("el Dashboard respeta la jerarquía compacta y elimina los bloques pesados"
 
 test("el clima usa un fallback no bloqueante sin inventar datos ni hacer requests externos", () => {
   const page = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /<WeatherLine weather=\{null\}/);
+  assert.match(page, /useState<CurrentWeather \| null \| undefined>\(undefined\)/);
+  assert.match(page, /fetch\("\/api\/weather"/);
+  assert.match(page, /<WeatherLine weather=\{weather\}/);
+  assert.match(page, /setWeather\(result\.weather\)/);
+  assert.match(page, /setWeather\(null\)/);
+  assert.match(page, /Cargando clima/);
   assert.match(page, /Clima no disponible/);
   assert.doesNotMatch(page, /openweather|weatherapi|navigator\.geolocation/i);
 });

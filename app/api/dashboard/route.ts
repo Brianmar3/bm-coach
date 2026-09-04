@@ -152,7 +152,8 @@ export async function GET() {
       }),
       prisma.workoutSession.findMany({
         where: { status: "COMPLETED", date: { gte: recentActivityStart, lt: tomorrowDate } },
-        select: { studentId: true, date: true },
+        select: { id: true, studentId: true, routineId: true, routineNameSnapshot: true, date: true, updatedAt: true },
+        orderBy: { updatedAt: "desc" },
       }),
       prisma.classAttendance.findMany({
         where: { status: "PRESENT", date: { lt: tomorrowDate } },
@@ -227,6 +228,17 @@ export async function GET() {
     const weeklyFrequencyByStudent = new Map<string, number>();
     for (const assignment of classAssignments) weeklyFrequencyByStudent.set(assignment.studentId, (weeklyFrequencyByStudent.get(assignment.studentId) ?? 0) + 1);
     const recentWorkoutIds = new Set(recentWorkouts.map((item) => item.studentId));
+    const todayCompletedWorkouts = recentWorkouts
+      .filter((session) => personalizedStudentIds.has(session.studentId) && databaseDateKey(session.date) === today)
+      .map((session) => ({
+        sessionId: session.id,
+        studentId: session.studentId,
+        studentName: namesByStudent.get(session.studentId) ?? "Alumno",
+        routineId: session.routineId,
+        routineName: session.routineNameSnapshot || "Rutina eliminada",
+        date: databaseDateKey(session.date),
+        completedAt: session.updatedAt.toISOString(),
+      }));
     const lastAttendanceByStudent = new Map<string, string>();
     for (const attendance of recentAttendances) {
       const date = databaseDateKey(attendance.date);
@@ -357,7 +369,8 @@ export async function GET() {
         dueSoonCount: dueSoonThreeDaysCount,
         lowActivityStudentCount: new Set(lowActivityIds).size,
         lowActivityStudents,
-        completedWorkoutCount: recentWorkouts.filter((session) => personalizedStudentIds.has(session.studentId) && databaseDateKey(session.date) === today).length,
+        completedWorkoutCount: todayCompletedWorkouts.length,
+        completedWorkouts: todayCompletedWorkouts,
         registeredPaymentTotal: todayPaymentSummary.registeredTotal,
         registeredPaymentCount: todayPaymentSummary.registeredCount,
       },

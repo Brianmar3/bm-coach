@@ -9,6 +9,7 @@ import type { DashboardData } from "@/types/dashboard";
 import type { CoachSettings, PaymentAccountStatus } from "@/types/gestion";
 import type { CurrentWeather } from "@/lib/weather";
 import { BmAttendanceIcon, BmCheckIcon, BmChevronRightIcon, BmPaymentIcon, BmProgressIcon, BmRoutineIcon } from "@/componentes/icons";
+import { completedWorkoutPriorityHref, completedWorkoutPrioritySubtitle } from "@/lib/dashboard-workout-priority";
 
 const accountStyle: Record<PaymentAccountStatus, { label: string; className: string }> = {
   VENCIDA: { label: "Vencida", className: "bg-red-400/15 text-red-300" },
@@ -158,7 +159,7 @@ function AttentionToday({ data }: { data: DashboardData["attentionToday"] }) {
   const rows = [
     quotaCount ? { id: "quotas", title: quotaTitle, subtitle: quotaSubtitle, href: "/pagos", tone: "danger", icon: <BmPaymentIcon size={18}/> } : null,
     data.lowActivityStudentCount ? { id: "activity", title: `${data.lowActivityStudentCount} ${data.lowActivityStudentCount === 1 ? "alumno con baja actividad" : "alumnos con baja actividad"}`, subtitle: "Sin asistencias en los últimos 7 días", href: "/asistencias?view=low-activity", tone: "warning", icon: <BmProgressIcon size={18}/> } : null,
-    data.completedWorkoutCount ? { id: "workouts", title: `${data.completedWorkoutCount} ${data.completedWorkoutCount === 1 ? "entrenamiento completado" : "entrenamientos completados"}`, subtitle: "Revisar seguimiento", href: "/rutinas?tab=seguimiento", tone: "gold", icon: <BmRoutineIcon size={18}/> } : null,
+    data.completedWorkoutCount ? { id: "workouts", title: `${data.completedWorkoutCount} ${data.completedWorkoutCount === 1 ? "entrenamiento completado" : "entrenamientos completados"}`, subtitle: completedWorkoutPrioritySubtitle(data.completedWorkouts), href: completedWorkoutPriorityHref(data.completedWorkouts), tone: "gold", icon: <BmRoutineIcon size={18}/> } : null,
     data.registeredPaymentCount ? { id: "payments", title: `${money(data.registeredPaymentTotal)} registrados hoy`, subtitle: `${data.registeredPaymentCount} ${data.registeredPaymentCount === 1 ? "pago" : "pagos"}`, href: "/resumen-mensual", tone: "positive", icon: <BmCheckIcon size={18}/> } : null,
   ].filter((row): row is NonNullable<typeof row> => Boolean(row)).slice(0, 4);
   const hasPriority = quotaCount > 0 || data.lowActivityStudentCount > 0 || data.completedWorkoutCount > 0;

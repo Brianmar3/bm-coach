@@ -19,7 +19,7 @@ const showDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).t
 const valueOrDash = (value: number | null, suffix = "") => value === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(value)}${suffix}`;
 const stateLabels: Record<AdminFollowUpState, string> = { on_track: "Al día", attention: "Necesita atención", no_data: "Sin datos" };
 
-export function RoutineFollowUpDashboard({ initialStudentId = "" }: { initialStudentId?: string }) {
+export function RoutineFollowUpDashboard({ initialStudentId = "", initialSessionId = "", initialStudentIds = [], initialSessionIds = [] }: { initialStudentId?: string; initialSessionId?: string; initialStudentIds?: string[]; initialSessionIds?: string[] }) {
   const [students, setStudents] = useState<AdminStudentFollowUp[]>([]);
   const [summary, setSummary] = useState(emptySummary);
   const [loading, setLoading] = useState(true);
@@ -36,6 +36,7 @@ export function RoutineFollowUpDashboard({ initialStudentId = "" }: { initialStu
   const [tab, setTab] = useState<Tab>("resumen");
   const [selectedSession, setSelectedSession] = useState<AdminWorkoutSession | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const initialNavigationHandled = useRef(false);
 
   const loadSummary = useCallback(async () => {
     const body = await apiRequest<SummaryResponse>("/api/seguimiento/resumen", { cache: "no-store" }, { fallback: "No se pudo cargar el seguimiento.", scope: "admin" });
@@ -50,22 +51,31 @@ export function RoutineFollowUpDashboard({ initialStudentId = "" }: { initialStu
       .finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort();
   }, [reload]);
 
-  const openStudent = useCallback(async (student: AdminStudentFollowUp, preferredTab: Tab = "resumen") => {
+  const openStudent = useCallback(async (student: AdminStudentFollowUp, preferredTab: Tab = "resumen", preferredSessionId = "") => {
     openerRef.current = document.activeElement as HTMLElement | null; setSelectedStudent(student); setTab(preferredTab); setDetail(null); setDetailLoading(true); setDetailError("");
     try { const body = await apiRequest<AdminFollowUpDetail>(`/api/seguimiento/detalle?studentId=${encodeURIComponent(student.studentId)}`, { cache: "no-store" }, { fallback: "No pudimos cargar el detalle del alumno.", scope: "admin" });
       setDetail(body);
+      if (preferredSessionId) setSelectedSession(body.sessions.find((session) => session.id === preferredSessionId) ?? null);
     } catch (value) { setDetailError(value instanceof Error ? value.message : "No pudimos cargar el detalle del alumno."); }
     finally { setDetailLoading(false); }
   }, []);
 
-  useEffect(() => { if (!initialStudentId || !students.length || selectedStudent) return; const student = students.find((item) => item.studentId === initialStudentId); if (!student) return; const timer = window.setTimeout(() => void openStudent(student), 0); return () => window.clearTimeout(timer); }, [initialStudentId, openStudent, selectedStudent, students]);
+  useEffect(() => {
+    if (initialNavigationHandled.current || !initialStudentId || !students.length) return;
+    initialNavigationHandled.current = true;
+    const student = students.find((item) => item.studentId === initialStudentId);
+    if (!student) return;
+    const timer = window.setTimeout(() => void openStudent(student, initialSessionId || initialSessionIds.length ? "sesiones" : "resumen", initialSessionId), 0);
+    return () => window.clearTimeout(timer);
+  }, [initialSessionId, initialSessionIds, initialStudentId, openStudent, students]);
   const closeDetail = useCallback(() => { setSelectedStudent(null); setDetail(null); setSelectedSession(null); window.setTimeout(() => openerRef.current?.focus(), 0); }, []);
 
-  const visible = useMemo(() => { const normalized = query.trim().toLocaleLowerCase("es"); return students.filter((student) =>
-    (!normalized || student.studentName.toLocaleLowerCase("es").includes(normalized) || student.activeRoutine?.name.toLocaleLowerCase("es").includes(normalized))
+  const visible = useMemo(() => { const normalized = query.trim().toLocaleLowerCase("es"); const focusedStudents = new Set(initialStudentIds); const hasFocusedStudents = students.some((student) => focusedStudents.has(student.studentId)); return students.filter((student) =>
+    (!focusedStudents.size || !hasFocusedStudents || focusedStudents.has(student.studentId))
+    && (!normalized || student.studentName.toLocaleLowerCase("es").includes(normalized) || student.activeRoutine?.name.toLocaleLowerCase("es").includes(normalized))
     && (status === "all" || student.state === status)
     && (location === "all" || routineTrainingLocation(student.activeRoutine?.location ?? "") === location));
-  }, [location, query, status, students]);
+  }, [initialStudentIds, location, query, status, students]);
   const pages = Math.max(1, Math.ceil(visible.length / pageSize));
   const paged = visible.slice((page - 1) * pageSize, page * pageSize);
   const attention = students.filter((student) => student.state === "attention").slice(0, 4);
@@ -74,6 +84,7 @@ export function RoutineFollowUpDashboard({ initialStudentId = "" }: { initialStu
 
   return <section aria-labelledby="follow-up-title">
     <header className="mb-4"><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Control de entrenamiento</p><div className="mt-1 flex flex-wrap items-end justify-between gap-2"><div><h2 id="follow-up-title" className="text-2xl font-black text-zinc-100">Seguimiento</h2><p className="mt-1 text-sm text-zinc-500">Adherencia, evolución y señales reales de cada plan activo.</p></div><p className="text-[11px] text-zinc-600">Cumplimiento sobre semanas completas del plan</p></div></header>
+    {initialSessionIds.length > 1 && !selectedStudent && <p role="status" className="mb-4 rounded-xl border border-yellow-400/20 bg-yellow-400/[.05] px-3 py-2 text-xs text-yellow-100">{initialSessionIds.length} entrenamientos completados hoy · mostrando los alumnos vinculados.</p>}
     {error && students.length > 0 && <div className="mb-4"><ErrorState compact title="No pudimos actualizar el seguimiento." retry={retrySummary} /></div>}
     {error && students.length === 0 ? null : loading && students.length === 0 ? <CardGridSkeleton /> : <div className="grid grid-cols-2 gap-2 lg:grid-cols-4"><Metric label="Alumnos en seguimiento" value={String(summary.trackedStudents)} helper="Con rutina activa" /><Metric label="Al día" value={`${summary.onTrackPercentage}%`} helper={`${summary.onTrack} alumnos`} tone="green" /><Metric label="Necesitan atención" value={`${summary.attentionPercentage}%`} helper={`${summary.attention} alumnos`} tone="red" /><Metric label="Promedio por alumno" value={String(summary.averageSessions)} helper="Sesiones completadas" /></div>}
     {!loading && attention.length > 0 && <section className="mt-4 rounded-2xl border border-red-400/15 bg-red-400/[.035] p-3"><div className="flex items-center justify-between"><h3 className="text-sm font-black">Necesitan atención · {summary.attention}</h3><span className="text-[10px] text-zinc-500">Prioridades reales</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{attention.map((student) => <button key={student.studentId} type="button" onClick={() => void openStudent(student, student.latestPainReport ? "molestias" : "resumen")} className="min-h-12 rounded-xl border border-zinc-800 bg-black/30 px-3 py-2 text-left hover:border-red-400/30"><strong className="block truncate text-xs text-zinc-200">{student.studentName}</strong><span className="mt-1 block truncate text-[11px] text-red-300/80">{student.attentionReason}</span></button>)}</div></section>}

@@ -1,4 +1,5 @@
 import type { PaymentAccountStatus } from "@/types/gestion";
+import type { DashboardCompletedWorkout } from "@/lib/dashboard-workout-priority";
 
 export type DashboardPriority = {
   id: string;
@@ -49,6 +50,7 @@ export type DashboardData = {
     lowActivityStudentCount: number;
     lowActivityStudents: DashboardLowActivityStudent[];
     completedWorkoutCount: number;
+    completedWorkouts: DashboardCompletedWorkout[];
     registeredPaymentTotal: number;
     registeredPaymentCount: number;
   };
