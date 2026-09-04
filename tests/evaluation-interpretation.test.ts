@@ -67,13 +67,13 @@ test("Rutinas integra evaluación sólo para servicios elegibles y simplifica el
   assert.match(page, /Activar rutina/);
 });
 
-test("el creador exige alumno, conserva evaluación y oculta la interfaz de IA", () => {
+test("el creador exige al menos un alumno, admite selección múltiple, conserva evaluación y oculta la interfaz de IA", () => {
   const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
   const panel = readFileSync(new URL("../componentes/routine-evaluation-panel.tsx", import.meta.url), "utf8");
   const modernEditor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("function BlockEditor"));
   assert.match(panel, /slice\(0, 2\)/); assert.match(panel, /p-3/); assert.match(panel, /evaluation\.primaryGoal/);
-  assert.match(page, /¿Para quién es esta rutina\?/); assert.match(modernEditor, /form\.studentIds\.length === 0/);
-  assert.match(page, /Alumno seleccionado/); assert.match(page, /Cambiar alumno/);
+  assert.match(modernEditor, /form\.studentIds\.length === 0/);
+  assert.match(page, /Asignar alumnos/); assert.match(page, /type="checkbox" checked=\{checked\}/);
   assert.doesNotMatch(page, /RoutineAIProposalPanel|applyAIProposal|\/api\/admin\/rutinas\/propuesta/);
   assert.match(modernEditor, /min-h-14 w-28/); assert.match(modernEditor, /sm:w-32/); assert.match(modernEditor, /border-zinc-700 bg-zinc-800/);
   assert.doesNotMatch(page, /Crear borrador y revisar/);
@@ -84,8 +84,33 @@ test("el portal usa selector de métrica y tres tarjetas superiores", () => {
   const portal = readFileSync(new URL("../componentes/portal-evaluations-dashboard.tsx", import.meta.url), "utf8");
   assert.match(insights, /aria-label="Métrica de evolución"/); assert.match(insights, /onChange=\{\(event\) => setMetricKey/);
   assert.doesNotMatch(insights, /metrics\.map\(\(item\) => <button/);
-  const cards = portal.slice(portal.indexOf('className="grid grid-cols-3'), portal.indexOf("<details open"));
+  const cards = portal.slice(portal.indexOf('className="grid grid-cols-3'), portal.indexOf('rounded-[20px] border border-yellow-400/20'));
   assert.match(cards, /Peso/); assert.match(cards, /IMC/); assert.match(cards, /Grasa corporal/); assert.doesNotMatch(cards, /Cintura/);
+});
+
+test("el panel del alumno replica la jerarquía compacta y conserva datos y áreas reales", () => {
+  const portal = readFileSync(new URL("../componentes/portal-evaluations-dashboard.tsx", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
+  for (const text of ["Tu última evaluación", "Tu evolución", "Áreas evaluadas", "Historial de evaluaciones", "Antes / Ahora", "Mapa corporal", "Movilidad y control", "Tests físicos", "Resumen de resultados"]) assert.match(portal, new RegExp(text));
+  for (const datum of ["current.date", "current.completionPercentage", "current.weight", "current.bmi", "current.bodyFatPercentage", "current.reassessmentDate", "item.version"]) assert.match(portal, new RegExp(datum.replace(".", "\\.")));
+  assert.match(portal, /Completada/);
+  assert.doesNotMatch(portal, />COMPLETED</);
+  assert.match(portal, /number === null \? "—"/);
+  assert.match(portal, /EvaluationComparisonPanel/);
+  assert.match(portal, /EvaluationBodyMap/);
+  assert.match(portal, /EvaluationTests/);
+  assert.match(portal, /EvaluationStatusSummary/);
+  assert.match(shell, /env\(safe-area-inset-bottom\)/);
+  assert.match(shell, /portal-bottom-nav-height/);
+});
+
+test("el portal muestra un estado vacío útil sin ofrecer creación al alumno", () => {
+  const portal = readFileSync(new URL("../componentes/portal-evaluations-dashboard.tsx", import.meta.url), "utf8");
+  const emptyState = portal.slice(portal.indexOf("function EmptyEvaluations"), portal.indexOf("export function PortalEvaluationsDashboard"));
+  for (const text of ["Tu primera evaluación", "Todavía no registramos una evaluación física", "Medidas corporales", "Fuerza y resistencia", "Evolución física", "Molestias y observaciones", "Tu entrenador cargará tu evaluación cuando corresponda"]) assert.match(emptyState, new RegExp(text));
+  assert.match(portal, /if \(!current\) return <EmptyEvaluations\/>/);
+  assert.match(emptyState, /BmEvaluationIcon|BmMeasurementsIcon|BmBarbellIcon|BmProgressIcon|BmHealthIcon/);
+  assert.doesNotMatch(emptyState, /Crear|Comenzar|Nueva evaluación|href=|<button/);
 });
 
 test("Evaluaciones del entrenador no contiene Vista Global y presenta buscador, filtros y lista", () => {

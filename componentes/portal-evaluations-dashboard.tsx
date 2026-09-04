@@ -4,7 +4,7 @@ import { useState, type ComponentType } from "react";
 import { EvaluationBodyMap, EvaluationLineChart, EvaluationStatusSummary, EvaluationTests } from "@/componentes/evaluation-insights";
 import { EvaluationComparisonPanel } from "@/componentes/evaluation-progress-panels";
 import { compareEvaluations } from "@/lib/evaluation-progress";
-import { BmBarbellIcon, BmChevronRightIcon, BmEvaluationIcon, BmEyeIcon, BmHealthIcon, BmMeasurementsIcon, BmSlidersIcon, BmWeightIcon, type BmIconProps } from "@/componentes/icons";
+import { BmBarbellIcon, BmChevronRightIcon, BmEvaluationIcon, BmEyeIcon, BmHealthIcon, BmMeasurementsIcon, BmProgressIcon, BmSlidersIcon, BmWeightIcon, type BmIconProps } from "@/componentes/icons";
 import type { StudentEvaluation } from "@/types/evaluation-read-model";
 
 type AreaKey = "comparison" | "body" | "mobility" | "physical" | "summary";
@@ -21,13 +21,23 @@ function AreaButton({ icon: Icon, title, subtitle, active, wide = false, onClick
   return <button type="button" aria-expanded={active} onClick={onClick} className={`${wide ? "col-span-2" : ""} grid min-h-[4.25rem] grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border px-3 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-yellow-300 ${active ? "border-yellow-400/45 bg-yellow-400/[.06]" : "border-yellow-400/20 bg-[#1B1B1E] hover:border-yellow-400/35"}`}><Icon size={25} className="text-[#D4A72C]"/><span className="min-w-0"><strong className="block text-sm leading-tight text-[#F5F5F5]">{title}</strong><small className="mt-1 block truncate text-[11px] text-[#6F6F75]">{subtitle}</small></span><BmChevronRightIcon size={18} className={`text-zinc-500 transition ${active ? "rotate-90" : ""}`}/></button>;
 }
 
+function EmptyEvaluations() {
+  const benefits: Array<{ label: string; icon: ComponentType<BmIconProps> }> = [
+    { label: "Medidas corporales", icon: BmMeasurementsIcon },
+    { label: "Fuerza y resistencia", icon: BmBarbellIcon },
+    { label: "Evolución física", icon: BmProgressIcon },
+    { label: "Molestias y observaciones", icon: BmHealthIcon },
+  ];
+  return <section className="relative overflow-hidden rounded-[20px] border border-yellow-400/25 bg-[radial-gradient(circle_at_50%_0%,rgba(212,167,44,.09),transparent_35%),linear-gradient(145deg,#171719,#0B0B0C)] px-4 py-5 text-center shadow-[0_18px_45px_rgba(0,0,0,.28)] sm:p-7"><span aria-hidden="true" className="absolute -right-14 -top-14 size-44 rounded-full border border-yellow-400/[.05] shadow-[0_0_0_22px_rgba(212,167,44,.02)]"/><div className="relative mx-auto grid size-14 place-items-center rounded-2xl border border-yellow-400/35 bg-yellow-400/[.07] text-[#D4A72C] shadow-[0_10px_28px_rgba(0,0,0,.3)]"><BmEvaluationIcon size={30}/></div><div className="relative mx-auto mt-4 max-w-xl"><p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#D4A72C]">Tu primera evaluación</p><h2 className="mt-2 text-xl font-black leading-tight text-[#F5F5F5] sm:text-2xl">Todavía no registramos una evaluación física</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-[#A3A3A8]">Cuando completes una evaluación vas a poder seguir tu evolución y comparar tus resultados en el tiempo.</p></div><ul className="relative mx-auto mt-5 grid max-w-2xl grid-cols-2 gap-2 text-left">{benefits.map(({ label, icon: Icon }) => <li key={label} className="flex min-h-12 items-center gap-2 rounded-xl border border-white/[.07] bg-[#1B1B1E]/90 px-3 py-2 text-xs font-medium text-zinc-200"><Icon size={19} className="shrink-0 text-[#D4A72C]"/><span className="leading-snug">{label}</span></li>)}</ul><p className="relative mt-5 border-t border-white/[.07] pt-4 text-xs text-[#6F6F75]">Tu entrenador cargará tu evaluación cuando corresponda.</p></section>;
+}
+
 export function PortalEvaluationsDashboard({ evaluations }: { evaluations: StudentEvaluation[] }) {
   const [selectedId, setSelectedId] = useState("");
   const [activeArea, setActiveArea] = useState<AreaKey | null>(null);
   const current = evaluations.find((item) => item.id === selectedId) ?? evaluations[0];
   const index = current ? evaluations.findIndex((item) => item.id === current.id) : -1;
   const previous = index >= 0 ? evaluations[index + 1] : undefined;
-  if (!current) return <p className="rounded-2xl border border-dashed border-white/[.09] bg-[#151517] p-6 text-center text-sm text-[#A3A3A8]">Todavía no hay evaluaciones completadas.</p>;
+  if (!current) return <EmptyEvaluations/>;
   const recentComparison = evaluations[0] && evaluations[1] ? compareEvaluations(evaluations[1], evaluations[0], new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date())) : null;
   const toggleArea = (area: AreaKey) => setActiveArea((currentArea) => currentArea === area ? null : area);
 
