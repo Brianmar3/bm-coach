@@ -7,6 +7,7 @@ import { useBrowserStore } from "@/lib/browser-store";
 import { RANKING_PAGE_HREF } from "@/lib/ranking-navigation";
 import type { DashboardData } from "@/types/dashboard";
 import type { CoachSettings, PaymentAccountStatus } from "@/types/gestion";
+import type { CurrentWeather } from "@/lib/weather";
 import { BmAttendanceIcon, BmCheckIcon, BmChevronRightIcon, BmPaymentIcon, BmProgressIcon, BmRoutineIcon } from "@/componentes/icons";
 
 const accountStyle: Record<PaymentAccountStatus, { label: string; className: string }> = {
@@ -38,6 +39,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
+  const [weather, setWeather] = useState<CurrentWeather | null | undefined>(undefined);
   const { items: settings } = useBrowserStore<CoachSettings>("bm-coach-settings", []);
   const coachName = settings[0]?.coachName?.trim() || "Profe";
 
@@ -56,9 +58,23 @@ export default function Home() {
     return () => controller.abort();
   }, [reload]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/weather", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("WEATHER_UNAVAILABLE");
+        return response.json() as Promise<{ weather: CurrentWeather | null }>;
+      })
+      .then((result) => setWeather(result.weather))
+      .catch((loadError: unknown) => {
+        if (!(loadError instanceof Error && loadError.name === "AbortError")) setWeather(null);
+      });
+    return () => controller.abort();
+  }, []);
+
   return <main className="admin-page min-h-screen overflow-x-clip px-3 pb-24 pt-3 text-white sm:px-5 sm:pt-5 md:pb-10 xl:px-6">
     <div className="mx-auto min-w-0 max-w-[1440px]">
-      <Hero data={data} coachName={coachName} />
+      <Hero data={data} coachName={coachName} weather={weather} />
       {error && <section role="alert" className="mb-4 flex flex-col gap-3 rounded-2xl border border-red-400/30 bg-red-400/10 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-red-200">{error}</p><button onClick={() => { setLoading(true); setError(""); setReload((value) => value + 1); }} className="rounded-lg bg-red-300 px-3 py-2 text-sm font-bold text-zinc-950">Reintentar</button></section>}
       {loading && !data ? <DashboardSkeleton /> : data && <DashboardContent data={data} />}
     </div>
@@ -66,21 +82,20 @@ export default function Home() {
   </main>;
 }
 
-function Hero({ data, coachName }: { data: DashboardData | null; coachName: string }) {
+function Hero({ data, coachName, weather }: { data: DashboardData | null; coachName: string; weather: CurrentWeather | null | undefined }) {
   return <header className="admin-welcome mb-3 rounded-2xl px-4 py-4 sm:px-5 sm:py-4">
     <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">¡Hola, <span className="text-yellow-300">{coachName}</span>!</h1>
     <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400 sm:text-sm">
       <span className="inline-flex items-center gap-1.5 font-medium capitalize text-zinc-300"><DashboardIcon name="calendar" />{data ? showDate(data.today, true) : "—"}</span>
       <span aria-hidden="true" className="text-zinc-600">·</span>
-      <WeatherLine weather={null} />
+      <WeatherLine weather={weather} />
     </div>
   </header>;
 }
 
-type DashboardWeather = { temperatureC: number; condition: string };
-
-function WeatherLine({ weather }: { weather: DashboardWeather | null }) {
-  return <span className="text-[11px] text-zinc-500 sm:text-xs">{weather ? `${Math.round(weather.temperatureC)}°C · ${weather.condition}` : "Clima no disponible"}</span>;
+function WeatherLine({ weather }: { weather: CurrentWeather | null | undefined }) {
+  if (weather === undefined) return <span aria-label="Cargando clima" className="inline-block h-3 w-24 animate-pulse rounded-full bg-zinc-700/70" />;
+  return <span className="whitespace-nowrap text-[11px] text-zinc-500 sm:text-xs">{weather ? `${weather.temperatureC}°C · ${weather.condition}` : "Clima no disponible"}</span>;
 }
 
 function DashboardContent({ data }: { data: DashboardData }) {
