@@ -512,7 +512,7 @@ function PointsHistory({ data }: { data: PortalData }) {
 }
 
 function ComparativeEvaluationsView({ data }: { data: PortalData }) {
-  return <PageHeader title="Mis evaluaciones" subtitle="Tu evolución física"><PortalEvaluationsDashboard evaluations={data.evaluations} /></PageHeader>;
+  return <div className="mx-auto max-w-5xl"><header className="mb-4 px-1 pt-1 sm:mb-5"><h1 className="text-3xl font-black tracking-tight text-zinc-100 sm:text-4xl">Mis evaluaciones</h1><p className="mt-1 text-base text-zinc-500 sm:text-lg">Tu evolución física</p></header><PortalEvaluationsDashboard evaluations={data.evaluations} /></div>;
 }
 
 // Se conserva temporalmente para compatibilidad visual con enlaces internos antiguos.
