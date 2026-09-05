@@ -48,13 +48,20 @@ test("al llegar a cero finaliza y el hook protege un único sonido por ejecució
   assert.equal(exerciseRestSeconds(running, 3_000), 0);
   assert.equal(finishExerciseRestTimer(running).status, "finished");
   assert.match(component, /soundedRunsRef\.current\.has\(runId\)/);
-  assert.match(component, /feedback\("finish", false\)/);
+  assert.match(component, /feedback\("restFinish", false\)/);
 });
 
 test("iniciar es silencioso y sólo prepara el audio final", () => {
-  assert.match(component, /prime\("finish"\)/);
-  assert.equal((component.match(/feedback\("finish", false\)/g) ?? []).length, 1);
+  assert.match(component, /prime\("restFinish"\)/);
+  assert.equal((component.match(/feedback\("restFinish", false\)/g) ?? []).length, 1);
   assert.doesNotMatch(component, /feedback\("work"|navigator\.vibrate/);
+});
+
+test("el descanso usa su campanita y el workout conserva su final actual", () => {
+  assert.match(audioHook, /BLOCK_TIMER_AUDIO/);
+  const sounds = readFileSync(new URL("../lib/block-timer-sounds.ts", import.meta.url), "utf8");
+  assert.match(sounds, /finish: "\/audio\/workout-finish\.m4a"/);
+  assert.match(sounds, /restFinish: "\/audio\/rest-finish\.wav"/);
 });
 
 test("toda la rutina comparte un único timer activo", () => {

@@ -5,7 +5,7 @@ import { BmTimerIcon } from "@/componentes/icons";
 import { useWorkoutTimerAudio } from "@/componentes/use-workout-timer-audio";
 import { exerciseRestDurationLabel, exerciseRestSeconds, finishExerciseRestTimer, formatExerciseRestTime, initialExerciseRestTimer, reduceExerciseRestTimer, type ExerciseRestTimerState } from "@/lib/exercise-rest-timer";
 
-const FINISH_SOUND = ["finish"] as const;
+const FINISH_SOUND = ["restFinish"] as const;
 
 export function useExerciseRestTimer() {
   const [timer, setTimer] = useState<ExerciseRestTimerState | null>(null);
@@ -23,7 +23,7 @@ export function useExerciseRestTimer() {
       setTimer((current) => current?.endTimestamp === runId ? finishExerciseRestTimer(current) : current);
       if (!soundedRunsRef.current.has(runId)) {
         soundedRunsRef.current.add(runId);
-        feedback("finish", false);
+        feedback("restFinish", false);
       }
     }, 250);
     return () => window.clearInterval(intervalId);
@@ -34,11 +34,11 @@ export function useExerciseRestTimer() {
     setNowMs(actionTime);
     setTimer((current) => {
       if (!current || current.exerciseId !== exerciseId || current.durationSeconds !== durationSeconds) {
-        prime("finish");
+        prime("restFinish");
         return reduceExerciseRestTimer(initialExerciseRestTimer(exerciseId, durationSeconds), "START", actionTime);
       }
       if (current.status === "ready") {
-        prime("finish");
+        prime("restFinish");
         return reduceExerciseRestTimer(current, "START", actionTime);
       }
       if (current.status === "running") return reduceExerciseRestTimer(current, "PAUSE", actionTime);
