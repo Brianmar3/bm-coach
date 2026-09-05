@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalWorkoutBlock } from "@/types/portal";
 import type { TrainingRoutineBlock } from "@/types/gestion";
 import { blockTimerView, elapsedBlockSeconds, formatTimerClock, initialBlockTimer, parseBlockTimer, reduceBlockTimer, serializeBlockTimer, type BlockTimerAction, type BlockTimerState, type TimedTrainingBlockType } from "@/lib/block-timer";
-import { BLOCK_TIMER_AUDIO, phaseTransitionSound, type BlockTimerSound } from "@/lib/block-timer-sounds";
+import { phaseTransitionSound } from "@/lib/block-timer-sounds";
+import { useWorkoutTimerAudio } from "@/componentes/use-workout-timer-audio";
 
 type TimerProps = {
   block: PortalWorkoutBlock;
@@ -24,7 +25,7 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }:
   const [timer, setTimer] = useState(() => stateFromResult(block));
   const [nowMs, setNowMs] = useState(Date.now);
   const [notice, setNotice] = useState("");
-  const audioRef = useRef<Partial<Record<BlockTimerSound, HTMLAudioElement>>>({});
+  const { feedback } = useWorkoutTimerAudio();
   const previousStepRef = useRef("");
   const finishingRef = useRef(false);
   const roundTapRef = useRef(0);
@@ -48,42 +49,12 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }:
 
   useEffect(() => { window.localStorage.setItem(persistenceKey, serializeBlockTimer(timer)); }, [persistenceKey, timer]);
   useEffect(() => {
-    const audio = Object.entries(BLOCK_TIMER_AUDIO).reduce<Partial<Record<BlockTimerSound, HTMLAudioElement>>>((result, [sound, source]) => {
-      const item = new Audio(source);
-      item.preload = "auto";
-      item.volume = 1;
-      item.load();
-      result[sound as BlockTimerSound] = item;
-      return result;
-    }, {});
-    audioRef.current = audio;
-    return () => {
-      Object.values(audio).forEach((item) => { item.pause(); item.removeAttribute("src"); item.load(); });
-      audioRef.current = {};
-    };
-  }, []);
-  useEffect(() => {
     if (timer.status !== "running") return;
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 250);
     return () => window.clearInterval(intervalId);
   }, [timer.status]);
   useEffect(() => () => {
     if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
-  }, []);
-
-  const feedback = useCallback((sound: BlockTimerSound) => {
-    try {
-      const selected = audioRef.current[sound];
-      if (selected) {
-        Object.values(audioRef.current).forEach((item) => {
-          if (item !== selected) { item.pause(); item.currentTime = 0; }
-        });
-        selected.pause();
-        selected.currentTime = 0;
-        void selected.play().catch(() => undefined);
-      }
-    } catch { /* El cronómetro funciona aunque el navegador rechace audio. */ }
-    try { navigator.vibrate?.(sound === "finish" ? [45, 250, 45] : sound === "work" ? 45 : 25); } catch { /* La vibración es opcional. */ }
   }, []);
 
   useEffect(() => {

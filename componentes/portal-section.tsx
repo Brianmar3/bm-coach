@@ -21,6 +21,7 @@ import { createFreshWorkoutSets, findCurrentWeekSession, getLocalWeekEnd, getWee
 import { freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS } from "@/lib/training-blocks";
 import { isTimedBlockType } from "@/lib/block-timer";
 import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
+import { ExerciseRestTimer, useExerciseRestTimer } from "@/componentes/exercise-rest-timer";
 import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-dashboard";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { RoutineOverlay } from "@/componentes/routine-overlay";
@@ -634,6 +635,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   const [warmupOpen, setWarmupOpen] = useState(false);
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(() => initialOpenExerciseId(inProgress?.exercises ?? []));
   const [openBlockId, setOpenBlockId] = useState<string | null>(null);
+  const exerciseRestTimer = useExerciseRestTimer();
   const autosaveSignature = useRef("");
   const autosaveAbortRef = useRef<AbortController | null>(null);
   const saveLockRef = useRef(false);
@@ -899,10 +901,13 @@ function WorkoutView({ data }: { data: PortalData }) {
         const open = openExerciseId === exercise.exerciseId;
         const completed = completedSets === exercise.sets.length && exercise.sets.length > 0;
         return <article key={exercise.exerciseId} className={`overflow-hidden rounded-2xl border bg-zinc-900/90 transition ${open ? "border-yellow-400/25 shadow-[0_12px_28px_rgba(0,0,0,.22)]" : "border-zinc-800"}`}>
+          <div className="relative">
           <button ref={(node) => { if (node) exerciseHeaderRefs.current.set(exercise.exerciseId, node); else exerciseHeaderRefs.current.delete(exercise.exerciseId); }} type="button" aria-expanded={open} aria-controls={`exercise-${exercise.exerciseId}`} onClick={() => setOpenExerciseId(open ? null : exercise.exerciseId)} className="w-full scroll-mt-24 p-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300">
-            <span className="flex items-start gap-3"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-black ${completed ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{completed ? "✓" : exerciseIndex + 1}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-zinc-100">{exercise.exerciseName}</span><span className="mt-1 block text-[10px] leading-relaxed text-zinc-500">{programmed ? `${programmed.sets} series · ${programmed.repetitions} reps${programmed.restSeconds !== null ? ` · ${programmed.restSeconds} s` : ""}${programmed.weight !== null ? ` · ${programmed.weight} kg` : ""}` : `${exercise.sets.length} series`}</span></span><span className="shrink-0 text-right"><span className="block text-[10px] font-semibold text-zinc-400">{completedSets}/{exercise.sets.length}</span><span aria-hidden="true" className={`mt-1 block text-sm text-yellow-300 transition-transform ${open ? "rotate-180" : ""}`}>⌄</span></span></span>
+            <span className="flex items-start gap-3"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-black ${completed ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-yellow-300"}`}>{completed ? "✓" : exerciseIndex + 1}</span><span className="min-w-0 flex-1 pr-28"><span className="block truncate text-sm font-bold text-zinc-100">{exercise.exerciseName}</span><span className="mt-1 block text-[10px] leading-relaxed text-zinc-500">{programmed ? `${programmed.sets} series · ${programmed.repetitions} reps${programmed.restSeconds !== null ? ` · ${programmed.restSeconds} s` : ""}${programmed.weight !== null ? ` · ${programmed.weight} kg` : ""}` : `${exercise.sets.length} series`}</span></span><span className="shrink-0 text-right"><span className="block text-[10px] font-semibold text-zinc-400">{completedSets}/{exercise.sets.length}</span><span aria-hidden="true" className={`mt-1 block text-sm text-yellow-300 transition-transform ${open ? "rotate-180" : ""}`}>⌄</span></span></span>
             <span className="mt-3 block h-1 overflow-hidden rounded-full bg-zinc-800"><span className="block h-full rounded-full bg-yellow-400 transition-[width]" style={{ width: `${exercise.sets.length ? completedSets / exercise.sets.length * 100 : 0}%` }} /></span>
           </button>
+          {(open || exerciseRestTimer.timer?.exerciseId === exercise.exerciseId) && programmed?.restSeconds !== null && programmed?.restSeconds !== undefined && programmed.restSeconds > 0 && <ExerciseRestTimer exerciseId={exercise.exerciseId} durationSeconds={programmed.restSeconds} {...exerciseRestTimer} />}
+          </div>
           {instructions.structural.length > 0 && <div data-structural-instructions className="space-y-2 border-t border-yellow-400/10 bg-yellow-400/[.035] px-3 py-3 sm:px-4">{instructions.structural.map((instruction) => <div key={`${instruction.label}-${instruction.text}`} className="flex items-start gap-2.5 rounded-xl border border-yellow-400/20 bg-zinc-950/70 px-3 py-2.5"><span className="mt-0.5 shrink-0 rounded-md bg-yellow-400/10 px-2 py-1 text-[9px] font-black tracking-wide text-yellow-300">{instruction.label}</span><p className="min-w-0 text-xs leading-relaxed text-zinc-200">{instruction.text}</p></div>)}</div>}
           {open && <div id={`exercise-${exercise.exerciseId}`} className="border-t border-zinc-800 px-3 pb-4 pt-3 sm:px-4">
             <div className="mb-3 flex items-center justify-between gap-3 text-[10px] text-zinc-500">{programmed?.muscleGroup ? <span>{programmed.muscleGroup}</span> : <span />}{exercise.previous ? <span>Última: {exercise.previous.weight ?? "—"} kg × {exercise.previous.repetitions ?? "—"} · {date(exercise.previous.date)}</span> : <span>Sin registros anteriores</span>}</div>

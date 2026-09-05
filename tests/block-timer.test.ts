@@ -5,6 +5,7 @@ import { blockTimerView, elapsedBlockSeconds, formatTimerClock, initialBlockTime
 import { BLOCK_TIMER_AUDIO, phaseTransitionSound } from "../lib/block-timer-sounds.ts";
 
 const timerComponent = readFileSync(new URL("../componentes/workout-block-timer.tsx", import.meta.url), "utf8");
+const timerAudioHook = readFileSync(new URL("../componentes/use-workout-timer-audio.ts", import.meta.url), "utf8");
 const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 
 const exercises = [
@@ -131,12 +132,13 @@ test("los sonidos usan los tres archivos de audio finales", () => {
 });
 
 test("precarga, reproduce y limpia los audios sin bloquear el cronómetro", () => {
-  assert.match(timerComponent, /new Audio\(source\)/);
-  assert.match(timerComponent, /item\.preload = "auto"/);
-  assert.match(timerComponent, /selected\.play\(\)\.catch/);
-  assert.match(timerComponent, /item\.removeAttribute\("src"\)/);
+  assert.match(timerComponent, /useWorkoutTimerAudio/);
+  assert.match(timerAudioHook, /new Audio\(BLOCK_TIMER_AUDIO\[typedSound\]\)/);
+  assert.match(timerAudioHook, /item\.preload = "auto"/);
+  assert.match(timerAudioHook, /selected\.play\(\)\.catch/);
+  assert.match(timerAudioHook, /item\.removeAttribute\("src"\)/);
   assert.match(timerComponent, /clearTimeout\(noticeTimerRef\.current\)/);
-  assert.match(timerComponent, /catch \{/);
+  assert.match(timerAudioHook, /catch \{/);
 });
 
 test("cada cambio real de fase dispara una sola señal", () => {
@@ -221,8 +223,8 @@ test("la vista móvil evita overflow y deja controles fuera de la navegación in
 
 test("avisos, sonido y vibración son progresivos y no usan APIs experimentales", () => {
   assert.match(timerComponent, /role="status"/);
-  assert.match(timerComponent, /new Audio/);
-  assert.match(timerComponent, /navigator\.vibrate\?\./);
-  assert.match(timerComponent, /catch \{/);
+  assert.match(timerAudioHook, /new Audio/);
+  assert.match(timerAudioHook, /navigator\.vibrate\?\./);
+  assert.match(timerAudioHook, /catch \{/);
   assert.doesNotMatch(timerComponent, /wakeLock|Notification|serviceWorker|PushManager/);
 });
