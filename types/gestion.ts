@@ -39,12 +39,6 @@ export type Student = {
   scheduleLabels?: string[];
   flexibleSchedule?: string;
   profileImageUrl?: string;
-  onboardingCompleted?: boolean;
-  onboardingCompletedAt?: string;
-  trainingExperience?: "Principiante" | "Intermedio" | "Avanzado";
-  hasLimitations?: boolean;
-  limitations?: string;
-  onboardingObservations?: string;
 };
 
 export type StudentPlanOption = {

@@ -396,8 +396,6 @@ function StudentDetail({ item, focus, close, edit }: {
                 <Detail label="Servicio" value={studentServiceLabel(item.serviceType)}/>
                 <Detail label="Edad / IMC" value={`${age(item.birthDate)} años · ${bmi(item.weight, item.height)}`}/>
                 <Detail label="Objetivo" value={item.goal || "No definido"}/>
-                <Detail label="Experiencia" value={item.trainingExperience || "No definida"}/>
-                <Detail label="Molestias o limitaciones" value={item.hasLimitations ? item.limitations || "Indicó que tiene molestias" : item.hasLimitations === false ? "No tiene" : "No informado"} wide/>
                 <Detail label="Cuota" value={money(item.monthlyFee)}/>
                 <Detail label="Contacto" value={item.studentType === "Kids" ? item.responsiblePhone || item.phone || "Sin teléfono" : item.phone}/>
                 {item.studentType === "Kids" && <Detail label="Responsable" value={[item.responsibleName, item.responsibleRelation].filter(Boolean).join(" · ") || "No definido"}/>}
@@ -406,7 +404,6 @@ function StudentDetail({ item, focus, close, edit }: {
                 <Detail label="Horario principal" value={item.scheduleLabel ?? "Sin horario principal"} wide/>
             </dl>
             <p className="mt-5 rounded-xl bg-zinc-950 p-4 text-sm text-zinc-300">{item.notes || "Sin observaciones."}</p>
-            {item.onboardingObservations && <div className="mt-3 rounded-xl border border-yellow-300/10 bg-zinc-950 p-4"><p className="text-xs font-bold uppercase tracking-wide text-yellow-300">Observaciones del alumno</p><p className="mt-2 text-sm text-zinc-300">{item.onboardingObservations}</p></div>}
             {item.serviceType !== "CLASSES" && <StudentEvaluations student={item}/>}
             {focus?.section === "achievements" && <section id="student-section-achievements" className="mt-5 scroll-mt-24 rounded-xl border border-yellow-300/50 bg-yellow-400/10 p-4 shadow-[0_0_24px_rgba(250,204,21,.08)]"><p className="text-xs font-bold uppercase tracking-wide text-yellow-300">Logros</p><h3 className="mt-1 font-bold">Logro relacionado con la notificación</h3><p className="mt-1 text-sm text-zinc-300">La ficha corresponde a {item.firstName} {item.lastName}. {focus.entityId ? "El logro relacionado fue localizado desde su identificador histórico." : "La notificación no conserva un identificador de logro específico."}</p></section>}
             <div id="student-section-attendance"><StudentQuickPanels student={item} initialPanel={focus?.section === "attendance" ? "attendance" : null}/></div>
