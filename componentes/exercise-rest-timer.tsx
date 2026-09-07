@@ -1,60 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { BmTimerIcon } from "@/componentes/icons";
-import { useWorkoutTimerAudio } from "@/componentes/use-workout-timer-audio";
-import { exerciseRestDurationLabel, exerciseRestSeconds, finishExerciseRestTimer, formatExerciseRestTime, initialExerciseRestTimer, reduceExerciseRestTimer, type ExerciseRestTimerState } from "@/lib/exercise-rest-timer";
+import { useExerciseRestTimer } from "@/componentes/rest-timer-provider";
+import { exerciseRestDurationLabel, exerciseRestSeconds, formatExerciseRestTime, initialExerciseRestTimer } from "@/lib/exercise-rest-timer";
 
-const FINISH_SOUND = ["restFinish"] as const;
-
-export function useExerciseRestTimer() {
-  const [timer, setTimer] = useState<ExerciseRestTimerState | null>(null);
-  const [nowMs, setNowMs] = useState(Date.now);
-  const soundedRunsRef = useRef(new Set<number>());
-  const { feedback, prime } = useWorkoutTimerAudio(FINISH_SOUND);
-
-  useEffect(() => {
-    if (timer?.status !== "running") return;
-    const intervalId = window.setInterval(() => {
-      const tick = Date.now();
-      setNowMs(tick);
-      if (timer.endTimestamp === null || exerciseRestSeconds(timer, tick) > 0) return;
-      const runId = timer.endTimestamp;
-      setTimer((current) => current?.endTimestamp === runId ? finishExerciseRestTimer(current) : current);
-      if (!soundedRunsRef.current.has(runId)) {
-        soundedRunsRef.current.add(runId);
-        feedback("restFinish", false);
-      }
-    }, 250);
-    return () => window.clearInterval(intervalId);
-  }, [feedback, timer]);
-
-  const primaryAction = useCallback((exerciseId: string, durationSeconds: number) => {
-    const actionTime = Date.now();
-    setNowMs(actionTime);
-    setTimer((current) => {
-      if (!current || current.exerciseId !== exerciseId || current.durationSeconds !== durationSeconds) {
-        prime("restFinish");
-        return reduceExerciseRestTimer(initialExerciseRestTimer(exerciseId, durationSeconds), "START", actionTime);
-      }
-      if (current.status === "ready") {
-        prime("restFinish");
-        return reduceExerciseRestTimer(current, "START", actionTime);
-      }
-      if (current.status === "running") return reduceExerciseRestTimer(current, "PAUSE", actionTime);
-      if (current.status === "paused") return reduceExerciseRestTimer(current, "RESUME", actionTime);
-      return reduceExerciseRestTimer(current, "RESET", actionTime);
-    });
-  }, [prime]);
-
-  const reset = useCallback((exerciseId: string, durationSeconds: number) => {
-    setTimer((current) => current?.exerciseId === exerciseId
-      ? reduceExerciseRestTimer(current, "RESET", Date.now())
-      : initialExerciseRestTimer(exerciseId, durationSeconds));
-  }, []);
-
-  return { timer, nowMs, primaryAction, reset };
-}
+export { useExerciseRestTimer } from "@/componentes/rest-timer-provider";
 
 type ExerciseRestTimerProps = ReturnType<typeof useExerciseRestTimer> & {
   exerciseId: string;

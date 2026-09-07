@@ -18,6 +18,7 @@ import {
   type BmIconProps,
 } from "@/componentes/icons";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
+import { RestTimerIndicator, RestTimerProvider } from "@/componentes/rest-timer-provider";
 
 type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
@@ -94,7 +95,7 @@ export function PortalShell({
       : "text-zinc-500 hover:text-zinc-200";
   };
 
-  return (
+  return <RestTimerProvider>
     <div className={`${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`}>
       <AchievementCelebration />
       <header className="sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
@@ -169,6 +170,8 @@ export function PortalShell({
         {children}
       </main>
 
+      <RestTimerIndicator />
+
       <nav
         aria-label="Navegación móvil del portal"
         style={{ gridTemplateColumns: `repeat(${links.length + (showNavigationQuickLog ? 1 : 0)}, minmax(0, 1fr))` }}
@@ -210,5 +213,5 @@ export function PortalShell({
         {showNavigationQuickLog && mobileQuickLogIndex === links.length && <QuickNoteButton placement="navigation" />}
       </nav>
     </div>
-  );
+  </RestTimerProvider>;
 }

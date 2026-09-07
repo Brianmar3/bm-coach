@@ -6,12 +6,13 @@ export type ExerciseRestTimerState = {
   remainingSeconds: number;
   endTimestamp: number | null;
   status: ExerciseRestTimerStatus;
+  notified: boolean;
 };
 
 export type ExerciseRestTimerAction = "START" | "PAUSE" | "RESUME" | "RESET";
 
 export function initialExerciseRestTimer(exerciseId: string, durationSeconds: number): ExerciseRestTimerState {
-  return { exerciseId, durationSeconds, remainingSeconds: durationSeconds, endTimestamp: null, status: "ready" };
+  return { exerciseId, durationSeconds, remainingSeconds: durationSeconds, endTimestamp: null, status: "ready", notified: false };
 }
 
 export function exerciseRestSeconds(state: ExerciseRestTimerState, nowMs: number) {
@@ -21,7 +22,7 @@ export function exerciseRestSeconds(state: ExerciseRestTimerState, nowMs: number
 
 export function reduceExerciseRestTimer(state: ExerciseRestTimerState, action: ExerciseRestTimerAction, nowMs: number): ExerciseRestTimerState {
   if (action === "START" && (state.status === "ready" || state.status === "finished")) {
-    return { ...state, remainingSeconds: state.durationSeconds, endTimestamp: nowMs + state.durationSeconds * 1_000, status: "running" };
+    return { ...state, remainingSeconds: state.durationSeconds, endTimestamp: nowMs + state.durationSeconds * 1_000, status: "running", notified: false };
   }
   if (action === "PAUSE" && state.status === "running") {
     return { ...state, remainingSeconds: exerciseRestSeconds(state, nowMs), endTimestamp: null, status: "paused" };
@@ -34,7 +35,7 @@ export function reduceExerciseRestTimer(state: ExerciseRestTimerState, action: E
 }
 
 export function finishExerciseRestTimer(state: ExerciseRestTimerState): ExerciseRestTimerState {
-  return { ...state, remainingSeconds: 0, endTimestamp: null, status: "finished" };
+  return { ...state, remainingSeconds: 0, endTimestamp: null, status: "finished", notified: true };
 }
 
 export function formatExerciseRestTime(seconds: number) {
