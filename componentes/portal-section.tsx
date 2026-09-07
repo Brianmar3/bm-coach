@@ -639,6 +639,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   const autosaveSignature = useRef("");
   const autosaveAbortRef = useRef<AbortController | null>(null);
   const saveLockRef = useRef(false);
+  const sessionFinalizingRef = useRef(false);
   const setCompletionLocksRef = useRef(new Set<string>());
   const exerciseHeaderRefs = useRef(new Map<string, HTMLButtonElement>());
   const [message, setMessage] = useState("");
@@ -683,7 +684,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   }
 
   useEffect(() => {
-    if (draft || !selectedDayId) return;
+    if (completionSuccess || draft || !selectedDayId) return;
     const timer = window.setTimeout(() => {
       const next = freshDraft(selectedDayId);
       setDraft(next);
@@ -694,7 +695,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     return () => window.clearTimeout(timer);
     // freshDraft reads the current server payload; this initialization only runs while draft is empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.profile.id, draft, selectedDayId]);
+  }, [completionSuccess, data.profile.id, draft, selectedDayId]);
 
   function chooseDay(dayId: string) {
     if (started && draft?.status === "en_progreso" && dayId !== draft.dayId && !window.confirm("Hay un entrenamiento en progreso. Se conservará por separado. ¿Querés cambiar de día?")) return;
@@ -718,7 +719,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   }
 
   function updateSet(exerciseIndex: number, setIndex: number, changes: Partial<PortalWorkoutSession["exercises"][number]["sets"][number]>) {
-    if (!draft) return;
+    if (!draft || sessionFinalizingRef.current) return;
     const exercises = [...draft.exercises];
     const exercise = exercises[exerciseIndex];
     const sets = [...exercise.sets];
@@ -729,7 +730,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   }
 
   async function updateSetCompletion(exerciseIndex: number, setIndex: number, completed: boolean) {
-    if (!draft) return;
+    if (!draft || sessionFinalizingRef.current) return;
     const exercise = draft.exercises[exerciseIndex];
     const set = exercise?.sets[setIndex];
     if (!exercise || !set || set.completed === completed) return;
@@ -766,7 +767,7 @@ function WorkoutView({ data }: { data: PortalData }) {
   }
 
   function updateBlockResult(blockId: string, changes: Partial<NonNullable<PortalWorkoutSession["blocks"]>[number]["result"]>) {
-    if (!draft) return;
+    if (!draft || sessionFinalizingRef.current) return;
     const next = beginWith({ ...draft, blocks: (draft.blocks ?? []).map((block) => block.blockId === blockId ? { ...block, result: { ...block.result, ...changes } } : block) });
     setDraft(next);
     window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
@@ -774,6 +775,7 @@ function WorkoutView({ data }: { data: PortalData }) {
 
   async function completeBlockResult(blockId: string, changes: Partial<NonNullable<PortalWorkoutSession["blocks"]>[number]["result"]>) {
     if (!draft) throw new Error("No hay una sesión activa.");
+    if (sessionFinalizingRef.current) return;
     const next = beginWith({ ...draft, blocks: (draft.blocks ?? []).map((block) => block.blockId === blockId ? { ...block, result: { ...block.result, ...changes } } : block) });
     const signature = JSON.stringify(next);
     autosaveAbortRef.current?.abort();
@@ -794,19 +796,20 @@ function WorkoutView({ data }: { data: PortalData }) {
   }
 
   useEffect(() => {
-    if (!started || !draft || draft.status === "finalizado") return;
+    if (sessionFinalizingRef.current || !started || !draft || draft.status === "finalizado") return;
     window.localStorage.setItem(storageKey(draft.dayId), JSON.stringify(draft));
     const signature = JSON.stringify(draft);
     if (signature === autosaveSignature.current) return;
     const controller = new AbortController();
     autosaveAbortRef.current = controller;
     const timer = window.setTimeout(async () => {
+      if (sessionFinalizingRef.current) return;
       try {
         const body = await apiRequest<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }), signal: controller.signal }, { fallback: "No se pudo guardar automáticamente.", scope: "portal" });
         autosaveSignature.current = signature;
         if (!draft.id && body.id) setDraft((current) => current?.dayId === draft.dayId ? { ...current, id: body.id } : current);
       } catch (value) {
-        if (value instanceof DOMException && value.name === "AbortError") return;
+        if (sessionFinalizingRef.current || value instanceof DOMException && value.name === "AbortError") return;
         setError(value instanceof Error ? value.message : "No se pudo guardar automáticamente.");
       }
     }, 900);
@@ -815,6 +818,11 @@ function WorkoutView({ data }: { data: PortalData }) {
   async function save(finalize = false) {
     if (!draft || saveLockRef.current) return;
     saveLockRef.current = true;
+    if (finalize) {
+      sessionFinalizingRef.current = true;
+      autosaveAbortRef.current?.abort();
+      autosaveAbortRef.current = null;
+    }
     setSaving(true); setSavingAction(finalize ? "final" : "draft"); setError(""); setMessage("");
     try {
       const duration = draft.durationMinutes;
@@ -832,14 +840,18 @@ function WorkoutView({ data }: { data: PortalData }) {
         setStarted(false);
         setFinalOpen(false);
         setDraft(null);
+        setError("");
+        setMessage("");
         setCompletionSuccess(true);
-        setMessage("Tu entrenamiento se guardó con éxito.");
         window.setTimeout(() => window.location.assign("/portal/rutina#historial-entrenamientos"), body.newAchievements?.length ? 4200 : 1400);
       } else {
         setDraft(updated);
         setMessage("Progreso guardado.");
       }
-    } catch (value) { setError(value instanceof Error ? value.message : "No se pudo guardar."); }
+    } catch (value) {
+      if (finalize) sessionFinalizingRef.current = false;
+      setError(value instanceof Error ? value.message : "No se pudo guardar.");
+    }
     finally { saveLockRef.current = false; setSaving(false); setSavingAction(null); }
   }
   function openFinalSummary() {
@@ -886,7 +898,7 @@ function WorkoutView({ data }: { data: PortalData }) {
     </section>
     {selectedDay.warmup.trim() && <button type="button" onClick={() => setWarmupOpen(true)} className="portal-routine-enter mb-6 flex min-h-20 w-full items-center gap-4 rounded-3xl border border-yellow-400/20 bg-[linear-gradient(120deg,rgba(250,204,21,.08),rgba(24,24,27,.94)_30%)] px-4 py-3 text-left outline-none transition hover:border-yellow-400/45 focus-visible:ring-2 focus-visible:ring-yellow-300"><span className="grid size-12 shrink-0 place-items-center rounded-full border border-yellow-300/60 text-yellow-300 shadow-[0_0_18px_rgba(250,204,21,.1)]"><BmFlameIcon size={24} /></span><span className="min-w-0 flex-1"><strong className="block text-base text-zinc-100">Entrada en calor</strong><span className="mt-1 block text-xs text-zinc-500">Prepará tu cuerpo para entrenar</span></span><BmChevronRightIcon size={22} className="shrink-0 text-yellow-300" /></button>}
     <div className="portal-routine-enter mb-4 flex items-center gap-3 px-1"><BmSlidersIcon size={20} className="text-yellow-300" /><h2 className="shrink-0 text-sm font-black uppercase tracking-[.2em] text-yellow-200">Recorrido de hoy</h2><span className="h-px flex-1 bg-gradient-to-r from-yellow-400/40 to-transparent" /></div>
-    {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento cargado correctamente</div>}
+    {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento guardado correctamente</div>}
     {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-zinc-500">Preparando ejercicios…</p>}
     <RoutineOverlay open={warmupOpen} onClose={() => setWarmupOpen(false)} labelledBy="warmup-title"><header className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-800 p-4 sm:p-5"><div className="min-w-0"><h2 id="warmup-title" className="text-lg font-black">Entrada en calor</h2><p className="mt-1 text-sm text-yellow-300">Día {selectedDay.dayNumber} · {selectedDay.objective || selectedDay.name}</p></div><button type="button" onClick={() => setWarmupOpen(false)} aria-label="Cerrar entrada en calor" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-zinc-400 outline-none hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300"><BmCloseIcon size={22} /></button></header><div className="min-h-0 overflow-y-auto p-4 sm:p-5"><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">{selectedDay.warmup}</p><button type="button" onClick={() => setWarmupOpen(false)} className="mt-5 min-h-11 w-full rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-200">Cerrar</button></div></RoutineOverlay>
     <div className="portal-routine-timeline">{draft && conditioningBlocks.map((programmed, blockIndex) => {
