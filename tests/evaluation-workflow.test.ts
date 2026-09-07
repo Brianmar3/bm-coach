@@ -40,7 +40,7 @@ test("la edad se calcula en la fecha de evaluación y respeta el cumpleaños", (
   assert.equal(calculateAgeAtDate("2027-01-01", "2026-08-08"), null);
 });
 
-test("la edad manual se valida, es opcional y queda dentro de generalData", () => {
+test("el snapshot histórico de edad se valida y sigue siendo opcional", () => {
   assert.equal(validateEvaluationDraft(evaluation({ generalData: { ageSnapshot: 27 } })), null);
   assert.match(validateEvaluationDraft(evaluation({ generalData: { ageSnapshot: 121 } })) ?? "", /edad/);
   assert.equal(validateEvaluationDraft(evaluation({ generalData: {} })), null);
@@ -185,14 +185,16 @@ test("Edad reutiliza generalData y no requiere otra migración", () => {
   assert.match(schema, /generalData\s+Json/);
 });
 
-test("la API previene doble creación, valida servicio y protege completadas", () => {
+test("la API previene doble creación, valida servicio y mantiene edición sólo para admin", () => {
   const collection = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/route.ts", "utf8");
   const detail = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/[evaluationId]/route.ts", "utf8");
   const completion = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/[evaluationId]/complete/route.ts", "utf8");
   assert.match(collection, /findUnique\(\{ where: \{ creationKey \}/);
   assert.match(collection, /serviceType === "CLASSES"/);
   assert.match(collection, /_max: \{ version: true \}/);
-  assert.match(detail, /status !== "IN_PROGRESS"/);
+  assert.match(detail, /requireAdminApiResponse/);
+  assert.match(detail, /physicalEvaluation\.update\(\{ where: \{ id: evaluationId \}/);
+  assert.doesNotMatch(detail, /Una evaluación completada no puede editarse/);
   assert.match(completion, /\$transaction/);
   assert.match(completion, /completedAt: new Date\(\)/);
 });

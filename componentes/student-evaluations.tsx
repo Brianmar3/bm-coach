@@ -135,7 +135,7 @@ function EvaluationPanel({ student, items, latestDetail, loading, creating, onCl
 
 function Stat({ label, value, valueClass = "text-white" }: { label: string; value: string; valueClass?: string }) { return <div className="min-w-0 rounded-lg border border-zinc-800 bg-black/35 p-3"><p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p><p className={`mt-1 break-words text-lg font-black ${valueClass}`}>{value}</p></div>; }
 
-export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, onClose }: { initial: EvaluationWorkflow; baseUrl: string; profileHeight: number; birthDate: string; onClose: () => void }) {
+export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, allowCompletedEditing = false, onClose }: { initial: EvaluationWorkflow; baseUrl: string; profileHeight: number; birthDate: string; allowCompletedEditing?: boolean; onClose: () => void }) {
   const [value, setValue] = useState(initial);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState("");
@@ -143,10 +143,11 @@ export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, o
   const skipFirstSave = useRef(true);
   const requestNumber = useRef(0);
   const editRevision = useRef(0);
-  const readonly = value.status !== "IN_PROGRESS";
+  const editingCompleted = allowCompletedEditing && value.status !== "IN_PROGRESS";
+  const readonly = value.status !== "IN_PROGRESS" && !editingCompleted;
 
   const saveNow = useCallback(async (candidate: EvaluationWorkflow) => {
-    if (candidate.status !== "IN_PROGRESS") return candidate;
+    if (candidate.status !== "IN_PROGRESS" && !allowCompletedEditing) return candidate;
     const requestId = ++requestNumber.current;
     const revisionAtStart = editRevision.current;
     setSaveState("saving");
@@ -158,7 +159,7 @@ export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, o
       if (requestId === requestNumber.current) { setSaveState("error"); setError(cause instanceof Error ? cause.message : "No se pudo guardar."); }
       throw cause;
     }
-  }, [baseUrl]);
+  }, [allowCompletedEditing, baseUrl]);
 
   useEffect(() => {
     if (readonly) return;
@@ -182,7 +183,7 @@ export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, o
       const saved = await saveNow(value);
       const fields = missingEssentialFields(saved);
       setMissing(fields);
-      if (fields.length || !window.confirm("¿Completar la evaluación? Después quedará protegida contra cambios.")) return;
+      if (fields.length || !window.confirm("¿Completar la evaluación?")) return;
       const completed = await apiJson<EvaluationWorkflow>(`${baseUrl}/${value.id}/complete`, { method: "POST", body: "{}" });
       skipFirstSave.current = true; setValue(completed); setSaveState("saved"); setError("");
     } catch (cause) {
@@ -207,7 +208,7 @@ export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, o
         {value.currentStep === 7 && <TestsStep category="PHYSICAL" value={value} update={update} />}
         {value.currentStep === 8 && <SummaryStep value={value} update={update} performedMobility={performedMobility} performedPhysical={performedPhysical} missing={missing} />}
       </fieldset>{readonly && <p className="mt-5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">Esta evaluación está en modo consulta y no puede modificarse.</p>}{error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}</main>
-      <footer className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-5xl items-center justify-between gap-2 border-t border-zinc-800 bg-zinc-950/95 p-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] backdrop-blur sm:static sm:pb-3"><button type="button" disabled={value.currentStep === 1} onClick={() => changeStep(value.currentStep - 1)} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold disabled:opacity-30">Anterior</button>{!readonly && <button type="button" disabled={saveState === "saving"} onClick={saveAndExit} className="min-h-11 rounded-xl px-3 text-sm font-bold text-zinc-300 disabled:opacity-50">Guardar y salir</button>}{value.currentStep < 8 ? <button type="button" onClick={() => changeStep(value.currentStep + 1)} className="min-h-11 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-zinc-950">Siguiente</button> : readonly ? <button type="button" onClick={onClose} className="min-h-11 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-zinc-950">Cerrar</button> : <button type="button" disabled={saveState === "saving"} onClick={complete} className="min-h-11 rounded-xl bg-emerald-400 px-4 text-sm font-bold text-zinc-950 disabled:opacity-50">Completar</button>}</footer>
+      <footer className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-5xl items-center justify-between gap-2 border-t border-zinc-800 bg-zinc-950/95 p-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] backdrop-blur sm:static sm:pb-3"><button type="button" disabled={value.currentStep === 1} onClick={() => changeStep(value.currentStep - 1)} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold disabled:opacity-30">Anterior</button>{!readonly && <button type="button" disabled={saveState === "saving"} onClick={saveAndExit} className="min-h-11 rounded-xl px-3 text-sm font-bold text-zinc-300 disabled:opacity-50">Guardar y salir</button>}{value.currentStep < 8 ? <button type="button" onClick={() => changeStep(value.currentStep + 1)} className="min-h-11 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-zinc-950">Siguiente</button> : readonly ? <button type="button" onClick={onClose} className="min-h-11 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-zinc-950">Cerrar</button> : editingCompleted ? <button type="button" disabled={saveState === "saving"} onClick={saveAndExit} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-bold text-zinc-950 disabled:opacity-50">Guardar cambios</button> : <button type="button" disabled={saveState === "saving"} onClick={complete} className="min-h-11 rounded-xl bg-emerald-400 px-4 text-sm font-bold text-zinc-950 disabled:opacity-50">Completar</button>}</footer>
     </section>
   </div>;
 }

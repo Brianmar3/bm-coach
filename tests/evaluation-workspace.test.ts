@@ -73,3 +73,42 @@ test("el listado usa resumen y el detalle se solicita por alumno", () => {
   assert.match(endpoint, /view === "summary"/);
   assert.match(endpoint, /select: \{ id: true, studentId: true, date: true/);
 });
+
+test("la ficha conserva una sola acción principal para crear evaluaciones", () => {
+  const component = readFileSync("componentes/professional-evaluations-dashboard.tsx", "utf8");
+  const workspace = component.slice(component.indexOf("function StudentWorkspace"), component.indexOf("function ProgressTab"));
+  assert.equal(workspace.match(/\+ Nueva evaluación/g)?.length, 1);
+  assert.doesNotMatch(workspace.slice(workspace.indexOf("function EvaluationsTab")), /onCreate|Iniciar evaluación/);
+  assert.match(component, /enabled=\{!studentId && !editor/);
+});
+
+test("una evaluación física completada abre el editor existente con sus datos", () => {
+  const dashboard = readFileSync("componentes/professional-evaluations-dashboard.tsx", "utf8");
+  const wizard = readFileSync("componentes/student-evaluations.tsx", "utf8");
+  assert.match(dashboard, /setEditor\(await apiJson<EvaluationWorkflow>/);
+  assert.match(dashboard, /allowCompletedEditing/);
+  assert.match(dashboard, /disabled=\{!sourcePhysical\}>Editar evaluación/);
+  assert.match(wizard, /useState\(initial\)/);
+  assert.match(wizard, /const editingCompleted = allowCompletedEditing && value\.status !== "IN_PROGRESS"/);
+  assert.match(wizard, /editingCompleted \? <button[^>]*>Guardar cambios<\/button>/);
+});
+
+test("guardar una completada actualiza el mismo id y conserva estado y fecha", () => {
+  const route = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/[evaluationId]/route.ts", "utf8");
+  const persistence = readFileSync("lib/evaluation-persistence.ts", "utf8");
+  assert.match(route, /requireAdminApiResponse/);
+  assert.match(route, /physicalEvaluation\.update\(\{ where: \{ id: evaluationId \}, data: parsed\.data/);
+  assert.doesNotMatch(route, /Una evaluación completada no puede editarse/);
+  assert.doesNotMatch(persistence.slice(persistence.indexOf("export function workflowUpdateData")), /\n      status:/);
+  assert.match(persistence, /date: new Date\(`\$\{input\.date\}T12:00:00\.000Z`\)/);
+  assert.doesNotMatch(route.slice(route.indexOf("export async function PUT"), route.indexOf("export async function PATCH")), /physicalEvaluation\.create/);
+});
+
+test("duplicar sigue siendo una creación separada y los registros legacy no se editan", () => {
+  const dashboard = readFileSync("componentes/professional-evaluations-dashboard.tsx", "utf8");
+  const collection = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/route.ts", "utf8");
+  assert.match(dashboard, /Duplicar \/ usar como base/);
+  assert.match(dashboard, /disabled=\{!sourcePhysical\}>Editar evaluación/);
+  assert.match(collection, /if \(body\.baseEvaluationId\)/);
+  assert.match(collection, /physicalEvaluation\.create/);
+});

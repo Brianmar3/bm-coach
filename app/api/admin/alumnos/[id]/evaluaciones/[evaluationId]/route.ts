@@ -30,7 +30,6 @@ export async function PUT(request: Request, context: RouteContext<"/api/admin/al
   if (parsed.error || !parsed.data) return Response.json({ error: parsed.error ?? "Los datos no son válidos." }, { status: 400 });
   const existing = await prisma.physicalEvaluation.findFirst({ where: { id: evaluationId, studentId }, select: { id: true, status: true } });
   if (!existing) return Response.json({ error: "La evaluación no existe o no pertenece al alumno indicado." }, { status: 404 });
-  if (existing.status !== "IN_PROGRESS") return Response.json({ error: "Una evaluación completada no puede editarse. Creá una nueva versión." }, { status: 409 });
   try {
     const record = await prisma.physicalEvaluation.update({ where: { id: evaluationId }, data: parsed.data, include: evaluationInclude });
     return Response.json(serializeWorkflowEvaluation(record));
