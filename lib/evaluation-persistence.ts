@@ -25,6 +25,11 @@ export function serializeWorkflowEvaluation(record: EvaluationRecordWithDetails)
   const student = record.student.data as Record<string, unknown>;
   const savedGeneralData = object(record.generalData);
   const calculatedAge = calculateAgeAtDate(typeof student.birthDate === "string" ? student.birthDate : "", record.date.toISOString().slice(0, 10));
+  const savedMeasurements = record.measurements.map((item) => ({ id: item.id, measurementType: item.measurementType, side: item.side, value: Number(item.value), unit: item.unit, notes: item.notes }));
+  const legacyWeight = record.weight !== null ? Number(record.weight) : Number(savedGeneralData.weight);
+  const measurements = savedMeasurements.some((item) => item.measurementType === "WEIGHT") || !Number.isFinite(legacyWeight) || legacyWeight <= 0
+    ? savedMeasurements
+    : [{ measurementType: "WEIGHT", side: null, value: legacyWeight, unit: "kg", notes: "" }, ...savedMeasurements];
   const generalData = {
     ...savedGeneralData,
     ...(savedGeneralData.ageSnapshot === undefined && calculatedAge !== null ? { ageSnapshot: calculatedAge } : {}),
@@ -66,7 +71,7 @@ export function serializeWorkflowEvaluation(record: EvaluationRecordWithDetails)
     completedAt: record.completedAt?.toISOString() ?? null,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
-    measurements: record.measurements.map((item) => ({ id: item.id, measurementType: item.measurementType, side: item.side, value: Number(item.value), unit: item.unit, notes: item.notes })),
+    measurements,
     bodyIssues: record.bodyIssues.map((item) => ({ id: item.id, bodyZone: item.bodyZone, side: item.side, intensity: item.intensity, hasPain: item.hasPain, status: item.status, studentDescription: item.studentDescription, trainerObservation: item.trainerObservation, approximateDate: item.approximateDate })),
     testResults: record.testResults.map((item) => ({ id: item.id, testKey: item.testKey, category: item.category as "MOBILITY" | "PHYSICAL", status: item.status, numericValue: number(item.numericValue), unit: item.unit, rightValue: number(item.rightValue), leftValue: number(item.leftValue), rightUnit: item.rightUnit, leftUnit: item.leftUnit, pain: item.pain, rightPain: item.rightPain, leftPain: item.leftPain, protocol: item.protocol, variation: item.variation, observations: item.observations, compensations: item.compensations, notPerformedReason: item.notPerformedReason, rawResult: object(item.rawResult) as Record<string, string | number | boolean | null> })),
   };

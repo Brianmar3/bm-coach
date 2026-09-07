@@ -94,16 +94,48 @@ test("la ficha oculta evaluaciones para Clases y las muestra para Personalizado 
   assert.match(page, /item\.serviceType !== "CLASSES" && <Link href="\/evaluaciones"/);
 });
 
-test("Paso 1 guarda snapshot de edad y no repite observaciones generales", () => {
+test("Paso 1 calcula una edad de solo lectura y no repite el peso", () => {
   const component = readFileSync("componentes/student-evaluations.tsx", "utf8");
   const generalStep = component.slice(component.indexOf("function GeneralStep"), component.indexOf("function GoalsStep"));
   assert.match(generalStep, /calculateAgeAtDate\(birthDate, value\.date\)/);
   assert.match(generalStep, /ageSnapshot/);
-  assert.match(generalStep, /Edad manual/);
+  assert.match(generalStep, /Sin fecha de nacimiento/);
+  assert.match(generalStep, /Completala desde el perfil del alumno/);
+  assert.doesNotMatch(generalStep, /Edad manual|type="number"[^>]*ageSnapshot/);
+  assert.doesNotMatch(generalStep, /Peso actual|generalData", "weight"/);
   assert.doesNotMatch(generalStep, /Observaciones generales del entrenador/);
   assert.doesNotMatch(generalStep, /setObject\([^\n]*birthDate|update\(\{\s*birthDate/);
   const createRoute = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/route.ts", "utf8");
   assert.match(createRoute, /generalData: ageSnapshot === null \? \{\} : \{ ageSnapshot \}/);
+});
+
+test("el perfil permite editar la misma fecha de nacimiento usada por la evaluación", () => {
+  const profile = readFileSync("componentes/student-profile-view.tsx", "utf8");
+  const profileApi = readFileSync("app/api/portal/profile/route.ts", "utf8");
+  assert.match(profile, /EditField label="Fecha de nacimiento" type="date"/);
+  assert.match(profile, /body: JSON\.stringify\(form\)/);
+  assert.match(profileApi, /"birthDate"/);
+  assert.match(profileApi, /data: \{ \.\.\.stored, phone, email, birthDate/);
+});
+
+test("el peso nuevo se carga una vez en Medidas corporales y persiste como WEIGHT", () => {
+  const component = readFileSync("componentes/student-evaluations.tsx", "utf8");
+  const generalStep = component.slice(component.indexOf("function GeneralStep"), component.indexOf("function GoalsStep"));
+  const measurementsStep = component.slice(component.indexOf("function MeasurementsStep"), component.indexOf("function TestsStep"));
+  const persistence = readFileSync("lib/evaluation-persistence.ts", "utf8");
+  assert.doesNotMatch(generalStep, /Peso actual|profileWeight/);
+  assert.match(measurementsStep, /MEASUREMENT_DEFINITIONS/);
+  assert.match(persistence, /weight: decimalValue\(input, "WEIGHT"\)/);
+  assert.match(persistence, /measurements: \{ deleteMany: \{\}, create: input\.measurements/);
+});
+
+test("el peso histórico conserva fallback sin reemplazar la medición oficial", () => {
+  const persistence = readFileSync("lib/evaluation-persistence.ts", "utf8");
+  assert.match(persistence, /const legacyWeight = record\.weight !== null \? Number\(record\.weight\) : Number\(savedGeneralData\.weight\)/);
+  assert.match(persistence, /some\(\(item\) => item\.measurementType === "WEIGHT"\)/);
+  assert.match(persistence, /measurementType: "WEIGHT", side: null, value: legacyWeight, unit: "kg"/);
+  const readModel = readFileSync("lib/evaluation-read-model.ts", "utf8");
+  assert.match(readModel, /measurement\(measurements, type, side\) \?\? number\(general\[generalKey\]\) \?\? number\(flat\)/);
 });
 
 test("la ficha muestra un resumen compacto y prioriza continuar el borrador", () => {
@@ -129,7 +161,7 @@ test("el panel profesional usa métricas reales, guiones e historial descendente
 
 test("la vista del alumno es compacta y no recibe notas internas", () => {
   const portal = readFileSync("componentes/portal-section.tsx", "utf8");
-  const compact = portal.slice(portal.indexOf("function CompactEvaluationsView"), portal.indexOf("function QuotaSummaryCard"));
+  const compact = portal.slice(portal.indexOf("function CompactEvaluationsView"), portal.indexOf("function evaluationMeasurements"));
   assert.match(compact, /Ver historial/);
   assert.match(compact, /completionPercentage/);
   assert.match(compact, /reassessmentDate/);
