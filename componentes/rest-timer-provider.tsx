@@ -72,11 +72,14 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const restored = restoreRunningTimer(sessionStorage.getItem(STORAGE_KEY), Date.now());
-    timerRef.current = restored;
-    setTimer(restored);
-    setNowMs(Date.now());
-    setHydrated(true);
+    const restoreId = window.setTimeout(() => {
+      const restored = restoreRunningTimer(sessionStorage.getItem(STORAGE_KEY), Date.now());
+      timerRef.current = restored;
+      setTimer(restored);
+      setNowMs(Date.now());
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(restoreId);
   }, []);
 
   useEffect(() => {

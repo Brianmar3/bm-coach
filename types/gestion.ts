@@ -39,6 +39,12 @@ export type Student = {
   scheduleLabels?: string[];
   flexibleSchedule?: string;
   profileImageUrl?: string;
+  experienceLevel?: string;
+  trainingExperience?: string;
+  hasLimitations?: boolean;
+  limitations?: string;
+  onboardingCompleted?: boolean;
+  onboardingUpdatedAt?: string;
 };
 
 export type StudentPlanOption = {

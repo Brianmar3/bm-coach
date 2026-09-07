@@ -21,6 +21,13 @@ export type PortalProfile = {
   scheduleLabels: string[];
   flexibleSchedule: string;
   profileImageUrl: string;
+  height: number;
+  weight: number;
+  experienceLevel: string;
+  trainingExperience: string;
+  hasLimitations: boolean;
+  limitations: string;
+  onboardingUpdatedAt: string;
 };
 
 export type PortalWorkoutSet = {

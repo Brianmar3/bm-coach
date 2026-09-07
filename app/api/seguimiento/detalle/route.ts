@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   try {
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
     if (!studentId) return Response.json({ error: "Alumno requerido." }, { status: 400 });
-    const [sessions, evaluations] = await Promise.all([
+    const [sessions, evaluations, studentRecord] = await Promise.all([
       prisma.workoutSession.findMany({
         where: { studentId }, include: { student: true, routine: true, day: true, blocks: true,
           exercises: { include: { exercise: true, sets: { orderBy: { setNumber: "asc" } } } },
@@ -22,7 +22,10 @@ export async function GET(request: Request) {
         orderBy: [{ date: "desc" }, { updatedAt: "desc" }], take: 100,
       }),
       prisma.physicalEvaluation.findMany({ where: { studentId }, select: { id: true, date: true, weight: true, bodyFatPercentage: true, muscleMass: true }, orderBy: { date: "asc" }, take: 24 }),
+      prisma.studentRecord.findUnique({ where: { id: studentId }, select: { data: true } }),
     ]);
+    if (!studentRecord) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
+    const studentProfile = studentRecord.data as unknown as Student;
     const exerciseIds = [...new Set(sessions.flatMap((session) => session.exercises.map((log) => log.exerciseReferenceId ?? log.exerciseId).filter((id): id is string => Boolean(id))))];
     const previousLogs = exerciseIds.length ? await prisma.workoutExerciseLog.findMany({
       where: { session: { studentId, status: "COMPLETED" }, OR: [{ exerciseReferenceId: { in: exerciseIds } }, { exerciseId: { in: exerciseIds } }] },
@@ -68,6 +71,7 @@ export async function GET(request: Request) {
     }
     const detail: AdminFollowUpDetail = {
       studentId, sessions: serializedSessions,
+      initialProfile: { birthDate: studentProfile.birthDate ?? "", height: Number(studentProfile.height) || null, weight: Number(studentProfile.weight) || null, goal: studentProfile.goal ?? "", experienceLevel: studentProfile.experienceLevel ?? "", trainingExperience: studentProfile.trainingExperience ?? "", limitations: studentProfile.hasLimitations ? studentProfile.limitations ?? "" : "Sin molestias informadas", updatedAt: studentProfile.onboardingUpdatedAt ?? "" },
       evaluations: evaluations.map((item) => ({ id: item.id, date: item.date.toISOString().slice(0, 10), weight: decimal(item.weight), bodyFatPercentage: decimal(item.bodyFatPercentage), muscleMass: decimal(item.muscleMass) })),
       blockDistribution: [...blocks.entries()].map(([type, count]) => ({ type, label: blockLabels[type] ?? type, count })).sort((left, right) => right.count - left.count),
       exerciseProgress: [...progress.values()],

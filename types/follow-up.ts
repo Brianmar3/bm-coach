@@ -99,6 +99,16 @@ export type AdminExerciseProgress = {
 
 export type AdminFollowUpDetail = {
   studentId: string;
+  initialProfile: {
+    birthDate: string;
+    height: number | null;
+    weight: number | null;
+    goal: string;
+    experienceLevel: string;
+    trainingExperience: string;
+    limitations: string;
+    updatedAt: string;
+  };
   sessions: AdminWorkoutSession[];
   evaluations: AdminBodyEvaluationPoint[];
   blockDistribution: Array<{ type: string; label: string; count: number }>;
