@@ -1,4 +1,5 @@
 import "server-only";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 
 import { Prisma, type CoachEvent } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +14,7 @@ export async function notifyPublishedCoachEvent(event: CoachEvent) {
   if (!event.showToStudents || event.status !== "PENDIENTE") return;
   try {
     const students = await prisma.studentRecord.findMany({
-      where: event.audience === "ALL" ? undefined : { serviceType: event.audience },
+      where: { AND: [coachedStudentsWhere, event.audience === "ALL" ? {} : { serviceType: event.audience }] },
       select: { id: true },
     });
     const title = "Nuevo evento en BM Training";

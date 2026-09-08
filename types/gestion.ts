@@ -11,6 +11,12 @@ export function isStudentType(value: unknown): value is StudentType {
 }
 
 export type Student = {
+  accountType?: "COACHED" | "SELF_SERVICE";
+  trainerId?: string | null;
+  availableDays?: number[];
+  sessionMinutes?: number;
+  trainingLocation?: string;
+  equipment?: string[];
   id: string;
   firstName: string;
   lastName: string;

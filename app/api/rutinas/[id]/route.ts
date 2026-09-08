@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { blockData, databaseUnavailable, exerciseData, normalizedBlocks, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
@@ -42,7 +43,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     const input = await request.json() as RoutineInput & { replaceActive?: boolean };
     const validationError = validateRoutine(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { id: { in: input.studentIds } } });
+    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: input.studentIds } } });
     if (input.kind === "assigned" && students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {

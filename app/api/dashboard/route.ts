@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma, type ClassWeekday } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -83,6 +84,7 @@ export async function GET() {
 
     const [studentRecords, paymentRecords, todayPaymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events, evaluations, pointTotals, routineAssignments, classAssignments, recentWorkouts, recentAttendances, recentOccurrenceAttendances] = await Promise.all([
       prisma.studentRecord.findMany({
+        where: coachedStudentsWhere,
         select: {
           id: true,
           data: true,

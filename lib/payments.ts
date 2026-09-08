@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma, type StudentPaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -86,6 +87,7 @@ export async function paymentDashboard(): Promise<PaymentDashboard> {
   const end = dateKeyToDatabase(nextMonthStart);
   const [records, monthAggregate] = await Promise.all([
     prisma.studentRecord.findMany({
+      where: coachedStudentsWhere,
       include: { payments: { orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }] } },
       orderBy: { updatedAt: "desc" },
     }),

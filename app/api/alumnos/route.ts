@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +16,7 @@ function databaseUnavailable(error: unknown) {
 
 export async function GET() {
   try {
-    const records = await prisma.studentRecord.findMany({ include: studentInclude, orderBy: { updatedAt: "desc" } });
+    const records = await prisma.studentRecord.findMany({ where: coachedStudentsWhere, include: studentInclude, orderBy: { updatedAt: "desc" } });
     return Response.json(records.map(serializeStudent));
   } catch (error) {
     console.error("Error al consultar alumnos", error);

@@ -1,4 +1,5 @@
 import "server-only";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 
 import { Prisma, type MonthlyObligationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -45,7 +46,7 @@ export async function generateMonthlyObligations(selection: MonthSelection) {
       },
       orderBy: [{ studentId: "asc" }, { startDate: "desc" }],
     }),
-    prisma.studentRecord.findMany({ select: { id: true, data: true } }),
+    prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true } }),
     prisma.studentPayment.groupBy({
       by: ["studentId"],
       where: { billingPeriod: bounds.startDate, status: "PAGADO" },
@@ -99,7 +100,7 @@ export async function buildMonthlySummary(selection: MonthSelection, allowClosed
   const paymentSelection = { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true, method: true, status: true, createdAt: true } as const;
 
   const [students, payments, todayPayments, obligations, attendances, evaluations, workouts, events, memberships] = await Promise.all([
-    prisma.studentRecord.findMany({ select: { id: true, data: true, serviceType: true } }),
+    prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true, serviceType: true } }),
     prisma.studentPayment.findMany({
       where: { billingPeriod: bounds.startDate },
       select: paymentSelection,

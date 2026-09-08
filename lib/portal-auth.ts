@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomInt, scrypt as nodeScrypt, timingSafeEqu
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isSelfService } from "@/lib/self-service";
 
 export const PORTAL_COOKIE = "bm_coach_student_session";
 const SESSION_DAYS = 14;
@@ -67,7 +68,7 @@ export function portalCookieOptions(expiresAt: Date) {
   return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", expires: expiresAt, priority: "high" as const };
 }
 
-export async function getPortalSession() {
+export async function getPortalSession({ allowSelfService = false }: { allowSelfService?: boolean } = {}) {
   const token = (await cookies()).get(PORTAL_COOKIE)?.value;
   if (!token) return null;
   const session = await prisma.studentPortalSession.findUnique({
@@ -75,12 +76,15 @@ export async function getPortalSession() {
     include: { credential: { include: { student: true } } },
   });
   if (!session || session.expiresAt <= new Date() || !session.credential.active) return null;
+  // Stage A exposes only account/onboarding. Existing student APIs fail closed.
+  if (!allowSelfService && isSelfService(session.credential.student.data)) return null;
   return session;
 }
 
 export async function requirePortalPageSession() {
-  const session = await getPortalSession();
+  const session = await getPortalSession({ allowSelfService: true });
   if (!session) redirect("/portal/login");
+  if (isSelfService(session.credential.student.data)) redirect("/portal/autogestion");
   return session;
 }
 

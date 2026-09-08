@@ -1,4 +1,5 @@
 import "server-only";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 
 import { prisma } from "@/lib/prisma";
 import { studentName } from "@/lib/attendance";
@@ -9,7 +10,7 @@ import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } fro
 
 export async function loadPointRanking(period: PointRankingPeriod = "month") {
   const from = pointPeriodStart(period);
-  const allStudents = await prisma.studentRecord.findMany({ select: { id: true, data: true, serviceType: true }, orderBy: { createdAt: "asc" } });
+  const allStudents = await prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true, serviceType: true }, orderBy: { createdAt: "asc" } });
   const students = allStudents.filter((record) => (record.data as unknown as Student).status !== "inactivo" && isCompetitiveGamificationEligible(record.serviceType));
   const studentIds = students.map((student) => student.id);
   const [allMovements, membershipPeriods] = await Promise.all([

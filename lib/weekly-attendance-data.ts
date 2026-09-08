@@ -1,4 +1,5 @@
 import "server-only";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 
 import type { ClassActualAttendance, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -120,6 +121,7 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     }),
     prisma.studentRecord.findMany({
+      where: coachedStudentsWhere,
       select: { id: true, data: true, serviceType: true },
     }),
     prisma.studentMembershipHistory.findMany({

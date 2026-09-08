@@ -7,7 +7,7 @@ import { PortalLoginForm } from "@/componentes/portal-login-form";
 
 export default async function PortalLoginPage() {
   const cookieStore = await cookies();
-  const studentSession = await getPortalSession();
+  const studentSession = await getPortalSession({ allowSelfService: true });
   const adminSession = verifyAdminSessionValue(cookieStore.get(ADMIN_SESSION_COOKIE)?.value);
   const experience = choosePortalExperience({ studentValid: Boolean(studentSession), adminValid: adminSession.ok, preferred: parsePortalExperience(cookieStore.get(LAST_PORTAL_COOKIE)?.value) });
   if (experience === "student") redirect("/portal");

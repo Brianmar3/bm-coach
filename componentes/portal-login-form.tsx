@@ -53,7 +53,7 @@ export function PortalLoginForm() {
         <Image src="/bm-training-logo.png" alt="BM Training — Gestión, entrenamiento y seguimiento" width={300} height={200} priority sizes="(max-width: 480px) 240px, 300px" className="mx-auto h-auto w-full max-w-[260px] object-contain" />
         <p className="mt-2 text-xs font-bold uppercase tracking-[.2em] text-yellow-400">Portal del alumno</p>
         <h1 className="mt-2 text-2xl font-bold">Ingresá a tu cuenta</h1>
-        <p className="mt-2 text-sm text-zinc-500">Usá las credenciales entregadas por tu entrenador.</p>
+        <p className="mt-2 text-sm text-zinc-400">Usá tu usuario o el correo con el que creaste tu cuenta.</p>
       </div>
       {error && <p role="alert" className="mt-5 rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
       <form noValidate onSubmit={submit} className="mt-6 space-y-4">
@@ -62,6 +62,7 @@ export function PortalLoginForm() {
         <button type="submit" disabled={loading} aria-busy={loading} className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:cursor-wait disabled:opacity-60">{loading ? "Ingresando…" : "Iniciar sesión"}</button>
       </form>
       <div className="mt-4 border-t border-zinc-800 pt-3 text-center">
+        <Link href="/portal/crear-cuenta" className="mb-3 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-yellow-400">Crear una cuenta autogestionada</Link>
         <p className="text-xs text-zinc-500">¿Sos entrenador?</p>
         <Link href="/admin/login?next=%2F" className="mt-0.5 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-yellow-400 transition hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">
           Entrar al panel

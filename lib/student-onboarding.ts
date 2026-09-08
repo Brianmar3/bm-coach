@@ -1,10 +1,11 @@
 import type { Student } from "@/types/gestion";
+import type { SelfServicePreferences } from "./self-service";
 
 export const ONBOARDING_GOALS = ["Ganar masa muscular", "Bajar grasa", "Mejorar salud", "Ganar fuerza", "Mejorar rendimiento", "Otro"] as const;
 export const EXPERIENCE_LEVELS = ["Principiante", "Intermedio", "Avanzado"] as const;
 export const TRAINING_EXPERIENCE = ["Nunca entrené", "Menos de 6 meses", "6 a 12 meses", "1 a 3 años", "Más de 3 años"] as const;
 
-export type StudentOnboardingData = {
+export type StudentOnboardingData = Partial<SelfServicePreferences> & {
   birthDate: string;
   height: number;
   weight: number;
@@ -38,9 +39,10 @@ export function onboardingIsComplete(student: Student) {
 
 export function onboardingValidation(value: StudentOnboardingData, step: 1 | 2 | 3 | 4) {
   if (step === 1 || step === 4) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value.birthDate) || value.birthDate >= new Date().toISOString().slice(0, 10)) return "Ingresá una fecha de nacimiento válida.";
-    if (value.height < 80 || value.height > 250) return "Ingresá una altura válida entre 80 y 250 cm.";
-    if (value.weight < 25 || value.weight > 350) return "Ingresá un peso válido entre 25 y 350 kg.";
+    const birth = new Date(`${value.birthDate}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value.birthDate) || !Number.isFinite(birth.getTime()) || birth.toISOString().slice(0, 10) !== value.birthDate || value.birthDate >= new Date().toISOString().slice(0, 10)) return "Ingresá una fecha de nacimiento válida.";
+    if (!Number.isFinite(value.height) || value.height < 80 || value.height > 250) return "Ingresá una altura válida entre 80 y 250 cm.";
+    if (!Number.isFinite(value.weight) || value.weight < 25 || value.weight > 350) return "Ingresá un peso válido entre 25 y 350 kg.";
   }
   if ((step === 2 || step === 4) && !ONBOARDING_GOALS.includes(value.goal as (typeof ONBOARDING_GOALS)[number])) return "Elegí tu objetivo principal.";
   if (step === 3 || step === 4) {

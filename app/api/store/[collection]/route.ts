@@ -1,3 +1,5 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
+import { isSelfService } from "@/lib/self-service";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
@@ -27,7 +29,9 @@ export async function GET(_request: Request, context: RouteContext<"/api/store/[
   const { collection } = await context.params;
   const repository = getCollection(collection);
   if (!repository) return Response.json({ error: "Colección no disponible." }, { status: 404 });
-  const records = await repository.findMany({ orderBy: { updatedAt: "desc" } });
+  const records = collection === "bm-coach-students"
+    ? await prisma.studentRecord.findMany({ where: coachedStudentsWhere, orderBy: { updatedAt: "desc" } })
+    : await repository.findMany({ orderBy: { updatedAt: "desc" } });
   return Response.json(records.map((record) => ({ id: record.id, ...record.data as object })));
 }
 
@@ -38,6 +42,18 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
   const body = await request.json() as { items?: Array<{ id: string }> };
   if (!Array.isArray(body.items) || body.items.some((item) => !item.id)) return Response.json({ error: "Datos inválidos." }, { status: 400 });
   if (collection === "bm-coach-settings") return saveCoachSettings(body.items);
+  if (collection === "bm-coach-students") {
+    const items = body.items;
+    if (items.some(isSelfService)) return Response.json({ error: "Las cuentas autogestionadas se administran por separado." }, { status: 400 });
+    const saved = await prisma.$transaction(async (transaction) => {
+      const reserved = await transaction.studentRecord.count({ where: { id: { in: items.map((item) => item.id) }, data: { path: ["accountType"], equals: "SELF_SERVICE" } } });
+      if (reserved) return false;
+      await transaction.studentRecord.deleteMany({ where: coachedStudentsWhere });
+      if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ id: item.id, data: item as Prisma.InputJsonValue })) });
+      return true;
+    });
+    return Response.json(saved ? { ok: true } : { error: "Una cuenta autogestionada no puede reemplazarse desde alumnos." }, { status: saved ? 200 : 409 });
+  }
   await repository.deleteMany();
   if (body.items.length) await repository.createMany({ data: body.items.map((item) => ({ id: item.id, data: item as Prisma.InputJsonValue })) });
   return Response.json({ ok: true });
@@ -56,7 +72,7 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
 
   const [currentRecord, studentRecords] = await Promise.all([
     prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" }, select: { data: true } }),
-    prisma.studentRecord.findMany({ select: { id: true, data: true } }),
+    prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true } }),
   ]);
   const current = currentRecord?.data as unknown as CoachSettings | undefined;
   const requestedPersistentPlans = plansWithIds(requested.plans);

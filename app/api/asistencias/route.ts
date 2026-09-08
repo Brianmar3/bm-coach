@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { apiAttendanceStatus, attendanceDate, attendanceStatus, classDayForDate, databaseAttendanceStatus, studentName } from "@/lib/attendance";
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     if (!date) return Response.json({ error: "Seleccioná una fecha válida." }, { status: 400 });
 
     if (!scheduleId) {
-      const students = await prisma.studentRecord.findMany({ include: { primarySchedule: true }, orderBy: { updatedAt: "desc" } });
+      const students = await prisma.studentRecord.findMany({ where: coachedStudentsWhere, include: { primarySchedule: true }, orderBy: { updatedAt: "desc" } });
       const activeStudents = students.filter((student) =>
         (student.data as unknown as Partial<Student>).status === "activo" &&
         student.serviceType !== "PERSONALIZED"
@@ -167,7 +168,7 @@ export async function PUT(request: Request) {
         : null;
       if (body.scheduleId && !schedule) throw new Error("SCHEDULE_NOT_FOUND");
       if (body.scheduleId && schedule && classDayForDate(date) !== schedule.dayOfWeek) throw new Error("DAY_MISMATCH");
-      const students = await transaction.studentRecord.findMany({ where: { id: { in: parsedRecords.map((record) => record.studentId) } }, select: { id: true } });
+      const students = await transaction.studentRecord.findMany({ where: { AND: [coachedStudentsWhere], id: { in: parsedRecords.map((record) => record.studentId) } }, select: { id: true } });
       if (students.length !== parsedRecords.length) throw new Error("STUDENT_NOT_FOUND");
       const label = schedule ? weeklyScheduleLabel(schedule) : "Sin horario";
       const startTime = schedule?.startTime ?? "";

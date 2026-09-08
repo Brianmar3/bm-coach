@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { databaseUnavailable, routineInclude, serializeRoutine } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +26,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     if (!Array.isArray(body.studentIds)) return Response.json({ error: "La lista de alumnos no es válida." }, { status: 400 });
     const studentIds = body.studentIds.map((studentId) => studentId.trim()).filter(Boolean);
     if (new Set(studentIds).size !== studentIds.length) return Response.json({ error: "La selección contiene alumnos repetidos." }, { status: 400 });
-    const students = await prisma.studentRecord.count({ where: { id: { in: studentIds } } });
+    const students = await prisma.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: studentIds } } });
     if (students !== studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {

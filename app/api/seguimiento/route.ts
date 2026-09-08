@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
         orderBy: [{ updatedAt: "desc" }],
         take: 100,
       }),
-      prisma.studentRecord.findMany({ select: { id: true, data: true } }),
+      prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true } }),
       prisma.trainingRoutine.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
       prisma.classWorkoutLog.findMany({
         where: { ...(studentId ? { studentId } : {}) },

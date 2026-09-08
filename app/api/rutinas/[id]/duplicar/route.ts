@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { createRoutineDays, databaseUnavailable, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type ExerciseInput, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
@@ -32,7 +33,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       : [];
     if (new Set(requestedStudentIds).size !== requestedStudentIds.length) return Response.json({ error: "La selección contiene alumnos repetidos." }, { status: 400 });
     if (mode === "useTemplate" && !requestedStudentIds.length) return Response.json({ error: "Seleccioná al menos un alumno destino." }, { status: 400 });
-    const existingStudents = requestedStudentIds.length ? await prisma.studentRecord.count({ where: { id: { in: requestedStudentIds } } }) : 0;
+    const existingStudents = requestedStudentIds.length ? await prisma.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: requestedStudentIds } } }) : 0;
     if (existingStudents !== requestedStudentIds.length) return Response.json({ error: "Uno o más alumnos destino ya no existen." }, { status: 404 });
 
     const days = source.days.map((day) => ({

@@ -1,4 +1,5 @@
 import "server-only";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 
 import { Prisma } from "@prisma/client";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule, WeeklyClassStudent } from "@/types/gestion";
@@ -65,6 +66,6 @@ export function parseWeeklyClassInput(value: unknown): { data: WeeklyClassInput;
 
 export async function studentsExist(transaction: Prisma.TransactionClient, studentIds: string[]) {
   if (studentIds.length === 0) return true;
-  const count = await transaction.studentRecord.count({ where: { id: { in: studentIds } } });
+  const count = await transaction.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: studentIds } } });
   return count === studentIds.length;
 }
