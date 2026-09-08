@@ -1,4 +1,4 @@
-/** Explicit integration check: creates two synthetic SELF_SERVICE accounts, then removes only those accounts. */
+/** Stage A/B integration check: creates two synthetic SELF_SERVICE accounts, then removes only those accounts. */
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import process from "node:process";
@@ -34,6 +34,8 @@ try {
     const payload = await session.json();
     assert.equal(payload.student.accountType, "SELF_SERVICE");
     clients[index].id = payload.student.id;
+    const pendingHome = await request("/portal/autogestion", { cookie: clients[index].cookie });
+    assert.equal(pendingHome.status, 307); assert.equal(pendingHome.headers.get("location"), "/portal/onboarding");
     const record = await db.studentRecord.findUniqueOrThrow({ where: { id: payload.student.id }, include: { portalCredential: true, _count: { select: { routineAssignments: true, weeklyClasses: true, attendances: true, payments: true, monthlyObligations: true, membershipHistory: true, classResponses: true } } } });
     assert.equal(record.data.accountType, "SELF_SERVICE"); assert.equal(record.data.trainerId, null); assert.equal(record.data.monthlyFee, 0); assert.equal(record.data.plan, "");
     assert.match(record.portalCredential.passwordHash, /^scrypt\$v1\$/);
@@ -55,8 +57,12 @@ try {
   assert.equal(otherRecord.data.onboardingCompleted, false); assert.equal(otherRecord.data.birthDate, "");
   passed("los cuatro pasos persisten en la ficha propia y no alteran otra cuenta ni privilegios");
   const accountPage = await request("/portal/autogestion", { cookie: owner.cookie });
-  assert.equal(accountPage.status, 200); const html = await accountPage.text(); assert.ok(html.includes("Mi cuenta")); assert.ok(html.includes(accounts[0].email)); assert.ok(!html.includes(accounts[1].email));
-  passed("la cuenta autenticada muestra sólo el perfil propio");
+  assert.equal(accountPage.status, 200); const html = await accountPage.text(); assert.ok(html.includes("Tu entrenamiento empieza acá.")); assert.ok(html.includes("TU OBJETIVO")); assert.ok(html.includes("Mantenerme activo")); assert.ok(!html.includes(accounts[0].email));
+  const information = await request("/portal/autogestion/perfil/informacion", { cookie: owner.cookie });
+  assert.equal(information.status, 200); const profileHtml = await information.text(); assert.ok(profileHtml.includes(accounts[0].email)); assert.ok(!profileHtml.includes(accounts[1].email)); assert.ok(profileHtml.includes("20/05/1995"));
+  for (const path of ["/portal/autogestion/perfil", "/portal/autogestion/perfil/editar", "/portal/autogestion/rutina"]) assert.equal((await request(path, { cookie: owner.cookie })).status, 200);
+  const completedOnboarding = await request("/portal/onboarding", { cookie: owner.cookie }); assert.equal(completedOnboarding.status, 307); assert.equal(completedOnboarding.headers.get("location"), "/portal/autogestion");
+  passed("Home separado del perfil propio, fecha local y rutas de perfil/rutina; onboarding completado no se repite");
   for (const path of ["/api/portal/data", "/api/portal/clases", "/api/portal/asistencias", "/api/portal/progreso", "/api/portal/ranking", "/api/dashboard", "/api/alumnos", `/api/alumnos/${other.id}`, "/api/pagos"]) {
     const response = await request(path, { cookie: owner.cookie }); assert.ok([401, 403].includes(response.status), `${path}: ${response.status}`);
   }
@@ -73,7 +79,8 @@ try {
   const login = await request("/api/portal/login", { method: "POST", body: { username: accounts[0].email, password: accounts[0].password } });
   assert.equal(login.status, 200); owner.cookie = responseCookies(login);
   const restored = await request("/api/portal/session", { cookie: owner.cookie }); assert.equal((await restored.json()).student.id, owner.id);
-  assert.equal((await request("/portal/autogestion", { cookie: owner.cookie })).status, 200);
+  const returnedHome = await request("/portal/autogestion", { cookie: owner.cookie }); assert.equal(returnedHome.status, 200); assert.ok((await returnedHome.text()).includes("Tu entrenamiento empieza acá."));
+  const portalEntry = await request("/portal", { cookie: owner.cookie }); assert.equal(portalEntry.status, 307); assert.equal(portalEntry.headers.get("location"), "/portal/autogestion");
   assert.equal((await request("/api/portal/login", { method: "POST", body: { username: accounts[0].email, password: "ClaveIncorrecta123" } })).status, 401);
   passed("logout revoca la sesión; login restaura la misma identidad y rechaza contraseña incorrecta");
 } finally {
@@ -88,4 +95,4 @@ try {
     console.log(`CLEANUP ${removed.count} cuentas sintéticas eliminadas; alumnos del entrenador: ${await db.studentRecord.count({ where: coachedWhere })}`);
   } finally { await db.$disconnect(); }
 }
-console.log(`ETAPA A: ${checks.length} comprobaciones integrales aprobadas.`);
+console.log(`ETAPAS A/B: ${checks.length} comprobaciones integrales aprobadas.`);

@@ -29,7 +29,7 @@ test("el copy público usa lenguaje natural sin cambiar rutas ni clasificación 
     visit(source);
     assert.doesNotMatch(visible.join(" "), /autogestionad[oa]|SELF_SERVICE|usuario independiente|cuenta (?:es )?independiente/i, file);
   }
-  assert.match(readFileSync("app/portal/autogestion/page.tsx", "utf8"), /Mi cuenta/);
+  assert.match(readFileSync("app/portal/autogestion/perfil/page.tsx", "utf8"), /Mi cuenta/);
   assert.equal(selfService.isSelfService({ accountType: "SELF_SERVICE" }), true);
 });
 test("registro normaliza identidad y rechaza roles, IDs, servicios y datos inválidos", () => {

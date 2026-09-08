@@ -1,24 +1,23 @@
-import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getPortalSession } from "@/lib/portal-auth";
-import { isSelfService, selfServicePreferences } from "@/lib/self-service";
-import { onboardingIsComplete } from "@/lib/student-onboarding";
-import { BmCheckIcon, BmProfileIcon } from "@/componentes/icons";
-import { SelfServiceAccountActions } from "@/componentes/self-service-account-actions";
-import type { Student } from "@/types/gestion";
+import { prisma } from "@/lib/prisma";
+import { requireSelfServiceAccount } from "@/lib/self-service-account";
+import { selfServicePreferences } from "@/lib/self-service";
+import { getWorkoutWeekRange } from "@/lib/workout-week";
+import { SelfServiceShell } from "@/componentes/self-service-shell";
+import { BmTargetIcon, BmRoutineIcon, BmProgressIcon } from "@/componentes/icons";
 
-export default async function SelfServiceAccountPage() {
-  const session = await getPortalSession({ allowSelfService: true });
-  if (!session) redirect("/portal/login");
-  const student = session.credential.student.data as unknown as Student;
-  if (!isSelfService(student)) redirect("/portal");
-  if (!onboardingIsComplete(student)) redirect("/portal/onboarding");
+export default async function SelfServiceHomePage() {
+  const { student, studentId } = await requireSelfServiceAccount();
   const prefs = selfServicePreferences(student);
-  const weekdays = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-  return <main className="min-h-[100dvh] bg-black p-4 text-white sm:p-8"><div className="mx-auto max-w-2xl"><header className="mb-6 flex items-center gap-3"><Image src="/bm-training-mark.png" width={52} height={52} alt="BM Training" /><span className="font-bold">BM <strong className="text-yellow-400">TRAINING</strong></span></header>
-    <section className="rounded-3xl border border-yellow-400/25 bg-zinc-900 p-5 sm:p-7"><p className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-yellow-400"><BmProfileIcon size={20} />Mi cuenta</p><h1 className="mt-3 text-2xl font-bold">Hola, {student.firstName}</h1><p className="mt-3 flex items-center gap-2 text-emerald-300"><BmCheckIcon size={20} />Tu perfil quedó guardado.</p><p className="mt-3 text-sm text-zinc-300">Este es tu espacio para entrenar por tu cuenta. El creador de rutinas todavía no está disponible.</p>
-    <dl className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">{[["Correo", student.email], ["Teléfono", student.phone], ["Fecha de nacimiento", student.birthDate], ["Altura", `${student.height} cm`], ["Peso", `${student.weight} kg`], ["Objetivo", student.goal], ["Nivel", student.experienceLevel], ["Experiencia", student.trainingExperience], ["Días", prefs.availableDays.map((day) => weekdays[day - 1]).join(", ")], ["Duración", `${prefs.sessionMinutes} minutos`], ["Lugar", prefs.trainingLocation], ["Equipamiento", prefs.equipment.join(", ")], ["Molestias o limitaciones", student.hasLimitations ? student.limitations : "Sin limitaciones declaradas"]].map(([label, value]) => <div key={label} className="min-w-0 rounded-xl border border-zinc-800 p-3"><dt className="text-zinc-400">{label}</dt><dd className="mt-1 break-words">{value}</dd></div>)}</dl>
-    <Link href="/portal/autogestion/perfil" className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-yellow-400 px-4 font-bold text-black">Editar mi perfil</Link><SelfServiceAccountActions /></section>
-  </div></main>;
+  const week = getWorkoutWeekRange();
+  const [weeklySessions, totalSessions] = await Promise.all([
+    prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: week.startDate, lt: week.endExclusiveDate } } }),
+    prisma.workoutSession.count({ where: { studentId, status: "COMPLETED" } }),
+  ]);
+  return <SelfServiceShell><div className="space-y-4">
+    <section className="portal-home-hero relative overflow-hidden rounded-[28px] border border-yellow-400/25 bg-gradient-to-br from-zinc-900 via-[#111108] to-black px-5 py-6 sm:p-8"><h1 className="relative z-10 break-words text-3xl font-bold tracking-tight sm:text-4xl">Hola, <span className="text-yellow-400">{student.firstName}</span></h1><p className="mt-2 text-sm text-zinc-300 sm:text-base">Tu entrenamiento empieza acá.</p></section>
+    <section className="rounded-3xl border border-yellow-400/20 bg-zinc-900 p-5"><h2 className="flex items-center gap-2 text-xs font-bold tracking-[.16em] text-yellow-400"><BmTargetIcon size={22} />TU OBJETIVO</h2><p className="mt-3 break-words text-xl font-semibold">{student.goal || "Sin objetivo definido"}</p><p className="mt-1 text-sm text-zinc-400">{student.experienceLevel || "Sin nivel definido"} · {prefs.availableDays.length} {prefs.availableDays.length === 1 ? "día" : "días"}</p></section>
+    <section className="rounded-3xl border border-yellow-400/25 bg-gradient-to-br from-zinc-900 to-black p-5"><h2 className="flex items-center gap-2 text-xs font-bold tracking-[.16em] text-yellow-400"><BmRoutineIcon size={22} />TU RUTINA</h2><p className="mt-3 text-lg font-semibold">Todavía no creaste una rutina.</p><Link href="/portal/autogestion/rutina" className="mt-5 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-4 font-bold text-black">Crear mi rutina <span aria-hidden="true">→</span></Link></section>
+    <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5"><h2 className="flex items-center gap-2 text-xs font-bold tracking-[.16em] text-yellow-400"><BmProgressIcon size={22} />TU PROGRESO</h2><p className="mt-3 text-lg"><strong className="text-2xl">{weeklySessions}</strong> {weeklySessions === 1 ? "entrenamiento esta semana" : "entrenamientos esta semana"}</p><p className="mt-2 text-sm text-zinc-400">{totalSessions} {totalSessions === 1 ? "sesión completada en total" : "sesiones completadas en total"}</p></section>
+  </div></SelfServiceShell>;
 }
