@@ -16,6 +16,22 @@ function load(file: string, mocks: Record<string, unknown>) {
 }
 const input = { firstName: " Ana ", lastName: " Pérez ", email: " ANA@example.com ", phone: "+54 9 3404 123456", password: "Segura12345", confirmPassword: "Segura12345" };
 const preferences = { availableDays: [1, 3, 5], sessionMinutes: 45, trainingLocation: "Casa", equipment: ["Peso corporal"] };
+test("el copy público usa lenguaje natural sin cambiar rutas ni clasificación interna", () => {
+  const login = readFileSync("componentes/portal-login-form.tsx", "utf8");
+  assert.match(login, /href="\/portal\/crear-cuenta"[^>]*>Crear una cuenta nueva</);
+  for (const file of ["componentes/portal-login-form.tsx", "componentes/portal-registration-form.tsx", "app/portal/autogestion/page.tsx", "componentes/student-onboarding.tsx"]) {
+    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const visible: string[] = [];
+    function visit(node: ts.Node) {
+      if (ts.isJsxText(node)) visible.push(node.text);
+      ts.forEachChild(node, visit);
+    }
+    visit(source);
+    assert.doesNotMatch(visible.join(" "), /autogestionad[oa]|SELF_SERVICE|usuario independiente|cuenta (?:es )?independiente/i, file);
+  }
+  assert.match(readFileSync("app/portal/autogestion/page.tsx", "utf8"), /Mi cuenta/);
+  assert.equal(selfService.isSelfService({ accountType: "SELF_SERVICE" }), true);
+});
 test("registro normaliza identidad y rechaza roles, IDs, servicios y datos inválidos", () => {
   assert.equal(selfService.parseRegistration(input)?.email, "ana@example.com");
   for (const key of ["accountType", "role", "studentId", "serviceType", "trainerId"]) assert.equal(selfService.parseRegistration({ ...input, [key]: "admin" }), null);

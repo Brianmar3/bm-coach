@@ -55,7 +55,7 @@ try {
   assert.equal(otherRecord.data.onboardingCompleted, false); assert.equal(otherRecord.data.birthDate, "");
   passed("los cuatro pasos persisten en la ficha propia y no alteran otra cuenta ni privilegios");
   const accountPage = await request("/portal/autogestion", { cookie: owner.cookie });
-  assert.equal(accountPage.status, 200); const html = await accountPage.text(); assert.ok(html.includes("Usuario autogestionado")); assert.ok(html.includes(accounts[0].email)); assert.ok(!html.includes(accounts[1].email));
+  assert.equal(accountPage.status, 200); const html = await accountPage.text(); assert.ok(html.includes("Mi cuenta")); assert.ok(html.includes(accounts[0].email)); assert.ok(!html.includes(accounts[1].email));
   passed("la cuenta autenticada muestra sólo el perfil propio");
   for (const path of ["/api/portal/data", "/api/portal/clases", "/api/portal/asistencias", "/api/portal/progreso", "/api/portal/ranking", "/api/dashboard", "/api/alumnos", `/api/alumnos/${other.id}`, "/api/pagos"]) {
     const response = await request(path, { cookie: owner.cookie }); assert.ok([401, 403].includes(response.status), `${path}: ${response.status}`);
