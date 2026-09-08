@@ -4,7 +4,7 @@ import test from "node:test";
 
 const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const moduleShell = readFileSync(new URL("../componentes/module-shell.tsx", import.meta.url), "utf8");
-const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
+const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8") + readFileSync(new URL("../componentes/portal-visuals.tsx", import.meta.url), "utf8");
 const splash = readFileSync(new URL("../componentes/bm-training-splash.tsx", import.meta.url), "utf8");
 const bootReady = readFileSync(new URL("../componentes/bm-boot-ready.tsx", import.meta.url), "utf8");
 const appFrame = readFileSync(new URL("../componentes/app-frame.tsx", import.meta.url), "utf8");

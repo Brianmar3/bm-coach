@@ -49,6 +49,7 @@ test("Home consulta únicamente sesiones completadas propias y la semana real", 
     "@/lib/self-service": { selfServicePreferences: () => ({ availableDays: [1, 3, 5] }) },
     "@/lib/workout-week": { getWorkoutWeekRange: () => week },
     "@/componentes/self-service-shell": { SelfServiceShell: "div" },
+    "@/componentes/portal-visuals": { PortalHeroFrame: "header", PortalRoutineFrame: "section", PORTAL_STAT_CARD_CLASS: "stat" },
     "@/componentes/icons": { BmTargetIcon: "i", BmRoutineIcon: "i", BmProgressIcon: "i" },
   });
   const tree = await page.default();
@@ -59,7 +60,23 @@ test("Home consulta únicamente sesiones completadas propias y la semana real", 
   const content = JSON.stringify(tree);
   assert.match(content, /Tu entrenamiento empieza acá/);
   assert.match(content, /Ganar fuerza/);
+  assert.match(content, /Todavía no creaste una rutina/);
   assert.match(content, /entrenamientos esta semana/);
+});
+
+test("comparte presentación con alumnos y conserva sólo tres destinos propios", () => {
+  const shell = readFileSync("componentes/self-service-shell.tsx", "utf8");
+  const coached = readFileSync("componentes/portal-shell.tsx", "utf8");
+  for (const component of ["PortalHeader", "PortalNavigationLink", "PORTAL_MOBILE_NAV_CLASS"]) {
+    assert.ok(shell.includes(component));
+    assert.ok(coached.includes(component));
+  }
+  assert.equal((shell.match(/title: /g) || []).length, 3);
+  const routine = readFileSync("app/portal/autogestion/rutina/page.tsx", "utf8");
+  assert.match(routine, /Todavía no creaste una rutina/);
+  assert.doesNotMatch(routine, /Estamos preparando/);
+  const profile = readFileSync("app/portal/autogestion/perfil/page.tsx", "utf8");
+  for (const item of ["PortalProfileFrame", "PortalProfileAvatar", "Mi información", "Editar perfil", "SelfServiceAccountActions"]) assert.ok(profile.includes(item));
 });
 test("confirmación breve y redirect existentes apuntan al Home, no al perfil", () => {
   const onboarding = readFileSync("componentes/student-onboarding.tsx", "utf8");

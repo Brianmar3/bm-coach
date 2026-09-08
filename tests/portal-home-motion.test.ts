@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
+const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8") + readFileSync(new URL("../componentes/portal-visuals.tsx", import.meta.url), "utf8");
 const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");

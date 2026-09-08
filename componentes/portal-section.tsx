@@ -1,4 +1,5 @@
 "use client";
+import { PortalHeroFrame, PortalRoutineFrame, PORTAL_STAT_CARD_CLASS } from "@/componentes/portal-visuals";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
@@ -157,7 +158,7 @@ function PortalOverview({ data }: { data: PortalData }) {
   const showRoutineHomeCard = hasPersonalizedService(data.profile.serviceType) && (routineFocused || Boolean(data.routine));
   const homePlan = showRoutineHomeCard ? personalizedHomePlan(data) : null;
   return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4">
-    <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-4 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 sm:p-8">
+    <PortalHeroFrame>
       <span aria-hidden="true" className="portal-home-light-sweep" />
       <div className={`relative ${groupClassesEnabled && !routineFocused ? "min-h-[7.5rem] pr-[5.6rem] min-[390px]:pr-[6.4rem] sm:min-h-[9rem] sm:pr-36" : "min-h-[7rem] sm:min-h-[9rem]"}`}>
         <p className="flex items-center gap-2.5 text-xs text-zinc-500 sm:text-sm"><BmCalendarIcon size={19} className="shrink-0 text-yellow-400" />{todayLabel}</p>
@@ -165,7 +166,7 @@ function PortalOverview({ data }: { data: PortalData }) {
         <p className="mt-2 max-w-md text-sm leading-relaxed text-zinc-500 sm:mt-2.5 sm:text-base">{routineFocused ? "Hoy avanzás una parte más de tu plan." : "Vamos por un día más de progreso."}</p>
         {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
-    </header>
+    </PortalHeroFrame>
     <PortalEventAnnouncement events={data.events} studentId={data.profile.id} />
     <section className="portal-home-enter portal-home-focus relative overflow-hidden rounded-[26px] border border-white/[.1] bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-5 shadow-[0_14px_34px_rgba(0,0,0,.28)] min-[390px]:px-6 sm:px-7 sm:py-6"><span aria-hidden="true" className="portal-home-focus-lines" /><div className="relative z-[1]"><p className="text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-xs">Enfoque de hoy</p><div className="mt-3 flex items-start gap-3 sm:gap-4"><span aria-hidden="true" className="portal-home-focus-quote text-4xl font-black leading-none text-yellow-400/90">“</span><div className="min-w-0 max-w-2xl"><h2 className="break-words text-base font-semibold italic leading-snug text-zinc-100 sm:text-xl">{dailyFocus.title}</h2><p className="mt-1.5 break-words text-xs leading-relaxed text-zinc-500 sm:mt-2 sm:text-sm">{dailyFocus.reflection}</p></div></div></div></section>
     {groupClassesEnabled && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
@@ -229,12 +230,12 @@ function RoutineHomeCard({ plan }: { plan: PersonalizedHomePlan }) {
   const progress = plan.target ? Math.min(100, (plan.completed / plan.target) * 100) : 0;
   const heading = plan.inProgress ? "Continuá tu entrenamiento" : plan.available ? "Tu entrenamiento está listo" : "Tu plan está listo para continuar";
   const subtitle = plan.available ? plan.title : "Continuá desde tu planificación activa";
-  return <section className="relative overflow-hidden rounded-[22px] border border-yellow-400/25 bg-[radial-gradient(circle_at_88%_18%,rgba(250,204,21,.065),transparent_34%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_16px_36px_rgba(0,0,0,.3)] sm:p-5">
+  return <PortalRoutineFrame>
     <div className="flex items-center justify-between gap-3"><p className="text-[9px] font-black uppercase tracking-[.2em] text-yellow-400">Tu rutina de hoy</p><span className="rounded-full border border-yellow-400/25 bg-yellow-400/[.05] px-2 py-1 text-[9px] font-bold text-yellow-200">Personalizado</span></div>
     <div className="mt-2.5 flex items-center gap-3"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full border border-yellow-400/25 bg-yellow-400/[.05] text-yellow-300 shadow-[0_0_18px_rgba(250,204,21,.08)]"><BmDumbbellIcon size={22} /></span><div className="min-w-0"><h2 className="text-base font-black leading-tight text-zinc-50 min-[390px]:text-lg">{heading}</h2><p className="mt-1 line-clamp-2 text-xs leading-snug text-zinc-500">{subtitle}</p></div></div>
     <div className="mt-2.5 border-t border-white/[.07] pt-2.5">{plan.target > 0 ? <><div className="flex min-w-0 items-center gap-1.5 text-[10px] leading-snug text-zinc-500"><BmCheckIcon size={13} className="shrink-0 text-yellow-400" /><span><strong className="font-bold text-yellow-300">{plan.completed} de {plan.target}</strong> sesiones completadas esta semana</span></div><div role="progressbar" aria-label="Progreso semanal del plan" aria-valuemin={0} aria-valuemax={plan.target} aria-valuenow={plan.completed} className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800"><div className="portal-home-progress-fill h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${progress}%` }} /></div></> : <p className="text-xs leading-relaxed text-zinc-500">Revisá tu planificación para conocer el próximo bloque.</p>}</div>
     <Link href="/portal/rutina" className="portal-home-interactive mt-2.5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-yellow-400/45 px-4 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmPlayIcon size={18} />{plan.available ? plan.inProgress ? "Continuar rutina" : "Empezar rutina" : "Ver rutina"}</Link>
-  </section>;
+  </PortalRoutineFrame>;
 }
 
 function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["home"]["weeklyMission"]> }) {
@@ -322,7 +323,7 @@ function HomeQuickStats({ data }: { data: PortalData }) {
       : paymentCopy.tone === "overdue"
         ? "text-red-300"
         : "text-zinc-100";
-  const cardClass = "portal-home-stat portal-home-interactive group relative min-h-[7.75rem] min-w-0 overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:p-4";
+  const cardClass = PORTAL_STAT_CARD_CLASS;
   return <section aria-label="Resumen del alumno" className="portal-home-enter grid grid-cols-2 gap-2 sm:gap-3">
     <Link href="/portal/pagos" aria-label={`Tu cuota. ${paymentCopy.title}. ${paymentCopy.detail}. Ir a pagos.`} className={cardClass}><BmPaymentIcon size={17} className="absolute right-3.5 top-3.5 text-yellow-400/60 min-[390px]:right-4 min-[390px]:top-4" /><p className="pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 min-[390px]:text-[10px]">Tu cuota</p><p className={`mt-3 text-base font-semibold leading-tight min-[390px]:text-lg ${paymentTone}`}>{paymentCopy.title}</p><p className="mt-2 text-[9px] font-medium leading-snug text-zinc-500 min-[390px]:text-[10px]">{paymentCopy.detail}</p></Link>
     {competitive ? <Link href="/portal/puntos" aria-live="polite" className={`portal-home-points ${pointsDelta !== null ? "portal-home-points-changed" : ""} ${cardClass}`}>{pointsDelta !== null && <><span aria-hidden="true" className="portal-home-points-sweep" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-one" /><span aria-hidden="true" className="portal-home-points-spark portal-home-points-spark-two" /><span className="portal-home-points-delta">+{pointsDelta}</span></>}<span className="absolute right-2.5 top-2.5 grid size-6 place-items-center rounded-full border border-yellow-400/30 text-yellow-300 sm:right-4 sm:top-4 sm:size-8"><BmPointsIcon size={15} /></span><p className="relative pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 sm:text-[10px]">Tus puntos</p><p className="relative mt-4 truncate text-xl font-semibold leading-none text-zinc-100 sm:text-2xl"><HomeAnimatedNumber value={data.home.points.total} /></p><p className="relative mt-1.5 truncate text-[9px] text-zinc-500 sm:text-[11px]">+{weeklyPoints} esta semana</p></Link> : <Link href="/portal/progreso" className={cardClass}><BmProgressIcon size={17} className="absolute right-3.5 top-3.5 text-yellow-400/60 min-[390px]:right-4 min-[390px]:top-4" /><p className="pr-6 text-[8px] font-black uppercase tracking-[.15em] text-yellow-400 min-[390px]:text-[10px]">Tu progreso</p><p className="mt-3 text-xl font-semibold leading-none text-zinc-100 sm:text-2xl">{data.weeklyWorkouts}</p><p className="mt-2 text-[9px] leading-snug text-zinc-500 sm:text-[11px]">entrenamientos completados esta semana</p></Link>}

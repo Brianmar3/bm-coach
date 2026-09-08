@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
+const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8") + readFileSync(new URL("../componentes/portal-visuals.tsx", import.meta.url), "utf8");
 const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const overview = home.slice(home.indexOf("function PortalOverview"), home.indexOf("type PersonalizedHomePlan"));
@@ -31,6 +31,6 @@ test("la reserva inferior usa una sola fuente de altura y separación", () => {
 });
 
 test("la navegación sigue fija y reserva 24px visuales sin tapar contenido", () => {
-  assert.match(shell, /className="fixed bottom-\[calc\(env\(safe-area-inset-bottom\)\+var\(--portal-bottom-nav-offset\)\)\]/);
+  assert.match(shell, /"fixed bottom-\[calc\(env\(safe-area-inset-bottom\)\+var\(--portal-bottom-nav-offset\)\)\]/);
   assert.match(styles, /--portal-bottom-nav-clearance: 1\.5rem/);
 });
