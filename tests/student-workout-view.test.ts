@@ -219,7 +219,7 @@ test("el historial vacío muestra un único mensaje", () => {
 test("la pantalla de Rutina termina en Ver mi progreso y el historial vive en su ruta dedicada", () => {
   const routineStart = source.indexOf('if (section === "rutina")');
   const routineRender = source.slice(routineStart, source.indexOf(";", routineStart) + 1);
-  assert.match(routineRender, /return <WorkoutView data=\{data\} \/>/);
+  assert.match(routineRender, /return <WorkoutView data=\{data\} selfService=\{selfService\} \/>/);
   assert.doesNotMatch(routineRender, /WorkoutHistoryView|historial-entrenamientos/);
   assert.match(source, /if \(section === "historial"\) return <WorkoutHistoryView data=\{data\} \/>/);
   assert.match(source, /Ver mi progreso/);

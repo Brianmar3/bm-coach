@@ -33,6 +33,22 @@ test("búsqueda y filtros de evaluaciones se combinan", () => {
   assert.deepEqual(filterEvaluationStudents(rows, { query: "car", service: "PERSONALIZED", status: "NONE", validity: "ALL" }).map((item) => item.id), ["s3"]);
 });
 
+test("SELF_SERVICE queda fuera de cards, filtros y contadores de Evaluaciones", () => {
+  const self = { id: "self", firstName: "Mati", lastName: "Gallo", birthDate: "", goal: "Fuerza", serviceType: "PERSONALIZED" as const, accountType: "SELF_SERVICE" as const };
+  const personalized = { ...self, id: "personalized", accountType: "COACHED" as const };
+  const mixed = { ...self, id: "mixed", serviceType: "MIXED" as const, accountType: "COACHED" as const };
+  const classes = { ...self, id: "classes", serviceType: "CLASSES" as const, accountType: "COACHED" as const };
+  const selfEvaluation = evaluation({ id: "self-evaluation", studentId: self.id });
+  const classEvaluation = evaluation({ id: "class-evaluation", studentId: classes.id });
+  assert.equal(isStudentVisibleInEvaluations(self, [selfEvaluation]), false);
+  assert.deepEqual(visibleStudentsInEvaluations([self, personalized, mixed, classes], [selfEvaluation, classEvaluation]).map((item) => item.id), ["personalized", "mixed", "classes"]);
+  const converted = { ...self, accountType: "COACHED" as const };
+  assert.equal(isStudentVisibleInEvaluations(converted, []), true);
+  const stats = calculateGlobalEvaluationStats([self, personalized, mixed], [selfEvaluation], "2026-09-08");
+  assert.equal(stats.eligibleStudents, 2);
+  assert.equal(stats.totalEvaluations, 0);
+});
+
 test("la visibilidad separa servicio actual de historial de evaluaciones", () => {
   const personalized = { id: "personalized", serviceType: "PERSONALIZED" as const };
   const mixed = { id: "mixed", serviceType: "MIXED" as const };

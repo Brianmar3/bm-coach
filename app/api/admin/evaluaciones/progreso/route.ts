@@ -1,3 +1,4 @@
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { databaseUnavailable } from "@/lib/evaluaciones";
 import { calculateGlobalEvaluationStats } from "@/lib/evaluation-progress";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 function studentSummary(record: { id: string; serviceType: "CLASSES" | "PERSONALIZED" | "MIXED"; data: unknown }): EvaluationStudentSummary {
   const data = record.data && typeof record.data === "object" && !Array.isArray(record.data) ? record.data as Record<string, unknown> : {};
-  return { id: record.id, firstName: typeof data.firstName === "string" ? data.firstName : "", lastName: typeof data.lastName === "string" ? data.lastName : "", birthDate: typeof data.birthDate === "string" ? data.birthDate : "", goal: typeof data.goal === "string" ? data.goal : "", serviceType: record.serviceType };
+  return { id: record.id, firstName: typeof data.firstName === "string" ? data.firstName : "", lastName: typeof data.lastName === "string" ? data.lastName : "", birthDate: typeof data.birthDate === "string" ? data.birthDate : "", goal: typeof data.goal === "string" ? data.goal : "", serviceType: record.serviceType, accountType: data.accountType === "SELF_SERVICE" ? "SELF_SERVICE" : "COACHED" };
 }
 
 export async function GET(request: Request) {
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     const studentId = url.searchParams.get("studentId")?.trim() ?? "";
     if (view === "summary") {
       const [studentRecords, physicalRecords, legacyRecords] = await Promise.all([
-        prisma.studentRecord.findMany({ select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
+        prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
         prisma.physicalEvaluation.findMany({
           select: { id: true, studentId: true, date: true, version: true, status: true, completionPercentage: true, primaryGoal: true, reassessmentDate: true, weight: true },
           orderBy: [{ date: "desc" }, { version: "desc" }],
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
       return Response.json({ students: visibleStudents, evaluations: evaluations.filter((evaluation) => visibleIds.has(evaluation.studentId)) });
     }
     const [studentRecords, physicalRecords, legacyRecords] = await Promise.all([
-      prisma.studentRecord.findMany({ where: studentId ? { id: studentId } : undefined, select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
+      prisma.studentRecord.findMany({ where: { AND: [coachedStudentsWhere, studentId ? { id: studentId } : {}] }, select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: studentId ? { studentId } : undefined, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }] }),
       prisma.evaluationRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
     ]);

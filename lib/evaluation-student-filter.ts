@@ -14,9 +14,10 @@ export type EvaluationStudentResult = EvaluationStudentSummary & {
 const normalized = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 
 export function isStudentVisibleInEvaluations(
-  student: Pick<EvaluationStudentSummary, "id" | "serviceType">,
+  student: Pick<EvaluationStudentSummary, "id" | "serviceType" | "accountType">,
   evaluations: Pick<NormalizedEvaluation, "studentId">[],
 ) {
+  if (student.accountType === "SELF_SERVICE") return false;
   return student.serviceType === "PERSONALIZED"
     || student.serviceType === "MIXED"
     || evaluations.some((evaluation) => evaluation.studentId === student.id);

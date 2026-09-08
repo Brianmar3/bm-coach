@@ -75,7 +75,7 @@ const billingPeriod = (value: string) => value
   ? new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric" }).format(new Date(`${value.slice(0, 10)}T12:00:00`))
   : "";
 
-export function PortalSection({ section }: { section: Section }) {
+export function PortalSection({ section, dataEndpoint = "/api/portal/data", selfService = false }: { section: Section; dataEndpoint?: string; selfService?: boolean }) {
   const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false);
   const dataSection = section === "historial" ? "rutina" : section === "avatar" ? "perfil" : section;
   const inFlightRefresh = useRef<Promise<void> | null>(null);
@@ -86,7 +86,7 @@ export function PortalSection({ section }: { section: Section }) {
     if (showLoading) setLoading(true);
     const controller = new AbortController();
     activeController.current = controller;
-    const request = fetch(`/api/portal/data?section=${dataSection}`, { cache: "no-store", signal: controller.signal })
+    const request = fetch(`${dataEndpoint}?section=${dataSection}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as PortalData & { error?: string; code?: string };
         if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); }
@@ -102,7 +102,7 @@ export function PortalSection({ section }: { section: Section }) {
       });
     inFlightRefresh.current = request;
     return request;
-  }, [dataSection]);
+  }, [dataEndpoint, dataSection]);
   useEffect(() => {
     activeController.current?.abort(); inFlightRefresh.current = null; hasLoadedData.current = false;
     const resetTimeout = window.setTimeout(() => {
@@ -134,9 +134,9 @@ export function PortalSection({ section }: { section: Section }) {
   if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); void refreshPortalData(true); }} />;
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setError(""); void refreshPortalData(true); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
   if (!data) return null;
-  if (section === "rutina") return <WorkoutView data={data} />;
+  if (section === "rutina") return <WorkoutView data={data} selfService={selfService} />;
   if (section === "historial") return <WorkoutHistoryView data={data} />;
-  if (section === "entrenamiento") return <WorkoutView data={data} />;
+  if (section === "entrenamiento") return <WorkoutView data={data} selfService={selfService} />;
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
@@ -610,7 +610,7 @@ function PortalSchedules({ data }: { data: PortalData }) {
   </section>;
 }
 
-function WorkoutView({ data }: { data: PortalData }) {
+function WorkoutView({ data, selfService = false }: { data: PortalData; selfService?: boolean }) {
   const routine = data.routine;
   const weekKey = getWeekKey();
   const trainingDays = useMemo(() => routine?.days.filter((day) => day.blocks.length) ?? [], [routine]);
@@ -844,7 +844,7 @@ function WorkoutView({ data }: { data: PortalData }) {
         setError("");
         setMessage("");
         setCompletionSuccess(true);
-        window.setTimeout(() => window.location.assign("/portal/rutina#historial-entrenamientos"), body.newAchievements?.length ? 4200 : 1400);
+        window.setTimeout(() => window.location.assign(selfService ? "/portal/autogestion/rutina" : "/portal/rutina#historial-entrenamientos"), body.newAchievements?.length ? 4200 : 1400);
       } else {
         setDraft(updated);
         setMessage("Progreso guardado.");
@@ -935,7 +935,7 @@ function WorkoutView({ data }: { data: PortalData }) {
         </article>;
       })}</div>
       <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 p-3 max-[340px]:grid-cols-1 md:ml-auto md:flex md:max-w-xl md:justify-end"><button type="button" disabled={saving || !started} onClick={() => save(false)} className="min-h-11 min-w-0 rounded-xl border border-yellow-400/40 px-3 py-2.5 text-xs font-bold text-yellow-300 outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 disabled:opacity-50 md:text-sm">{savingAction === "draft" ? "Guardando…" : "Guardar progreso"}</button><button type="button" disabled={saving || !started} onClick={openFinalSummary} className="min-h-11 min-w-0 rounded-xl bg-yellow-400 px-3 py-2.5 text-xs font-black text-zinc-950 outline-none focus-visible:ring-2 focus-visible:ring-yellow-100 disabled:opacity-50 md:text-sm">Finalizar entrenamiento</button></div>
-      {hasPersonalizedService(data.profile.serviceType) && <div className="mt-5 border-t border-zinc-800 pt-5"><PortalActionCard href="/portal/progreso" ariaLabel="Ver mi progreso" title="Ver mi progreso" subtitle="Historial, evolución y avances" icon={<BmProgressIcon size={20} />} /></div>}
+      {!selfService && hasPersonalizedService(data.profile.serviceType) && <div className="mt-5 border-t border-zinc-800 pt-5"><PortalActionCard href="/portal/progreso" ariaLabel="Ver mi progreso" title="Ver mi progreso" subtitle="Historial, evolución y avances" icon={<BmProgressIcon size={20} />} /></div>}
       <RoutineOverlay open={finalOpen} onClose={() => { if (!saving) setFinalOpen(false); }} labelledBy="workout-summary-title" maxWidth="max-w-xl" closeOnBackdrop={!saving}><header className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-800 p-5"><div><h2 id="workout-summary-title" className="text-xl font-bold">Finalizar entrenamiento</h2><p className="mt-1 text-sm text-zinc-400">{completedTotal} de {totalSets} series{draft.durationMinutes ? ` · ${draft.durationMinutes} min` : " · duración pendiente"}</p></div><button type="button" onClick={() => setFinalOpen(false)} disabled={saving} aria-label="Cerrar finalización" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-700 text-zinc-400 outline-none hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300 disabled:opacity-50"><BmCloseIcon size={22} /></button></header><div className="min-h-0 overflow-y-auto p-5">
         {incomplete && !allowIncomplete ? <div className="mt-5 rounded-xl border border-orange-400/40 bg-orange-400/10 p-4"><p className="font-semibold text-orange-200">Todavía quedan ejercicios o series sin completar.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => setFinalOpen(false)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm">Continuar entrenando</button><button onClick={() => { save(false); setFinalOpen(false); }} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300">Guardar para continuar después</button><button onClick={() => setAllowIncomplete(true)} className="rounded-lg bg-orange-300 px-3 py-2 text-sm font-bold text-zinc-950">Finalizar igualmente</button></div></div> : <div className="mt-5 space-y-4"><Field label="Sensación general"><select value={sensation} onChange={(event) => setSensation(event.target.value)} className={`${portalInput} mt-1`}><option value="">Seleccionar</option><option>Muy buena</option><option>Buena</option><option>Normal</option><option>Difícil</option><option>Muy difícil</option></select></Field><Field label="Duración calculada (min)"><input inputMode="numeric" type="number" min="1" max="1440" placeholder="Ej: 45" value={draft.durationMinutes ?? ""} onChange={(event) => setDraft({ ...draft, durationMinutes: event.target.value === "" ? null : Number(event.target.value) })} className={`${portalInput} mt-1`} /></Field><label className="flex min-w-0 items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/[.05] p-3.5 text-red-100"><input type="checkbox" checked={draft.hasPain} onChange={(event) => setDraft({ ...draft, hasPain: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-red-400" /><span className="min-w-0"><strong className="block text-sm font-semibold">Dolor o molestias</strong><small className="mt-1 block text-xs font-normal leading-relaxed text-zinc-400">Marcá esta opción si sentiste dolor durante la sesión.</small></span></label>{draft.hasPain && <div className="grid gap-3 sm:grid-cols-2"><Field label="Zona"><input value={painLocation} onChange={(event) => setPainLocation(event.target.value)} className={`${portalInput} mt-1`} /></Field><Field label="Intensidad (1 a 10)"><input type="number" min="1" max="10" value={painIntensity ?? ""} onChange={(event) => setPainIntensity(event.target.value ? Number(event.target.value) : null)} className={`${portalInput} mt-1`} /></Field><Field label="Comentario"><textarea value={draft.painDetails} onChange={(event) => setDraft({ ...draft, painDetails: event.target.value })} rows={2} className={`${portalInput} mt-1 sm:col-span-2`} /></Field></div>}<Field label="Comentario final (opcional)"><textarea value={draft.finalComment} onChange={(event) => setDraft({ ...draft, finalComment: event.target.value })} rows={3} className={`${portalInput} mt-1`} /></Field><button disabled={saving || draft.durationMinutes === null || !sensation || (draft.hasPain && (!painLocation.trim() || painIntensity === null))} onClick={() => save(true)} className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:opacity-50">{savingAction === "final" ? "Finalizando…" : "Confirmar y finalizar"}</button></div>}
       </div></RoutineOverlay></>}

@@ -44,10 +44,11 @@ test("Home consulta únicamente sesiones completadas propias y la semana real", 
   const week = getWorkoutWeekRange("2026-09-08");
   const page = load("app/portal/autogestion/page.tsx", {
     "next/link": { default: "a" },
-    "@/lib/prisma": { prisma: { workoutSession: { count: async (args: unknown) => { calls.push(args); return 0; } } } },
+    "@/lib/prisma": { prisma: { workoutSession: { count: async (args: unknown) => { calls.push(args); return 0; } }, trainingRoutine: { findFirst: async () => null } } },
     "@/lib/self-service-account": { requireSelfServiceAccount: async () => ({ studentId: "own", student: { firstName: "Test", goal: "Ganar fuerza", experienceLevel: "Principiante" } }) },
     "@/lib/self-service": { selfServicePreferences: () => ({ availableDays: [1, 3, 5] }) },
     "@/lib/workout-week": { getWorkoutWeekRange: () => week },
+    "@/lib/portal-service-access": { activePortalRoutineWhere: (studentId: string) => ({ assignments: { some: { studentId } } }) },
     "@/componentes/self-service-shell": { SelfServiceShell: "div" },
     "@/componentes/portal-visuals": { PortalHeroFrame: "header", PortalRoutineFrame: "section", PORTAL_STAT_CARD_CLASS: "stat" },
     "@/componentes/icons": { BmTargetIcon: "i", BmRoutineIcon: "i", BmProgressIcon: "i" },
@@ -64,6 +65,26 @@ test("Home consulta únicamente sesiones completadas propias y la semana real", 
   assert.match(content, /entrenamientos esta semana/);
 });
 
+test("Home reemplaza el estado vacío por la rutina activa y su próximo día", async () => {
+  const week = getWorkoutWeekRange("2026-09-08");
+  const page = load("app/portal/autogestion/page.tsx", {
+    "next/link": { default: "a" },
+    "@/lib/prisma": { prisma: { workoutSession: { count: async () => 2 }, trainingRoutine: { findFirst: async () => ({ id: "routine-1", name: "Mi rutina real", days: [{ id: "day-1", dayNumber: 1, name: "Full body 1" }, { id: "day-2", dayNumber: 2, name: "Full body 2" }], workoutSessions: [{ dayId: "day-1" }] }) } } },
+    "@/lib/self-service-account": { requireSelfServiceAccount: async () => ({ studentId: "own", student: { firstName: "Test", goal: "Ganar fuerza", experienceLevel: "Principiante" } }) },
+    "@/lib/self-service": { selfServicePreferences: () => ({ availableDays: [1, 3] }) },
+    "@/lib/workout-week": { getWorkoutWeekRange: () => week },
+    "@/lib/portal-service-access": { activePortalRoutineWhere: (studentId: string) => ({ assignments: { some: { studentId } } }) },
+    "@/componentes/self-service-shell": { SelfServiceShell: "div" },
+    "@/componentes/portal-visuals": { PortalHeroFrame: "header", PortalRoutineFrame: "section", PORTAL_STAT_CARD_CLASS: "stat" },
+    "@/componentes/icons": { BmTargetIcon: "i", BmRoutineIcon: "i", BmProgressIcon: "i" },
+  });
+  const content = JSON.stringify(await page.default());
+  assert.match(content, /Mi rutina real/);
+  assert.match(content, /Próximo: Día 2/);
+  assert.match(content, /Entrenar ahora/);
+  assert.doesNotMatch(content, /Todavía no creaste una rutina/);
+});
+
 test("comparte presentación con alumnos y conserva sólo tres destinos propios", () => {
   const shell = readFileSync("componentes/self-service-shell.tsx", "utf8");
   const coached = readFileSync("componentes/portal-shell.tsx", "utf8");
@@ -73,7 +94,7 @@ test("comparte presentación con alumnos y conserva sólo tres destinos propios"
   }
   assert.equal((shell.match(/title: /g) || []).length, 3);
   const routine = readFileSync("app/portal/autogestion/rutina/page.tsx", "utf8");
-  assert.match(routine, /Todavía no creaste una rutina/);
+  assert.match(routine, /SelfServiceRoutineWizard/);
   assert.doesNotMatch(routine, /Estamos preparando/);
   const profile = readFileSync("app/portal/autogestion/perfil/page.tsx", "utf8");
   for (const item of ["PortalProfileFrame", "PortalProfileAvatar", "Mi información", "Editar perfil", "SelfServiceAccountActions"]) assert.ok(profile.includes(item));

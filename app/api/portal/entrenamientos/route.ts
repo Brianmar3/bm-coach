@@ -13,6 +13,7 @@ import { getWeekKey, getWorkoutWeekRange, weeklySessionLockKey } from "@/lib/wor
 import { after } from "next/server";
 import { createWorkoutCompletedTrainerNotification, dispatchTrainerPush } from "@/lib/trainer-notifications";
 import { isWorkoutTrainerNotificationEligible } from "@/lib/workout-completion-notification";
+import { isSelfService } from "@/lib/self-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
   let saveStage = "request";
   try {
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
-    const session = await getPortalSession();
+    const session = await getPortalSession({ allowSelfService: true });
     if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
     if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal." }, { status: 403 });
     const raw = await request.json() as PortalWorkoutSession;
@@ -271,7 +272,7 @@ export async function POST(request: Request) {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     saveStage = "post-save";
     const student = session.credential.student.data as unknown as Student;
-    if (input.status === "finalizado" && isWorkoutTrainerNotificationEligible(session.credential.student.serviceType)) {
+    if (input.status === "finalizado" && !isSelfService(student) && isWorkoutTrainerNotificationEligible(session.credential.student.serviceType)) {
       const studentName = [student.firstName, student.lastName].filter(Boolean).join(" ").trim();
       const result = await createWorkoutCompletedTrainerNotification({
         studentId: session.studentId,

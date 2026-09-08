@@ -95,6 +95,7 @@ export type EvaluationStudentSummary = {
   birthDate: string;
   goal: string;
   serviceType: "CLASSES" | "PERSONALIZED" | "MIXED";
+  accountType?: "COACHED" | "SELF_SERVICE";
 };
 
 export type AttentionItem = {
