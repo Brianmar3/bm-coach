@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
-import { EmptyState, ErrorState, ListSkeleton } from "@/componentes/async-states";
+import { ErrorState, ListSkeleton } from "@/componentes/async-states";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { StudentAccessControls } from "@/componentes/student-access-controls";
 import { StudentQuickPanels } from "@/componentes/student-quick-panels";
@@ -13,6 +13,7 @@ import { StudentEvaluations } from "@/componentes/student-evaluations";
 import { BmCalendarIcon, BmEditIcon, BmEyeIcon, BmMailIcon, BmPaymentIcon, BmPhoneIcon, BmSearchIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
 import { buildStudentEnrollmentPayload, canonicalPlanName, normalizePlanName, resolveStudentPlan } from "@/lib/coach-plans";
+import { studentMatchesSearch } from "@/lib/student-search";
 import { STUDENT_TYPES } from "@/types/gestion";
 import type { TrainerNotificationSection } from "@/lib/trainer-notification-destination";
 import type { Student, StudentPlanOption, StudentServiceType, StudentStatus, StudentType } from "@/types/gestion";
@@ -68,6 +69,7 @@ export default function AlumnosPage() {
     const [loadError, setLoadError] = useState("");
     const [reload, setReload] = useState(0);
     const [query, setQuery] = useState("");
+    const [appliedQuery, setAppliedQuery] = useState("");
     const [status, setStatus] = useState("todos");
     const [plan, setPlan] = useState("todos");
     const [serviceType, setServiceType] = useState<"todos" | StudentServiceType>("todos");
@@ -93,8 +95,10 @@ export default function AlumnosPage() {
             const params = new URLSearchParams(window.location.search);
             if (params.get("estado") === "activo")
                 setStatus("activo");
-            if (params.get("buscar"))
+            if (params.get("buscar")) {
                 setQuery(params.get("buscar") ?? "");
+                setAppliedQuery(params.get("buscar") ?? "");
+            }
             if (params.get("studentId")) {
                 const selectedStudent = students.find((student) => student.id === params.get("studentId"));
                 if (selectedStudent) {
@@ -112,11 +116,15 @@ export default function AlumnosPage() {
             setLoadError("No pudimos cargar los alumnos."); }).finally(() => setReady(true));
         return () => controller.abort();
     }, [reload]);
+    useEffect(() => {
+        const timeout = window.setTimeout(() => setAppliedQuery(query), 400);
+        return () => window.clearTimeout(timeout);
+    }, [query]);
     const planIdentity = (item: Student) => {
         const resolution = resolveStudentPlan(item, options.plans);
         return resolution.status === "matched" ? resolution.plan.selectionKey : `legacy:${normalizePlanName(item.plan)}`;
     };
-    const contextualItems = items.filter((item) => `${item.firstName} ${item.lastName} ${item.phone}`.toLocaleLowerCase("es").includes(query.toLocaleLowerCase("es"))
+    const contextualItems = items.filter((item) => studentMatchesSearch(item, appliedQuery)
         && (status === "todos" || item.status === status)
         && (serviceType === "todos" || item.serviceType === serviceType));
     const planChoices = (() => {
@@ -132,7 +140,8 @@ export default function AlumnosPage() {
     const plans = planChoices.map((item) => `${item.name} (${item.count})`);
     const selectedPlanFilter = planChoices.find((item) => `${item.name} (${item.count})` === plan);
     const visible = contextualItems.filter((item) => plan === "todos" || (selectedPlanFilter && planIdentity(item) === selectedPlanFilter.key));
-    const hasFilters = Boolean(query.trim()) || status !== "todos" || plan !== "todos" || serviceType !== "todos";
+    const hasAppliedSearch = Boolean(appliedQuery.trim());
+    const hasNonSearchFilters = status !== "todos" || plan !== "todos" || serviceType !== "todos";
     function retryLoad() {
         setLoadError("");
         if (!items.length)
@@ -140,7 +149,7 @@ export default function AlumnosPage() {
         setReload((value) => value + 1);
     }
     function clearFilters() {
-        setQuery(""); setStatus("todos"); setPlan("todos"); setServiceType("todos");
+        setQuery(""); setAppliedQuery(""); setStatus("todos"); setPlan("todos"); setServiceType("todos");
     }
     async function begin(item?: Student) {
         setError("");
@@ -242,10 +251,8 @@ export default function AlumnosPage() {
     return <ModuleShell title="Alumnos" subtitle="Alta rápida, planes y seguimiento de tu cartera de alumnos.">
     {loadError && items.length > 0 && <div className="mb-5"><ErrorState compact title="No pudimos actualizar la lista de alumnos." retry={retryLoad}/></div>}
     {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
-    {visible.length === 0 && <EmptyState title={hasFilters ? "No encontramos alumnos con estos filtros." : "Todavía no tenés alumnos."} description={hasFilters ? "Probá limpiar la búsqueda o cambiar los filtros." : "Agregá el primero para empezar a gestionar su plan y seguimiento."} action={<button type="button" onClick={hasFilters ? clearFilters : () => void begin()} className="min-h-11 px-4 text-sm font-bold text-yellow-300">{hasFilters ? "Limpiar filtros" : "Agregar alumno"}</button>}/>}
-    <div className={visible.length === 0 ? "hidden" : ""}>
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900"><div className="grid gap-2 border-b border-zinc-800 p-3 md:grid-cols-2 md:gap-3 md:p-4 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]"><label className="flex min-h-11 items-center gap-2 rounded-xl border border-zinc-700/80 bg-black/45 px-3 text-zinc-500 shadow-inner shadow-black/20 focus-within:border-yellow-400/70 focus-within:ring-2 focus-within:ring-yellow-400/10"><BmSearchIcon size={17} className="shrink-0"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nombre, apellido o teléfono" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"/></label><select value={status} onChange={(event) => setStatus(event.target.value)} className={`${inputClass} py-1.5`}><option value="todos">Todos los estados</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select><select value={plan} onChange={(event) => setPlan(event.target.value)} className={`${inputClass} py-1.5`}><option value="todos">Todos los planes</option>{plans.map((item) => <option key={item}>{item}</option>)}</select><select value={serviceType} onChange={(event) => setServiceType(event.target.value as "todos" | StudentServiceType)} className={`${inputClass} py-1.5`}><option value="todos">Todos los servicios</option>{STUDENT_SERVICE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div><div className="space-y-2 p-2 pb-20 md:hidden">{visible.map((item) => <StudentMobileCard key={item.id} item={item} view={() => setViewing(item)} edit={() => void begin(item)} remove={() => void remove(item)}/>)}</div><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[960px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-4">Alumno</th><th>Servicio</th><th>Plan</th><th>Horario principal</th><th>Contacto</th><th>Vencimiento</th><th>Estado</th><th aria-label="Acciones"/></tr></thead><tbody>{!ready ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">Cargando alumnos…</td></tr> : visible.length === 0 ? <tr><td colSpan={8} className="p-12 text-center text-zinc-500">No hay alumnos que coincidan con los filtros.</td></tr> : visible.map((item) => <tr key={item.id} className="border-t border-zinc-800"><td className="p-4 font-medium">{item.firstName} {item.lastName}<span className="block text-xs font-normal text-zinc-500">{item.studentType} · IMC {bmi(item.weight, item.height)} · {age(item.birthDate)} años</span></td><td><ServiceBadge value={item.serviceType}/></td><td>{item.plan}<span className="block text-xs text-zinc-500">{money(item.monthlyFee)}</span></td><td className="max-w-56 text-xs text-zinc-400">{item.scheduleLabel ?? "Sin horario principal"}</td><td>{item.studentType === "Kids" ? item.responsiblePhone || item.phone || "Sin teléfono" : item.phone}<span className="block text-xs text-zinc-500">{item.email || "Sin correo"}</span></td><td>{showDate(item.dueDate)}</td><td><span className={`rounded-full px-2 py-1 text-xs font-bold capitalize ${item.status === "activo" ? "bg-emerald-400/15 text-emerald-300" : "bg-zinc-700 text-zinc-300"}`}>{item.status}</span></td><td className="space-x-3 whitespace-nowrap pr-4 text-yellow-400"><button onClick={() => setViewing(item)}>Ver ficha</button><button onClick={() => begin(item)}>Editar</button><button onClick={() => remove(item)} className="text-red-300">Dar de baja</button></td></tr>)}</tbody></table></div></section>
-    </div>
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900"><div className="grid gap-2 border-b border-zinc-800 p-3 md:grid-cols-2 md:gap-3 md:p-4 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]"><label className="flex min-h-11 items-center gap-2 rounded-xl border border-zinc-700/80 bg-black/45 px-3 text-zinc-500 shadow-inner shadow-black/20 focus-within:border-yellow-400/70 focus-within:ring-2 focus-within:ring-yellow-400/10"><BmSearchIcon size={17} className="shrink-0"/><input type="search" aria-label="Buscar alumnos" aria-controls="student-results" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setAppliedQuery(query); }} placeholder="Buscar por nombre, apellido o teléfono" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"/></label><select value={status} onChange={(event) => setStatus(event.target.value)} className={`${inputClass} py-1.5`}><option value="todos">Todos los estados</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select><select value={plan} onChange={(event) => setPlan(event.target.value)} className={`${inputClass} py-1.5`}><option value="todos">Todos los planes</option>{plans.map((item) => <option key={item}>{item}</option>)}</select><select value={serviceType} onChange={(event) => setServiceType(event.target.value as "todos" | StudentServiceType)} className={`${inputClass} py-1.5`}><option value="todos">Todos los servicios</option>{STUDENT_SERVICE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+    <div id="student-results">{visible.length === 0 ? <div role="status" aria-live="polite" className="px-4 py-8 text-center"><p className="text-sm font-semibold text-zinc-300">{hasAppliedSearch ? <>No encontramos alumnos para “{appliedQuery.trim()}”.</> : hasNonSearchFilters ? "No encontramos alumnos con estos filtros." : "Todavía no tenés alumnos."}</p><p className="mt-1 text-xs text-zinc-500">{hasAppliedSearch ? "Podés corregir la búsqueda sin salir de esta pantalla." : hasNonSearchFilters ? "Probá cambiar los filtros activos." : "Agregá el primero para empezar a gestionar su plan y seguimiento."}</p>{hasNonSearchFilters && <button type="button" onClick={clearFilters} className="mt-3 min-h-11 px-4 text-sm font-bold text-yellow-300">Limpiar filtros</button>}{!hasAppliedSearch && !hasNonSearchFilters && <button type="button" onClick={() => void begin()} className="mt-3 min-h-11 px-4 text-sm font-bold text-yellow-300">Agregar alumno</button>}</div> : <><div className="space-y-2 p-2 pb-20 md:hidden">{visible.map((item) => <StudentMobileCard key={item.id} item={item} view={() => setViewing(item)} edit={() => void begin(item)} remove={() => void remove(item)}/>)}</div><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[960px] text-left text-sm"><thead className="text-zinc-500"><tr><th className="p-4">Alumno</th><th>Servicio</th><th>Plan</th><th>Horario principal</th><th>Contacto</th><th>Vencimiento</th><th>Estado</th><th aria-label="Acciones"/></tr></thead><tbody>{visible.map((item) => <tr key={item.id} className="border-t border-zinc-800"><td className="p-4 font-medium">{item.firstName} {item.lastName}<span className="block text-xs font-normal text-zinc-500">{item.studentType} · IMC {bmi(item.weight, item.height)} · {age(item.birthDate)} años</span></td><td><ServiceBadge value={item.serviceType}/></td><td>{item.plan}<span className="block text-xs text-zinc-500">{money(item.monthlyFee)}</span></td><td className="max-w-56 text-xs text-zinc-400">{item.scheduleLabel ?? "Sin horario principal"}</td><td>{item.studentType === "Kids" ? item.responsiblePhone || item.phone || "Sin teléfono" : item.phone}<span className="block text-xs text-zinc-500">{item.email || "Sin correo"}</span></td><td>{showDate(item.dueDate)}</td><td><span className={`rounded-full px-2 py-1 text-xs font-bold capitalize ${item.status === "activo" ? "bg-emerald-400/15 text-emerald-300" : "bg-zinc-700 text-zinc-300"}`}>{item.status}</span></td><td className="space-x-3 whitespace-nowrap pr-4 text-yellow-400"><button onClick={() => setViewing(item)}>Ver ficha</button><button onClick={() => begin(item)}>Editar</button><button onClick={() => remove(item)} className="text-red-300">Dar de baja</button></td></tr>)}</tbody></table></div></>}</div></section>
     {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
     {viewing && <StudentDetail item={viewing} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
     <TrainerFloatingActions mode="direct" enabled={!open && !viewing} actions={[{ label: "Nuevo alumno", symbol: "+", onSelect: () => void begin() }]} />
