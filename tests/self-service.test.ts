@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import * as selfService from "../lib/self-service.ts";
+import { SELF_SERVICE_SIGNUP_ENABLED } from "../lib/self-service-signup.ts";
 import { onboardingValidation } from "../lib/student-onboarding.ts";
 
 const nativeRequire = createRequire(import.meta.url);
@@ -16,9 +17,10 @@ function load(file: string, mocks: Record<string, unknown>) {
 }
 const input = { firstName: " Ana ", lastName: " Pérez ", email: " ANA@example.com ", phone: "+54 9 3404 123456", password: "Segura12345", confirmPassword: "Segura12345" };
 const preferences = { availableDays: [1, 3, 5], sessionMinutes: 45, trainingLocation: "Casa", equipment: ["Peso corporal"] };
-test("el copy público usa lenguaje natural sin cambiar rutas ni clasificación interna", () => {
+test("el login oculta el alta pública y conserva lenguaje natural", () => {
   const login = readFileSync("componentes/portal-login-form.tsx", "utf8");
-  assert.match(login, /href="\/portal\/crear-cuenta"[^>]*>Crear una cuenta nueva</);
+  assert.equal(SELF_SERVICE_SIGNUP_ENABLED, false);
+  assert.match(login, /SELF_SERVICE_SIGNUP_ENABLED && <Link href="\/portal\/crear-cuenta"/);
   for (const file of ["componentes/portal-login-form.tsx", "componentes/portal-registration-form.tsx", "app/portal/autogestion/page.tsx", "componentes/student-onboarding.tsx"]) {
     const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const visible: string[] = [];
@@ -49,7 +51,7 @@ test("datos físicos rechazan fechas inexistentes y valores no finitos", () => {
   assert.notEqual(onboardingValidation({ ...data, birthDate: "2000-01-01", height: NaN }, 1), "");
 });
 
-function registrationHarness(options: { duplicate?: boolean; fail?: boolean; recent?: number; origin?: boolean; weak?: boolean } = {}) {
+function registrationHarness(options: { duplicate?: boolean; fail?: boolean; recent?: number; origin?: boolean; weak?: boolean; signupEnabled?: boolean } = {}) {
   const writes: Array<Record<string, any>> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
   const cookieWrites: unknown[] = [];
   let locks = 0;
@@ -64,9 +66,21 @@ function registrationHarness(options: { duplicate?: boolean; fail?: boolean; rec
     "@/lib/portal-auth": { validRequestOrigin: () => options.origin !== false, passwordValidationError: () => options.weak ? "Contraseña insegura" : "", hashPassword: async () => "scrypt$hash", sessionTokenHash: () => "token-hash", portalCookieOptions: () => ({ httpOnly: true }), PORTAL_COOKIE: "portal" },
     "@/lib/portal-experience": { LAST_PORTAL_COOKIE: "last", portalExperienceCookieOptions: () => ({}) },
     "@/lib/self-service": selfService,
+    "@/lib/self-service-signup": { SELF_SERVICE_SIGNUP_ENABLED: options.signupEnabled ?? true },
   });
   return { writes, cookieWrites, locks: () => locks, post: () => route.POST(new Request("http://localhost/api/portal/registro", { method: "POST", body: JSON.stringify(input) })) };
 }
+test("registro público cerrado redirige la página y bloquea el endpoint sin escribir", async () => {
+  const page = readFileSync("app/portal/crear-cuenta/page.tsx", "utf8");
+  assert.match(page, /if \(!SELF_SERVICE_SIGNUP_ENABLED\) redirect\("\/portal\/login"\)/);
+  const h = registrationHarness({ signupEnabled: false });
+  const response = await h.post();
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "Registro temporalmente no disponible." });
+  assert.equal(h.locks(), 0);
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.cookieWrites.length, 0);
+});
 test("registro crea cuenta, credencial y sesión atómicamente y envía a onboarding", async () => {
   const h = registrationHarness(); const response = await h.post();
   assert.equal(response.status, 201);
@@ -100,6 +114,13 @@ test("sesión SELF_SERVICE requiere permiso explícito; alumnos actuales conserv
   assert.notEqual(hash, "Segura12345");
   assert.equal(await auth.verifyPassword("Segura12345", hash), true);
   assert.equal(await auth.verifyPassword("incorrecta", hash), false);
+});
+test("cuentas SELF_SERVICE existentes conservan Home, Rutina y Perfil", () => {
+  for (const file of ["app/portal/autogestion/page.tsx", "app/portal/autogestion/rutina/page.tsx", "app/portal/autogestion/perfil/page.tsx"]) {
+    assert.match(readFileSync(file, "utf8"), /requireSelfServiceAccount\(\)/, file);
+  }
+  assert.doesNotMatch(readFileSync("app/api/portal/login/route.ts", "utf8"), /SELF_SERVICE_SIGNUP_ENABLED/);
+  assert.doesNotMatch(readFileSync("lib/portal-auth.ts", "utf8"), /SELF_SERVICE_SIGNUP_ENABLED/);
 });
 test("onboarding usa ID de sesión y conserva clasificación aunque se envíen privilegios", async () => {
   let update: any; // eslint-disable-line @typescript-eslint/no-explicit-any

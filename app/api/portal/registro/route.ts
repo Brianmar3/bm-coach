@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, passwordValidationError, portalCookieOptions, PORTAL_COOKIE, sessionTokenHash, validRequestOrigin } from "@/lib/portal-auth";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions } from "@/lib/portal-experience";
 import { parseRegistration } from "@/lib/self-service";
+import { SELF_SERVICE_SIGNUP_ENABLED } from "@/lib/self-service-signup";
 
 export const runtime = "nodejs";
 class AccountConflict extends Error {}
 
 export async function POST(request: Request) {
+  if (!SELF_SERVICE_SIGNUP_ENABLED) return Response.json({ error: "Registro temporalmente no disponible." }, { status: 503 });
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   const raw = await request.text();
   if (raw.length > 4096) return Response.json({ error: "Solicitud demasiado grande." }, { status: 413 });

@@ -6,6 +6,7 @@ import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PasswordField } from "@/componentes/password-field";
 import { safeInternalPath } from "@/lib/client-api";
+import { SELF_SERVICE_SIGNUP_ENABLED } from "@/lib/self-service-signup";
 
 type LoginErrors = { username?: string; password?: string };
 
@@ -62,7 +63,7 @@ export function PortalLoginForm() {
         <button type="submit" disabled={loading} aria-busy={loading} className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:cursor-wait disabled:opacity-60">{loading ? "Ingresando…" : "Iniciar sesión"}</button>
       </form>
       <div className="mt-4 border-t border-zinc-800 pt-3 text-center">
-        <Link href="/portal/crear-cuenta" className="mb-3 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-yellow-400">Crear una cuenta nueva</Link>
+        {SELF_SERVICE_SIGNUP_ENABLED && <Link href="/portal/crear-cuenta" className="mb-3 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-yellow-400">Crear una cuenta nueva</Link>}
         <p className="text-xs text-zinc-500">¿Sos entrenador?</p>
         <Link href="/admin/login?next=%2F" className="mt-0.5 inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-yellow-400 transition hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">
           Entrar al panel
