@@ -24,9 +24,34 @@ test("adapta estructura, volumen y descanso a frecuencia, duración, nivel y obj
   assert.deepEqual(four.days.map((day) => day.name), ["Tren superior A", "Tren inferior A", "Tren superior B", "Tren inferior B"]);
   assert.ok(four.days.every((day) => day.exercises.length === 4));
   const strength = generateSelfServiceRoutineProposal({ ...base, objective: "Ganar fuerza", level: "Avanzado", sessionMinutes: 60 }, library);
-  assert.ok(strength.days.flatMap((day) => day.exercises).every((exercise) => exercise.sets === 4 && exercise.repetitions === "4-6" && exercise.restSeconds === 150));
+  const compounds = strength.days.flatMap((day) => day.exercises).filter((exercise) => !["core", "calves", "pushAccessory", "pullAccessory", "lowerAccessory", "gluteAccessory"].includes(exercise.pattern));
+  const accessories = strength.days.flatMap((day) => day.exercises).filter((exercise) => !compounds.includes(exercise));
+  assert.ok(compounds.every((exercise) => exercise.sets === 4 && exercise.repetitions === "6-8" && exercise.restSeconds === 180));
+  assert.ok(accessories.every((exercise) => exercise.sets === 3 && exercise.restSeconds === 75));
   const conditioning = generateSelfServiceRoutineProposal({ ...base, objective: "Bajar grasa" }, library);
-  assert.ok(conditioning.days.flatMap((day) => day.exercises).every((exercise) => exercise.restSeconds <= 75));
+  assert.ok(conditioning.days.flatMap((day) => day.exercises).every((exercise) => exercise.restSeconds <= 90));
+});
+
+test("genera un plan real de hipertrofia principiante de cinco días equilibrado", () => {
+  const answers = { ...base, daysPerWeek: 5, sessionMinutes: 60, equipment: ["Peso corporal", "Mancuernas", "Barra y discos", "Máquinas", "Banco"], priorityMuscle: "Espalda" };
+  const proposal = generateSelfServiceRoutineProposal(answers, library);
+  assert.deepEqual(proposal.days.map((day) => day.name), ["Tren superior", "Tren inferior", "Empuje", "Tirón", "Piernas"]);
+  assert.ok(proposal.days.every((day) => day.exercises.length >= 4 && day.exercises.length <= 6));
+  const exercises = proposal.days.flatMap((day) => day.exercises);
+  const patterns = new Set(exercises.map((exercise) => exercise.pattern));
+  for (const pattern of ["knee", "hinge", "horizontalPush", "horizontalPull", "verticalPush", "verticalPull", "core", "calves"]) assert.ok(patterns.has(pattern as typeof exercises[number]["pattern"]), pattern);
+  assert.equal(new Set(exercises.map((exercise) => exercise.libraryId)).size, exercises.length);
+  assert.equal(new Set(exercises.map((exercise) => exercise.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase())).size, exercises.length);
+  for (const day of proposal.days) {
+    const firstAccessory = day.exercises.findIndex((exercise) => ["core", "calves", "pushAccessory", "pullAccessory", "lowerAccessory", "gluteAccessory"].includes(exercise.pattern));
+    if (firstAccessory >= 0) assert.ok(day.exercises.slice(0, firstAccessory).every((exercise) => !["core", "calves"].includes(exercise.pattern)));
+  }
+  assert.ok(exercises.some((exercise) => exercise.restSeconds === 120));
+  assert.ok(exercises.some((exercise) => exercise.restSeconds === 75));
+  const input = selfServiceRoutineInput("self-real-case", answers, proposal, library, "2026-09-08");
+  assert.equal(input.days.length, 5);
+  assert.deepEqual(input.studentIds, ["self-real-case"]);
+  assert.ok(input.days.every((day) => day.blocks?.[0]?.exercises.length === 6));
 });
 
 test("respeta el equipamiento declarado y una variación cambia ejercicios", () => {
@@ -36,18 +61,22 @@ test("respeta el equipamiento declarado y una variación cambia ejercicios", () 
   assert.notDeepEqual(bodyweight.days.flatMap((day) => day.exercises).map((item) => item.libraryId), alternate.days.flatMap((day) => day.exercises).map((item) => item.libraryId));
 });
 
-test("wizard reutiliza onboarding, conserva siete pasos y activa una propuesta válida una sola vez", () => {
+test("wizard resume onboarding, permite editar y activa con una sola navegación estable", () => {
   const page = readFileSync(new URL("../app/portal/autogestion/rutina/page.tsx", import.meta.url), "utf8");
   const wizard = readFileSync(new URL("../componentes/self-service-routine-wizard.tsx", import.meta.url), "utf8");
   const api = readFileSync(new URL("../app/api/portal/autogestion/rutina/propuesta/route.ts", import.meta.url), "utf8");
   assert.match(page, /selfServicePreferences\(student\)/);
   assert.match(page, /student\.goal/);
   assert.match(page, /student\.experienceLevel/);
+  assert.match(page, /student\.hasLimitations/);
+  for (const label of ["Vamos a crear tu rutina con estos datos", "Objetivo", "Nivel", "Frecuencia", "Duración", "Lugar", "Equipamiento", "Generar mi rutina", "Editar datos"]) assert.ok(wizard.includes(label), label);
+  assert.match(wizard, /useState\(false\)/);
   for (const label of ["Confirmá tu objetivo", "Confirmá tu nivel", "Días por semana", "Duración por sesión", "Lugar y equipamiento", "Prioridad muscular", "Tu rutina sugerida"]) assert.ok(wizard.includes(label));
   assert.match(wizard, /Usar esta rutina/);
   assert.match(wizard, /activating \|\| loading/);
   assert.match(wizard, /fetch\("\/api\/portal\/autogestion\/rutina"/);
-  assert.match(wizard, /router\.replace\("\/portal\/autogestion\/rutina"\)/);
+  assert.match(wizard, /window\.location\.replace\("\/portal\/autogestion\/rutina"\)/);
+  assert.doesNotMatch(wizard, /router\.refresh|useRouter/);
   assert.match(api, /requireSelfServiceAccount\(\)/);
   assert.match(api, /loadExerciseLibrary\(\)/);
   assert.doesNotMatch(api, /trainingRoutine\.(create|update)|\$transaction/);
