@@ -42,12 +42,18 @@ function NotificationCenter({ audience }: { audience: Audience }) {
       ? "/api/admin/notifications"
       : "/api/portal/notifications";
   const panelRef = useRef<HTMLDivElement>(null);
+  const confirmationRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const openingRef = useRef({ opening: false });
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -73,11 +79,25 @@ function NotificationCenter({ audience }: { audience: Audience }) {
   }, [loadNotifications]);
 
   const close = useCallback(() => {
+    setConfirmingDelete(false);
+    setDeleteError("");
     setOpen(false);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   }, [setOpen]);
 
+  const closeDeleteConfirmation = useCallback(() => {
+    if (deleting) return;
+    setConfirmingDelete(false);
+    setDeleteError("");
+    window.requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+  }, [deleting]);
+
   useEscapeLayer(open, close, { priority: 70, triggerRef });
+  useEscapeLayer(confirmingDelete, closeDeleteConfirmation, { priority: 80, triggerRef: deleteTriggerRef });
+
+  useEffect(() => {
+    if (confirmingDelete) window.requestAnimationFrame(() => cancelDeleteRef.current?.focus());
+  }, [confirmingDelete]);
 
   useEffect(() => {
     if (!open) return;
@@ -87,6 +107,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
       const target = event.target as Node;
       if (
         !panelRef.current?.contains(target) &&
+        !confirmationRef.current?.contains(target) &&
         !triggerRef.current?.contains(target)
       ) {
         close();
@@ -132,6 +153,22 @@ function NotificationCenter({ audience }: { audience: Audience }) {
       })),
     );
     setUnreadCount(0);
+  }
+
+  async function deleteAllNotifications() {
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const response = await fetch(endpoint, { method: "DELETE" });
+      if (!response.ok) throw new Error("notification deletion failed");
+      setNotifications([]);
+      setUnreadCount(0);
+      setConfirmingDelete(false);
+    } catch {
+      setDeleteError("No se pudieron borrar las notificaciones. Intentá nuevamente.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function openNotification(notification: HeaderNotification) {
@@ -180,6 +217,20 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  {!loading && notifications.length > 0 && (
+                    <button
+                      ref={deleteTriggerRef}
+                      type="button"
+                      onClick={() => {
+                        setDeleteError("");
+                        setConfirmingDelete(true);
+                      }}
+                      aria-label="Borrar todas las notificaciones"
+                      className="min-h-10 rounded-lg px-2 text-xs font-semibold text-red-300 transition hover:bg-red-400/10 focus-visible:outline-2 focus-visible:outline-red-300"
+                    >
+                      Borrar todo
+                    </button>
+                  )}
                   {unreadCount > 0 && (
                     <button
                       type="button"
@@ -265,6 +316,50 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                 )}
               </div>
             </div>
+            {confirmingDelete && (
+              <div
+                className="fixed inset-0 z-[110] flex items-end bg-black/75 p-0 sm:items-center sm:justify-center sm:p-4"
+                onPointerDown={(event) => {
+                  if (event.target === event.currentTarget) {
+                    event.stopPropagation();
+                    closeDeleteConfirmation();
+                  }
+                }}
+              >
+                <section
+                  ref={confirmationRef}
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="delete-notifications-title"
+                  aria-describedby="delete-notifications-description"
+                  className="w-full rounded-t-3xl border border-red-400/25 bg-[#121212] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-white shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-6"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-[.18em] text-red-300">Acción permanente</p>
+                  <h2 id="delete-notifications-title" className="mt-2 text-xl font-black">Borrar todas las notificaciones</h2>
+                  <p id="delete-notifications-description" className="mt-3 text-sm text-zinc-300">Se eliminarán todas tus notificaciones.</p>
+                  {deleteError && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{deleteError}</p>}
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      ref={cancelDeleteRef}
+                      type="button"
+                      disabled={deleting}
+                      onClick={closeDeleteConfirmation}
+                      className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-yellow-300"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleting}
+                      onClick={() => void deleteAllNotifications()}
+                      className="min-h-11 rounded-xl border border-red-400/40 bg-red-400/10 px-4 text-sm font-black text-red-200 transition hover:bg-red-400/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-red-300"
+                    >
+                      {deleting ? "Borrando…" : "Borrar todo"}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
           </>,
           document.body,
         )

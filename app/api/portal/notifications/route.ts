@@ -93,3 +93,19 @@ export async function PATCH(request: Request) {
 
   return Response.json({ ok: true });
 }
+
+export async function DELETE(request: Request) {
+  if (!validRequestOrigin(request)) {
+    return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  }
+  const session = await getPortalSession();
+  if (!session) {
+    return Response.json({ error: "Sesión vencida." }, { status: 401 });
+  }
+
+  const result = await prisma.studentNotification.deleteMany({
+    where: { studentId: session.studentId },
+  });
+
+  return Response.json({ ok: true, deletedCount: result.count, unreadCount: 0 });
+}

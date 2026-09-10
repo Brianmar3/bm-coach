@@ -166,3 +166,18 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(request: Request) {
+  if (!validRequestOrigin(request)) {
+    return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
+  }
+  if (!(await isAuthenticatedTrainer())) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
+  const result = await prisma.trainerNotification.deleteMany({
+    where: { ownerKey: TRAINER_OWNER_KEY },
+  });
+
+  return NextResponse.json({ ok: true, deletedCount: result.count, unreadCount: 0 });
+}
