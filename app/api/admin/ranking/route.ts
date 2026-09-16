@@ -1,3 +1,5 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { cookies } from "next/headers";
 import {
   ADMIN_SESSION_COOKIE,
@@ -26,7 +28,7 @@ export async function GET(request: Request) {
   }
   const requestedPeriod = new URL(request.url).searchParams.get("period") ?? "month";
   const period: PointRankingPeriod = requestedPeriod === "30d" || requestedPeriod === "total" ? requestedPeriod : "month";
-  const ranking = await loadPointRanking(period);
+  const ranking = await loadPointRanking(period, (await requireTrainerWorkspace()).workspaceId);
   return Response.json({ period, ranking, activeStudentCount: ranking.length });
 }
 
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
     return Response.json({ error: failure.error }, { status: failure.status });
   }
   const records = await prisma.studentRecord.findMany({
+    where: { AND: [coachedStudentsWhere], workspaceId: (await requireTrainerWorkspace()).workspaceId },
     select: { id: true, data: true },
     orderBy: { createdAt: "asc" },
   });
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
     }
   }
   const historicalClassExercisesIgnored = await prisma.classExerciseLog.count({
-    where: { workoutLog: { status: "COMPLETED" } },
+    where: { workoutLog: { status: "COMPLETED", student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } } },
   });
   return Response.json({
     processed,

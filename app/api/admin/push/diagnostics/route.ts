@@ -1,3 +1,5 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +15,7 @@ export async function GET() {
     return Response.json({ error: response.error }, { status: response.status });
   }
   const students = await prisma.studentRecord.findMany({
-    where: { pushSubscriptions: { some: {} } },
+    where: { workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere], pushSubscriptions: { some: {} } },
     select: {
       id: true,
       data: true,

@@ -81,7 +81,7 @@ export function duplicateAuditSource(record: AuditRecord): DuplicateRoutineAudit
 
 type DuplicateAuditClient = { trainingRoutine: Pick<Prisma.TransactionClient["trainingRoutine"], "findMany"> };
 
-export async function loadRoutineDuplicateGroups(client: DuplicateAuditClient) {
-  const records = await client.trainingRoutine.findMany({ where: { kind: "ASSIGNED" }, select: routineDuplicateAuditSelect, orderBy: { createdAt: "asc" } });
+export async function loadRoutineDuplicateGroups(client: DuplicateAuditClient, workspaceId: string) {
+  const records = await client.trainingRoutine.findMany({ where: { workspaceId, scope: "WORKSPACE", kind: "ASSIGNED" }, select: routineDuplicateAuditSelect, orderBy: { createdAt: "asc" } });
   return findPossibleRoutineDuplicates(records.map(duplicateAuditSource));
 }

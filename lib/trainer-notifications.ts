@@ -151,10 +151,12 @@ async function sendToSubscription(
 export async function dispatchTrainerPush(
   notificationId: string,
   payload: PushPayload,
+  workspaceId: string,
 ) {
+  if (!workspaceId) throw new Error("Workspace requerido para Push.");
   const subscriptions = await prisma.trainerPushSubscription.findMany({
     where: {
-      ownerKey: TRAINER_OWNER_KEY,
+      workspaceId,
       active: true,
     },
     select: {
@@ -212,6 +214,7 @@ export async function dispatchTrainerPush(
 
 export async function createAttendanceTrainerNotification(
   input: AttendanceNotificationInput,
+  workspaceId: string,
 ) {
   const message = buildAttendanceMessage(input);
   const url = buildAttendanceUrl(input);
@@ -219,6 +222,7 @@ export async function createAttendanceTrainerNotification(
   try {
     const notification = await prisma.trainerNotification.create({
       data: {
+        workspaceId,
         ownerKey: TRAINER_OWNER_KEY,
         type: "CLASS_RESPONSE",
         eventKey: input.eventKey,
@@ -259,11 +263,13 @@ export async function createAttendanceTrainerNotification(
 
 export async function createWorkoutCompletedTrainerNotification(
   input: WorkoutCompletionNotificationInput,
+  workspaceId: string,
 ) {
   const content = buildWorkoutCompletionNotification(input);
   try {
     const notification = await prisma.trainerNotification.create({
       data: {
+        workspaceId,
         ownerKey: TRAINER_OWNER_KEY,
         type: "WORKOUT_COMPLETED",
         eventKey: content.eventKey,

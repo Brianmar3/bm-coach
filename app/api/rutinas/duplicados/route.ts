@@ -3,6 +3,7 @@ import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { databaseUnavailable } from "@/lib/rutinas";
 import { loadRoutineDuplicateGroups } from "@/lib/routine-duplicate-audit";
 import { prisma } from "@/lib/prisma";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function GET() {
   try {
     const unauthorized = await requireAdminApiResponse();
     if (unauthorized) return unauthorized;
-    return Response.json({ groups: await loadRoutineDuplicateGroups(prisma) });
+    return Response.json({ groups: await loadRoutineDuplicateGroups(prisma, (await requireTrainerWorkspace()).workspaceId) });
   } catch (error) {
     console.error("Error al revisar posibles rutinas duplicadas", error);
     return Response.json({ error: databaseUnavailable(error) ? "La base de datos no está disponible temporalmente." : "No se pudieron revisar los posibles duplicados." }, { status: databaseUnavailable(error) ? 503 : 500 });
@@ -30,11 +31,12 @@ export async function DELETE(request: Request) {
     const unauthorized = await requireAdminApiResponse();
     if (unauthorized) return unauthorized;
     const body = await request.json().catch(() => null) as { routineIds?: unknown } | null;
+    const { workspaceId } = await requireTrainerWorkspace();
     const routineIds = Array.isArray(body?.routineIds) ? [...new Set(body.routineIds.filter((id): id is string => typeof id === "string" && Boolean(id.trim())).map((id) => id.trim()))] : [];
     if (!routineIds.length || routineIds.length > 20) return Response.json({ error: "Seleccioná entre 1 y 20 rutinas del mismo grupo." }, { status: 400 });
 
     const deletedIds = await prisma.$transaction(async (transaction) => {
-      const initialGroups = await loadRoutineDuplicateGroups(transaction);
+      const initialGroups = await loadRoutineDuplicateGroups(transaction, workspaceId);
       const initialGroup = initialGroups.find((group) => routineIds.every((id) => group.routines.some((routine) => routine.id === id)));
       if (!initialGroup) throw new SafeDeletionConflict("La selección ya no forma parte de un mismo grupo de posibles duplicados.");
 
@@ -42,7 +44,7 @@ export async function DELETE(request: Request) {
         await transaction.$queryRaw(Prisma.sql`SELECT "id" FROM "training_routines" WHERE "id" = ${id} FOR UPDATE`);
       }
 
-      const currentGroups = await loadRoutineDuplicateGroups(transaction);
+      const currentGroups = await loadRoutineDuplicateGroups(transaction, workspaceId);
       const currentGroup = currentGroups.find((group) => routineIds.every((id) => group.routines.some((routine) => routine.id === id)));
       if (!currentGroup) throw new SafeDeletionConflict("Los datos cambiaron durante la revisión. Volvé a revisar el grupo.");
       const selected = routineIds.map((id) => currentGroup.routines.find((routine) => routine.id === id));
@@ -51,7 +53,7 @@ export async function DELETE(request: Request) {
       if (unsafe) throw new SafeDeletionConflict(`Esta rutina ahora tiene información asociada y ya no puede eliminarse de forma segura. ${unsafe.riskReasons.join(" ")}`);
       if (currentGroup.routines.length - routineIds.length < 1) throw new SafeDeletionConflict("Debe conservarse al menos una rutina del grupo.");
 
-      const result = await transaction.trainingRoutine.deleteMany({ where: { id: { in: routineIds } } });
+      const result = await transaction.trainingRoutine.deleteMany({ where: { workspaceId, scope: "WORKSPACE", id: { in: routineIds } } });
       if (result.count !== routineIds.length) throw new SafeDeletionConflict("Una de las rutinas cambió o dejó de existir.");
       return routineIds;
     });

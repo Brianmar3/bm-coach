@@ -2,6 +2,8 @@ import { eventData, serializeEvent, validateEvent, type EventInput } from "@/lib
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { notifyPublishedCoachEvent } from "@/lib/event-publication-notifications";
+import { requireAdminApiResponse } from "@/lib/admin-api-auth";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,8 +14,11 @@ function notFound(error: unknown) {
 
 export async function GET(_request: Request, context: RouteContext<"/api/eventos/[id]">) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const { id } = await context.params;
-    const record = await prisma.coachEvent.findUnique({ where: { id } });
+    const record = await prisma.coachEvent.findFirst({ where: { id, workspaceId } });
     if (!record) return Response.json({ error: "Evento no encontrado." }, { status: 404 });
     return Response.json(serializeEvent(record));
   } catch (error) {
@@ -24,14 +29,17 @@ export async function GET(_request: Request, context: RouteContext<"/api/eventos
 
 export async function PUT(request: Request, context: RouteContext<"/api/eventos/[id]">) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const { id } = await context.params;
     const input = (await request.json()) as EventInput;
     const validationError = validateEvent(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
-    const previous = await prisma.coachEvent.findUnique({ where: { id }, select: { showToStudents: true, status: true } });
+    const previous = await prisma.coachEvent.findFirst({ where: { id, workspaceId }, select: { showToStudents: true, status: true } });
     if (!previous) return Response.json({ error: "Evento no encontrado." }, { status: 404 });
-    const record = await prisma.coachEvent.update({ where: { id }, data: eventData(input) });
+    const record = await prisma.coachEvent.update({ where: { id, workspaceId }, data: eventData(input) });
     const newlyPublished = record.showToStudents && record.status === "PENDIENTE" && (!previous.showToStudents || previous.status !== "PENDIENTE");
     if (newlyPublished) await notifyPublishedCoachEvent(record);
     return Response.json(serializeEvent(record));
@@ -44,8 +52,13 @@ export async function PUT(request: Request, context: RouteContext<"/api/eventos/
 
 export async function DELETE(_request: Request, context: RouteContext<"/api/eventos/[id]">) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const { id } = await context.params;
-    await prisma.coachEvent.delete({ where: { id } });
+    const record = await prisma.coachEvent.findFirst({ where: { id, workspaceId }, select: { id: true } });
+    if (!record) return Response.json({ error: "Evento no encontrado." }, { status: 404 });
+    await prisma.coachEvent.delete({ where: { id, workspaceId } });
     return new Response(null, { status: 204 });
   } catch (error) {
     if (notFound(error)) return Response.json({ error: "Evento no encontrado." }, { status: 404 });

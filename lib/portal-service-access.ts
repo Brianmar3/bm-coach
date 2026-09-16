@@ -6,8 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { requirePortalPageSession } from "@/lib/portal-auth";
 import { hasGroupClasses, hasPersonalizedService } from "@/lib/student-service";
 
-export function activePortalRoutineWhere(studentId: string) {
+export function activePortalRoutineWhere(studentId: string, workspaceId: string) {
   return {
+    workspaceId,
+    scope: "WORKSPACE",
     kind: "ASSIGNED",
     status: "ACTIVA",
     archivedAt: null,
@@ -28,9 +30,9 @@ export function activePortalRoutineWhere(studentId: string) {
   } satisfies Prisma.TrainingRoutineWhereInput;
 }
 
-export async function hasActivePortalRoutine(studentId: string) {
+export async function hasActivePortalRoutine(studentId: string, workspaceId: string) {
   return await prisma.trainingRoutine.count({
-    where: activePortalRoutineWhere(studentId),
+    where: activePortalRoutineWhere(studentId, workspaceId),
   }) > 0;
 }
 
@@ -43,13 +45,13 @@ export async function requirePortalClassAccess() {
 export async function requirePortalRoutineAccess() {
   const session = await requirePortalPageSession();
   if (session.credential.student.serviceType !== "CLASSES") return session;
-  if (!await hasActivePortalRoutine(session.studentId)) redirect("/portal");
+  if (!session.credential.student.workspaceId || !await hasActivePortalRoutine(session.studentId, session.credential.student.workspaceId)) redirect("/portal");
   return session;
 }
 
 export async function requirePortalProgressAccess() {
   const session = await requirePortalPageSession();
   if (!hasPersonalizedService(session.credential.student.serviceType)) redirect("/portal/rutina");
-  if (!await hasActivePortalRoutine(session.studentId)) redirect("/portal/rutina");
+  if (!session.credential.student.workspaceId || !await hasActivePortalRoutine(session.studentId, session.credential.student.workspaceId)) redirect("/portal/rutina");
   return session;
 }

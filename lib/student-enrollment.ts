@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import "server-only";
 
 import { Prisma } from "@prisma/client";
@@ -46,7 +47,7 @@ export function weeklyScheduleLabel(schedule: { dayOfWeek: keyof typeof DAY_LABE
 }
 
 export async function getStudentPlanOptions(): Promise<StudentPlanOption[]> {
-  const settingsRecord = await prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" }, select: { data: true } });
+  const settingsRecord = await prisma.coachSettingsRecord.findFirst({ where: { workspaceId: (await requireTrainerWorkspace()).workspaceId }, orderBy: { updatedAt: "desc" }, select: { data: true } });
   const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
   return studentPlanOptions(settings);
 }

@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import { del } from "@vercel/blob";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
@@ -15,6 +16,7 @@ async function authorize() {
 export async function GET(_request: Request, context: RouteContext<"/api/admin/alumnos/[id]/quick-logs">) {
   const failure = await authorize(); if (failure) return Response.json({ error: failure.error }, { status: failure.status });
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   await loadQuickLogAchievements(id);
   const logs = await prisma.quickLog.findMany({ where: { studentId: id }, include: quickLogRelations, orderBy: [{ date: "desc" }, { createdAt: "desc" }] });
   return Response.json({ logs: logs.map(quickLogJson) });
@@ -24,6 +26,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   const failure = await authorize(); if (failure) return Response.json({ error: failure.error }, { status: failure.status });
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   const input = await request.json() as { logId?: string; title?: string; content?: string; category?: string; painDetails?: string };
   const existing = input.logId ? await prisma.quickLog.findFirst({ where: { id: input.logId, studentId: id } }) : null;
   if (!existing) return Response.json({ error: "No se encontró el registro." }, { status: 404 });
@@ -36,6 +39,7 @@ export async function DELETE(request: Request, context: RouteContext<"/api/admin
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   const failure = await authorize(); if (failure) return Response.json({ error: failure.error }, { status: failure.status });
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   const input = await request.json() as { logId?: string };
   const existing = input.logId ? await prisma.quickLog.findFirst({ where: { id: input.logId, studentId: id }, include: { photos: true } }) : null;
   if (!existing) return Response.json({ error: "No se encontró el registro." }, { status: 404 });

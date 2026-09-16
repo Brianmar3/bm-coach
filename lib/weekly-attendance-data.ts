@@ -68,7 +68,8 @@ function recordKey(studentId: string, date: string, scheduleId: string | null, o
   return `${studentId}|${date}|${scheduleId ?? occurrenceId ?? "unassigned"}`;
 }
 
-export async function loadWeeklyAttendance(referenceDate: string): Promise<WeeklyAttendanceResponse> {
+export async function loadWeeklyAttendance(referenceDate: string, workspaceId: string): Promise<WeeklyAttendanceResponse> {
+  if (!workspaceId) throw new Error("Workspace requerido.");
   const range = weekRange(referenceDate);
   if (!range) throw new Error("INVALID_WEEK");
   const startDate = dateKeyToDatabase(range.start);
@@ -76,7 +77,7 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
 
   const [attendanceRecords, occurrences, students, memberships, statusEvents] = await Promise.all([
     prisma.classAttendance.findMany({
-      where: { date: { gte: startDate, lt: endDate } },
+      where: { student: { workspaceId }, date: { gte: startDate, lt: endDate } },
       select: {
         id: true,
         studentId: true,
@@ -90,7 +91,7 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
       orderBy: [{ date: "asc" }, { scheduleStartTime: "asc" }],
     }),
     prisma.classOccurrence.findMany({
-      where: { date: { gte: startDate, lt: endDate } },
+      where: { workspaceId, date: { gte: startDate, lt: endDate } },
       select: {
         id: true,
         scheduleId: true,
@@ -121,19 +122,19 @@ export async function loadWeeklyAttendance(referenceDate: string): Promise<Weekl
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     }),
     prisma.studentRecord.findMany({
-      where: coachedStudentsWhere,
+      where: { workspaceId, AND: [coachedStudentsWhere] },
       select: { id: true, data: true, serviceType: true },
     }),
     prisma.studentMembershipHistory.findMany({
       where: {
-        startDate: { lt: endDate },
+        student: { workspaceId }, startDate: { lt: endDate },
         OR: [{ endDate: null }, { endDate: { gte: startDate } }],
       },
       select: { studentId: true, startDate: true, endDate: true, planName: true, serviceType: true, frequencyDays: true, status: true },
       orderBy: { startDate: "asc" },
     }),
     prisma.studentStatusEvent.findMany({
-      where: { eventDate: { lt: endDate } },
+      where: { student: { workspaceId }, eventDate: { lt: endDate } },
       select: { studentId: true, type: true, eventDate: true },
       orderBy: { eventDate: "asc" },
     }),

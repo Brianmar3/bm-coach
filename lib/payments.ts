@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma, type StudentPaymentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -81,18 +82,19 @@ export function portalPaymentAccount(student: Student, payments: PaymentAccountR
 }
 
 export async function paymentDashboard(): Promise<PaymentDashboard> {
+  const { workspaceId } = await requireTrainerWorkspace();
   const asOf = argentinaDateKey();
   const { monthStart, nextMonthStart } = argentinaMonthBounds(asOf);
   const start = dateKeyToDatabase(monthStart);
   const end = dateKeyToDatabase(nextMonthStart);
   const [records, monthAggregate] = await Promise.all([
     prisma.studentRecord.findMany({
-      where: coachedStudentsWhere,
+      where: { AND: [coachedStudentsWhere], workspaceId },
       include: { payments: { orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }] } },
       orderBy: { updatedAt: "desc" },
     }),
     prisma.studentPayment.aggregate({
-      where: { status: "PAGADO", paidDate: { gte: start, lt: end } },
+      where: { student: { workspaceId }, status: "PAGADO", paidDate: { gte: start, lt: end } },
       _sum: { amount: true },
     }),
   ]);

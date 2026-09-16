@@ -9,13 +9,13 @@ import { BmTargetIcon, BmRoutineIcon, BmProgressIcon } from "@/componentes/icons
 import { activePortalRoutineWhere } from "@/lib/portal-service-access";
 
 export default async function SelfServiceHomePage() {
-  const { student, studentId } = await requireSelfServiceAccount();
+  const { student, studentId, workspaceId } = await requireSelfServiceAccount();
   const prefs = selfServicePreferences(student);
   const week = getWorkoutWeekRange();
   const [weeklySessions, totalSessions, activeRoutine] = await Promise.all([
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: week.startDate, lt: week.endExclusiveDate } } }),
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED" } }),
-    prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), select: { id: true, name: true, days: { where: { active: true, archivedAt: null }, select: { id: true, dayNumber: true, name: true }, orderBy: { dayNumber: "asc" } }, workoutSessions: { where: { studentId, status: "COMPLETED" }, select: { dayId: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } }, orderBy: { updatedAt: "desc" } }),
+    prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId, workspaceId), select: { id: true, name: true, days: { where: { active: true, archivedAt: null }, select: { id: true, dayNumber: true, name: true }, orderBy: { dayNumber: "asc" } }, workoutSessions: { where: { studentId, status: "COMPLETED" }, select: { dayId: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 1 } }, orderBy: { updatedAt: "desc" } }),
   ]);
   const lastDayId = activeRoutine?.workoutSessions[0]?.dayId;
   const lastDayIndex = activeRoutine?.days.findIndex((day) => day.id === lastDayId) ?? -1;

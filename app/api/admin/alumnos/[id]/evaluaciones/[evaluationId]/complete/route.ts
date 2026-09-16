@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { missingEssentialFields } from "@/lib/evaluation-workflow";
 import { evaluationInclude, serializeWorkflowEvaluation } from "@/lib/evaluation-persistence";
@@ -10,6 +11,7 @@ export async function POST(_request: Request, context: RouteContext<"/api/admin/
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId, evaluationId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const outcome = await prisma.$transaction(async (transaction) => {
     const current = await transaction.physicalEvaluation.findFirst({ where: { id: evaluationId, studentId }, include: evaluationInclude });
     if (!current) return { kind: "missing" as const };

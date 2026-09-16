@@ -282,8 +282,8 @@ export async function POST(request: Request) {
         sessionName: routineDayNameSnapshot || routineNameSnapshot,
         durationMinutes: input.durationMinutes,
         exerciseCount: input.exercises.length || null,
-      });
-      if (result) after(() => dispatchTrainerPush(result.notification.id, result.payload).catch((pushError) => {
+      }, session.credential.student.workspaceId ?? "");
+      if (result) after(() => dispatchTrainerPush(result.notification.id, result.payload, session.credential.student.workspaceId ?? "").catch((pushError) => {
         console.error("No se pudo enviar el entrenamiento completado por push", pushError);
       }));
     }

@@ -1,6 +1,7 @@
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
+import { assertOccurrenceInWorkspace, assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   try {
     const { id } = await context.params;
+    const { workspaceId } = await requireTrainerWorkspace();
+    await assertOccurrenceInWorkspace(id, workspaceId);
     const input = await request.json() as Record<string, unknown>;
     const occurrence = await prisma.classOccurrence.findUnique({
       where: { id },
@@ -30,6 +33,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     if (input.action === "remove-response") {
       if (typeof input.studentId !== "string") return Response.json({ error: "El alumno no es válido." }, { status: 400 });
+      await assertStudentInWorkspace(input.studentId, workspaceId);
       await prisma.classOccurrenceAttendance.updateMany({ where: { occurrenceId: id, studentId: input.studentId }, data: { response: null, respondedAt: null } });
       return Response.json({ message: "Confirmación quitada." });
     }

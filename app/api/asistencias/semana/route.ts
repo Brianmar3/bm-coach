@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
 import { loadWeeklyAttendance } from "@/lib/weekly-attendance-data";
 import { argentinaDateKey, isDateKey } from "@/lib/weekly-attendance";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     }
     const reference = url.searchParams.get("week") ?? argentinaDateKey();
     if (!isDateKey(reference)) return Response.json({ error: "La semana seleccionada no es válida." }, { status: 400 });
-    return Response.json(await loadWeeklyAttendance(reference));
+    return Response.json(await loadWeeklyAttendance(reference, (await requireTrainerWorkspace()).workspaceId));
   } catch (error) {
     console.error("No se pudo construir el historial semanal de asistencias", error);
     if (error instanceof Error && error.message === "INVALID_WEEK") {

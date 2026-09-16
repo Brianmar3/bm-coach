@@ -12,6 +12,7 @@ import {
   sendTrainerTestNotification,
   TRAINER_OWNER_KEY,
 } from "@/lib/trainer-notifications";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 type PushSubscriptionPayload = {
   endpoint?: unknown;
@@ -52,14 +53,15 @@ export async function GET(request: Request) {
   if (!(await isAuthenticatedTrainer())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const { workspaceId } = await requireTrainerWorkspace();
 
   const endpoint = new URL(request.url).searchParams.get("endpoint")?.trim() ?? "";
   const [activeDevices, latestSubscription, activeCurrent] = await Promise.all([
     prisma.trainerPushSubscription.count({
-      where: { ownerKey: TRAINER_OWNER_KEY, active: true },
+      where: { workspaceId, active: true },
     }),
     prisma.trainerPushSubscription.findFirst({
-      where: { ownerKey: TRAINER_OWNER_KEY },
+      where: { workspaceId },
       orderBy: { updatedAt: "desc" },
       select: {
         updatedAt: true,
@@ -69,7 +71,7 @@ export async function GET(request: Request) {
     endpoint
       ? prisma.trainerPushSubscription.count({
           where: {
-            ownerKey: TRAINER_OWNER_KEY,
+            workspaceId,
             endpoint,
             active: true,
           },
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
   if (!(await isAuthenticatedTrainer())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const { workspaceId } = await requireTrainerWorkspace();
 
   const configuration = getTrainerPushPublicConfiguration();
   if (!configuration.configured) {
@@ -120,8 +123,9 @@ export async function POST(request: Request) {
   }
 
   await prisma.trainerPushSubscription.upsert({
-    where: { endpoint: subscription.endpoint },
-    create: {
+    where: { workspaceId_endpoint: { workspaceId, endpoint: subscription.endpoint } },
+      create: {
+        workspaceId,
       ownerKey: TRAINER_OWNER_KEY,
       ...subscription,
       userAgent: request.headers.get("user-agent")?.slice(0, 500) || null,
@@ -129,7 +133,8 @@ export async function POST(request: Request) {
       lastUsedAt: new Date(),
       lastError: null,
     },
-    update: {
+      update: {
+        workspaceId,
       ownerKey: TRAINER_OWNER_KEY,
       p256dh: subscription.p256dh,
       auth: subscription.auth,
@@ -150,6 +155,7 @@ export async function DELETE(request: Request) {
   if (!(await isAuthenticatedTrainer())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const { workspaceId } = await requireTrainerWorkspace();
 
   const body = (await request.json().catch(() => null)) as
     | { endpoint?: unknown }
@@ -162,7 +168,7 @@ export async function DELETE(request: Request) {
 
   await prisma.trainerPushSubscription.updateMany({
     where: {
-      ownerKey: TRAINER_OWNER_KEY,
+        workspaceId,
       endpoint,
     },
     data: {
@@ -181,6 +187,7 @@ export async function PUT(request: Request) {
   if (!(await isAuthenticatedTrainer())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
+  const { workspaceId } = await requireTrainerWorkspace();
 
   const body = (await request.json().catch(() => null)) as
     | { endpoint?: unknown }
@@ -193,7 +200,7 @@ export async function PUT(request: Request) {
 
   const subscription = await prisma.trainerPushSubscription.findFirst({
     where: {
-      ownerKey: TRAINER_OWNER_KEY,
+        workspaceId,
       endpoint,
       active: true,
     },

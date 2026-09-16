@@ -68,7 +68,7 @@ test("el recálculo previene doble toque y conserva el desempate existente", () 
   assert.match(component, /if \(rebuilding\) return/);
   assert.match(component, /disabled=\{rebuilding\}/);
   const helper = readFileSync(new URL("../lib/point-ranking.ts", import.meta.url), "utf8");
-  assert.match(route, /loadPointRanking\(period\)/);
+  assert.match(route, /loadPointRanking\(period, \(await requireTrainerWorkspace\(\)\)\.workspaceId\)/);
   assert.match(helper, /right\.total - left\.total[\s\S]*right\.historicalTotal[\s\S]*localeCompare/);
 });
 

@@ -101,7 +101,7 @@ test("la ruta es idéntica en móvil y escritorio porque no depende del viewport
 test("la API mantiene autorización y devuelve los campos para resolver históricos", () => {
   const api = readFileSync(new URL("../app/api/admin/notifications/route.ts", import.meta.url), "utf8");
   assert.match(api, /verifyAdminSessionValue/);
-  assert.match(api, /ownerKey: TRAINER_OWNER_KEY/);
+  assert.match(api, /workspaceId: \(await requireTrainerWorkspace\(\)\)\.workspaceId/);
   assert.match(api, /eventKey: true/);
   assert.match(api, /studentId: true/);
   assert.match(api, /resolveTrainerNotificationDestination/);

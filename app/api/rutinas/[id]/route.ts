@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { blockData, databaseUnavailable, exerciseData, normalizedBlocks, routineData, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
+import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ function changeSummary(previous: RoutineInput, next: RoutineInput) {
 export async function GET(_request: Request, context: RouteContext<"/api/rutinas/[id]">) {
   try {
     const { id } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId, { allowGlobal: true });
     const record = await prisma.trainingRoutine.findUnique({ where: { id }, include: routineInclude });
     if (!record) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     return Response.json(serializeRoutine(record));
@@ -40,10 +42,12 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
 export async function PUT(request: Request, context: RouteContext<"/api/rutinas/[id]">) {
   try {
     const { id } = await context.params;
+    const { workspaceId } = await requireTrainerWorkspace();
+    await assertRoutineInWorkspace(id, workspaceId);
     const input = await request.json() as RoutineInput & { replaceActive?: boolean };
     const validationError = validateRoutine(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: input.studentIds } } });
+    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { workspaceId, AND: [coachedStudentsWhere], id: { in: input.studentIds } } });
     if (input.kind === "assigned" && students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {
@@ -291,6 +295,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
 export async function PATCH(request: Request, context: RouteContext<"/api/rutinas/[id]">) {
   try {
     const { id } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const input = await request.json() as { action?: "archive" | "restore" | "restoreVersion"; versionId?: string };
     if (input.action === "restoreVersion") {
       if (!input.versionId?.trim()) return Response.json({ error: "La versión seleccionada no es válida." }, { status: 400 });
@@ -369,6 +374,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/ruti
     const unauthorized = await requireAdminApiResponse();
     if (unauthorized) return unauthorized;
     const { id } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const result = await prisma.$transaction(async (transaction) => {
       const routine = await transaction.trainingRoutine.findUnique({
         where: { id },

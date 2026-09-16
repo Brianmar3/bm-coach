@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import { del } from "@vercel/blob";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
@@ -10,6 +11,7 @@ export async function DELETE(request: Request, context: RouteContext<"/api/admin
   const auth = verifyAdminSessionValue((await cookies()).get(ADMIN_SESSION_COOKIE)?.value);
   if (!auth.ok) { const failure = adminAuthError(auth); return Response.json({ error: failure.error }, { status: failure.status }); }
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   const record = await prisma.studentRecord.findUnique({ where: { id }, select: { data: true } });
   if (!record) return Response.json({ error: "El alumno no existe." }, { status: 404 });
   const student = record.data as unknown as Student;

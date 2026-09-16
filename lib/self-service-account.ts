@@ -10,5 +10,7 @@ export async function requireSelfServiceAccount() {
   const student = session.credential.student.data as unknown as Student;
   if (!isSelfService(student)) redirect("/portal");
   if (!onboardingIsComplete(student)) redirect("/portal/onboarding");
-  return { student, studentId: session.studentId };
+  const workspaceId = session.credential.student.workspaceId;
+  if (!workspaceId) redirect("/portal/login");
+  return { student, studentId: session.studentId, workspaceId };
 }

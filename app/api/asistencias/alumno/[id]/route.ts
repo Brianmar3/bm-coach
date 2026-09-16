@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { monthRange, serializeAttendance } from "@/lib/attendance";
 import type { StudentAttendanceSummary } from "@/types/gestion";
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: RouteContext<"/api/asistencias/alumno/[id]">) {
   try {
     const { id } = await context.params;
+    await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const url = new URL(request.url);
     const month = url.searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
     const range = monthRange(month);

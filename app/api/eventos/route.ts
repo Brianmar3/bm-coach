@@ -1,13 +1,19 @@
 import { eventData, serializeEvent, validateEvent, type EventInput } from "@/lib/eventos";
 import { prisma } from "@/lib/prisma";
 import { notifyPublishedCoachEvent } from "@/lib/event-publication-notifications";
+import { requireAdminApiResponse } from "@/lib/admin-api-auth";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const records = await prisma.coachEvent.findMany({
+      where: { workspaceId },
       orderBy: [{ date: "asc" }, { time: "asc" }, { createdAt: "asc" }],
     });
     return Response.json(records.map(serializeEvent));
@@ -19,11 +25,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const input = (await request.json()) as EventInput;
     const validationError = validateEvent(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
-    const record = await prisma.coachEvent.create({ data: eventData(input) });
+    const record = await prisma.coachEvent.create({ data: { ...eventData(input), workspaceId } });
     await notifyPublishedCoachEvent(record);
     return Response.json(serializeEvent(record), { status: 201 });
   } catch (error) {

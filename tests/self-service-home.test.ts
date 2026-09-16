@@ -23,13 +23,13 @@ test("guarda la navegación propia: sin sesión login, pendiente onboarding, com
     "@/lib/student-onboarding": { onboardingIsComplete: (data: { onboardingCompleted?: boolean }) => data.onboardingCompleted === true },
   });
   await assert.rejects(auth.requireSelfServiceAccount(), /\/portal\/login/);
-  session = { studentId: "own", credential: { student: { data: { accountType: "SELF_SERVICE" } } } };
+  session = { studentId: "own", credential: { student: { workspaceId: "personal-own", data: { accountType: "SELF_SERVICE" } } } };
   await assert.rejects(auth.requireSelfServiceAccount(), /\/portal\/onboarding/);
   session.credential.student.data.onboardingCompleted = true;
   assert.equal((await auth.requireSelfServiceAccount()).studentId, "own");
   for (const serviceType of ["CLASSES", "PERSONALIZED", "MIXED"]) {
-    session.credential.student.data = { serviceType, onboardingCompleted: true };
-    await assert.rejects(auth.requireSelfServiceAccount(), { message: "/portal" });
+    session.credential.student.data = { accountType: "SELF_SERVICE", serviceType, onboardingCompleted: true };
+    assert.equal((await auth.requireSelfServiceAccount()).workspaceId, "personal-own");
   }
 });
 test("fecha sin desplazamiento horario y unidades sólo de presentación", () => {

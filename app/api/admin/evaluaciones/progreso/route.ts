@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { visibleStudentsInEvaluations } from "@/lib/evaluation-student-filter";
 import type { EvaluationListItem } from "@/lib/evaluation-workspace";
 import type { EvaluationStudentSummary } from "@/types/evaluation-progress";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,18 +22,20 @@ function studentSummary(record: { id: string; serviceType: "CLASSES" | "PERSONAL
 export async function GET(request: Request) {
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
+  const { workspaceId } = await requireTrainerWorkspace();
   try {
     const url = new URL(request.url);
     const view = url.searchParams.get("view");
     const studentId = url.searchParams.get("studentId")?.trim() ?? "";
     if (view === "summary") {
       const [studentRecords, physicalRecords, legacyRecords] = await Promise.all([
-        prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
+        prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
         prisma.physicalEvaluation.findMany({
+          where: { student: { workspaceId } },
           select: { id: true, studentId: true, date: true, version: true, status: true, completionPercentage: true, primaryGoal: true, reassessmentDate: true, weight: true },
           orderBy: [{ date: "desc" }, { version: "desc" }],
         }),
-        prisma.evaluationRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
+        prisma.evaluationRecord.findMany({ where: { workspaceId }, select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
       ]);
       const students = studentRecords.map(studentSummary);
       const physical: EvaluationListItem[] = physicalRecords.map((record) => ({ id: record.id, studentId: record.studentId, date: record.date.toISOString().slice(0, 10), version: record.version, status: record.status, completionPercentage: record.completionPercentage, primaryGoal: record.primaryGoal, reassessmentDate: record.reassessmentDate?.toISOString().slice(0, 10) ?? "", weight: record.weight === null ? null : Number(record.weight), source: "PHYSICAL" }));
@@ -44,9 +47,9 @@ export async function GET(request: Request) {
       return Response.json({ students: visibleStudents, evaluations: evaluations.filter((evaluation) => visibleIds.has(evaluation.studentId)) });
     }
     const [studentRecords, physicalRecords, legacyRecords] = await Promise.all([
-      prisma.studentRecord.findMany({ where: { AND: [coachedStudentsWhere, studentId ? { id: studentId } : {}] }, select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
-      prisma.physicalEvaluation.findMany({ where: studentId ? { studentId } : undefined, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }] }),
-      prisma.evaluationRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere, studentId ? { id: studentId } : {}] }, select: { id: true, serviceType: true, data: true }, orderBy: { updatedAt: "desc" } }),
+      prisma.physicalEvaluation.findMany({ where: { student: { workspaceId }, ...(studentId ? { studentId } : {}) }, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }] }),
+      prisma.evaluationRecord.findMany({ where: { workspaceId }, select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
     ]);
     const students = studentRecords.map(studentSummary);
     const evaluations = deduplicateEvaluations([...physicalRecords.map(normalizePhysicalEvaluation), ...legacyRecords.map(normalizeLegacyEvaluationRecord).filter((record) => !studentId || record.studentId === studentId)]);

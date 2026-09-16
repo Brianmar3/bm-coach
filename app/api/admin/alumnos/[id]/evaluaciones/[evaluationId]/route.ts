@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { evaluationInclude, serializeWorkflowEvaluation, workflowUpdateData } from "@/lib/evaluation-persistence";
 import { prisma } from "@/lib/prisma";
@@ -15,6 +16,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/admin/a
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId, evaluationId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const record = await findEvaluation(studentId, evaluationId);
   if (!record) return Response.json({ error: "La evaluación no existe o no pertenece al alumno indicado." }, { status: 404 });
   return Response.json(serializeWorkflowEvaluation(record));
@@ -24,6 +26,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/admin/al
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId, evaluationId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const input = await request.json().catch(() => null) as EvaluationDraftInput | null;
   if (!input || input.studentId !== studentId) return Response.json({ error: "Los datos no corresponden al alumno indicado." }, { status: 400 });
   const parsed = workflowUpdateData(input);
@@ -43,6 +46,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId, evaluationId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const body = await request.json().catch(() => ({})) as { action?: string };
   if (body.action !== "recommendReassessment") return Response.json({ error: "Acción no reconocida." }, { status: 400 });
   const existing = await prisma.physicalEvaluation.findFirst({ where: { id: evaluationId, studentId }, select: { id: true, status: true } });
@@ -56,6 +60,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/admi
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId, evaluationId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   let result: { count: number; latest: { id: string; date: string; version: number; status: "IN_PROGRESS" | "COMPLETED" | "REASSESSMENT_RECOMMENDED" } | null } | null;
   try {
     result = await prisma.$transaction(async (transaction) => {

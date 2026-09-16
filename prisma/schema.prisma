@@ -7,8 +7,100 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum WorkspaceType {
+  PROFESSIONAL
+  PERSONAL
+}
+
+enum WorkspaceStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum WorkspaceRole {
+  OWNER
+  COACH
+}
+
+enum WorkspaceMembershipStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum WorkspaceContentScope {
+  GLOBAL
+  WORKSPACE
+}
+
+model User {
+  id           String                @id @default(cuid())
+  name         String
+  email        String                @unique
+  passwordHash String?
+  status       UserStatus            @default(ACTIVE)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  memberships  WorkspaceMembership[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id                       String                    @id @default(cuid())
+  name                     String
+  slug                     String                    @unique
+  type                     WorkspaceType             @default(PROFESSIONAL)
+  status                   WorkspaceStatus           @default(ACTIVE)
+  timeZone                 String
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  memberships              WorkspaceMembership[]
+  students                 StudentRecord[]
+  settings                 CoachSettingsRecord[]
+  monthlySummaries         MonthlySummary[]
+  trainerPushSubscriptions TrainerPushSubscription[]
+  trainerNotifications     TrainerNotification[]
+  paymentRecords           PaymentRecord[]
+  eventRecords             EventRecord[]
+  coachEvents              CoachEvent[]
+  routineRecords           RoutineRecord[]
+  trainingRoutines         TrainingRoutine[]
+  trainingLibraryFolders   TrainingLibraryFolder[]
+  trainingLibraryTags      TrainingLibraryTag[]
+  trainingBlockTemplates   TrainingBlockTemplate[]
+  evaluationRecords        EvaluationRecord[]
+  classSchedules           WeeklyClassSchedule[]
+  classOccurrences         ClassOccurrence[]
+  classSessions            ClassSession[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMembership {
+  id          String                    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole
+  status      WorkspaceMembershipStatus @default(ACTIVE)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user        User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_memberships")
+}
+
 model StudentRecord {
   id                       String                          @id
+  workspaceId              String
   phoneNormalized          String?                         @unique
   primaryScheduleId        String?
   serviceType              StudentServiceType              @default(CLASSES)
@@ -54,7 +146,9 @@ model StudentRecord {
   membershipHistory        StudentMembershipHistory[]
   monthlyObligations       MonthlyStudentObligation[]
   statusEvents             StudentStatusEvent[]
+  workspace                Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
+  @@index([workspaceId])
   @@index([primaryScheduleId])
   @@map("students")
 }
@@ -143,6 +237,7 @@ model StudentStatusEvent {
 
 model MonthlySummary {
   id                   String               @id @default(cuid())
+  workspaceId          String
   year                 Int
   month                Int
   status               MonthlySummaryStatus @default(DRAFT)
@@ -162,9 +257,10 @@ model MonthlySummary {
   warnings             Json                 @default("[]")
   snapshot             Json
   version              Int                  @default(1)
+  workspace            Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@unique([year, month])
-  @@index([status, year, month])
+  @@unique([workspaceId, year, month])
+  @@index([workspaceId, status, year, month])
   @@map("monthly_summaries")
 }
 
@@ -644,8 +740,9 @@ enum TrainerNotificationType {
 
 model TrainerPushSubscription {
   id          String    @id @default(cuid())
+  workspaceId String
   ownerKey    String    @default("coach")
-  endpoint    String    @unique
+  endpoint    String
   p256dh      String
   auth        String
   userAgent   String?
@@ -655,16 +752,19 @@ model TrainerPushSubscription {
   lastError   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@index([ownerKey, active])
+  @@unique([workspaceId, endpoint])
+  @@index([workspaceId, active])
   @@map("trainer_push_subscriptions")
 }
 
 model TrainerNotification {
   id              String                  @id @default(cuid())
+  workspaceId     String
   ownerKey        String                  @default("coach")
   type            TrainerNotificationType
-  eventKey        String                  @unique
+  eventKey        String
   title           String
   message         String
   url             String
@@ -678,8 +778,10 @@ model TrainerNotification {
   createdAt       DateTime                @default(now())
   student         StudentRecord?          @relation(fields: [studentId], references: [id], onDelete: SetNull)
   occurrence      ClassOccurrence?        @relation(fields: [occurrenceId], references: [id], onDelete: SetNull)
+  workspace       Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@index([ownerKey, readAt, createdAt(sort: Desc)])
+  @@unique([workspaceId, eventKey])
+  @@index([workspaceId, readAt, createdAt(sort: Desc)])
   @@index([studentId, createdAt(sort: Desc)])
   @@index([occurrenceId, createdAt(sort: Desc)])
   @@map("trainer_notifications")
@@ -827,20 +929,26 @@ model StudentPayment {
 }
 
 model PaymentRecord {
-  id        String   @id
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id
+  workspaceId String
+  data        Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
+  @@index([workspaceId])
   @@map("payments")
 }
 
 model EventRecord {
-  id        String   @id
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id
+  workspaceId String
+  data        Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
+  @@index([workspaceId])
   @@map("events")
 }
 
@@ -864,31 +972,35 @@ enum CoachEventAudience {
 }
 
 model CoachEvent {
-  id          String           @id @default(cuid())
-  title       String
-  description String           @default("")
-  location    String           @default("")
-  date        DateTime
-  time        String
-  color       String           @default("#facc15")
-  type        CoachEventType
-  status      CoachEventStatus @default(PENDIENTE)
-  showToStudents Boolean       @default(false)
-  audience    CoachEventAudience @default(ALL)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id             String             @id @default(cuid())
+  workspaceId    String
+  title          String
+  description    String             @default("")
+  location       String             @default("")
+  date           DateTime
+  time           String
+  color          String             @default("#facc15")
+  type           CoachEventType
+  status         CoachEventStatus   @default(PENDIENTE)
+  showToStudents Boolean            @default(false)
+  audience       CoachEventAudience @default(ALL)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@index([date, time])
-  @@index([status, showToStudents, date])
+  @@index([workspaceId, date, time])
   @@map("coach_events")
 }
 
 model RoutineRecord {
-  id        String   @id
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id
+  workspaceId String
+  data        Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
+  @@index([workspaceId])
   @@map("routines")
 }
 
@@ -941,6 +1053,8 @@ enum TrainingExerciseTargetType {
 
 model TrainingRoutine {
   id              String                      @id @default(cuid())
+  workspaceId     String
+  scope           WorkspaceContentScope       @default(WORKSPACE)
   name            String
   objective       String
   level           TrainingRoutineLevel
@@ -960,10 +1074,9 @@ model TrainingRoutine {
   assignments     TrainingRoutineAssignment[]
   workoutSessions WorkoutSession[]
   versions        TrainingRoutineVersion[]
+  workspace       Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@index([objective])
-  @@index([status])
-  @@index([kind, status])
+  @@index([scope, workspaceId, status])
   @@map("training_routines")
 }
 
@@ -1031,44 +1144,56 @@ model TrainingRoutineBlock {
 
 model TrainingLibraryFolder {
   id             String                    @id @default(cuid())
+  workspaceId    String
+  scope          WorkspaceContentScope     @default(WORKSPACE)
   name           String
-  normalizedName String                    @unique
+  normalizedName String
   status         TrainingLibraryItemStatus @default(ACTIVE)
   archivedAt     DateTime?
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
   blockTemplates TrainingBlockTemplate[]
+  workspace      Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@index([status, name])
+  @@unique([workspaceId, normalizedName])
+  @@index([scope, workspaceId, status, name])
   @@map("training_library_folders")
 }
 
 model TrainingLibraryTag {
   id             String                     @id @default(cuid())
+  workspaceId    String
+  scope          WorkspaceContentScope      @default(WORKSPACE)
   name           String
-  normalizedName String                     @unique
+  normalizedName String
   createdAt      DateTime                   @default(now())
   blockTemplates TrainingBlockTemplateTag[]
+  workspace      Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
+  @@unique([workspaceId, normalizedName])
+  @@index([scope, workspaceId, name])
   @@map("training_library_tags")
 }
 
 model TrainingBlockTemplate {
-  id         String                     @id @default(cuid())
-  name       String
-  type       TrainingBlockType
-  content    Json
-  folderId   String?
-  status     TrainingLibraryItemStatus  @default(ACTIVE)
-  isFavorite Boolean                    @default(false)
-  lastUsedAt DateTime?
-  archivedAt DateTime?
-  createdAt  DateTime                   @default(now())
-  updatedAt  DateTime                   @updatedAt
-  folder     TrainingLibraryFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  tags       TrainingBlockTemplateTag[]
+  id          String                     @id @default(cuid())
+  workspaceId String
+  scope       WorkspaceContentScope      @default(WORKSPACE)
+  name        String
+  type        TrainingBlockType
+  content     Json
+  folderId    String?
+  status      TrainingLibraryItemStatus  @default(ACTIVE)
+  isFavorite  Boolean                    @default(false)
+  lastUsedAt  DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  folder      TrainingLibraryFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  tags        TrainingBlockTemplateTag[]
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@index([status, updatedAt])
+  @@index([scope, workspaceId, status, updatedAt])
   @@index([folderId, status])
   @@index([type, status])
   @@map("training_block_templates")
@@ -1086,36 +1211,36 @@ model TrainingBlockTemplateTag {
 }
 
 model TrainingRoutineExercise {
-  id                  String               @id @default(cuid())
+  id                  String                     @id @default(cuid())
   dayId               String
   blockId             String
   name                String
   muscleGroup         String
   sets                Int
   repetitions         String
-  weight              Decimal?             @db.Decimal(7, 2)
+  weight              Decimal?                   @db.Decimal(7, 2)
   effortType          TrainingEffortType
-  effortValue         Decimal?             @db.Decimal(4, 1)
+  effortValue         Decimal?                   @db.Decimal(4, 1)
   restSeconds         Int?
-  observations        String               @default("")
+  observations        String                     @default("")
   videoUrl            String?
   tempo               String?
   alternativeExercise String?
   equipment           String?
-  optional            Boolean              @default(false)
+  optional            Boolean                    @default(false)
   targetType          TrainingExerciseTargetType @default(REPS)
   targetSeconds       Int?
   targetRepetitions   String?
   targetDistance      String?
   targetSide          String?
   order               Int
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  day                 TrainingRoutineDay   @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  block               TrainingRoutineBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  day                 TrainingRoutineDay         @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  block               TrainingRoutineBlock       @relation(fields: [blockId], references: [id], onDelete: Cascade)
   workoutLogs         WorkoutExerciseLog[]
   followUpComments    FollowUpComment[]
-  active              Boolean              @default(true)
+  active              Boolean                    @default(true)
   archivedAt          DateTime?
 
   @@index([dayId, order])
@@ -1140,11 +1265,14 @@ model TrainingRoutineAssignment {
 }
 
 model EvaluationRecord {
-  id        String   @id
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id
+  workspaceId String
+  data        Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
+  @@index([workspaceId])
   @@map("evaluations")
 }
 
@@ -1317,22 +1445,22 @@ model WorkoutSession {
 }
 
 model WorkoutBlockLog {
-  id                  String                @id @default(cuid())
-  sessionId           String
-  blockId             String?
-  blockReferenceId    String
-  snapshotVersion     Int                   @default(1)
-  blockName           String
-  blockType           TrainingBlockType
-  blockOrder          Int
-  blockConfiguration  Json
-  exercisesSnapshot   Json
-  result              Json
-  completed           Boolean               @default(false)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  session             WorkoutSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  block               TrainingRoutineBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
+  id                 String                @id @default(cuid())
+  sessionId          String
+  blockId            String?
+  blockReferenceId   String
+  snapshotVersion    Int                   @default(1)
+  blockName          String
+  blockType          TrainingBlockType
+  blockOrder         Int
+  blockConfiguration Json
+  exercisesSnapshot  Json
+  result             Json
+  completed          Boolean               @default(false)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  session            WorkoutSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  block              TrainingRoutineBlock? @relation(fields: [blockId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, blockReferenceId])
   @@index([blockReferenceId, updatedAt])
@@ -1437,11 +1565,14 @@ model FollowUpComment {
 }
 
 model CoachSettingsRecord {
-  id        String   @id
-  data      Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id
+  workspaceId String
+  data        Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
+  @@index([workspaceId])
   @@map("coach_settings")
 }
 
@@ -1455,6 +1586,7 @@ enum ClassWeekday {
 
 model WeeklyClassSchedule {
   id              String                  @id @default(cuid())
+  workspaceId     String
   dayOfWeek       ClassWeekday
   startTime       String
   endTime         String
@@ -1468,9 +1600,9 @@ model WeeklyClassSchedule {
   attendances     ClassAttendance[]
   primaryStudents StudentRecord[]         @relation("StudentPrimarySchedule")
   occurrences     ClassOccurrence[]
+  workspace       Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
-  @@index([dayOfWeek, startTime])
-  @@index([active])
+  @@index([workspaceId, dayOfWeek, startTime])
   @@index([archivedAt])
   @@map("weekly_class_schedules")
 }
@@ -1506,6 +1638,7 @@ enum ClassWorkoutLogAuthor {
 
 model ClassOccurrence {
   id                   String                      @id @default(cuid())
+  workspaceId          String
   scheduleId           String?
   date                 DateTime                    @db.Date
   startTime            String
@@ -1524,10 +1657,10 @@ model ClassOccurrence {
   strengthBlock        ClassStrengthBlock?
   workoutLogs          ClassWorkoutLog[]
   trainerNotifications TrainerNotification[]
+  workspace            Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@unique([scheduleId, date])
-  @@index([date, startTime])
-  @@index([status, date])
+  @@index([workspaceId, date, startTime])
   @@map("class_occurrences")
 }
 
@@ -1685,18 +1818,21 @@ model ClassAttendance {
 }
 
 model ClassSession {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
+  workspaceId String
   title       String
   date        DateTime
   startTime   String
   endTime     String
   location    String
   capacity    Int
-  status      String   @default("programada")
-  description String   @default("")
-  students    Json     @default("[]")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      String    @default("programada")
+  description String    @default("")
+  students    Json      @default("[]")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
+  @@index([workspaceId, date])
   @@map("classes")
 }

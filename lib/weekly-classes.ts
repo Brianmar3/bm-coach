@@ -64,8 +64,8 @@ export function parseWeeklyClassInput(value: unknown): { data: WeeklyClassInput;
   return { data: { dayOfWeek: dayOfWeek as WeeklyClassDay, startTime, endTime, classType, capacity, active, studentIds }, error: null };
 }
 
-export async function studentsExist(transaction: Prisma.TransactionClient, studentIds: string[]) {
+export async function studentsExist(transaction: Prisma.TransactionClient, studentIds: string[], workspaceId: string) {
   if (studentIds.length === 0) return true;
-  const count = await transaction.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: studentIds } } });
+  const count = await transaction.studentRecord.count({ where: { workspaceId, AND: [coachedStudentsWhere], id: { in: studentIds } } });
   return count === studentIds.length;
 }

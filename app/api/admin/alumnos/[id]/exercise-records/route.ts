@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import {
   ADMIN_SESSION_COOKIE,
@@ -22,6 +23,7 @@ export async function GET(
     return Response.json({ error: failure.error }, { status: failure.status });
   }
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   const records = await loadUnifiedExerciseRecords(id);
   return Response.json({ records });
 }

@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { databaseDateKey, dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
@@ -26,7 +27,7 @@ function validate(input: EditPaymentInput) {
 export async function GET(_request: Request, context: RouteContext<"/api/pagos/[id]">) {
   try {
     const { id } = await context.params;
-    const record = await prisma.studentPayment.findUnique({ where: { id }, include: { student: true } });
+    const record = await prisma.studentPayment.findUnique({ where: { id, student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } }, include: { student: true } });
     if (!record) return Response.json({ error: "Pago no encontrado." }, { status: 404 });
     return Response.json(serializePayment(record));
   } catch (error) {
@@ -42,7 +43,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/pagos/[i
     const validationError = validate(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
     const record = await prisma.$transaction(async (transaction) => {
-      const existing = await transaction.studentPayment.findUnique({ where: { id }, include: { student: true } });
+      const existing = await transaction.studentPayment.findUnique({ where: { id, student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } }, include: { student: true } });
       if (!existing) throw new Error("NOT_FOUND");
       if (existing.status === "ANULADO") throw new Error("VOIDED");
       const duplicate = await transaction.studentPayment.findFirst({
@@ -58,7 +59,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/pagos/[i
       });
       if (duplicate) throw new Error("DUPLICATE_PAYMENT");
       return transaction.studentPayment.update({
-        where: { id },
+        where: { id, student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } },
         data: {
           amount: input.amount,
           paidDate: dateKeyToDatabase(input.paidDate),
@@ -90,7 +91,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/pagos/
     }
     const voidReason = input.reason.trim();
     const result = await prisma.$transaction(async (transaction) => {
-      const existing = await transaction.studentPayment.findUnique({ where: { id }, include: { student: true } });
+      const existing = await transaction.studentPayment.findUnique({ where: { id, student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } }, include: { student: true } });
       if (!existing) throw new Error("NOT_FOUND");
       if (existing.status === "ANULADO") return { record: existing, warning: null };
       let warning: string | null = null;
@@ -120,7 +121,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/pagos/
         }
       }
       const record = await transaction.studentPayment.update({
-        where: { id },
+        where: { id, student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } },
         data: { status: "ANULADO", voidedAt: new Date(), voidReason },
         include: { student: true },
       });

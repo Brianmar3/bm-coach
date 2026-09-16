@@ -3,12 +3,15 @@ import { createRoutineDays, databaseUnavailable, routineData, routineFingerprint
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { isActivePainReport } from "@/lib/routine-follow-up-filters";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { accessibleContentWhere } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const { workspaceId } = await requireTrainerWorkspace();
     const params = new URL(request.url).searchParams;
     const studentId = params.get("studentId")?.trim();
     const objective = params.get("objective")?.trim();
@@ -17,6 +20,7 @@ export async function GET(request: Request) {
     const kind = params.get("kind")?.trim();
     const records = await prisma.trainingRoutine.findMany({
       where: {
+        AND: [accessibleContentWhere(workspaceId)],
         ...(studentId ? { assignments: { some: { studentId } } } : {}),
         ...(objective ? { objective } : {}),
         ...(query ? { OR: [{ name: { contains: query, mode: "insensitive" } }, { objective: { contains: query, mode: "insensitive" } }] } : {}),
@@ -76,10 +80,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const { workspaceId } = await requireTrainerWorkspace();
     const input = (await request.json()) as RoutineInput;
     const validationError = validateRoutine(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
-    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: input.studentIds } } });
+    const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { workspaceId, AND: [coachedStudentsWhere], id: { in: input.studentIds } } });
     if (input.kind === "assigned" && students !== input.studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {
@@ -90,6 +95,8 @@ export async function POST(request: Request) {
       }
       const created = await transaction.trainingRoutine.create({
         data: {
+          workspaceId,
+          scope: "WORKSPACE",
           ...routineData(input),
           archivedAt,
           assignments: input.kind === "assigned" ? { create: input.studentIds.map((studentId) => ({ studentId, active: input.status !== "archivada" && input.status !== "finalizada", archivedAt })) } : undefined,

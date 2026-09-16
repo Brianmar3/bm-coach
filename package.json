@@ -10,6 +10,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:status": "prisma migrate status",
     "prisma:push": "prisma db push",
+    "workspace:verify:contract": "node scripts/verify-workspace-foundation.mjs --phase=contract",
     "ranking:repair": "node scripts/repair-ranking-points.mjs",
     "exercise-library:build": "node scripts/build-exercise-library.mjs",
     "start": "next start",

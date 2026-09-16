@@ -92,12 +92,13 @@ export async function syncFutureOccurrenceNamesForSchedule(
   return result.count;
 }
 
-export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = prisma) {
+export async function ensureClassOccurrences(daysAhead: number, workspaceId: string, client: DbClient = prisma) {
+  if (!workspaceId) throw new Error("Workspace requerido para generar clases.");
   const today = argentinaDateKey();
   const end = addDateKeyDays(today, daysAhead);
   const schedules = await client.weeklyClassSchedule.findMany({
-    where: { active: true, archivedAt: null },
-    select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true, capacity: true },
+    where: { workspaceId, active: true, archivedAt: null },
+    select: { id: true, workspaceId: true, dayOfWeek: true, startTime: true, endTime: true, classType: true, capacity: true },
   });
   const rows: Prisma.ClassOccurrenceCreateManyInput[] = [];
   for (let offset = 0; offset <= daysAhead; offset += 1) {
@@ -106,6 +107,7 @@ export async function ensureClassOccurrences(daysAhead = 28, client: DbClient = 
     for (const schedule of schedules) {
       if (weekdayNumber[schedule.dayOfWeek] !== day) continue;
       rows.push({
+        workspaceId,
         scheduleId: schedule.id,
         date: dateKeyToDatabase(dateKey),
         startTime: schedule.startTime,

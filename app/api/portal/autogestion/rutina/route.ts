@@ -14,9 +14,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { student, studentId } = await requireSelfServiceAccount();
+  const { student, studentId, workspaceId } = await requireSelfServiceAccount();
   const [routine, sessions, media] = await Promise.all([
-    prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
+    prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId, workspaceId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
     prisma.workoutSession.findMany({ where: { studentId }, include: portalWorkoutSessionInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 30 }),
     exerciseMediaAvailable(),
   ]);
@@ -31,7 +31,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
-  const { studentId } = await requireSelfServiceAccount();
+  const { studentId, workspaceId } = await requireSelfServiceAccount();
   const body = await request.json().catch(() => null) as { answers?: unknown; proposal?: SelfServiceRoutineProposal } | null;
   if (!body || !validSelfServiceRoutineAnswers(body.answers) || !body.proposal) return Response.json({ error: "Revisá la propuesta antes de activarla." }, { status: 400 });
   let input;
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (transaction) => {
       await transaction.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`self-service-routine:${studentId}`})::bigint)`);
       const duplicate = await transaction.trainingRoutine.findFirst({
-        where: { ...activePortalRoutineWhere(studentId), tags: { has: "SELF_SERVICE_OWNED" }, versions: { some: { fingerprint } } },
+        where: { ...activePortalRoutineWhere(studentId, workspaceId), tags: { has: "SELF_SERVICE_OWNED" }, versions: { some: { fingerprint } } },
         include: routineInclude,
       });
       if (duplicate) return { record: duplicate, reused: true };
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       if (ownedRoutineIds.length) await transaction.trainingRoutine.updateMany({ where: { id: { in: ownedRoutineIds } }, data: { status: "ARCHIVADA", archivedAt: new Date() } });
 
       const created = await transaction.trainingRoutine.create({
-        data: { ...routineData(input), assignments: { create: { studentId, active: true, archivedAt: null } } },
+        data: { workspaceId, scope: "WORKSPACE", ...routineData(input), assignments: { create: { studentId, active: true, archivedAt: null } } },
       });
       await createRoutineDays(transaction, created.id, input.days);
       await transaction.trainingRoutineVersion.create({ data: { routineId: created.id, version: 1, summary: "Versión inicial", fingerprint, snapshot: routineVersionSnapshot(input) as unknown as Prisma.InputJsonValue } });

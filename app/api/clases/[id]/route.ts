@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseWeeklyClassInput, serializeWeeklyClass, studentsExist, weeklyClassInclude } from "@/lib/weekly-classes";
 import { syncFutureOccurrenceNamesForSchedule, syncScheduleFutureVisibility } from "@/lib/class-occurrences";
+import { assertScheduleInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,8 @@ function notFound(error: unknown) {
 export async function GET(_request: Request, context: RouteContext<"/api/clases/[id]">) {
   try {
     const { id } = await context.params;
-    const schedule = await prisma.weeklyClassSchedule.findFirst({ where: { id, archivedAt: null }, include: weeklyClassInclude });
+    const { workspaceId } = await requireTrainerWorkspace();
+    const schedule = await prisma.weeklyClassSchedule.findFirst({ where: { id, workspaceId, archivedAt: null }, include: weeklyClassInclude });
     if (!schedule) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });
     return Response.json(serializeWeeklyClass(schedule));
   } catch (error) {
@@ -33,13 +35,15 @@ export async function GET(_request: Request, context: RouteContext<"/api/clases/
 export async function PUT(request: Request, context: RouteContext<"/api/clases/[id]">) {
   try {
     const { id } = await context.params;
+    const { workspaceId } = await requireTrainerWorkspace();
+    await assertScheduleInWorkspace(id, workspaceId);
     const parsed = parseWeeklyClassInput(await request.json());
     if (!parsed.data) return Response.json({ error: parsed.error }, { status: 400 });
     const { studentIds, ...scheduleData } = parsed.data;
     const schedule = await prisma.$transaction(async (transaction) => {
-      const currentSchedule = await transaction.weeklyClassSchedule.findFirst({ where: { id, archivedAt: null }, select: { active: true } });
+      const currentSchedule = await transaction.weeklyClassSchedule.findFirst({ where: { id, workspaceId, archivedAt: null }, select: { active: true } });
       if (!currentSchedule) throw new ArchivedScheduleError();
-      if (!await studentsExist(transaction, studentIds)) throw new UnknownStudentError();
+      if (!await studentsExist(transaction, studentIds, workspaceId)) throw new UnknownStudentError();
       const previousAssignments = await transaction.weeklyClassAssignment.findMany({
         where: { scheduleId: id, active: true },
         select: { studentId: true },
@@ -87,8 +91,9 @@ export async function PUT(request: Request, context: RouteContext<"/api/clases/[
 export async function DELETE(_request: Request, context: RouteContext<"/api/clases/[id]">) {
   try {
     const { id } = await context.params;
+    const { workspaceId } = await requireTrainerWorkspace();
     const schedule = await prisma.weeklyClassSchedule.findFirst({
-      where: { id, archivedAt: null },
+      where: { id, workspaceId, archivedAt: null },
       select: { id: true },
     });
     if (!schedule) return Response.json({ error: "Horario semanal no encontrado." }, { status: 404 });

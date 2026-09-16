@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { Prisma } from "@prisma/client";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { duplicateEvaluationData, evaluationInclude, serializeWorkflowEvaluation, workflowSummary } from "@/lib/evaluation-persistence";
@@ -12,6 +13,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/admin/a
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const student = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { id: true } });
   if (!student) return Response.json({ error: "El alumno no existe." }, { status: 404 });
   const records = await prisma.physicalEvaluation.findMany({ where: { studentId }, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }] });
@@ -22,6 +24,7 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const body = await request.json().catch(() => ({})) as { creationKey?: string; date?: string; baseEvaluationId?: string };
   const creationKey = body.creationKey?.trim();
   if (!creationKey || creationKey.length > 100) return Response.json({ error: "Falta una clave válida para prevenir duplicados." }, { status: 400 });

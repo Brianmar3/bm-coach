@@ -3,6 +3,7 @@ import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@
 import { monthlyGeneralCsv, monthlySummaryCsv } from "@/lib/monthly-csv";
 import { validMonthSelection } from "@/lib/monthly-period";
 import { buildMonthlySummary, closeMonthlySummary, saveMonthlyDraft } from "@/lib/monthly-summary";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,10 +26,11 @@ function selectionFromUrl(request: Request) {
 export async function GET(request: Request) {
   const unauthorized = await authorize();
   if (unauthorized) return unauthorized;
+  const { workspaceId } = await requireTrainerWorkspace();
   const selection = selectionFromUrl(request);
   if (!selection) return Response.json({ error: "Seleccioná un mes y año válidos." }, { status: 400 });
   try {
-    const data = await buildMonthlySummary(selection);
+    const data = await buildMonthlySummary(selection, workspaceId);
     const format = new URL(request.url).searchParams.get("format");
     if (format === "detail-csv" || format === "general-csv") {
       const csv = format === "detail-csv" ? monthlySummaryCsv(data) : monthlyGeneralCsv(data);
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const unauthorized = await authorize();
   if (unauthorized) return unauthorized;
+  const { workspaceId } = await requireTrainerWorkspace();
   try {
     const input = await request.json() as { year?: unknown; month?: unknown; action?: unknown };
     const year = Number(input.year);
@@ -61,8 +64,8 @@ export async function POST(request: Request) {
     }
     const selection = { year, month };
     const data = input.action === "close"
-      ? await closeMonthlySummary(selection, "coach")
-      : await saveMonthlyDraft(selection);
+      ? await closeMonthlySummary(selection, workspaceId, "coach")
+      : await saveMonthlyDraft(selection, workspaceId);
     return Response.json(data);
   } catch (error) {
     if (error instanceof SyntaxError) return Response.json({ error: "La solicitud no es válida." }, { status: 400 });

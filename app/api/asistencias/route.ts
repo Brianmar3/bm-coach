@@ -8,6 +8,7 @@ import type { AttendanceRoster, AttendanceStatus, Student } from "@/types/gestio
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import { effectiveOccurrenceId, effectiveSessionForStudentsOnDate } from "@/lib/effective-class-session";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,8 @@ function databaseOccurrenceAttendanceStatus(value: AttendanceStatus) {
 
 export async function GET(request: Request) {
   try {
-    await ensureClassOccurrences(35);
+    const { workspaceId } = await requireTrainerWorkspace();
+    await ensureClassOccurrences(35, workspaceId);
     const url = new URL(request.url);
     const scheduleId = url.searchParams.get("scheduleId") ?? "";
     const dateValue = url.searchParams.get("date") ?? "";
@@ -40,12 +42,12 @@ export async function GET(request: Request) {
     if (!date) return Response.json({ error: "Seleccioná una fecha válida." }, { status: 400 });
 
     if (!scheduleId) {
-      const students = await prisma.studentRecord.findMany({ where: coachedStudentsWhere, include: { primarySchedule: true }, orderBy: { updatedAt: "desc" } });
+      const students = await prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, include: { primarySchedule: true }, orderBy: { updatedAt: "desc" } });
       const activeStudents = students.filter((student) =>
         (student.data as unknown as Partial<Student>).status === "activo" &&
         student.serviceType !== "PERSONALIZED"
       );
-      const attendanceRecords = await prisma.classAttendance.findMany({ where: { date, scheduleId: null }, include: { student: true }, orderBy: { updatedAt: "desc" } });
+      const attendanceRecords = await prisma.classAttendance.findMany({ where: { student: { workspaceId }, date, scheduleId: null }, include: { student: true }, orderBy: { updatedAt: "desc" } });
       const attendanceByStudent = new Map(attendanceRecords.map((attendance) => [attendance.studentId, attendance]));
       const rosterStudents = activeStudents.map((student) => {
         const data = student.data as unknown as Partial<Student>;
@@ -61,7 +63,7 @@ export async function GET(request: Request) {
     }
 
     const schedule = await prisma.weeklyClassSchedule.findUnique({
-      where: { id: scheduleId },
+      where: { id: scheduleId, workspaceId },
       include: {
         assignments: { where: { active: true }, include: { student: true } },
         attendances: { where: { date }, include: { student: true } },
@@ -72,7 +74,7 @@ export async function GET(request: Request) {
 
     const attendanceByStudent = new Map(schedule.attendances.map((attendance) => [attendance.studentId, attendance]));
     const dateOccurrences = await prisma.classOccurrence.findMany({
-      where: { date, suppressedBySchedule: false },
+      where: { workspaceId, date, suppressedBySchedule: false },
       include: {
         responses: { include: { student: true } },
         schedule: { include: { assignments: { where: { active: true }, include: { student: true } } } },
@@ -155,6 +157,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const { workspaceId } = await requireTrainerWorkspace();
     const body = await request.json() as { date?: string; scheduleId?: string | null; records?: Array<{ studentId?: string; status?: unknown }> };
     const date = attendanceDate(body.date ?? "");
     if (!date || !Array.isArray(body.records) || body.records.length === 0) return Response.json({ error: "Seleccioná fecha y al menos una asistencia." }, { status: 400 });
@@ -164,17 +167,17 @@ export async function PUT(request: Request) {
 
     const result = await prisma.$transaction(async (transaction) => {
       const schedule = body.scheduleId
-        ? await transaction.weeklyClassSchedule.findUnique({ where: { id: body.scheduleId }, select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true } })
+        ? await transaction.weeklyClassSchedule.findUnique({ where: { id: body.scheduleId, workspaceId }, select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true } })
         : null;
       if (body.scheduleId && !schedule) throw new Error("SCHEDULE_NOT_FOUND");
       if (body.scheduleId && schedule && classDayForDate(date) !== schedule.dayOfWeek) throw new Error("DAY_MISMATCH");
-      const students = await transaction.studentRecord.findMany({ where: { AND: [coachedStudentsWhere], id: { in: parsedRecords.map((record) => record.studentId) } }, select: { id: true } });
+      const students = await transaction.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere], id: { in: parsedRecords.map((record) => record.studentId) } }, select: { id: true } });
       if (students.length !== parsedRecords.length) throw new Error("STUDENT_NOT_FOUND");
       const label = schedule ? weeklyScheduleLabel(schedule) : "Sin horario";
       const startTime = schedule?.startTime ?? "";
       const occurrence = schedule
         ? await transaction.classOccurrence.findFirst({
-            where: { scheduleId: schedule.id, date },
+            where: { workspaceId, scheduleId: schedule.id, date },
             select: { id: true },
           })
         : null;

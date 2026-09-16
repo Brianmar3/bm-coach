@@ -21,8 +21,8 @@ function notificationStore() {
       { id: "student-b-1", studentId: "student-b" },
     ],
     trainers: [
-      { id: "trainer-main", ownerKey: "coach" },
-      { id: "trainer-other", ownerKey: "other-coach" },
+      { id: "trainer-main", ownerKey: "coach", workspaceId: "a" },
+      { id: "trainer-other", ownerKey: "coach", workspaceId: "b" },
     ],
   };
   return {
@@ -36,9 +36,9 @@ function notificationStore() {
         },
       },
       trainerNotification: {
-        deleteMany: async ({ where }: { where: { ownerKey: string } }) => {
+        deleteMany: async ({ where }: { where: { workspaceId: string } }) => {
           const before = state.trainers.length;
-          state.trainers = state.trainers.filter((item) => item.ownerKey !== where.ownerKey);
+          state.trainers = state.trainers.filter((item) => item.workspaceId !== where.workspaceId);
           return { count: before - state.trainers.length };
         },
       },
@@ -56,6 +56,7 @@ function studentRoute(prisma: unknown, options: { authenticated?: boolean; origi
 
 function trainerRoute(prisma: unknown, options: { authenticated?: boolean; origin?: boolean } = {}) {
   return load("app/api/admin/notifications/route.ts", {
+    "@/lib/trainer-workspace": { requireTrainerWorkspace: async () => ({ workspaceId: "a", userId: "coach-a" }) },
     "next/server": { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } },
     "next/headers": { cookies: async () => ({ get: () => ({ value: "session" }) }) },
     "@/lib/admin-auth": { ADMIN_SESSION_COOKIE: "admin", verifyAdminSessionValue: () => ({ ok: options.authenticated !== false }) },
@@ -77,12 +78,12 @@ test("Alumno A borra sólo su historial y conserva Alumno B y entrenador", async
   assert.equal(state.trainers.length, 2);
 });
 
-test("entrenador borra sólo su ownerKey y no toca alumnos ni otros owners", async () => {
+test("entrenador borra sólo su workspace aunque B comparta el ownerKey legado", async () => {
   const { state, prisma } = notificationStore();
   const response = await trainerRoute(prisma).DELETE(new Request("http://localhost/api/admin/notifications", { method: "DELETE" }));
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true, deletedCount: 1, unreadCount: 0 });
-  assert.deepEqual(state.trainers, [{ id: "trainer-other", ownerKey: "other-coach" }]);
+  assert.deepEqual(state.trainers, [{ id: "trainer-other", ownerKey: "coach", workspaceId: "b" }]);
   assert.equal(state.students.length, 3);
 });
 

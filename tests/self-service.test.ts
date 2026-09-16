@@ -141,7 +141,7 @@ test("las listas del entrenador y asignaciones excluyen autogestión; el store c
     assert.match(readFileSync(file, "utf8"), /where: (?:coachedStudentsWhere|\{[^}]*coachedStudentsWhere)/, file);
   }
   const store = readFileSync("app/api/store/[collection]/route.ts", "utf8");
-  assert.match(store, /studentRecord\.deleteMany\(\{ where: coachedStudentsWhere \}\)/);
+  assert.match(store, /studentRecord\.deleteMany\(\{ where: \{ workspaceId, AND: \[coachedStudentsWhere\] \} \}\)/);
   assert.match(store, /if \(reserved\) return false/);
   assert.match(readFileSync("lib/coached-students.ts", "utf8"), /Prisma.AnyNull/);
 });

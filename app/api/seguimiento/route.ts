@@ -7,6 +7,7 @@ import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { isActivePainReport } from "@/lib/routine-follow-up-filters";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,12 +20,15 @@ function decimal(value: Prisma.Decimal | null) { return value === null ? null : 
 
 export async function GET(request: Request) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const params = new URL(request.url).searchParams;
     const routineId = params.get("routineId") || undefined;
     const studentId = params.get("studentId") || undefined;
     const [sessions, students, routines, classSessions, activeAssignments] = await Promise.all([
       prisma.workoutSession.findMany({
-        where: { ...(routineId ? { routineId } : {}), ...(studentId ? { studentId } : {}) },
+        where: { student: { workspaceId }, routine: { workspaceId }, ...(routineId ? { routineId } : {}), ...(studentId ? { studentId } : {}) },
         include: {
           student: true,
           routine: true,
@@ -35,23 +39,23 @@ export async function GET(request: Request) {
         orderBy: [{ updatedAt: "desc" }],
         take: 100,
       }),
-      prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true } }),
-      prisma.trainingRoutine.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+      prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true } }),
+      prisma.trainingRoutine.findMany({ where: { workspaceId, scope: "WORKSPACE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
       prisma.classWorkoutLog.findMany({
-        where: { ...(studentId ? { studentId } : {}) },
+        where: { student: { workspaceId }, ...(studentId ? { studentId } : {}) },
         include: { student: true, exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } } } } },
         orderBy: { classDateSnapshot: "desc" },
         take: 100,
       }),
       prisma.trainingRoutineAssignment.findMany({
-        where: { active: true, ...(studentId ? { studentId } : {}) },
+        where: { student: { workspaceId }, routine: { workspaceId }, active: true, ...(studentId ? { studentId } : {}) },
         include: { student: true, routine: true },
         orderBy: { assignedAt: "desc" },
       }),
     ]);
     const exerciseIds = [...new Set(sessions.flatMap((session) => session.exercises.map((log) => log.exerciseReferenceId ?? log.exerciseId).filter((id): id is string => Boolean(id))))];
     const previousLogs = exerciseIds.length ? await prisma.workoutExerciseLog.findMany({
-      where: { OR: [{ exerciseReferenceId: { in: exerciseIds } }, { exerciseId: { in: exerciseIds } }], session: { status: "COMPLETED" } },
+      where: { OR: [{ exerciseReferenceId: { in: exerciseIds } }, { exerciseId: { in: exerciseIds } }], session: { student: { workspaceId }, routine: { workspaceId }, status: "COMPLETED" } },
       include: { sets: true, session: { select: { id: true, studentId: true, date: true } } },
       orderBy: { session: { date: "desc" } },
     }) : [];
@@ -188,9 +192,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json() as { sessionId?: string; body?: string; private?: boolean; reviewed?: boolean };
-    const session = input.sessionId ? await prisma.workoutSession.findUnique({ where: { id: input.sessionId }, select: { id: true, studentId: true } }) : null;
+    const session = input.sessionId ? await prisma.workoutSession.findFirst({ where: { id: input.sessionId, student: { workspaceId }, routine: { workspaceId } }, select: { id: true, studentId: true } }) : null;
     if (!session) return Response.json({ error: "Sesión no encontrada." }, { status: 404 });
     const body = input.body?.trim() ?? "";
     if (body.length > 2000) return Response.json({ error: "La devolución no puede superar 2000 caracteres." }, { status: 400 });
@@ -220,6 +227,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json() as {
       classWorkoutLogId?: unknown;
@@ -335,6 +344,7 @@ export async function DELETE(request: Request) {
   try {
     const unauthorized = await requireAdminApiResponse();
     if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json().catch(() => null) as { sessionId?: string; classWorkoutLogId?: string; studentId?: string; routineId?: string; deleteAll?: boolean } | null;
     if (input?.classWorkoutLogId?.trim()) {
@@ -346,7 +356,7 @@ export async function DELETE(request: Request) {
     if (input?.deleteAll) {
       if (!input.studentId?.trim() || !input.routineId?.trim()) return Response.json({ error: "Alumno y rutina son obligatorios." }, { status: 400 });
       const result = await prisma.$transaction(async (transaction) => {
-        const where = { studentId: input.studentId!, routineId: input.routineId! };
+        const where = { studentId: input.studentId!, routineId: input.routineId!, student: { workspaceId }, routine: { workspaceId } };
         const count = await transaction.workoutSession.count({ where });
         if (!count) return 0;
         const deleted = await transaction.workoutSession.deleteMany({ where });
@@ -356,11 +366,11 @@ export async function DELETE(request: Request) {
       return Response.json({ message: `${result} registros de entrenamiento eliminados definitivamente.`, deleted: result });
     }
     if (!input?.sessionId?.trim()) return Response.json({ error: "El registro seleccionado no es válido." }, { status: 400 });
-    const existingSession = await prisma.workoutSession.findUnique({
-      where: { id: input.sessionId },
+    const existingSession = await prisma.workoutSession.findFirst({
+      where: { id: input.sessionId, student: { workspaceId }, routine: { workspaceId } },
       select: { studentId: true },
     });
-    const deleted = await prisma.workoutSession.deleteMany({ where: { id: input.sessionId } });
+    const deleted = await prisma.workoutSession.deleteMany({ where: { id: input.sessionId, student: { workspaceId }, routine: { workspaceId } } });
     if (!deleted.count) return Response.json({ error: "Registro de entrenamiento no encontrado." }, { status: 404 });
     if (existingSession) {
       await reconcileStudentPointsAfterMutation(existingSession.studentId);

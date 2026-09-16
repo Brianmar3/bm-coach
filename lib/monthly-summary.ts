@@ -32,24 +32,25 @@ function paymentLabel(status: MonthlyObligationStatus | null, hasPayments: boole
   return hasPayments ? "Parcial" : "Pendiente";
 }
 
-export async function generateMonthlyObligations(selection: MonthSelection) {
+export async function generateMonthlyObligations(selection: MonthSelection, workspaceId: string) {
   const bounds = monthDatabaseBounds(selection);
-  const existingSummary = await prisma.monthlySummary.findUnique({ where: { year_month: selection }, select: { status: true } });
+  const existingSummary = await prisma.monthlySummary.findUnique({ where: { workspaceId_year_month: { workspaceId, ...selection } }, select: { status: true } });
   if (existingSummary?.status === "CLOSED") throw new Error("MONTH_CLOSED");
 
   const [memberships, students, payments] = await Promise.all([
     prisma.studentMembershipHistory.findMany({
       where: {
+        student: { workspaceId },
         startDate: { lt: bounds.endDate },
         OR: [{ endDate: null }, { endDate: { gt: bounds.startDate } }],
         status: "ACTIVE",
       },
       orderBy: [{ studentId: "asc" }, { startDate: "desc" }],
     }),
-    prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true } }),
+    prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true } }),
     prisma.studentPayment.groupBy({
       by: ["studentId"],
-      where: { billingPeriod: bounds.startDate, status: "PAGADO" },
+      where: { student: { workspaceId }, billingPeriod: bounds.startDate, status: "PAGADO" },
       _sum: { amount: true },
     }),
   ]);
@@ -88,9 +89,9 @@ export async function generateMonthlyObligations(selection: MonthSelection) {
   }));
 }
 
-export async function buildMonthlySummary(selection: MonthSelection, allowClosedSnapshot = true): Promise<MonthlySummaryData> {
+export async function buildMonthlySummary(selection: MonthSelection, workspaceId: string, allowClosedSnapshot = true): Promise<MonthlySummaryData> {
   const bounds = monthDatabaseBounds(selection);
-  const savedSummary = await prisma.monthlySummary.findUnique({ where: { year_month: selection } });
+  const savedSummary = await prisma.monthlySummary.findUnique({ where: { workspaceId_year_month: { workspaceId, ...selection } } });
   if (allowClosedSnapshot && savedSummary?.status === "CLOSED") return savedSummary.snapshot as unknown as MonthlySummaryData;
 
   const todayKey = argentinaDateKey();
@@ -100,36 +101,36 @@ export async function buildMonthlySummary(selection: MonthSelection, allowClosed
   const paymentSelection = { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true, method: true, status: true, createdAt: true } as const;
 
   const [students, payments, todayPayments, obligations, attendances, evaluations, workouts, events, memberships] = await Promise.all([
-    prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true, serviceType: true } }),
+    prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true, serviceType: true } }),
     prisma.studentPayment.findMany({
-      where: { billingPeriod: bounds.startDate },
+      where: { student: { workspaceId }, billingPeriod: bounds.startDate },
       select: paymentSelection,
       orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }],
     }),
     prisma.studentPayment.findMany({
-      where: { status: "PAGADO", createdAt: { gte: argentinaDateTimeBoundary(todayKey), lt: argentinaDateTimeBoundary(tomorrowKey) } },
+      where: { student: { workspaceId }, status: "PAGADO", createdAt: { gte: argentinaDateTimeBoundary(todayKey), lt: argentinaDateTimeBoundary(tomorrowKey) } },
       select: paymentSelection,
       orderBy: [{ createdAt: "desc" }],
     }),
-    prisma.monthlyStudentObligation.findMany({ where: { period: bounds.startDate } }),
+    prisma.monthlyStudentObligation.findMany({ where: { student: { workspaceId }, period: bounds.startDate } }),
     prisma.classAttendance.findMany({
-      where: { date: { gte: bounds.startDate, lt: bounds.endDate } },
+      where: { student: { workspaceId }, date: { gte: bounds.startDate, lt: bounds.endDate } },
       select: { studentId: true, status: true },
     }),
     prisma.physicalEvaluation.findMany({
-      where: { date: { gte: bounds.startInstant, lt: bounds.endInstant } },
+      where: { student: { workspaceId }, date: { gte: bounds.startInstant, lt: bounds.endInstant } },
       select: { studentId: true },
     }),
     prisma.workoutSession.findMany({
-      where: { date: { gte: bounds.startDate, lt: bounds.endDate } },
+      where: { student: { workspaceId }, routine: { workspaceId }, date: { gte: bounds.startDate, lt: bounds.endDate } },
       select: { studentId: true, status: true },
     }),
     prisma.studentStatusEvent.findMany({
-      where: { eventDate: { gte: bounds.startDate, lt: bounds.endDate } },
+      where: { student: { workspaceId }, eventDate: { gte: bounds.startDate, lt: bounds.endDate } },
       select: { studentId: true, type: true, eventDate: true },
     }),
     prisma.studentMembershipHistory.findMany({
-      where: { startDate: { lt: bounds.endDate }, OR: [{ endDate: null }, { endDate: { gt: bounds.startDate } }] },
+      where: { student: { workspaceId }, startDate: { lt: bounds.endDate }, OR: [{ endDate: null }, { endDate: { gt: bounds.startDate } }] },
       orderBy: [{ studentId: "asc" }, { startDate: "desc" }],
     }),
   ]);
@@ -357,25 +358,25 @@ function summaryPersistence(data: MonthlySummaryData) {
   };
 }
 
-export async function saveMonthlyDraft(selection: MonthSelection) {
-  await generateMonthlyObligations(selection);
-  const data = await buildMonthlySummary(selection, false);
+export async function saveMonthlyDraft(selection: MonthSelection, workspaceId: string) {
+  await generateMonthlyObligations(selection, workspaceId);
+  const data = await buildMonthlySummary(selection, workspaceId, false);
   const record = await prisma.monthlySummary.upsert({
-    where: { year_month: selection },
-    create: { year: selection.year, month: selection.month, status: "DRAFT", ...summaryPersistence(data) },
+    where: { workspaceId_year_month: { workspaceId, ...selection } },
+    create: { workspaceId, year: selection.year, month: selection.month, status: "DRAFT", ...summaryPersistence(data) },
     update: { generatedAt: new Date(), version: { increment: 1 }, ...summaryPersistence(data) },
   });
-  return buildMonthlySummary(selection, record.status === "CLOSED");
+  return buildMonthlySummary(selection, workspaceId, record.status === "CLOSED");
 }
 
-export async function closeMonthlySummary(selection: MonthSelection, actor = "coach") {
-  const existing = await prisma.monthlySummary.findUnique({ where: { year_month: selection }, select: { status: true } });
-  if (existing?.status === "CLOSED") return buildMonthlySummary(selection);
-  const refreshed = await saveMonthlyDraft(selection);
+export async function closeMonthlySummary(selection: MonthSelection, workspaceId: string, actor = "coach") {
+  const existing = await prisma.monthlySummary.findUnique({ where: { workspaceId_year_month: { workspaceId, ...selection } }, select: { status: true } });
+  if (existing?.status === "CLOSED") return buildMonthlySummary(selection, workspaceId);
+  const refreshed = await saveMonthlyDraft(selection, workspaceId);
   const closedAt = new Date();
   const closedData = closedMonthlySnapshot(refreshed, closedAt.toISOString());
   await prisma.monthlySummary.update({
-    where: { year_month: selection },
+    where: { workspaceId_year_month: { workspaceId, ...selection } },
     data: { status: "CLOSED", closedAt, closedBy: actor, version: { increment: 1 }, ...summaryPersistence(closedData) },
   });
   return closedData;

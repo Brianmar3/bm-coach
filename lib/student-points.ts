@@ -253,9 +253,10 @@ async function notifyPointGain(
   if (!relevant.length) return;
   const student = await prisma.studentRecord.findUnique({
     where: { id: studentId },
-    select: { data: true },
+    select: { data: true, workspaceId: true },
   });
-  if (!student) return;
+  if (!student?.workspaceId) return;
+  const workspaceId = student.workspaceId;
   const latestRelevant = relevant.at(-1)!;
   const message = `${studentName(student.data)} sumó +${latestRelevant.points} pts por ${latestRelevant.description.toLocaleLowerCase("es")}. Total: ${total} pts.`;
   const eventKey = `points:${studentId}:${latestRelevant.eventKey}`;
@@ -267,6 +268,7 @@ async function notifyPointGain(
   const notification = await prisma.trainerNotification
     .create({
       data: {
+        workspaceId,
         ownerKey: TRAINER_OWNER_KEY,
         type: "POINTS",
         eventKey,
@@ -294,7 +296,7 @@ async function notifyPointGain(
     body: message,
     url: notification.url,
     tag: `points-${studentId}`,
-  }).catch((error) => {
+  }, workspaceId).catch((error) => {
     console.error("No se pudo enviar el avance por push", error);
   }));
 }

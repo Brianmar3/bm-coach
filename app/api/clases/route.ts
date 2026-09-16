@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseWeeklyClassInput, serializeWeeklyClass, studentsExist, weeklyClassInclude } from "@/lib/weekly-classes";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,8 +15,9 @@ function databaseError(error: unknown) {
 
 export async function GET() {
   try {
+    const { workspaceId } = await requireTrainerWorkspace();
     const schedules = await prisma.weeklyClassSchedule.findMany({
-      where: { archivedAt: null },
+      where: { workspaceId, archivedAt: null },
       include: weeklyClassInclude,
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }, { classType: "asc" }],
     });
@@ -28,13 +30,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const { workspaceId } = await requireTrainerWorkspace();
     const parsed = parseWeeklyClassInput(await request.json());
     if (!parsed.data) return Response.json({ error: parsed.error }, { status: 400 });
     const { studentIds, ...scheduleData } = parsed.data;
     const schedule = await prisma.$transaction(async (transaction) => {
-      if (!await studentsExist(transaction, studentIds)) throw new UnknownStudentError();
+      if (!await studentsExist(transaction, studentIds, workspaceId)) throw new UnknownStudentError();
       return transaction.weeklyClassSchedule.create({
         data: {
+          workspaceId,
           ...scheduleData,
           assignments: { create: studentIds.map((studentId) => ({ studentId })) },
         },

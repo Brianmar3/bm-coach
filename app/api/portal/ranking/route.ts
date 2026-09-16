@@ -8,7 +8,9 @@ export async function GET() {
   if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal." }, { status: 403 });
   if (!isCompetitiveGamificationEligible(session.credential.student.serviceType)) return Response.json({ redirectTo: "/portal/progreso" }, { status: 403 });
 
-  const ranking = await loadPointRanking("month");
+  const workspaceId = session.credential.student.workspaceId;
+  if (!workspaceId) return Response.json({ error: "Workspace pendiente de configurar." }, { status: 403 });
+  const ranking = await loadPointRanking("month", workspaceId);
   const currentIndex = ranking.findIndex((entry) => entry.studentId === session.studentId);
   return Response.json({
     period: "month",

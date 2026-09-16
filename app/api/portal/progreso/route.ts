@@ -20,7 +20,7 @@ export async function GET() {
 
     const studentId = session.studentId;
     const routine = await prisma.trainingRoutine.findFirst({
-      where: activePortalRoutineWhere(studentId),
+      where: activePortalRoutineWhere(studentId, session.credential.student.workspaceId ?? ""),
       include: {
         days: { where: { active: true, archivedAt: null }, select: { id: true } },
         assignments: { where: { studentId, active: true, archivedAt: null }, select: { assignedAt: true }, orderBy: { assignedAt: "desc" }, take: 1 },
@@ -51,7 +51,7 @@ export async function GET() {
         include: evaluationInclude,
         orderBy: [{ date: "asc" }, { createdAt: "asc" }],
       }),
-      prisma.evaluationRecord.findMany({ orderBy: { createdAt: "asc" } }),
+      prisma.evaluationRecord.findMany({ where: { workspaceId: session.credential.student.workspaceId }, orderBy: { createdAt: "asc" } }),
     ]);
     const evaluations = deduplicateEvaluations([
       ...physicalEvaluations.map(normalizePhysicalEvaluation),

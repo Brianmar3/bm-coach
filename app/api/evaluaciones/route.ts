@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { Prisma } from "@prisma/client";
 import { databaseUnavailable, evaluationData, serializeEvaluation, validateEvaluation, type EvaluationInput } from "@/lib/evaluaciones";
 import { prisma } from "@/lib/prisma";
@@ -13,11 +14,14 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
+    const { workspaceId } = await requireTrainerWorkspace();
+    const allowedStudents = await prisma.studentRecord.findMany({ where: { workspaceId }, select: { id: true } });
+    const allowedIds = new Set(allowedStudents.map((student) => student.id));
     const [records, legacyRecords] = await Promise.all([
-      prisma.physicalEvaluation.findMany({ where: studentId ? { studentId } : undefined, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
-      prisma.evaluationRecord.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.physicalEvaluation.findMany({ where: { student: { workspaceId }, ...(studentId ? { studentId } : {}) }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
+      prisma.evaluationRecord.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" } }),
     ]);
-    const normalizedLegacy = legacyRecords.map(normalizeLegacyEvaluationRecord).filter((item) => !studentId || item.studentId === studentId);
+    const normalizedLegacy = legacyRecords.map(normalizeLegacyEvaluationRecord).filter((item) => allowedIds.has(item.studentId) && (!studentId || item.studentId === studentId));
     return Response.json(deduplicateEvaluations([...records.map(normalizePhysicalEvaluation), ...normalizedLegacy]));
   } catch (error) {
     console.error("Error al consultar evaluaciones físicas", error);
@@ -32,7 +36,7 @@ export async function POST(request: Request) {
     const validationError = validateEvaluation(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
-    const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId }, select: { id: true } });
+    const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId, workspaceId: (await requireTrainerWorkspace()).workspaceId }, select: { id: true } });
     if (!student) return Response.json({ error: "El alumno seleccionado no existe." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {

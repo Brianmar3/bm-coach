@@ -6,6 +6,7 @@ import { evaluationInclude, normalizeLegacyEvaluationRecord, normalizePhysicalEv
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { prisma } from "@/lib/prisma";
 import type { RoutineAIConstraints, RoutineExerciseCatalogEntry } from "@/types/routine-ai";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,10 +17,10 @@ function constraints(value: unknown): RoutineAIConstraints | null {
   return { requestedDays, sessionMinutes, location: raw.location as RoutineAIConstraints["location"], equipment: Array.isArray(raw.equipment) ? raw.equipment.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()).slice(0, 30) : [], trainerInstructions: typeof raw.trainerInstructions === "string" ? raw.trainerInstructions.trim().slice(0, 800) : "" };
 }
 
-async function catalog(): Promise<RoutineExerciseCatalogEntry[]> {
+async function catalog(workspaceId: string): Promise<RoutineExerciseCatalogEntry[]> {
   const [routineExercises, quickLogs] = await Promise.all([
-    prisma.trainingRoutineExercise.findMany({ where: { active: true, name: { not: "" } }, select: { name: true, alternativeExercise: true }, distinct: ["name"], take: 300 }),
-    prisma.quickLog.findMany({ where: { exerciseName: { not: "" } }, select: { exerciseName: true }, distinct: ["exerciseName"], orderBy: { createdAt: "desc" }, take: 200 }),
+    prisma.trainingRoutineExercise.findMany({ where: { active: true, name: { not: "" }, day: { routine: { OR: [{ scope: "GLOBAL" }, { workspaceId, scope: "WORKSPACE" }] } } }, select: { name: true, alternativeExercise: true }, distinct: ["name"], take: 300 }),
+    prisma.quickLog.findMany({ where: { student: { workspaceId }, exerciseName: { not: "" } }, select: { exerciseName: true }, distinct: ["exerciseName"], orderBy: { createdAt: "desc" }, take: 200 }),
   ]);
   return [...routineExercises.map((item) => ({ name: item.name, aliases: item.alternativeExercise ? [item.alternativeExercise] : [] })), ...quickLogs.map((item) => ({ name: item.exerciseName, aliases: [] }))];
 }
@@ -44,15 +45,16 @@ async function finalize(reservation: { usageId: string; key: string }, success: 
 
 export async function POST(request: Request) {
   const unauthorized = await requireAdminApiResponse(); if (unauthorized) return unauthorized;
+  const { workspaceId } = await requireTrainerWorkspace();
   const input = await request.json().catch(() => null) as { action?: string; studentId?: string; requestKey?: string; constraints?: unknown; exerciseName?: string; objective?: string; level?: string } | null;
   if (!input?.studentId?.trim()) return Response.json({ error: "Seleccioná un alumno." }, { status: 400 });
-  const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId }, select: { id: true, serviceType: true, data: true } });
+  const student = await prisma.studentRecord.findUnique({ where: { id: input.studentId, workspaceId }, select: { id: true, serviceType: true, data: true } });
   if (!student) return Response.json({ error: "El alumno no existe." }, { status: 404 });
   if (student.serviceType === "CLASSES") return Response.json({ error: "La propuesta está disponible para alumnos Personalizados o Mixtos." }, { status: 403 });
-  const exerciseCatalog = await catalog();
+  const exerciseCatalog = await catalog(workspaceId);
   if (input.action === "alternatives") return Response.json({ alternatives: exerciseAlternatives(input.exerciseName ?? "", exerciseCatalog) });
   const parsedConstraints = constraints(input.constraints); if (!parsedConstraints || !input.requestKey?.trim()) return Response.json({ error: "Las restricciones de la propuesta no son válidas." }, { status: 400 });
-  const [physical, legacy] = await Promise.all([prisma.physicalEvaluation.findMany({ where: { studentId: student.id }, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }], take: 5 }), prisma.evaluationRecord.findMany({ select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } })]);
+  const [physical, legacy] = await Promise.all([prisma.physicalEvaluation.findMany({ where: { studentId: student.id }, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }], take: 5 }), prisma.evaluationRecord.findMany({ where: { workspaceId }, select: { id: true, data: true, createdAt: true }, orderBy: { createdAt: "desc" } })]);
   const allEvaluations = deduplicateEvaluations([...physical.map(normalizePhysicalEvaluation), ...legacy.map(normalizeLegacyEvaluationRecord).filter((item) => item.studentId === student.id)]); const selectedEvaluation = selectEvaluationForPlanning(allEvaluations); const evaluations = selectedEvaluation ? [selectedEvaluation, ...allEvaluations.filter((item) => item.id !== selectedEvaluation.id)].slice(0, 2) : []; const data = student.data && typeof student.data === "object" && !Array.isArray(student.data) ? student.data as Record<string, unknown> : {}; const context = buildRoutineAIContext({ id: student.id, serviceType: student.serviceType, goal: (typeof input.objective === "string" ? input.objective.trim() : "") || (typeof data.goal === "string" ? data.goal : ""), level: (typeof input.level === "string" ? input.level.trim() : "") || (typeof data.level === "string" ? data.level : "") }, evaluations, argentinaDateKey());
   if (!context.objective || !context.level) return Response.json({ error: "Falta información básica para generar una propuesta.", code: "MINIMUM_DATA" }, { status: 400 });
   let reservation: Awaited<ReturnType<typeof reserve>> | null = null; const started = Date.now();

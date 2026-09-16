@@ -1,6 +1,7 @@
 import { databaseUnavailable, exerciseData, serializeExercise, validateExercise, type ExerciseInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ function notFound(error: unknown) { return error instanceof Prisma.PrismaClientK
 export async function GET(_request: Request, context: RouteContext<"/api/rutinas/[id]/ejercicios/[exerciseId]">) {
   try {
     const { id, exerciseId } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId, { allowGlobal: true });
     const exercise = await prisma.trainingRoutineExercise.findFirst({ where: { id: exerciseId, day: { routineId: id } }, include: { day: true } });
     if (!exercise) return Response.json({ error: "Ejercicio no encontrado." }, { status: 404 });
     return Response.json({ ...serializeExercise(exercise), dayNumber: exercise.day.dayNumber });
@@ -24,6 +26,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
 export async function PUT(request: Request, context: RouteContext<"/api/rutinas/[id]/ejercicios/[exerciseId]">) {
   try {
     const { id, exerciseId } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const input = (await request.json()) as ExerciseUpdateInput;
     if (!Number.isInteger(input.dayNumber) || input.dayNumber < 1 || input.dayNumber > 7) return Response.json({ error: "El día debe estar entre 1 y 7." }, { status: 400 });
     const validationError = validateExercise(input);
@@ -59,6 +62,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
 export async function DELETE(_request: Request, context: RouteContext<"/api/rutinas/[id]/ejercicios/[exerciseId]">) {
   try {
     const { id, exerciseId } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const result = await prisma.$transaction(async (transaction) => {
       const exercise = await transaction.trainingRoutineExercise.findFirst({
         where: { id: exerciseId, day: { routineId: id } },

@@ -1,5 +1,6 @@
 import { databaseUnavailable, exerciseData, serializeExercise, validateExercise, type ExerciseInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
+import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ type ExerciseCreateInput = ExerciseInput & { dayNumber: number };
 export async function GET(_request: Request, context: RouteContext<"/api/rutinas/[id]/ejercicios">) {
   try {
     const { id } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId, { allowGlobal: true });
     const days = await prisma.trainingRoutineDay.findMany({ where: { routineId: id }, include: { exercises: { orderBy: { order: "asc" } } }, orderBy: { dayNumber: "asc" } });
     return Response.json(days.flatMap((day) => day.exercises.map((exercise) => ({ ...serializeExercise(exercise), dayNumber: day.dayNumber }))));
   } catch (error) {
@@ -21,6 +23,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
 export async function POST(request: Request, context: RouteContext<"/api/rutinas/[id]/ejercicios">) {
   try {
     const { id } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const input = (await request.json()) as ExerciseCreateInput;
     if (!Number.isInteger(input.dayNumber) || input.dayNumber < 1 || input.dayNumber > 7) return Response.json({ error: "El día debe estar entre 1 y 7." }, { status: 400 });
     const validationError = validateExercise(input);

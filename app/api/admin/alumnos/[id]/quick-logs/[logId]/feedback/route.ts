@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import {
   ADMIN_SESSION_COOKIE,
@@ -37,6 +38,7 @@ export async function PUT(
     return Response.json({ error: failure.error }, { status: failure.status });
   }
   const { id: studentId, logId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const input = (await request.json().catch(() => null)) as {
     preset?: unknown;
     text?: unknown;

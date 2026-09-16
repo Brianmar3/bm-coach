@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import {
   ADMIN_SESSION_COOKIE,
@@ -38,6 +39,7 @@ export async function PUT(
   }
 
   const { id: studentId, source, recordId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   if (source === "class") {
     return Response.json(
       { error: "Los registros presenciales históricos son de solo lectura." },

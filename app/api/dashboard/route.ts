@@ -25,6 +25,7 @@ import { registeredTodaySummary, type TraceablePayment } from "@/lib/monthly-tra
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { normalizeArgentineWhatsAppPhone } from "@/lib/argentine-phone";
 import { effectiveOccurrenceId, effectiveSessionForStudentsOnDate } from "@/lib/effective-class-session";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +69,7 @@ export async function GET() {
   try {
     const unauthorized = await requireAdminApiResponse();
     if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const today = argentinaDateKey();
     const monthStart = `${today.slice(0, 7)}-01`;
     const nextMonthStart = addMonthsToDateKey(monthStart);
@@ -80,11 +82,11 @@ export async function GET() {
     const recentActivityStart = dateKeyToDatabase(addDays(today, -6));
     const establishedBefore = argentinaDateTimeBoundary(addDays(today, -7));
     const weekday = WEEKDAY[todayDate.getUTCDay()];
-    await ensureClassOccurrences(35);
+    await ensureClassOccurrences(35, workspaceId);
 
     const [studentRecords, paymentRecords, todayPaymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events, evaluations, pointTotals, routineAssignments, classAssignments, recentWorkouts, recentAttendances, recentOccurrenceAttendances] = await Promise.all([
       prisma.studentRecord.findMany({
-        where: coachedStudentsWhere,
+        where: { workspaceId, AND: [coachedStudentsWhere] },
         select: {
           id: true,
           data: true,
@@ -94,17 +96,17 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
       }),
       prisma.studentPayment.findMany({
-        where: { status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
+        where: { student: { workspaceId }, status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
         select: { amount: true, paidDate: true },
         orderBy: { paidDate: "asc" },
       }),
       prisma.studentPayment.findMany({
-        where: { status: "PAGADO", createdAt: { gte: argentinaDateTimeBoundary(today), lt: argentinaDateTimeBoundary(addDays(today, 1)) } },
+        where: { student: { workspaceId }, status: "PAGADO", createdAt: { gte: argentinaDateTimeBoundary(today), lt: argentinaDateTimeBoundary(addDays(today, 1)) } },
         select: { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true, method: true, status: true, createdAt: true },
         orderBy: [{ createdAt: "desc" }],
       }),
       weekday ? prisma.classOccurrence.findMany({
-        where: { date: todayDate },
+        where: { workspaceId, date: todayDate },
         include: {
           schedule: { include: { assignments: { where: { active: true }, include: { student: { select: { data: true } } } } } },
           responses: { include: { student: { select: { data: true } } } },
@@ -113,57 +115,58 @@ export async function GET() {
       }) : Promise.resolve([]),
       prisma.classAttendance.groupBy({
         by: ["scheduleId"],
-        where: { date: { gte: todayDate, lt: tomorrowDate }, status: "PRESENT" },
+        where: { student: { workspaceId }, date: { gte: todayDate, lt: tomorrowDate }, status: "PRESENT" },
         _count: { _all: true },
       }),
       prisma.classAttendance.groupBy({
         by: ["date", "status"],
-        where: { date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
+        where: { student: { workspaceId }, date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
         _count: { _all: true },
         orderBy: { date: "asc" },
       }),
       prisma.classOccurrenceAttendance.findMany({
         where: {
           actualAttendance: { not: "UNKNOWN" },
-          occurrence: { date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
+          occurrence: { workspaceId, date: { gte: dateKeyToDatabase(weekStart), lt: dateKeyToDatabase(nextWeekStart) } },
         },
         select: { actualAttendance: true, occurrence: { select: { date: true } } },
       }),
       prisma.coachEvent.findMany({
-        where: { status: "PENDIENTE", date: { gte: todayDate } },
+        where: { workspaceId, status: "PENDIENTE", date: { gte: todayDate } },
         orderBy: [{ date: "asc" }, { time: "asc" }],
         take: 3,
       }),
       prisma.physicalEvaluation.findMany({
+        where: { student: { workspaceId } },
         select: { studentId: true, status: true, reassessmentDate: true },
         distinct: ["studentId"],
         orderBy: [{ studentId: "asc" }, { date: "desc" }, { version: "desc" }],
       }),
       prisma.studentPointTransaction.groupBy({
         by: ["studentId"],
-        where: { active: true, occurredAt: { gte: argentinaDateTimeBoundary(monthStart) } },
+        where: { student: { workspaceId }, active: true, occurredAt: { gte: argentinaDateTimeBoundary(monthStart) } },
         _sum: { points: true },
       }),
       prisma.trainingRoutineAssignment.findMany({
-        where: { active: true, assignedAt: { lte: establishedBefore }, routine: { kind: "ASSIGNED", status: "ACTIVA", days: { some: { active: true } } } },
+        where: { student: { workspaceId }, active: true, assignedAt: { lte: establishedBefore }, routine: { workspaceId, kind: "ASSIGNED", status: "ACTIVA", days: { some: { active: true } } } },
         select: { studentId: true },
       }),
       prisma.weeklyClassAssignment.findMany({
-        where: { active: true, assignedAt: { lte: establishedBefore }, schedule: { active: true } },
+        where: { student: { workspaceId }, active: true, assignedAt: { lte: establishedBefore }, schedule: { workspaceId, active: true } },
         select: { studentId: true },
       }),
       prisma.workoutSession.findMany({
-        where: { status: "COMPLETED", date: { gte: recentActivityStart, lt: tomorrowDate } },
+        where: { student: { workspaceId }, routine: { workspaceId }, status: "COMPLETED", date: { gte: recentActivityStart, lt: tomorrowDate } },
         select: { id: true, studentId: true, routineId: true, routineNameSnapshot: true, date: true, updatedAt: true },
         orderBy: { updatedAt: "desc" },
       }),
       prisma.classAttendance.findMany({
-        where: { status: "PRESENT", date: { lt: tomorrowDate } },
+        where: { student: { workspaceId }, status: "PRESENT", date: { lt: tomorrowDate } },
         select: { studentId: true, date: true },
         orderBy: { date: "desc" },
       }),
       prisma.classOccurrenceAttendance.findMany({
-        where: { actualAttendance: "PRESENT", occurrence: { date: { lt: tomorrowDate } } },
+        where: { student: { workspaceId }, actualAttendance: "PRESENT", occurrence: { workspaceId, date: { lt: tomorrowDate } } },
         select: { studentId: true, occurrence: { select: { date: true } } },
       }),
     ]);

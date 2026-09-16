@@ -8,9 +8,10 @@ import type { Student } from "@/types/gestion";
 import type { StudentRankingEntry } from "@/types/points";
 import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } from "@/lib/student-service";
 
-export async function loadPointRanking(period: PointRankingPeriod = "month") {
+export async function loadPointRanking(period: PointRankingPeriod, workspaceId: string) {
+  if (!workspaceId) throw new Error("Workspace requerido para ranking.");
   const from = pointPeriodStart(period);
-  const allStudents = await prisma.studentRecord.findMany({ where: coachedStudentsWhere, select: { id: true, data: true, serviceType: true }, orderBy: { createdAt: "asc" } });
+  const allStudents = await prisma.studentRecord.findMany({ where: { AND: [coachedStudentsWhere], workspaceId }, select: { id: true, data: true, serviceType: true }, orderBy: { createdAt: "asc" } });
   const students = allStudents.filter((record) => (record.data as unknown as Student).status !== "inactivo" && isCompetitiveGamificationEligible(record.serviceType));
   const studentIds = students.map((student) => student.id);
   const [allMovements, membershipPeriods] = await Promise.all([

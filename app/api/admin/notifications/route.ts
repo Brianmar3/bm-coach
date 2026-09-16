@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
@@ -10,7 +11,6 @@ import { validRequestOrigin } from "@/lib/portal-auth";
 import {
   buildAttendanceMessage,
   buildAttendanceUrl,
-  TRAINER_OWNER_KEY,
 } from "@/lib/trainer-notifications";
 import { databaseDateKey } from "@/lib/payment-dates";
 import { occurrenceClassName } from "@/lib/class-occurrences";
@@ -30,7 +30,7 @@ export async function GET() {
 
   const [notifications, unreadCount] = await Promise.all([
     prisma.trainerNotification.findMany({
-      where: { ownerKey: TRAINER_OWNER_KEY },
+      where: { workspaceId: (await requireTrainerWorkspace()).workspaceId },
       orderBy: { createdAt: "desc" },
       take: 40,
       select: {
@@ -69,7 +69,7 @@ export async function GET() {
     }),
     prisma.trainerNotification.count({
       where: {
-        ownerKey: TRAINER_OWNER_KEY,
+        workspaceId: (await requireTrainerWorkspace()).workspaceId,
         readAt: null,
       },
     }),
@@ -133,7 +133,7 @@ export async function PATCH(request: Request) {
   if (body?.all === true) {
     await prisma.trainerNotification.updateMany({
       where: {
-        ownerKey: TRAINER_OWNER_KEY,
+        workspaceId: (await requireTrainerWorkspace()).workspaceId,
         readAt: null,
       },
       data: { readAt: new Date() },
@@ -152,7 +152,7 @@ export async function PATCH(request: Request) {
   const result = await prisma.trainerNotification.updateMany({
     where: {
       id,
-      ownerKey: TRAINER_OWNER_KEY,
+      workspaceId: (await requireTrainerWorkspace()).workspaceId,
     },
     data: { readAt: new Date() },
   });
@@ -176,7 +176,7 @@ export async function DELETE(request: Request) {
   }
 
   const result = await prisma.trainerNotification.deleteMany({
-    where: { ownerKey: TRAINER_OWNER_KEY },
+    where: { workspaceId: (await requireTrainerWorkspace()).workspaceId },
   });
 
   return NextResponse.json({ ok: true, deletedCount: result.count, unreadCount: 0 });

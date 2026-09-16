@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, normalizeUsername, temporaryPassword } from "@/lib/portal-auth";
 import type { Student } from "@/types/gestion";
@@ -23,6 +24,7 @@ async function uniqueUsername(student: Student, studentId: string) {
 
 export async function GET(_request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   const credential = await prisma.studentPortalCredential.findUnique({ where: { studentId: id } });
   return Response.json(credential ? accessResponse(credential) : { exists: false, active: false });
 }
@@ -30,6 +32,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/admin/a
 export async function POST(request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
   try {
     const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const existing = await prisma.studentPortalCredential.findUnique({ where: { studentId: id } });
     if (existing) return Response.json({ error: "El alumno ya tiene acceso. Usá Restablecer contraseña." }, { status: 409 });
     const record = await prisma.studentRecord.findUnique({ where: { id } });
@@ -53,6 +56,7 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
 export async function PATCH(request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
   try {
     const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const body = (await request.json()) as { action?: "reset" | "activate" | "deactivate" };
     const existing = await prisma.studentPortalCredential.findUnique({ where: { studentId: id } });
     if (!existing) return Response.json({ error: "El alumno todavía no tiene acceso." }, { status: 404 });
@@ -85,6 +89,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/admin/
 
 export async function DELETE(_request: Request, context: RouteContext<"/api/admin/alumnos/[id]/acceso">) {
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   await prisma.studentPortalCredential.deleteMany({ where: { studentId: id } });
   return new Response(null, { status: 204 });
 }

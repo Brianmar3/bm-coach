@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { createRoutineDays, databaseUnavailable, routineFingerprint, routineInclude, routineVersionSnapshot, serializeRoutine, validateRoutine, type ExerciseInput, type RoutineInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { cleanRoutineCopyName } from "@/lib/routine-creation";
+import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ type CopyRequest = {
 export async function POST(request: Request, context: RouteContext<"/api/rutinas/[id]/duplicar">) {
   try {
     const { id } = await context.params;
+    const { workspaceId } = await requireTrainerWorkspace();
+    await assertRoutineInWorkspace(id, workspaceId, { allowGlobal: true });
     const body = await request.json().catch(() => ({})) as CopyRequest;
     const mode = body.mode ?? "duplicate";
     const source = await prisma.trainingRoutine.findUnique({ where: { id }, include: routineInclude });
@@ -33,7 +36,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       : [];
     if (new Set(requestedStudentIds).size !== requestedStudentIds.length) return Response.json({ error: "La selección contiene alumnos repetidos." }, { status: 400 });
     if (mode === "useTemplate" && !requestedStudentIds.length) return Response.json({ error: "Seleccioná al menos un alumno destino." }, { status: 400 });
-    const existingStudents = requestedStudentIds.length ? await prisma.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: requestedStudentIds } } }) : 0;
+    const existingStudents = requestedStudentIds.length ? await prisma.studentRecord.count({ where: { workspaceId, AND: [coachedStudentsWhere], id: { in: requestedStudentIds } } }) : 0;
     if (existingStudents !== requestedStudentIds.length) return Response.json({ error: "Uno o más alumnos destino ya no existen." }, { status: 404 });
 
     const days = source.days.map((day) => ({
@@ -115,6 +118,8 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
       }
       const created = await transaction.trainingRoutine.create({
         data: {
+          workspaceId,
+          scope: "WORKSPACE",
           name: input.name,
           kind: input.kind === "template" ? "TEMPLATE" : "ASSIGNED",
           description: input.description,

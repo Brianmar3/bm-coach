@@ -126,7 +126,7 @@ test("las APIs requieren sesión, validan contenido y protegen carpetas con bloq
   assert.match(blocksApi, /requireAdminApiResponse/);
   assert.match(blocksApi, /validateLibraryBlockPayload/);
   assert.match(blocksApi, /trainingBlockTemplate\.create/);
-  assert.match(foldersApi, /trainingBlockTemplate\.count\(\{ where: \{ folderId: id \} \}\)/);
+  assert.match(foldersApi, /trainingBlockTemplate\.count\(\{ where: \{ folderId: id, workspaceId \} \}\)/);
   assert.match(foldersApi, /La carpeta contiene bloques y no puede eliminarse/);
 });
 
@@ -144,7 +144,7 @@ test("el borrado definitivo elimina sólo el template y usa confirmación propia
 
 test("favoritos se persiste con el PATCH existente y sólo permite bloques activos", () => {
   assert.match(blockApi, /typeof isFavorite === "boolean"/);
-  assert.match(blockApi, /findFirst\(\{ where: \{ id, status: "ACTIVE" \}/);
+  assert.match(blockApi, /findFirst\(\{ where: \{ id, workspaceId, scope: "WORKSPACE", status: "ACTIVE" \}/);
   assert.match(blockApi, /data: \{ isFavorite \}/);
   assert.match(blockApi, /serializeLibraryBlock\(record\)/);
   assert.doesNotMatch(blockApi, /localStorage/);

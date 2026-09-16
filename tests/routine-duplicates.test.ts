@@ -53,7 +53,7 @@ test("considera segura sólo una rutina no activa y completamente vacía de rela
 test("el endpoint bloquea relaciones concurrentes y revalida antes del borrado", () => {
   const source = readFileSync(new URL("../app/api/rutinas/duplicados/route.ts", import.meta.url), "utf8");
   assert.match(source, /FOR UPDATE/);
-  assert.match(source, /loadRoutineDuplicateGroups\(transaction\)/);
+  assert.match(source, /loadRoutineDuplicateGroups\(transaction, workspaceId\)/);
   assert.match(source, /safeToDelete/);
   assert.match(source, /status: 409/);
   assert.match(source, /Esta rutina ahora tiene información asociada y ya no puede eliminarse de forma segura/);

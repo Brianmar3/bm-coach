@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
 import { monthRange, serializeAttendance } from "@/lib/attendance";
@@ -25,6 +26,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (failure) return Response.json({ error: failure.error }, { status: failure.status });
 
   const { id } = await context.params;
+  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
   const panel = new URL(request.url).searchParams.get("panel") as Panel | null;
   if (!panel || !PANELS.includes(panel)) return Response.json({ error: "El panel solicitado no es válido." }, { status: 400 });
 

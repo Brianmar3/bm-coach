@@ -125,7 +125,7 @@ test("persistencia es transaccional, idempotente y archiva sin borrar historial"
 test("pantalla elige creador sin rutina y reproductor existente con rutina activa", () => {
   const page = readFileSync(new URL("../app/portal/autogestion/rutina/page.tsx", import.meta.url), "utf8");
   const player = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
-  assert.match(page, /hasActivePortalRoutine\(studentId\)/);
+  assert.match(page, /hasActivePortalRoutine\(studentId, workspaceId\)/);
   assert.match(page, /PortalSection section="rutina"/);
   assert.match(page, /dataEndpoint="\/api\/portal\/autogestion\/rutina" selfService/);
   for (const expected of ["Kg de la serie", "Reps de la serie", "RIR", "ExerciseRestTimer", "Finalizar entrenamiento"]) assert.ok(player.includes(expected), expected);
@@ -144,7 +144,7 @@ test("sesiones propias alimentan historial y no disparan notificación al entren
 test("Evaluaciones filtra SELF_SERVICE en query y read model", () => {
   const api = readFileSync(new URL("../app/api/admin/evaluaciones/progreso/route.ts", import.meta.url), "utf8");
   const filter = readFileSync(new URL("../lib/evaluation-student-filter.ts", import.meta.url), "utf8");
-  assert.match(api, /where: coachedStudentsWhere/);
+  assert.match(api, /where: \{ workspaceId, AND: \[coachedStudentsWhere/);
   assert.match(api, /accountType: data\.accountType === "SELF_SERVICE"/);
   assert.match(filter, /student\.accountType === "SELF_SERVICE"/);
 });

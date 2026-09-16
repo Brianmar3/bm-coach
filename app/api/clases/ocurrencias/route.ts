@@ -2,6 +2,7 @@ import { databaseDateKey, dateKeyToDatabase, isDateKey } from "@/lib/payment-dat
 import { ensureClassOccurrences, occurrenceClassName, occurrenceHasEnded, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
 import { effectiveOccurrenceId, effectiveSessionForStudentsOnDate } from "@/lib/effective-class-session";
 import { prisma } from "@/lib/prisma";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,10 +14,11 @@ function studentName(data: unknown) {
 
 export async function GET(request: Request) {
   try {
-    await ensureClassOccurrences(35);
+    const { workspaceId } = await requireTrainerWorkspace();
+    await ensureClassOccurrences(35, workspaceId);
     const url = new URL(request.url);
     const date = url.searchParams.get("date");
-    const where = { suppressedBySchedule: false, ...(date && isDateKey(date) ? { date: dateKeyToDatabase(date) } : {}) };
+    const where = { workspaceId, suppressedBySchedule: false, ...(date && isDateKey(date) ? { date: dateKeyToDatabase(date) } : {}) };
     const occurrences = await prisma.classOccurrence.findMany({
       where,
       include: {

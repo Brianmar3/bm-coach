@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace, assertStudentInWorkspace } from "@/lib/trainer-workspace";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   try {
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
     if (!studentId) return Response.json(await paymentDashboard());
-    const student = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { id: true } });
+    const student = await prisma.studentRecord.findUnique({ where: { id: studentId, workspaceId: (await requireTrainerWorkspace()).workspaceId }, select: { id: true } });
     if (!student) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
     const payments = await prisma.studentPayment.findMany({
       where: { studentId },
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
     const validationError = validate(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
 
+    await assertStudentInWorkspace(input.studentId, (await requireTrainerWorkspace()).workspaceId);
     const result = await prisma.$transaction(async (transaction) => {
       if (input.requestKey) {
         const prior = await transaction.studentPayment.findUnique({ where: { requestKey: input.requestKey }, include: { student: true } });

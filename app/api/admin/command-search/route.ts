@@ -1,3 +1,5 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { normalizeCommandQuery } from "@/lib/trainer-commands";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +14,7 @@ export async function GET(request: Request) {
   if (query.length < 2) return Response.json([]);
 
   const records = await prisma.studentRecord.findMany({
+    where: { AND: [coachedStudentsWhere], workspaceId: (await requireTrainerWorkspace()).workspaceId },
     select: { id: true, serviceType: true, data: true },
     orderBy: { updatedAt: "desc" },
   });

@@ -62,9 +62,11 @@ export async function GET() {
   if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Las clases grupales no están disponibles para tu servicio." }, { status: 403 });
   if (session.credential.mustChangePassword) return Response.json({ error: "Primero cambiá tu contraseña.", code: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
   try {
+    const workspaceId = session.credential.student.workspaceId;
+    if (!workspaceId) return Response.json({ error: "Workspace pendiente de configurar." }, { status: 403 });
     const student = session.credential.student.data as unknown as Student;
     const assignments = await prisma.weeklyClassAssignment.findMany({
-      where: { studentId: session.studentId },
+      where: { studentId: session.studentId, schedule: { workspaceId } },
       include: { schedule: true },
     });
     const schedules = selectActivePortalSchedules(assignments);
@@ -82,9 +84,10 @@ export async function GET() {
         summary: agenda.summary,
       });
     }
-    const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS);
+    const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS, workspaceId);
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
+        workspaceId,
         date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) },
         schedule: { active: true, archivedAt: null },
       },
@@ -122,6 +125,8 @@ export async function POST(request: Request) {
   const student = session.credential.student.data as unknown as Student;
   if (!studentClassAvailability(student.status, student.lifecycleStatus).eligible) return Response.json({ error: "Tu cuenta no tiene clases activas." }, { status: 403 });
   try {
+    const workspaceId = session.credential.student.workspaceId;
+    if (!workspaceId) return Response.json({ error: "Workspace pendiente de configurar." }, { status: 403 });
     const input = await request.json() as { occurrenceId?: unknown; response?: unknown };
     if (typeof input.occurrenceId !== "string" || !["GOING", "NOT_GOING"].includes(String(input.response))) {
       return Response.json({ error: "La clase o la respuesta no son válidas." }, { status: 400 });
@@ -130,7 +135,7 @@ export async function POST(request: Request) {
     const requestedResponse = input.response === "GOING" ? "GOING" : "NOT_GOING";
     const result = await prisma.$transaction(async (transaction) => {
       const occurrence = await transaction.classOccurrence.findUnique({
-        where: { id: occurrenceId },
+        where: { id: occurrenceId, workspaceId },
         include: {
           schedule: {
             select: {
@@ -146,7 +151,7 @@ export async function POST(request: Request) {
       if (!occurrence.schedule?.active || occurrence.schedule.archivedAt || !classIsEligibleForStudent(occurrence.schedule.classType, student.studentType)) throw new Error("NOT_FOUND");
       if (occurrence.status !== "SCHEDULED" || occurrenceHasStarted(occurrence.date, occurrence.startTime)) throw new Error("CLOSED");
       const dateOccurrences = await transaction.classOccurrence.findMany({
-        where: { date: occurrence.date, suppressedBySchedule: false },
+        where: { workspaceId, date: occurrence.date, suppressedBySchedule: false },
         select: {
           id: true,
           scheduleId: true,
@@ -200,12 +205,13 @@ export async function POST(request: Request) {
         response: requestedResponse,
       } as const;
       const queuedNotification =
-        await createAttendanceTrainerNotification(notificationInput);
+        await createAttendanceTrainerNotification(notificationInput, workspaceId);
       if (queuedNotification) {
         after(async () => {
           await dispatchTrainerPush(
             queuedNotification.notification.id,
             queuedNotification.payload,
+            workspaceId,
           );
         });
       }

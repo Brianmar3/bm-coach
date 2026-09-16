@@ -12,7 +12,9 @@ export default async function StudentPortalLayout({ children }: { children: Reac
   const student = session.credential.student.data as unknown as Student;
   if (!session.credential.mustChangePassword && !onboardingIsComplete(student)) redirect("/portal/onboarding");
   const [hasRoutine] = await Promise.all([
-    hasActivePortalRoutine(session.studentId),
+    session.credential.student.workspaceId
+      ? hasActivePortalRoutine(session.studentId, session.credential.student.workspaceId)
+      : Promise.resolve(false),
     establishAchievementBaseline(session.studentId),
   ]);
   return <PortalShell studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={student.profileImageUrl ?? ""} serviceType={session.credential.student.serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;

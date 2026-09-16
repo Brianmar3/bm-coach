@@ -94,7 +94,7 @@ test("la inserción ocurre en el día actual, al final, sin guardar la rutina", 
 
 test("lastUsedAt es metadata secundaria y sólo acepta templates activos", () => {
   assert.match(route, /action === "markUsed"/);
-  assert.match(route, /findFirst\(\{ where: \{ id, status: "ACTIVE" \}/);
+  assert.match(route, /findFirst\(\{ where: \{ id, workspaceId, scope: "WORKSPACE", status: "ACTIVE" \}/);
   assert.match(route, /data: \{ lastUsedAt: new Date\(\) \}/);
   assert.match(route, /Response\.json\(serializeLibraryBlock\(updated\)\)/);
   const insertion = page.slice(page.indexOf("function BlockAdder"), page.indexOf("function ClassTemplateEditor"));

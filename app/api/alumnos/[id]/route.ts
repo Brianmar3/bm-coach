@@ -1,3 +1,5 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { duplicatePhone, getStudentPlanOptions, normalizePhone, parseStudentInput, serializeStudent, studentInclude, studentJsonData } from "@/lib/student-enrollment";
@@ -14,7 +16,7 @@ const missingRecord = (error: unknown) => error instanceof Prisma.PrismaClientKn
 export async function GET(_request: Request, context: RouteContext<"/api/alumnos/[id]">) {
   try {
     const { id } = await context.params;
-    const record = await prisma.studentRecord.findUnique({ where: { id }, include: studentInclude });
+    const record = await prisma.studentRecord.findUnique({ where: { id, workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] }, include: studentInclude });
     if (!record) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
     return Response.json(serializeStudent(record));
   } catch (error) {
@@ -32,7 +34,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
     const input = parsed.data;
     const normalizedPhone = normalizePhone(input.phone);
     const record = await prisma.$transaction(async (transaction) => {
-      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, data: true, serviceType: true } });
+      const current = await transaction.studentRecord.findUnique({ where: { id, workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true, serviceType: true } });
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
       if (normalizedPhone && await duplicatePhone(transaction, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
       const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
@@ -44,7 +46,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       if (schedules.some((schedule) => !schedule.assignments.some((assignment) => assignment.active) && schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
       await recordStudentHistoryChange(transaction, id, current.data, current.serviceType, input);
       await transaction.studentRecord.update({
-        where: { id },
+        where: { id, workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] },
         data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: { ...(current.data as Prisma.JsonObject), ...studentJsonData(input) } },
       });
       await transaction.weeklyClassAssignment.updateMany({ where: { studentId: id, active: true, scheduleId: { notIn: input.scheduleIds } }, data: { active: false, endedAt: new Date() } });
@@ -55,7 +57,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
           update: { active: true, endedAt: null },
         });
       }
-      return transaction.studentRecord.findUniqueOrThrow({ where: { id }, include: studentInclude });
+      return transaction.studentRecord.findUniqueOrThrow({ where: { id, workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] }, include: studentInclude });
     });
     await reconcileStudentPointsAfterMutation(id);
     return Response.json(serializeStudent(record));
@@ -74,7 +76,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/alum
   try {
     const { id } = await context.params;
     const record = await prisma.$transaction(async (transaction) => {
-      const current = await transaction.studentRecord.findUnique({ where: { id }, select: { id: true, data: true, serviceType: true } });
+      const current = await transaction.studentRecord.findUnique({ where: { id, workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true, serviceType: true } });
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
       const now = new Date();
       const currentPeriod = dateKeyToDatabase(argentinaDateKey());
@@ -90,10 +92,10 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/alum
         }),
       ]);
       await transaction.studentRecord.update({
-        where: { id },
+        where: { id, workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] },
         data: { primaryScheduleId: null, data: { ...(current.data as Prisma.JsonObject), status: "inactivo", lifecycleStatus: "inactivo" } },
       });
-      return transaction.studentRecord.findUniqueOrThrow({ where: { id }, include: studentInclude });
+      return transaction.studentRecord.findUniqueOrThrow({ where: { id, workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] }, include: studentInclude });
     });
     return Response.json({ action: "deactivated", student: serializeStudent(record) });
   } catch (error) {

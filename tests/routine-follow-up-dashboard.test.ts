@@ -57,7 +57,7 @@ test("el entrenador elimina únicamente la sesión elegida con confirmación", (
   assert.match(dashboard, /method: "DELETE"/);
   assert.match(dashboard, /JSON\.stringify\(\{ sessionId: session\.id \}\)/);
   assert.match(followUpApi, /requireAdminApiResponse\(\)/);
-  assert.match(followUpApi, /workoutSession\.deleteMany\(\{ where: \{ id: input\.sessionId \} \}\)/);
+  assert.match(followUpApi, /workoutSession\.deleteMany\(\{ where: \{ id: input\.sessionId, student: \{ workspaceId \}, routine: \{ workspaceId \} \} \}\)/);
   assert.doesNotMatch(followUpApi, /trainingRoutine\.delete/);
 });
 

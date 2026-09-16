@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { evaluationInclude, serializeWorkflowEvaluation } from "@/lib/evaluation-persistence";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/admin/a
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const records = await prisma.physicalEvaluation.findMany({ where: { studentId }, include: evaluationInclude, orderBy: [{ date: "desc" }, { version: "desc" }], take: 5 });
   const evaluation = selectEvaluationForPlanning(records.map(serializeWorkflowEvaluation));
   if (!evaluation) return Response.json({ studentId, evaluation: null, interpretation: interpretEvaluation(null, argentinaDateKey()) });

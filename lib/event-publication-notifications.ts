@@ -14,7 +14,7 @@ export async function notifyPublishedCoachEvent(event: CoachEvent) {
   if (!event.showToStudents || event.status !== "PENDIENTE") return;
   try {
     const students = await prisma.studentRecord.findMany({
-      where: { AND: [coachedStudentsWhere, event.audience === "ALL" ? {} : { serviceType: event.audience }] },
+      where: { workspaceId: event.workspaceId, AND: [coachedStudentsWhere, event.audience === "ALL" ? {} : { serviceType: event.audience }] },
       select: { id: true },
     });
     const title = "Nuevo evento en BM Training";

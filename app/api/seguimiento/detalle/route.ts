@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { Student } from "@/types/gestion";
@@ -6,7 +7,7 @@ import type { AdminExerciseProgress, AdminFollowUpDetail, AdminWorkoutSession } 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const blockLabels: Record<string, string> = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "Por tiempo", FREE: "Libre" };
+const blockLabels: Record<string, string> = { STRENGTH: "Fuerza", ROUNDS: "Circuito", INTERVAL: "Intervalos", EMOM: "EMOM", AMRAP: "AMRAP", FOR_TIME: "Por tiempo", FREE: "Libre", MOBILITY: "Movilidad" };
 const decimal = (value: Prisma.Decimal | null) => value === null ? null : Number(value);
 function studentName(data: Prisma.JsonValue) { const value = data as unknown as Student; return `${value.firstName ?? ""} ${value.lastName ?? ""}`.trim() || "Alumno"; }
 
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
   try {
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
     if (!studentId) return Response.json({ error: "Alumno requerido." }, { status: 400 });
+    await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
     const [sessions, evaluations, studentRecord] = await Promise.all([
       prisma.workoutSession.findMany({
         where: { studentId }, include: { student: true, routine: true, day: true, blocks: true,

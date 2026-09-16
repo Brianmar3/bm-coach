@@ -29,7 +29,7 @@ import { normalizeTransferDetails } from "@/lib/transfer-payment";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function loadHomeInsights(studentId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date, includeClasses: boolean, serviceType: "CLASSES" | "PERSONALIZED" | "MIXED", pointMovementLimit = 8) {
+async function loadHomeInsights(studentId: string, workspaceId: string, primaryScheduleId: string | null, joinedAt: string, studentStatus: string, plan: string, todayKey: string, weekStart: Date, includeClasses: boolean, serviceType: "CLASSES" | "PERSONALIZED" | "MIXED", pointMovementLimit = 8) {
   const activityStartKey = joinedAt && joinedAt > BM_TRAINING_START_DATE ? joinedAt : BM_TRAINING_START_DATE;
   const activityStart = dateKeyToDatabase(activityStartKey);
   const meaningfulEvaluation = {
@@ -66,7 +66,7 @@ async function loadHomeInsights(studentId: string, primaryScheduleId: string | n
     loadStrengthAchievements(studentId, activityStart),
     loadQuickLogAchievements(studentId),
     loadUnifiedRecordAchievements(studentId, activityStart),
-    prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId) }),
+    prisma.trainingRoutine.count({ where: activePortalRoutineWhere(studentId, workspaceId) }),
     loadStudentPointSummary(studentId, pointMovementLimit),
   ]);
   const currentAttendance: PortalAttendanceRecord[] = newAttendanceDates.map((item) => ({
@@ -137,14 +137,14 @@ export async function GET(request: Request) {
     const weekStart = new Date(today); weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio" || section === "puntos" || section === "puntos-historial"
-      ? loadHomeInsights(studentId, session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled, serviceType, section === "puntos-historial" ? 40 : 8)
+      ? loadHomeInsights(studentId, session.credential.student.workspaceId ?? "", session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled, serviceType, section === "puntos-historial" ? 40 : 8)
       : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules, paymentObligationRecords, paidAmountsByPeriod] = await Promise.all([
-      prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId), include: routineInclude, orderBy: { updatedAt: "desc" } }),
+      prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId, session.credential.student.workspaceId ?? ""), include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
-      prisma.evaluationRecord.findMany({ orderBy: { createdAt: "desc" } }),
+      prisma.evaluationRecord.findMany({ where: { workspaceId: session.credential.student.workspaceId }, orderBy: { createdAt: "desc" } }),
       prisma.studentPayment.findMany({ where: { studentId, status: "PAGADO" }, include: { student: true }, orderBy: [{ paidDate: "desc" }, { createdAt: "desc" }], take: fullPaymentHistory ? 50 : section === "inicio" ? 1 : 0 }),
-      prisma.coachEvent.findMany({ where: { status: "PENDIENTE", showToStudents: true, audience: { in: ["ALL", serviceType] }, date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
+      prisma.coachEvent.findMany({ where: { workspaceId: session.credential.student.workspaceId, status: "PENDIENTE", showToStudents: true, audience: { in: ["ALL", serviceType] }, date: { gte: today } }, orderBy: [{ date: "asc" }, { time: "asc" }], take: 8 }),
       prisma.workoutSession.findMany({
         where: { studentId },
         include: { day: true, routine: true, blocks: true, exercises: { include: { exercise: true, sets: { orderBy: { setNumber: "asc" } } } } },
@@ -157,10 +157,10 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "desc" },
       }),
       groupClassesEnabled && session.credential.student.primaryScheduleId
-        ? prisma.weeklyClassSchedule.findUnique({ where: { id: session.credential.student.primaryScheduleId } })
+        ? prisma.weeklyClassSchedule.findFirst({ where: { id: session.credential.student.primaryScheduleId, workspaceId: session.credential.student.workspaceId } })
         : Promise.resolve(null),
       homeInsightsPromise,
-      section === "pagos" || section === "inicio" ? prisma.coachSettingsRecord.findFirst({ orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
+      section === "pagos" || section === "inicio" ? prisma.coachSettingsRecord.findFirst({ where: { workspaceId: session.credential.student.workspaceId }, orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
       groupClassesEnabled ? prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }) : Promise.resolve([]),
       section === "pagos" ? prisma.monthlyStudentObligation.findMany({ where: { studentId }, orderBy: [{ period: "desc" }, { dueDate: "desc" }], take: 12 }) : Promise.resolve([]),
       section === "pagos" ? prisma.studentPayment.groupBy({ by: ["billingPeriod"], where: { studentId, status: "PAGADO", billingPeriod: { not: null } }, _sum: { amount: true } }) : Promise.resolve([]),

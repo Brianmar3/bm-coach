@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -16,7 +17,7 @@ function databaseUnavailable(error: unknown) {
 
 export async function GET() {
   try {
-    const records = await prisma.studentRecord.findMany({ where: coachedStudentsWhere, include: studentInclude, orderBy: { updatedAt: "desc" } });
+    const records = await prisma.studentRecord.findMany({ where: { workspaceId: (await requireTrainerWorkspace()).workspaceId, AND: [coachedStudentsWhere] }, include: studentInclude, orderBy: { updatedAt: "desc" } });
     return Response.json(records.map(serializeStudent));
   } catch (error) {
     console.error("Error al consultar alumnos", error);
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
       if (schedules.some((schedule) => !schedule.active)) throw new EnrollmentError("Seleccioná únicamente horarios activos para el alta.");
       if (schedules.some((schedule) => schedule.capacity !== null && schedule._count.assignments >= schedule.capacity)) throw new EnrollmentError("Uno de los horarios seleccionados ya alcanzó su cupo.");
       const created = await transaction.studentRecord.create({
-        data: { id: randomUUID(), phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: studentJsonData(input) },
+        data: { workspaceId: (await requireTrainerWorkspace()).workspaceId, id: randomUUID(), phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: studentJsonData(input) },
       });
       await recordInitialStudentHistory(transaction, created.id, input);
       if (schedules.length) await transaction.weeklyClassAssignment.createMany({ data: schedules.map((schedule) => ({ scheduleId: schedule.id, studentId: created.id })) });

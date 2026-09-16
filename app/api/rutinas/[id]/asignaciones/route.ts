@@ -2,6 +2,7 @@ import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { databaseUnavailable, routineInclude, serializeRoutine } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
+import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: Request, context: RouteContext<"/api/rutinas/[id]/asignaciones">) {
   try {
     const { id } = await context.params;
+    await assertRoutineInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
     const record = await prisma.trainingRoutine.findUnique({ where: { id }, include: routineInclude });
     if (!record) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     return Response.json(serializeRoutine(record).students);
@@ -22,11 +24,13 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
 export async function PUT(request: Request, context: RouteContext<"/api/rutinas/[id]/asignaciones">) {
   try {
     const { id } = await context.params;
+    const { workspaceId } = await requireTrainerWorkspace();
+    await assertRoutineInWorkspace(id, workspaceId);
     const body = await request.json() as { studentIds?: string[] };
     if (!Array.isArray(body.studentIds)) return Response.json({ error: "La lista de alumnos no es válida." }, { status: 400 });
     const studentIds = body.studentIds.map((studentId) => studentId.trim()).filter(Boolean);
     if (new Set(studentIds).size !== studentIds.length) return Response.json({ error: "La selección contiene alumnos repetidos." }, { status: 400 });
-    const students = await prisma.studentRecord.count({ where: { AND: [coachedStudentsWhere], id: { in: studentIds } } });
+    const students = await prisma.studentRecord.count({ where: { workspaceId, AND: [coachedStudentsWhere], id: { in: studentIds } } });
     if (students !== studentIds.length) return Response.json({ error: "Uno o más alumnos seleccionados ya no existen." }, { status: 404 });
 
     const record = await prisma.$transaction(async (transaction) => {

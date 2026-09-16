@@ -1,3 +1,4 @@
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import {
   ADMIN_SESSION_COOKIE,
@@ -32,6 +33,7 @@ export async function GET(
     return Response.json({ error: failure.error }, { status: failure.status });
   }
   const { id: studentId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const today = argentinaDateKey();
   const weekStart = addDateKeyDays(today, -6);
   const [
@@ -140,6 +142,7 @@ export async function POST(
     return Response.json({ error: failure.error }, { status: failure.status });
   }
   const { id: studentId } = await context.params;
+  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
   const input = (await request.json().catch(() => null)) as
     | { text?: unknown }
     | null;
