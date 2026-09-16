@@ -3,6 +3,17 @@ export function isSelfService(value: unknown): boolean {
   return Boolean(value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, unknown>).accountType === "SELF_SERVICE");
 }
 
+export function personalWorkspaceData(studentId: string) {
+  if (!studentId.trim()) throw new Error("Falta el alumno del workspace PERSONAL.");
+  return {
+    name: "Mi entrenamiento",
+    slug: `personal-${studentId}`,
+    type: "PERSONAL" as const,
+    status: "ACTIVE" as const,
+    timeZone: "America/Argentina/Buenos_Aires",
+  };
+}
+
 export const SELF_SERVICE_GOALS = ["Ganar masa muscular", "Bajar grasa", "Mejorar salud", "Ganar fuerza", "Mejorar rendimiento", "Mantenerme activo"] as const;
 export const TRAINING_LOCATIONS = ["Gimnasio", "Casa", "Aire libre"] as const;
 export const EQUIPMENT_OPTIONS = ["Peso corporal", "Mancuernas", "Bandas", "Barra y discos", "Máquinas", "Banco"] as const;

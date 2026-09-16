@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, passwordValidationError, portalCookieOptions, PORTAL_COOKIE, sessionTokenHash, validRequestOrigin } from "@/lib/portal-auth";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions } from "@/lib/portal-experience";
-import { parseRegistration } from "@/lib/self-service";
+import { parseRegistration, personalWorkspaceData } from "@/lib/self-service";
 import { SELF_SERVICE_SIGNUP_ENABLED } from "@/lib/self-service-signup";
 
 export const runtime = "nodejs";
@@ -40,8 +40,12 @@ export async function POST(request: Request) {
         return (typeof data.email === "string" && data.email.trim().toLowerCase() === input.email) || record.phoneNormalized === phoneNormalized || (typeof data.phone === "string" && data.phone.replace(/\D/g, "") === phoneNormalized);
       })) throw new AccountConflict();
       const id = randomUUID();
+      const personalWorkspace = await tx.workspace.create({
+        data: personalWorkspaceData(id),
+        select: { id: true },
+      });
       await tx.studentRecord.create({ data: {
-        id, phoneNormalized,
+        id, workspaceId: personalWorkspace.id, phoneNormalized,
         // Legacy compatibility only: this does not grant a paid service or an assignment.
         serviceType: "PERSONALIZED",
         data: { id, firstName: input.firstName, lastName: input.lastName, email: input.email, phone: input.phone, accountType: "SELF_SERVICE", trainerId: null, serviceType: "PERSONALIZED", status: "activo", studentType: "Adulto", birthDate: "", height: 0, weight: 0, goal: "", plan: "", monthlyFee: 0, dueDate: "", joinedAt: new Date().toISOString().slice(0, 10), notes: "", onboardingCompleted: false },

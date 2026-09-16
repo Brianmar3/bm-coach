@@ -36,7 +36,7 @@ test("el login oculta el alta pública y conserva lenguaje natural", () => {
 });
 test("registro normaliza identidad y rechaza roles, IDs, servicios y datos inválidos", () => {
   assert.equal(selfService.parseRegistration(input)?.email, "ana@example.com");
-  for (const key of ["accountType", "role", "studentId", "serviceType", "trainerId"]) assert.equal(selfService.parseRegistration({ ...input, [key]: "admin" }), null);
+  for (const key of ["accountType", "role", "studentId", "serviceType", "trainerId", "workspaceId"]) assert.equal(selfService.parseRegistration({ ...input, [key]: "admin" }), null);
   for (const update of [{ phone: "abc" }, { email: "invalid" }, { confirmPassword: "other" }, { firstName: " " }]) assert.equal(selfService.parseRegistration({ ...input, ...update }), null);
   assert.equal(selfService.isSelfService({ serviceType: "PERSONALIZED" }), false);
   assert.equal(selfService.isSelfService({ accountType: "SELF_SERVICE" }), true);
@@ -53,10 +53,15 @@ test("datos físicos rechazan fechas inexistentes y valores no finitos", () => {
 
 function registrationHarness(options: { duplicate?: boolean; fail?: boolean; recent?: number; origin?: boolean; weak?: boolean; signupEnabled?: boolean } = {}) {
   const writes: Array<Record<string, any>> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const workspaceWrites: Array<{ data: ReturnType<typeof selfService.personalWorkspaceData> }> = [];
   const cookieWrites: unknown[] = [];
   let locks = 0;
   const tx = {
     $executeRaw: async () => { locks++; },
+    workspace: { create: async (value: { data: ReturnType<typeof selfService.personalWorkspaceData> }) => {
+      workspaceWrites.push(value);
+      return { id: `workspace-${value.data.slug}` };
+    } },
     studentRecord: { count: async () => options.recent ?? 0, findMany: async () => options.duplicate ? [{ data: { email: "ANA@EXAMPLE.COM" }, phoneNormalized: null }] : [], create: async (value: Record<string, unknown>) => { if (options.fail) throw new Error("database unavailable"); writes.push(value); } },
     studentPortalCredential: { findUnique: async () => null },
   };
@@ -68,7 +73,7 @@ function registrationHarness(options: { duplicate?: boolean; fail?: boolean; rec
     "@/lib/self-service": selfService,
     "@/lib/self-service-signup": { SELF_SERVICE_SIGNUP_ENABLED: options.signupEnabled ?? true },
   });
-  return { writes, cookieWrites, locks: () => locks, post: () => route.POST(new Request("http://localhost/api/portal/registro", { method: "POST", body: JSON.stringify(input) })) };
+  return { writes, workspaceWrites, cookieWrites, locks: () => locks, post: () => route.POST(new Request("http://localhost/api/portal/registro", { method: "POST", body: JSON.stringify(input) })) };
 }
 test("registro público cerrado redirige la página y bloquea el endpoint sin escribir", async () => {
   const page = readFileSync("app/portal/crear-cuenta/page.tsx", "utf8");
@@ -88,6 +93,10 @@ test("registro crea cuenta, credencial y sesión atómicamente y envía a onboar
   assert.equal(h.locks(), 1);
   assert.equal(h.writes.length, 1);
   const data = h.writes[0].data;
+  assert.equal(h.workspaceWrites.length, 1);
+  assert.deepEqual(h.workspaceWrites[0].data, selfService.personalWorkspaceData(data.id));
+  assert.equal(h.workspaceWrites[0].data.type, "PERSONAL");
+  assert.equal(data.workspaceId, `workspace-personal-${data.id}`);
   assert.equal(data.data.accountType, "SELF_SERVICE"); assert.equal(data.data.trainerId, null);
   assert.equal(data.data.monthlyFee, 0); assert.equal(data.data.plan, ""); assert.equal(data.data.onboardingCompleted, false);
   assert.equal(data.portalCredential.create.username, "ana@example.com");
