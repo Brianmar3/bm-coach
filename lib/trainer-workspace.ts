@@ -9,11 +9,11 @@ export async function requireTrainerWorkspace() {
   const auth = verifyAdminSessionValue((await cookies()).get(ADMIN_SESSION_COOKIE)?.value);
   if (!auth.ok) throw new Error("Autenticación administrativa requerida.");
   const memberships = await prisma.workspaceMembership.findMany({
-    where: { role: "OWNER", workspace: { slug: "bm-fuerza-funcional" } },
+    where: auth.userId ? { userId: auth.userId } : { role: "OWNER", workspace: { slug: "bm-fuerza-funcional" } },
     include: { user: true, workspace: true },
   });
-  if (memberships.length !== 1) throw new Error("Ejecutá y verificá el backfill del owner inicial.");
-  return authorizedTrainerWorkspace(memberships[0].userId, memberships);
+  if (!auth.userId && memberships.length !== 1) throw new Error("Ejecutá y verificá el backfill del owner inicial.");
+  return authorizedTrainerWorkspace(auth.userId ?? memberships[0].userId, memberships);
 }
 
 export async function assertStudentInWorkspace(studentId: string, workspaceId: string) {

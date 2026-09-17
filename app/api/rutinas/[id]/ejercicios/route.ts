@@ -1,6 +1,7 @@
 import { databaseUnavailable, exerciseData, serializeExercise, validateExercise, type ExerciseInput } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
     const days = await prisma.trainingRoutineDay.findMany({ where: { routineId: id }, include: { exercises: { orderBy: { order: "asc" } } }, orderBy: { dayNumber: "asc" } });
     return Response.json(days.flatMap((day) => day.exercises.map((exercise) => ({ ...serializeExercise(exercise), dayNumber: day.dayNumber }))));
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     console.error("Error al consultar ejercicios", error);
     const unavailable = databaseUnavailable(error);
     return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudieron cargar los ejercicios desde Neon." }, { status: unavailable ? 503 : 500 });
@@ -41,6 +43,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
     });
     return Response.json({ ...serializeExercise(exercise), dayNumber: input.dayNumber }, { status: 201 });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     console.error("Error al crear ejercicio", error);
     const unavailable = databaseUnavailable(error);
     return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudo guardar el ejercicio en Neon." }, { status: unavailable ? 503 : 500 });

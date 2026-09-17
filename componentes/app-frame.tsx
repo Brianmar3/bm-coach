@@ -10,7 +10,7 @@ import { TrainerCommandPalette } from "@/componentes/trainer-command-palette";
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const standalone = pathname.startsWith("/portal") || pathname === "/admin/login";
+  const standalone = pathname.startsWith("/portal") || pathname === "/admin/login" || pathname.startsWith("/trainer/invite/") || pathname === "/trainer/onboarding";
   const classesModule = pathname === "/clases" || pathname === "/asistencias";
   const viewportStickyPage = pathname === "/resumen-mensual";
   return (

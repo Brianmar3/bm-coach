@@ -4,7 +4,7 @@ export const ADMIN_SESSION_COOKIE = "bm_coach_admin_session";
 export const ADMIN_SESSION_HOURS = 12;
 
 type AdminSessionResult =
-  | { ok: true; role: "coach"; expiresAt: Date }
+  | { ok: true; role: "coach"; userId: string | null; expiresAt: Date }
   | { ok: false; reason: "missing" | "invalid" | "expired" | "misconfigured" };
 
 function configuredSecret() {
@@ -30,11 +30,14 @@ export function verifyAdminCredential(supplied: string) {
     : { ok: false as const, reason: "invalid" as const };
 }
 
-export function createAdminSessionValue(now = new Date()) {
+export function createAdminSessionValue(userId: string | null = null, now = new Date()) {
   const secret = configuredSecret();
   if (!secret) return null;
   const expiresAt = new Date(now.getTime() + ADMIN_SESSION_HOURS * 60 * 60 * 1000);
-  const payload = `v1.${expiresAt.getTime()}.coach.${randomBytes(24).toString("base64url")}`;
+  const nonce = randomBytes(24).toString("base64url");
+  const payload = userId
+    ? `v2.${expiresAt.getTime()}.coach.${Buffer.from(userId).toString("base64url")}.${nonce}`
+    : `v1.${expiresAt.getTime()}.coach.${nonce}`;
   return { value: `${payload}.${signature(payload, secret)}`, expiresAt };
 }
 
@@ -43,15 +46,27 @@ export function verifyAdminSessionValue(value: string | undefined, now = new Dat
   const secret = configuredSecret();
   if (!secret) return { ok: false, reason: "misconfigured" };
   const parts = value.split(".");
-  if (parts.length !== 5) return { ok: false, reason: "invalid" };
-  const [version, expires, role, nonce, suppliedSignature] = parts;
-  if (version !== "v1" || role !== "coach" || !nonce || !/^\d+$/.test(expires)) return { ok: false, reason: "invalid" };
-  const payload = `${version}.${expires}.${role}.${nonce}`;
+  if (parts.length !== 5 && parts.length !== 6) return { ok: false, reason: "invalid" };
+  const version = parts[0];
+  const expires = parts[1];
+  const role = parts[2];
+  const encodedUserId = version === "v2" ? parts[3] : null;
+  const nonce = version === "v2" ? parts[4] : parts[3];
+  const suppliedSignature = version === "v2" ? parts[5] : parts[4];
+  if (!['v1', 'v2'].includes(version) || role !== "coach" || !nonce || !suppliedSignature || !/^\d+$/.test(expires)) return { ok: false, reason: "invalid" };
+  if (version === "v2" && !encodedUserId) return { ok: false, reason: "invalid" };
+  const payload = version === "v2" ? `${version}.${expires}.${role}.${encodedUserId}.${nonce}` : `${version}.${expires}.${role}.${nonce}`;
   if (!safeEqual(suppliedSignature, signature(payload, secret))) return { ok: false, reason: "invalid" };
   const expiresAt = new Date(Number(expires));
   if (!Number.isFinite(expiresAt.getTime())) return { ok: false, reason: "invalid" };
   if (expiresAt <= now) return { ok: false, reason: "expired" };
-  return { ok: true, role: "coach", expiresAt };
+  let userId: string | null = null;
+  if (encodedUserId) {
+    try { userId = Buffer.from(encodedUserId, "base64url").toString("utf8"); }
+    catch { return { ok: false, reason: "invalid" }; }
+    if (!userId || userId.length > 191) return { ok: false, reason: "invalid" };
+  }
+  return { ok: true, role: "coach", userId, expiresAt };
 }
 
 export function adminSessionCookieOptions(expiresAt: Date) {

@@ -4,6 +4,7 @@ import { blockData, databaseUnavailable, exerciseData, normalizedBlocks, routine
 import { prisma } from "@/lib/prisma";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
     if (!record) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     return Response.json(serializeRoutine(record));
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     console.error("Error al consultar rutina", error);
     const unavailable = databaseUnavailable(error);
     return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudo cargar la rutina desde Neon." }, { status: unavailable ? 503 : 500 });
@@ -278,6 +280,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     });
     return Response.json(serializeRoutine(record));
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (notFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Uno o más alumnos ya tienen otra rutina activa asignada." }, { status: 409 });
     if (error instanceof Error && error.message === "ROUTINE_KIND_IMMUTABLE") return Response.json({ error: "No se puede convertir una rutina en plantilla desde la edición. Usá “Guardar como plantilla”." }, { status: 409 });
@@ -361,6 +364,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
     }
     return Response.json({ error: "Acción no válida." }, { status: 400 });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (notFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Error && error.message === "ALREADY_ARCHIVED") return Response.json({ error: "La rutina ya está archivada." }, { status: 409 });
     if (error instanceof Prisma.PrismaClientKnownRequestError) console.error("Error Prisma al cambiar estado de rutina", { code: error.code, message: error.message, meta: error.meta });
@@ -387,6 +391,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/ruti
     if (!result) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     return Response.json({ action: "deleted", message: "Rutina eliminada. El historial de entrenamiento fue preservado.", preservedWorkoutSessions: result.deletedSessionsPreserved, removedAssignments: result.removedAssignments });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (notFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Prisma.PrismaClientKnownRequestError) console.error("Error Prisma al eliminar rutina", { code: error.code, message: error.message, meta: error.meta });
     else console.error("Error al eliminar rutina", error);

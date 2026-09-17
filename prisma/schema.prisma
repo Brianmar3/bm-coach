@@ -12,6 +12,24 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum PlatformRole {
+  TRAINER
+  PLATFORM_OWNER
+}
+
+enum TrainerServiceType {
+  CLASSES
+  PERSONALIZED
+  MIXED
+  ONLINE
+}
+
+enum TrainerInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
 enum WorkspaceType {
   PROFESSIONAL
   PERSONAL
@@ -38,16 +56,44 @@ enum WorkspaceContentScope {
 }
 
 model User {
-  id           String                @id @default(cuid())
-  name         String
-  email        String                @unique
-  passwordHash String?
-  status       UserStatus            @default(ACTIVE)
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  memberships  WorkspaceMembership[]
+  id                  String                @id @default(cuid())
+  name                String
+  email               String                @unique
+  passwordHash        String?
+  phone               String?
+  brandName           String?
+  city                String?
+  serviceType         TrainerServiceType?
+  onboardingCompleted Boolean               @default(false)
+  platformRole        PlatformRole          @default(TRAINER)
+  status              UserStatus            @default(ACTIVE)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  memberships         WorkspaceMembership[]
+  trainerInvitations  TrainerInvitation[]   @relation("TrainerInvitationInviter")
 
   @@map("users")
+}
+
+model TrainerInvitation {
+  id         String                  @id @default(cuid())
+  inviterId  String
+  firstName  String
+  lastName   String
+  email      String
+  phone      String?
+  brandName  String?
+  tokenHash  String                  @unique
+  status     TrainerInvitationStatus @default(PENDING)
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+  inviter    User                    @relation("TrainerInvitationInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+
+  @@index([email])
+  @@index([status, expiresAt])
+  @@map("trainer_invitations")
 }
 
 model Workspace {

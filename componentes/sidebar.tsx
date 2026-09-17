@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 
 const links = [
@@ -21,6 +21,16 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [platformOwner, setPlatformOwner] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/admin/auth/session", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
+      .then((session: { platformOwner?: boolean } | null) => setPlatformOwner(session?.platformOwner === true))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   useEscapeLayer(open, () => setOpen(false), { priority: 50 });
 
@@ -43,6 +53,7 @@ export function Sidebar() {
           </Link>
         );
       })}
+      {platformOwner && <Link href="/platform/trainers" onClick={() => setOpen(false)} aria-current={pathname.startsWith("/platform") ? "page" : undefined} className={`group relative flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${pathname.startsWith("/platform") ? "bg-gradient-to-r from-yellow-400/14 to-yellow-400/[.03] text-yellow-300" : "text-zinc-400 hover:bg-white/[.04] hover:text-zinc-100"}`}><NavIcon name="platform"/><span>Plataforma</span></Link>}
       <button type="button" onClick={logout} className="mt-6 flex min-h-11 w-full items-center gap-3 rounded-xl border border-transparent px-3.5 py-2.5 text-left text-sm font-medium text-zinc-500 transition hover:border-red-400/20 hover:bg-red-400/[.06] hover:text-red-300">
         <NavIcon name="logout" />
         Cerrar sesión
@@ -89,6 +100,7 @@ function NavIcon({ name }: { name: string }) {
     wallet: <path d="M4 6.5h14a2 2 0 0 1 2 2V18H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12M15 11h5v4h-5a2 2 0 0 1 0-4Z" />,
     monthly: <><path d="M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2ZM7 2v4M17 2v4M3 9h18" /><path d="M7 13h4M7 16h7M16 13h2" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
+    platform: <><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5M8 17h7"/></>,
     logout: <path d="M10 5H6.8A1.8 1.8 0 0 0 5 6.8v10.4A1.8 1.8 0 0 0 6.8 19H10M14 8l4 4-4 4M9 12h9" />,
   };
   return <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 shrink-0 fill-none stroke-current" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;

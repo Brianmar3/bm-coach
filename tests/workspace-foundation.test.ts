@@ -206,12 +206,13 @@ test("endpoints críticos resuelven workspace y filtran sus agregados", () => {
   assert.match(readFileSync("scripts/workspace-foundation-core.mjs", "utf8"), /cruza workspaces/);
 });
 
-test("el auth administrativo continúa dependiendo sólo del token y la cookie actuales", () => {
+test("el auth administrativo conserva el secreto histórico y agrega identidad firmada de trainer", () => {
   const auth = readFileSync("lib/admin-auth.ts", "utf8");
   const login = readFileSync("app/api/admin/auth/login/route.ts", "utf8");
   assert.match(auth, /BM_COACH_ADMIN_TOKEN/);
   assert.match(auth, /bm_coach_admin_session/);
-  assert.doesNotMatch(auth, /workspace|WorkspaceMembership|passwordHash/);
+  assert.match(auth, /userId/);
   assert.match(login, /verifyAdminCredential/);
-  assert.doesNotMatch(login, /prisma|WorkspaceMembership/);
+  assert.match(login, /verifyPassword/);
+  assert.match(login, /workspaceMembership/);
 });

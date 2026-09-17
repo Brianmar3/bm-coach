@@ -24,8 +24,9 @@ export function proxy(request: NextRequest) {
   if (/\.[^/]+$/.test(path)) return NextResponse.next();
   const portalRoute = path === "/portal" || path.startsWith("/portal/") || path === "/api/portal" || path.startsWith("/api/portal/");
   const exerciseLibraryRead = path.startsWith("/api/exercise-library") && SAFE_METHODS.has(request.method);
+  const trainerInvitationRoute = path.startsWith("/trainer/invite/") || path.startsWith("/api/trainer/invitations/");
   const authRoute = path === "/admin/login" || path === "/api/admin/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";
-  if (portalRoute || authRoute || exerciseLibraryRead) {
+  if (portalRoute || authRoute || trainerInvitationRoute || exerciseLibraryRead) {
     if (path === "/admin/login") {
       const adminSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
       if (adminSession.ok) {

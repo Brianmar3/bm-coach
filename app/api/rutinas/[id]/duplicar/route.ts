@@ -4,6 +4,7 @@ import { createRoutineDays, databaseUnavailable, routineFingerprint, routineIncl
 import { prisma } from "@/lib/prisma";
 import { cleanRoutineCopyName } from "@/lib/routine-creation";
 import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,6 +144,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return Response.json(serializeRoutine(copy), { status: 201 });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Este alumno ya tiene una rutina activa.", code: "ACTIVE_ASSIGNMENT_CONFLICT" }, { status: 409 });
     console.error("Error al copiar rutina", error);
     const unavailable = databaseUnavailable(error);

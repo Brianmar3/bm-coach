@@ -8,6 +8,22 @@ export type TrainerMembership = {
   workspace: { status: string; type: string };
 };
 
+export const WORKSPACE_RESOURCE_NOT_FOUND = "WORKSPACE_RESOURCE_NOT_FOUND";
+
+export class WorkspaceResourceNotFoundError extends Error {
+  readonly code = WORKSPACE_RESOURCE_NOT_FOUND;
+
+  constructor() {
+    super("Recurso no disponible.");
+    this.name = "WorkspaceResourceNotFoundError";
+  }
+}
+
+export function isWorkspaceResourceNotFound(error: unknown) {
+  return error instanceof WorkspaceResourceNotFoundError
+    || (typeof error === "object" && error !== null && "code" in error && error.code === WORKSPACE_RESOURCE_NOT_FOUND);
+}
+
 export function authorizedTrainerWorkspace(userId: string, memberships: TrainerMembership[]) {
   const eligible = memberships.filter((membership) => membership.userId === userId
     && membership.status === "ACTIVE" && membership.user.status === "ACTIVE"
@@ -23,7 +39,7 @@ export function studentWorkspaceWhere(workspaceId: string) {
 }
 
 export function assertSameWorkspace(workspaceId: string, record: { workspaceId: string | null } | null) {
-  if (!workspaceId || !record || record.workspaceId !== workspaceId) throw new Error("Recurso no disponible en este workspace.");
+  if (!workspaceId || !record || record.workspaceId !== workspaceId) throw new WorkspaceResourceNotFoundError();
 }
 
 export function accessibleContentWhere(workspaceId: string) {
@@ -32,5 +48,5 @@ export function accessibleContentWhere(workspaceId: string) {
 }
 
 export function assertWritableWorkspaceContent(workspaceId: string, record: { workspaceId: string | null; scope: string } | null) {
-  if (!record || record.scope !== "WORKSPACE" || record.workspaceId !== workspaceId) throw new Error("Recurso no editable en este workspace.");
+  if (!record || record.scope !== "WORKSPACE" || record.workspaceId !== workspaceId) throw new WorkspaceResourceNotFoundError();
 }

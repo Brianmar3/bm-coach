@@ -102,6 +102,7 @@ function WeatherLine({ weather }: { weather: CurrentWeather | null | undefined }
 function DashboardContent({ data }: { data: DashboardData }) {
   const metrics = data.metrics;
   return <div className="space-y-3">
+    {metrics.activeStudents === 0 && <section className="rounded-2xl border border-yellow-400/25 bg-gradient-to-br from-yellow-400/[.09] to-zinc-900 p-5"><p className="text-xs font-bold uppercase tracking-[.2em] text-yellow-400">Primeros pasos</p><h2 className="mt-2 text-xl font-black">Tu espacio está listo</h2><p className="mt-1 text-sm text-zinc-400">Agregá tu primer alumno para empezar a gestionar entrenamientos y seguimiento.</p><Link href="/alumnos?accion=nuevo" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-yellow-400 px-4 font-black text-zinc-950">Agregar primer alumno</Link></section>}
     <section aria-label="Resumen general" className="grid grid-cols-2 gap-2.5">
       <MetricCard label="Alumnos activos" value={String(metrics.activeStudents)} href="/alumnos?estado=activo" icon={<DashboardIcon name="students" />} />
       <MetricCard

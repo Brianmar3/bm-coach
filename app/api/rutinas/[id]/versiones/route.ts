@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
     });
     return Response.json(versions.map((version) => ({ ...version, createdAt: version.createdAt.toISOString() })));
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     console.error("Error al cargar versiones de rutina", error);
     return Response.json({ error: "No se pudo cargar el historial de versiones." }, { status: 500 });
   }

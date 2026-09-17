@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { databaseUnavailable, routineInclude, serializeRoutine } from "@/lib/rutinas";
 import { prisma } from "@/lib/prisma";
 import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
     if (!record) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     return Response.json(serializeRoutine(record).students);
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     console.error("Error al consultar asignaciones", error);
     const unavailable = databaseUnavailable(error);
     return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudieron cargar las asignaciones." }, { status: unavailable ? 503 : 500 });
@@ -53,6 +55,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     if (!record) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     return Response.json(serializeRoutine(record));
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Error && error.message === "ROUTINE_ARCHIVED") return Response.json({ error: "No se pueden modificar asignaciones de una rutina archivada." }, { status: 409 });
     if (error instanceof Error && error.message === "ROUTINE_TEMPLATE") return Response.json({ error: "Las plantillas no admiten asignaciones. Usá “Usar plantilla” para crear una rutina independiente." }, { status: 409 });
     if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Uno o más alumnos ya tienen otra rutina activa asignada." }, { status: 409 });

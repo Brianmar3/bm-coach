@@ -2,6 +2,7 @@ import { databaseUnavailable, exerciseData, serializeExercise, validateExercise,
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { assertRoutineInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/rutinas
     if (!exercise) return Response.json({ error: "Ejercicio no encontrado." }, { status: 404 });
     return Response.json({ ...serializeExercise(exercise), dayNumber: exercise.day.dayNumber });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     console.error("Error al consultar ejercicio", error);
     const unavailable = databaseUnavailable(error);
     return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudo cargar el ejercicio desde Neon." }, { status: unavailable ? 503 : 500 });
@@ -50,6 +52,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     });
     return Response.json({ ...serializeExercise(exercise), dayNumber: input.dayNumber });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (notFound(error)) return Response.json({ error: "Ejercicio no encontrado." }, { status: 404 });
     console.error("Error al actualizar ejercicio", error);
     const unavailable = databaseUnavailable(error);
@@ -90,6 +93,7 @@ export async function DELETE(_request: Request, context: RouteContext<"/api/ruti
       message: result === "archived" ? "Ejercicio archivado para conservar su historial." : "Ejercicio eliminado definitivamente.",
     });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (notFound(error)) return Response.json({ error: "Ejercicio no encontrado." }, { status: 404 });
     console.error("Error al eliminar ejercicio", error);
     const unavailable = databaseUnavailable(error);
