@@ -25,7 +25,7 @@ export function proxy(request: NextRequest) {
   const portalRoute = path === "/portal" || path.startsWith("/portal/") || path === "/api/portal" || path.startsWith("/api/portal/");
   const exerciseLibraryRead = path.startsWith("/api/exercise-library") && SAFE_METHODS.has(request.method);
   const trainerInvitationRoute = path.startsWith("/trainer/invite/") || path.startsWith("/api/trainer/invitations/");
-  const authRoute = path === "/admin/login" || path === "/api/admin/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";
+  const authRoute = path === "/admin/login" || path === "/master" || path === "/api/admin/auth/login" || path === "/api/platform/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";
   if (portalRoute || authRoute || trainerInvitationRoute || exerciseLibraryRead) {
     if (path === "/admin/login") {
       const adminSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
@@ -46,7 +46,7 @@ export function proxy(request: NextRequest) {
   if (!session.ok) {
     const failure = adminAuthError(session);
     if (path.startsWith("/api/")) return NextResponse.json({ error: failure.error }, { status: failure.status });
-    const login = new URL("/admin/login", request.url);
+    const login = new URL(path === "/platform" || path.startsWith("/platform/") ? "/master" : "/admin/login", request.url);
     login.searchParams.set("next", `${path}${request.nextUrl.search}`);
     return NextResponse.redirect(login);
   }

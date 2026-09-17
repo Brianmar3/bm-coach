@@ -8,10 +8,11 @@ export async function GET() {
     const failure = adminAuthError(result);
     return Response.json({ authenticated: false, error: failure.error }, { status: failure.status });
   }
-  let user = result.userId ? await prisma.user.findUnique({ where: { id: result.userId }, select: { platformRole: true, onboardingCompleted: true } }) : null;
+  let user = result.userId ? await prisma.user.findUnique({ where: { id: result.userId }, select: { platformRole: true, onboardingCompleted: true, status: true } }) : null;
   if (!result.userId) {
-    const owners = await prisma.workspaceMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { status: "ACTIVE" }, workspace: { slug: "bm-fuerza-funcional", status: "ACTIVE" } }, select: { user: { select: { platformRole: true, onboardingCompleted: true } } } });
+    const owners = await prisma.workspaceMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { status: "ACTIVE" }, workspace: { slug: "bm-fuerza-funcional", status: "ACTIVE" } }, select: { user: { select: { platformRole: true, onboardingCompleted: true, status: true } } } });
     user = owners.length === 1 ? owners[0].user : null;
   }
-  return Response.json({ authenticated: true, role: result.role, platformOwner: user?.platformRole === "PLATFORM_OWNER", onboardingCompleted: user?.onboardingCompleted ?? true, expiresAt: result.expiresAt.toISOString() });
+  if (!user || user.status !== "ACTIVE") return Response.json({ authenticated: false, error: "La cuenta no está activa." }, { status: 401 });
+  return Response.json({ authenticated: true, role: result.role, platformOwner: user.platformRole === "PLATFORM_OWNER", onboardingCompleted: user.onboardingCompleted, expiresAt: result.expiresAt.toISOString() });
 }

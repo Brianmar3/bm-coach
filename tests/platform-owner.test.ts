@@ -7,7 +7,15 @@ import { parseTrainerInvitation, studentEmailConflict, trainerInvitationToken, t
 
 const read = (path: string) => readFileSync(path, "utf8");
 const platformLayout = read("app/platform/layout.tsx");
+const platformPage = read("app/platform/page.tsx");
+const platformLogin = read("app/api/platform/auth/login/route.ts");
+const trainerLoginApi = read("app/api/admin/auth/login/route.ts");
+const publicLogin = read("app/admin/login/page.tsx");
+const sidebar = read("componentes/sidebar.tsx");
+const platformShell = read("componentes/platform-shell.tsx");
 const trainersApi = read("app/api/platform/trainers/route.ts");
+const trainerStatusApi = read("app/api/platform/trainers/[id]/status/route.ts");
+const sessionApi = read("app/api/admin/auth/session/route.ts");
 const invitationsApi = read("app/api/platform/trainers/invitations/route.ts");
 const acceptApi = read("app/api/trainer/invitations/[token]/accept/route.ts");
 const onboardingApi = read("app/api/trainer/onboarding/route.ts");
@@ -28,6 +36,46 @@ test("12. membership OWNER se crea", () => { assert.match(acceptApi, /workspaceM
 test("13. nuevo trainer no ve Workspace BM", () => { assert.doesNotMatch(acceptApi, /bm-fuerza-funcional/); assert.match(read("lib/trainer-workspace.ts"), /auth\.userId \? \{ userId: auth\.userId \}/); });
 test("14. nuevo trainer no ve otro trainer", () => { process.env.BM_COACH_ADMIN_TOKEN = "x".repeat(40); const session = createAdminSessionValue("trainer-a"); assert.ok(session); const verified = verifyAdminSessionValue(session?.value); assert.equal(verified.ok && verified.userId, "trainer-a"); const tampered = session!.value.replace(Buffer.from("trainer-a").toString("base64url"), Buffer.from("trainer-b").toString("base64url")); assert.equal(verifyAdminSessionValue(tampered).ok, false); });
 test("15. no puede autoasignarse PLATFORM_OWNER", () => { assert.match(acceptApi, /platformRole: "TRAINER"/); assert.doesNotMatch(onboardingApi, /platformRole/); assert.match(migration, /workspace\."slug" = 'bm-fuerza-funcional'/); });
+
+test("16. acceso master usa credenciales existentes y exige PLATFORM_OWNER activo", () => {
+  assert.match(platformLogin, /verifyPassword/);
+  assert.match(platformLogin, /user\.platformRole !== "PLATFORM_OWNER"/);
+  assert.match(platformLogin, /user\.status !== "ACTIVE"/);
+  assert.doesNotMatch(platformLogin, /verifyAdminCredential/);
+  assert.doesNotMatch(trainerLoginApi, /platformRole/);
+});
+
+test("17. BM público y su sidebar no publican el acceso master", () => {
+  assert.doesNotMatch(publicLogin, /credencial administrativa|cuenta maestra|PLATFORM_OWNER|plataforma/i);
+  assert.doesNotMatch(sidebar, /\/platform|Plataforma|platformOwner/);
+});
+
+test("18. plataforma tiene navegación propia y conserva regreso a BM", () => {
+  assert.match(platformLayout, /PlatformShell/);
+  for (const label of ["Resumen", "Entrenadores", "Membresías", "Invitaciones", "Configuración", "Ir a BM Training"]) assert.match(platformShell, new RegExp(label));
+});
+
+test("19. resumen usa métricas reales y declara pendiente el modelo comercial", () => {
+  assert.match(platformPage, /prisma\.user\.count/);
+  assert.match(platformPage, /prisma\.trainerInvitation\.count/);
+  assert.match(platformPage, /Todavía no existe un modelo comercial/);
+});
+
+test("20. suspensión conserva datos y sólo cambia el estado de un TRAINER profesional", () => {
+  assert.match(trainerStatusApi, /platformOwnerApiAccess/);
+  assert.match(trainerStatusApi, /platformRole: "TRAINER"/);
+  assert.match(trainerStatusApi, /type: "PROFESSIONAL"/);
+  assert.match(trainerStatusApi, /body\?\.status !== "ACTIVE".*body\?\.status !== "SUSPENDED"/s);
+  assert.match(trainerStatusApi, /prisma\.user\.update/);
+  assert.doesNotMatch(trainerStatusApi, /delete/);
+  assert.match(sessionApi, /user\.status !== "ACTIVE"/);
+});
+
+test("21. listado master se limita a trainers profesionales y no mezcla workspaces", () => {
+  assert.match(trainersApi, /platformRole: "TRAINER"/);
+  assert.match(trainersApi, /workspace: \{ type: "PROFESSIONAL" \}/);
+  assert.match(trainersApi, /where: \{ role: "OWNER", workspace: \{ type: "PROFESSIONAL" \} \}/);
+});
 
 test("invitación valida campos y rechaza propiedades de privilegio", () => {
   assert.ok(parseTrainerInvitation({ firstName: "Ana", lastName: "Paz", email: "ANA@example.com", phone: "", brandName: "AP" }));

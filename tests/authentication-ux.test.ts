@@ -5,6 +5,7 @@ import test from "node:test";
 const passwordField = readFileSync(new URL("../componentes/password-field.tsx", import.meta.url), "utf8");
 const portalLogin = readFileSync(new URL("../componentes/portal-login-form.tsx", import.meta.url), "utf8");
 const trainerLogin = readFileSync(new URL("../app/admin/login/page.tsx", import.meta.url), "utf8");
+const masterLogin = readFileSync(new URL("../app/master/page.tsx", import.meta.url), "utf8");
 const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 
 test("el campo de contraseña inicia oculto y alterna visibilidad sin enviar el formulario", () => {
@@ -64,4 +65,11 @@ test("los errores de acceso visibles son neutrales y no exponen detalles técnic
   assert.match(trainerLogin, /La credencial ingresada no es correcta/);
   assert.doesNotMatch(portalLogin, /base de datos|hash|variable de entorno/i);
   assert.doesNotMatch(trainerLogin, /variable de entorno|no está configurada/i);
+});
+
+test("el login público no expone administración y el acceso master permanece separado", () => {
+  assert.doesNotMatch(trainerLogin, /credencial administrativa|cuenta maestra|PLATFORM_OWNER|plataforma/i);
+  assert.doesNotMatch(portalLogin, /cuenta maestra|PLATFORM_OWNER|\/master|\/platform/i);
+  assert.match(masterLogin, /fetch\("\/api\/platform\/auth\/login"/);
+  assert.match(masterLogin, /router\.replace\("\/platform\/trainers"\)/);
 });

@@ -18,7 +18,7 @@ async function currentUser() {
 
 export async function requirePlatformOwnerPage() {
   const actor = await currentUser();
-  if (!actor.session.ok) redirect("/admin/login?next=%2Fplatform");
+  if (!actor.session.ok) redirect("/master");
   if (!actor.user || actor.user.status !== "ACTIVE" || !isPlatformOwner(actor.user.platformRole)) redirect("/dashboard");
   return actor.user;
 }

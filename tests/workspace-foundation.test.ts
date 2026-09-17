@@ -206,13 +206,13 @@ test("endpoints críticos resuelven workspace y filtran sus agregados", () => {
   assert.match(readFileSync("scripts/workspace-foundation-core.mjs", "utf8"), /cruza workspaces/);
 });
 
-test("el auth administrativo conserva el secreto histórico y agrega identidad firmada de trainer", () => {
+test("el auth de trainer usa identidad firmada y ya no acepta el secreto histórico en el login público", () => {
   const auth = readFileSync("lib/admin-auth.ts", "utf8");
   const login = readFileSync("app/api/admin/auth/login/route.ts", "utf8");
   assert.match(auth, /BM_COACH_ADMIN_TOKEN/);
   assert.match(auth, /bm_coach_admin_session/);
   assert.match(auth, /userId/);
-  assert.match(login, /verifyAdminCredential/);
+  assert.doesNotMatch(login, /verifyAdminCredential|body\?\.token/);
   assert.match(login, /verifyPassword/);
-  assert.match(login, /workspaceMembership/);
+  assert.match(login, /user\.status !== "ACTIVE"/);
 });
