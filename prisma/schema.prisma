@@ -30,6 +30,19 @@ enum TrainerInvitationStatus {
   REVOKED
 }
 
+enum TrainerSubscriptionPlan {
+  STARTER
+  PRO
+  PREMIUM
+}
+
+enum TrainerSubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
 enum WorkspaceType {
   PROFESSIONAL
   PERSONAL
@@ -71,8 +84,28 @@ model User {
   updatedAt           DateTime              @updatedAt
   memberships         WorkspaceMembership[]
   trainerInvitations  TrainerInvitation[]   @relation("TrainerInvitationInviter")
+  trainerSubscription TrainerSubscription?
 
   @@map("users")
+}
+
+model TrainerSubscription {
+  id               String                    @id @default(cuid())
+  trainerUserId    String                    @unique
+  plan             TrainerSubscriptionPlan
+  status           TrainerSubscriptionStatus @default(ACTIVE)
+  startedAt        DateTime
+  lastPaidAt       DateTime?
+  currentPeriodEnd DateTime?
+  nextDueAt        DateTime?
+  notes            String                    @default("")
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  trainer          User                      @relation(fields: [trainerUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextDueAt])
+  @@index([plan])
+  @@map("trainer_subscriptions")
 }
 
 model TrainerInvitation {

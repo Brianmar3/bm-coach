@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions, STUDENT_SESSION_COOKIE } from "@/lib/portal-experience";
+import { prisma } from "@/lib/prisma";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -18,7 +19,13 @@ function sameOrigin(request: NextRequest) {
   }
 }
 
-export function proxy(request: NextRequest) {
+async function sessionUserIsActive(userId: string | null) {
+  if (!userId) return true;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+  return user?.status === "ACTIVE";
+}
+
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (path === "/sw.js" || path === "/manifest.webmanifest" || path === "/portal/manifest.webmanifest" || path.startsWith("/icons/")) return NextResponse.next();
   if (/\.[^/]+$/.test(path)) return NextResponse.next();
@@ -29,7 +36,7 @@ export function proxy(request: NextRequest) {
   if (portalRoute || authRoute || trainerInvitationRoute || exerciseLibraryRead) {
     if (path === "/admin/login") {
       const adminSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
-      if (adminSession.ok) {
+      if (adminSession.ok && await sessionUserIsActive(adminSession.userId)) {
         const requested = request.nextUrl.searchParams.get("next");
         const safeNext = requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/dashboard";
         const response = NextResponse.redirect(new URL(safeNext, request.url));
@@ -49,6 +56,14 @@ export function proxy(request: NextRequest) {
     const login = new URL(path === "/platform" || path.startsWith("/platform/") ? "/master" : "/admin/login", request.url);
     login.searchParams.set("next", `${path}${request.nextUrl.search}`);
     return NextResponse.redirect(login);
+  }
+  if (session.userId) {
+    if (!await sessionUserIsActive(session.userId)) {
+      if (path.startsWith("/api/")) return NextResponse.json({ error: "La cuenta no está activa." }, { status: 401 });
+      const login = new URL(path === "/platform" || path.startsWith("/platform/") ? "/master" : "/admin/login", request.url);
+      login.searchParams.set("next", `${path}${request.nextUrl.search}`);
+      return NextResponse.redirect(login);
+    }
   }
   if (!sameOrigin(request)) {
     if (path.startsWith("/api/")) return NextResponse.json({ error: "Origen de solicitud inválido." }, { status: 403 });

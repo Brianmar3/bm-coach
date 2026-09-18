@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
-const links = [["Resumen", "/platform"], ["Entrenadores", "/platform/trainers"]] as const;
-const future = ["Membresías", "Invitaciones", "Configuración"];
+const links = [["Resumen", "/platform"], ["Entrenadores", "/platform/trainers"], ["Membresías", "/platform/memberships"]] as const;
+const future = ["Invitaciones", "Configuración"];
 
 export function PlatformShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();

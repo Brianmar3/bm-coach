@@ -55,10 +55,10 @@ test("18. plataforma tiene navegación propia y conserva regreso a BM", () => {
   for (const label of ["Resumen", "Entrenadores", "Membresías", "Invitaciones", "Configuración", "Ir a BM Training"]) assert.match(platformShell, new RegExp(label));
 });
 
-test("19. resumen usa métricas reales y declara pendiente el modelo comercial", () => {
+test("19. resumen usa métricas comerciales reales", () => {
   assert.match(platformPage, /prisma\.user\.count/);
-  assert.match(platformPage, /prisma\.trainerInvitation\.count/);
-  assert.match(platformPage, /Todavía no existe un modelo comercial/);
+  assert.match(platformPage, /prisma\.trainerSubscription\.findMany/);
+  assert.match(platformPage, /effectiveTrainerSubscriptionStatus/);
 });
 
 test("20. suspensión conserva datos y sólo cambia el estado de un TRAINER profesional", () => {
