@@ -68,7 +68,7 @@ function registrationHarness(options: { duplicate?: boolean; fail?: boolean; rec
   const route = load("app/api/portal/registro/route.ts", {
     "next/headers": { cookies: async () => ({ set: (...args: unknown[]) => cookieWrites.push(args) }) },
     "@/lib/prisma": { prisma: { $transaction: async (callback: (value: typeof tx) => unknown) => callback(tx) } },
-    "@/lib/portal-auth": { validRequestOrigin: () => options.origin !== false, passwordValidationError: () => options.weak ? "Contraseña insegura" : "", hashPassword: async () => "scrypt$hash", sessionTokenHash: () => "token-hash", portalCookieOptions: () => ({ httpOnly: true }), PORTAL_COOKIE: "portal" },
+    "@/lib/portal-auth": { validRequestOrigin: () => options.origin !== false, passwordValidationError: () => options.weak ? "Contraseña insegura" : "", hashPassword: async () => "scrypt$hash", sessionTokenHash: () => "token-hash", portalSessionExpiresAt: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), portalCookieOptions: () => ({ httpOnly: true }), PORTAL_COOKIE: "portal" },
     "@/lib/portal-experience": { LAST_PORTAL_COOKIE: "last", portalExperienceCookieOptions: () => ({}) },
     "@/lib/self-service": selfService,
     "@/lib/self-service-signup": { SELF_SERVICE_SIGNUP_ENABLED: options.signupEnabled ?? true },
@@ -114,6 +114,7 @@ test("sesión SELF_SERVICE requiere permiso explícito; alumnos actuales conserv
   const auth = load("lib/portal-auth.ts", {
     "server-only": {}, "next/headers": { cookies: async () => ({ get: () => ({ value: "token" }) }) }, "next/navigation": { redirect: () => {} },
     "@/lib/self-service": selfService,
+    "@/lib/session-persistence": { authSessionExpiresAt: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), clearAuthCookieOptions: () => ({ maxAge: 0 }), persistentAuthCookieOptions: () => ({ maxAge: 30 * 24 * 60 * 60 }) },
     "@/lib/prisma": { prisma: { studentPortalSession: { findUnique: async () => ({ expiresAt: new Date(Date.now() + 60000), credential: { active: true, student: { data } } }) } } },
   });
   assert.equal(await auth.getPortalSession(), null);

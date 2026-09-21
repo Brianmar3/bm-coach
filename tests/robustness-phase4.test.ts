@@ -94,11 +94,13 @@ test("los guards, logout e identidad del portal se resuelven del lado servidor",
   const portalWorkoutApi = read("app/api/portal/entrenamientos/route.ts");
   const adminLogout = read("app/api/admin/auth/logout/route.ts");
   const portalLogout = read("app/api/portal/logout/route.ts");
+  const sessionPersistence = read("lib/session-persistence.ts");
   assert.match(proxy, /verifyAdminSessionValue/);
   assert.match(portalLayout, /requirePortalPageSession/);
   assert.match(portalWorkoutApi, /studentId: session\.studentId/);
   assert.match(portalWorkoutApi, /where: \{ id: input\.id, studentId: session\.studentId \}/);
-  assert.match(adminLogout, /maxAge: 0/);
+  assert.match(adminLogout, /clearAdminSessionCookieOptions/);
   assert.match(portalLogout, /studentPortalSession\.delete/);
-  assert.match(portalLogout, /maxAge: 0/);
+  assert.match(portalLogout, /clearPortalSessionCookieOptions/);
+  assert.match(sessionPersistence, /maxAge: 0/);
 });

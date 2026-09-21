@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { AUTH_SESSION_DAYS, authSessionExpiresAt, clearAuthCookieOptions, persistentAuthCookieOptions } from "./session-persistence.ts";
 
 export const ADMIN_SESSION_COOKIE = "bm_coach_admin_session";
-export const ADMIN_SESSION_HOURS = 12;
+export const ADMIN_SESSION_DAYS = AUTH_SESSION_DAYS;
 
 type AdminSessionResult =
   | { ok: true; role: "coach"; userId: string | null; expiresAt: Date }
@@ -33,7 +34,7 @@ export function verifyAdminCredential(supplied: string) {
 export function createAdminSessionValue(userId: string | null = null, now = new Date()) {
   const secret = configuredSecret();
   if (!secret) return null;
-  const expiresAt = new Date(now.getTime() + ADMIN_SESSION_HOURS * 60 * 60 * 1000);
+  const expiresAt = authSessionExpiresAt(now);
   const nonce = randomBytes(24).toString("base64url");
   const payload = userId
     ? `v2.${expiresAt.getTime()}.coach.${Buffer.from(userId).toString("base64url")}.${nonce}`
@@ -70,14 +71,11 @@ export function verifyAdminSessionValue(value: string | undefined, now = new Dat
 }
 
 export function adminSessionCookieOptions(expiresAt: Date) {
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
-    path: "/",
-    expires: expiresAt,
-    priority: "high" as const,
-  };
+  return persistentAuthCookieOptions(expiresAt);
+}
+
+export function clearAdminSessionCookieOptions() {
+  return clearAuthCookieOptions();
 }
 
 export function adminAuthError(result: Exclude<AdminSessionResult, { ok: true }>) {

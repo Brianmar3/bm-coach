@@ -5,9 +5,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isSelfService } from "@/lib/self-service";
+import { authSessionExpiresAt, clearAuthCookieOptions, persistentAuthCookieOptions } from "@/lib/session-persistence";
 
 export const PORTAL_COOKIE = "bm_coach_student_session";
-const SESSION_DAYS = 14;
 const SCRYPT_KEY_LENGTH = 64;
 
 function scrypt(password: string, salt: string) {
@@ -57,15 +57,23 @@ export function sessionTokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function createPortalSession(studentId: string) {
+export function portalSessionExpiresAt(now = new Date()) {
+  return authSessionExpiresAt(now);
+}
+
+export async function createPortalSession(studentId: string, now = new Date()) {
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
+  const expiresAt = portalSessionExpiresAt(now);
   await prisma.studentPortalSession.create({ data: { studentId, tokenHash: sessionTokenHash(token), expiresAt } });
   return { token, expiresAt };
 }
 
 export function portalCookieOptions(expiresAt: Date) {
-  return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", expires: expiresAt, priority: "high" as const };
+  return persistentAuthCookieOptions(expiresAt);
+}
+
+export function clearPortalSessionCookieOptions() {
+  return clearAuthCookieOptions();
 }
 
 export async function getPortalSession({ allowSelfService = false }: { allowSelfService?: boolean } = {}) {

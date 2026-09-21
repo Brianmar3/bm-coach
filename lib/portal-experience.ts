@@ -1,3 +1,5 @@
+import { AUTH_SESSION_MAX_AGE_SECONDS } from "@/lib/session-persistence";
+
 export const LAST_PORTAL_COOKIE = "bm_coach_last_portal";
 export const STUDENT_SESSION_COOKIE = "bm_coach_student_session";
 export type PortalExperience = "student" | "admin";
@@ -9,5 +11,5 @@ export function choosePortalExperience(input: { studentValid: boolean; adminVali
   if (input.adminValid) return "admin" as const;
   return null;
 }
-export function portalExperienceCookieOptions() { return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 30 * 24 * 60 * 60, priority: "medium" as const }; }
+export function portalExperienceCookieOptions() { return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: AUTH_SESSION_MAX_AGE_SECONDS, priority: "medium" as const }; }
 export function clearPortalExperienceCookieOptions() { return { ...portalExperienceCookieOptions(), maxAge: 0 }; }

@@ -2,7 +2,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hashPassword, passwordValidationError, portalCookieOptions, PORTAL_COOKIE, sessionTokenHash, validRequestOrigin } from "@/lib/portal-auth";
+import { hashPassword, passwordValidationError, portalCookieOptions, PORTAL_COOKIE, portalSessionExpiresAt, sessionTokenHash, validRequestOrigin } from "@/lib/portal-auth";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions } from "@/lib/portal-experience";
 import { parseRegistration, personalWorkspaceData } from "@/lib/self-service";
 import { SELF_SERVICE_SIGNUP_ENABLED } from "@/lib/self-service-signup";
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   try {
     const passwordHash = await hashPassword(input.password);
     const token = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(Date.now() + 14 * 86400000);
+    const expiresAt = portalSessionExpiresAt();
     await prisma.$transaction(async (tx) => {
       // Serialize registrations across instances; username uniquely reserves the normalized email.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(78341209)`;
