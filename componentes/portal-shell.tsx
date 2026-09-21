@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
@@ -18,6 +18,7 @@ import {
 } from "@/componentes/icons";
 import { PortalHeader, PortalNavigationLink, PORTAL_MOBILE_NAV_CLASS } from "@/componentes/portal-visuals";
 import { RestTimerIndicator, RestTimerProvider } from "@/componentes/rest-timer-provider";
+import { workspaceBrandingVariables } from "@/lib/workspace-branding";
 
 type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
@@ -34,12 +35,14 @@ export function PortalShell({
   profileImageUrl,
   serviceType,
   hasRoutine,
+  accentColor,
   children,
 }: {
   studentName: string;
   profileImageUrl: string;
   serviceType: StudentServiceType;
   hasRoutine: boolean;
+  accentColor: string;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -82,7 +85,7 @@ export function PortalShell({
   };
 
   return <RestTimerProvider>
-    <div className={`${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`}>
+    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(accentColor) as CSSProperties}>
       <AchievementCelebration />
       <PortalHeader studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>
         <nav

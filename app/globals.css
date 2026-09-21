@@ -72,6 +72,30 @@
   --portal-bottom-nav-clearance: 1.5rem;
 }
 
+/* El branding se limita al workspace activo. Master y Plataforma quedan fuera. */
+.workspace-brand {
+  --bm-accent: #d4a72c;
+  --bm-accent-hover: #b88f22;
+  --bm-accent-soft: #d4a72c24;
+  --bm-accent-contrast: #09090b;
+  --color-yellow-300: var(--bm-accent);
+  --color-yellow-400: var(--bm-accent);
+  --color-yellow-500: var(--bm-accent-hover);
+  --color-amber-300: var(--bm-accent);
+  --color-amber-400: var(--bm-accent);
+  --color-amber-500: var(--bm-accent-hover);
+  --ob-gold: var(--bm-accent);
+  --ob-gold-light: var(--bm-accent-hover);
+}
+
+.workspace-brand .bm-accent-button {
+  background: var(--bm-accent);
+  color: var(--bm-accent-contrast);
+}
+
+.workspace-brand .bm-accent-button:hover { background: var(--bm-accent-hover); }
+.workspace-brand .bg-yellow-400 { color: var(--bm-accent-contrast); }
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { BmHomeIcon, BmRoutineIcon, BmProfileIcon } from "@/componentes/icons";
 import { PortalHeader, PortalNavigationLink, PORTAL_MOBILE_NAV_CLASS } from "@/componentes/portal-visuals";
 import type { Student } from "@/types/gestion";
+import { BM_DEFAULT_ACCENT, workspaceBrandingVariables } from "@/lib/workspace-branding";
 
 const links = [
   { title: "Inicio", href: "/portal/autogestion", Icon: BmHomeIcon },
@@ -14,7 +15,7 @@ const links = [
 export function SelfServiceShell({ children, student }: { children: ReactNode; student?: Pick<Student, "firstName" | "lastName" | "profileImageUrl"> }) {
   const pathname = usePathname();
   const active = (href: string) => href === "/portal/autogestion" ? pathname === href : pathname.startsWith(href);
-  return <div className="min-h-screen overflow-x-clip bg-[#070707] text-white">
+  return <div className="workspace-brand min-h-screen overflow-x-clip bg-[#070707] text-white" style={workspaceBrandingVariables(BM_DEFAULT_ACCENT) as CSSProperties}>
     <PortalHeader homeHref="/portal/autogestion" profileHref="/portal/autogestion/perfil" studentName={student ? `${student.firstName} ${student.lastName}` : "Mi cuenta"} profileImageUrl={student?.profileImageUrl}>
       <nav aria-label="Navegación del portal" className="mx-auto hidden max-w-6xl gap-5 px-5 pb-2 md:flex">{links.map(({ title, href }) => <Link key={href} href={href} aria-current={active(href) ? "page" : undefined} className={`border-b-2 px-1 py-2 text-sm font-semibold transition ${active(href) ? "border-yellow-400 text-yellow-400" : "border-transparent text-zinc-500 hover:text-zinc-200"}`}>{title}</Link>)}</nav>
     </PortalHeader>

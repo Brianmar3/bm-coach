@@ -7,6 +7,7 @@ import type { Prisma } from "@prisma/client";
 import { canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings, Student } from "@/types/gestion";
 import { normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
+import { normalizeAccentColor } from "@/lib/workspace-branding";
 
 const collections = {
   "bm-coach-students": prisma.studentRecord,
@@ -77,6 +78,8 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
   const planError = validateCoachPlans(requested.plans);
   const methodError = validatePaymentMethods(requested.paymentMethods);
   const transferError = validateTransferDetails(requested.transferDetails);
+  const accentColor = normalizeAccentColor(requested.accentColor);
+  if (!accentColor) return Response.json({ error: "El color principal debe usar formato HEX, por ejemplo #3B82F6." }, { status: 400 });
   if (planError || methodError || transferError) return Response.json({ error: planError ?? methodError ?? transferError }, { status: 400 });
 
   const [currentRecord, studentRecords] = await Promise.all([
@@ -111,6 +114,7 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
 
   const settings: CoachSettings = {
     ...requested,
+    accentColor,
     plans: nextPlans,
     paymentMethods: requested.paymentMethods.map((method) => method.trim()),
     transferDetails: normalizeTransferDetails(requested.transferDetails),

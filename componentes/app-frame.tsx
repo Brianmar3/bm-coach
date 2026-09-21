@@ -7,6 +7,7 @@ import { BmBootReady } from "@/componentes/bm-boot-ready";
 import { ClassesModuleHeader } from "@/componentes/classes-module-header";
 import { Sidebar } from "@/componentes/sidebar";
 import { TrainerCommandPalette } from "@/componentes/trainer-command-palette";
+import { WorkspaceBrandingProvider } from "@/componentes/workspace-branding-provider";
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -17,7 +18,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
     <>
       <BmBootReady />
       {standalone ? children : (
-        <div className={`admin-panel min-h-full max-w-full bg-black text-white ${viewportStickyPage ? "admin-panel--viewport-sticky" : "overflow-x-clip"}`}>
+        <WorkspaceBrandingProvider><div className={`admin-panel min-h-full max-w-full bg-black text-white ${viewportStickyPage ? "admin-panel--viewport-sticky" : "overflow-x-clip"}`}>
           <AdminTopbar />
           <Sidebar />
           <TrainerCommandPalette />
@@ -25,7 +26,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
             {classesModule && <ClassesModuleHeader />}
             {children}
           </div>
-        </div>
+        </div></WorkspaceBrandingProvider>
       )}
     </>
   );
