@@ -39,7 +39,30 @@ test("alumno hereda el color de su workspace y lo conserva tras un nuevo login",
   assert.match(layout, /loadWorkspaceAccentColor\(session\.credential\.student\.workspaceId\)/);
   assert.match(layout, /<PortalShell accentColor=\{accentColor\}/);
   assert.match(server, /where: \{ workspaceId \}/);
-  assert.match(read("componentes/portal-shell.tsx"), /workspaceBrandingVariables\(accentColor\)/);
+  assert.match(read("componentes/portal-shell.tsx"), /useState\(accentColor\)/);
+  assert.match(read("componentes/portal-shell.tsx"), /workspaceBrandingVariables\(currentAccentColor\)/);
+});
+
+test("alumno conectado actualiza sólo las variables de su workspace sin refresh", () => {
+  const route = read("app/api/portal/branding/route.ts");
+  const shell = read("componentes/portal-shell.tsx");
+  assert.match(route, /const session = await getPortalSession\(\)/);
+  assert.match(route, /loadWorkspaceAccentColor\(session\.credential\.student\.workspaceId\)/);
+  assert.doesNotMatch(route, /searchParams|request\.url|workspaceId:/);
+  assert.match(route, /Cache-Control": "private, no-store"/);
+  assert.match(shell, /fetch\("\/api\/portal\/branding"/);
+  assert.match(shell, /setInterval\([^]*10000\)/);
+  assert.match(shell, /setCurrentAccentColor/);
+  assert.match(shell, /workspaceBrandingVariables\(currentAccentColor\)/);
+  assert.doesNotMatch(shell, /router\.refresh|location\.reload|window\.location/);
+});
+
+test("polling se pausa al desmontar y se reactiva al volver a la app", () => {
+  const shell = read("componentes/portal-shell.tsx");
+  assert.match(shell, /window\.addEventListener\("focus", onFocus\)/);
+  assert.match(shell, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/);
+  assert.match(shell, /window\.clearInterval\(interval\)/);
+  assert.match(shell, /controller\?\.abort\(\)/);
 });
 
 test("Master conserva dorado BM y la personalización queda fuera de Plataforma", () => {

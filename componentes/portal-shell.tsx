@@ -46,8 +46,39 @@ export function PortalShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const [currentAccentColor, setCurrentAccentColor] = useState(accentColor);
   const [currentProfileImageUrl, setCurrentProfileImageUrl] =
     useState(profileImageUrl);
+  useEffect(() => {
+    let controller: AbortController | null = null;
+    let stopped = false;
+    async function refreshBranding() {
+      if (document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const response = await fetch("/api/portal/branding", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) return;
+        const body = await response.json() as { accentColor?: string };
+        if (!stopped && body.accentColor) setCurrentAccentColor((current) => current === body.accentColor ? current : body.accentColor!);
+      } catch (error) {
+        if (!(error instanceof Error && error.name === "AbortError")) return;
+      }
+    }
+    const onFocus = () => void refreshBranding();
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") void refreshBranding(); };
+    void refreshBranding();
+    const interval = window.setInterval(() => void refreshBranding(), 10000);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      stopped = true;
+      controller?.abort();
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
   useEffect(() => {
     const update = (event: Event) => {
       const detail = (event as CustomEvent<{ photoUrl?: string }>).detail;
@@ -85,7 +116,7 @@ export function PortalShell({
   };
 
   return <RestTimerProvider>
-    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(accentColor) as CSSProperties}>
+    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(currentAccentColor) as CSSProperties}>
       <AchievementCelebration />
       <PortalHeader studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>
         <nav
