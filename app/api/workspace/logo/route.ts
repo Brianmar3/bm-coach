@@ -7,19 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { normalizeCustomLogoUrl, resolveWorkspaceBranding } from "@/lib/workspace-branding";
 import { loadWorkspaceBrandingPlan } from "@/lib/workspace-branding-server";
+import { validateWorkspaceLogoBytes, workspaceLogoMetadataError } from "@/lib/workspace-logo-upload";
 
 export const runtime = "nodejs";
-
-const MAX_LOGO_BYTES = 3 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-function detectedType(bytes: Uint8Array) {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { mime: "image/jpeg", extension: "jpg" };
-  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (bytes.length >= 8 && bytes.slice(0, 8).every((value, index) => value === png[index])) return { mime: "image/png", extension: "png" };
-  if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP") return { mime: "image/webp", extension: "webp" };
-  return null;
-}
 
 async function removeOwnedLogo(url: string) {
   const safeUrl = normalizeCustomLogoUrl(url);
@@ -43,13 +33,13 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const file = form.get("logo");
-  if (!(file instanceof File) || file.size === 0) return Response.json({ error: "Seleccioná un logo." }, { status: 400 });
-  if (file.size > MAX_LOGO_BYTES) return Response.json({ error: "El logo supera el máximo de 3 MB." }, { status: 413 });
-  if (!ALLOWED_MIME_TYPES.has(file.type)) return Response.json({ error: "El logo debe ser PNG, JPG o WEBP." }, { status: 415 });
+  if (!(file instanceof File)) return Response.json({ error: "Seleccioná un logo." }, { status: 400 });
+  const metadataError = workspaceLogoMetadataError(file);
+  if (metadataError) return Response.json({ error: metadataError }, { status: metadataError.includes("3 MB") ? 413 : metadataError === "Seleccioná un logo." ? 400 : 415 });
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const type = detectedType(bytes);
-  if (!type || type.mime !== file.type) return Response.json({ error: "El archivo no contiene una imagen válida." }, { status: 415 });
+  const type = validateWorkspaceLogoBytes(bytes, file.type);
+  if (!type) return Response.json({ error: "El archivo no contiene una imagen PNG, JPG o WEBP válida." }, { status: 415 });
 
   const currentRecord = await prisma.coachSettingsRecord.findFirst({ where: { workspaceId: auth.workspace.workspaceId }, orderBy: { updatedAt: "desc" }, select: { id: true, data: true } });
   if (!currentRecord) return Response.json({ error: "Guardá primero la configuración general del workspace." }, { status: 409 });

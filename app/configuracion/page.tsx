@@ -12,6 +12,7 @@ import type { CoachSettings } from "@/types/gestion";
 import { WORKSPACE_BRANDING_EVENT } from "@/componentes/workspace-branding-provider";
 import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
 import { allowedLogoModes, BM_DEFAULT_ACCENT, normalizeAccentColor, workspaceAccentColor, workspaceBrandingVariables, type WorkspaceBranding, type WorkspaceLogoMode } from "@/lib/workspace-branding";
+import { workspaceLogoMetadataError } from "@/lib/workspace-logo-upload";
 
 type Section = "general" | "personalizacion" | "cobros" | "planes" | "notificaciones" | "avanzado";
 const sections: Array<{ id: Section; label: string }> = [{ id: "general", label: "General" }, { id: "personalizacion", label: "Personalización" }, { id: "cobros", label: "Cobros" }, { id: "planes", label: "Planes y precios" }, { id: "notificaciones", label: "Notificaciones" }, { id: "avanzado", label: "Avanzado" }];
@@ -80,31 +81,36 @@ const logoLabels: Record<WorkspaceLogoMode, string> = { DEFAULT: "Logo BM", WHIT
 function WorkspaceLogoControls({ value, onChange, onError }: { value: CoachSettings; onChange: (next: Partial<WorkspaceBranding>) => void; onError: (message: string) => void }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ kind: "idle" | "uploading" | "success" | "error"; message: string }>({ kind: "idle", message: "" });
   const plan = value.brandingPlan ?? "STARTER";
   const modes = allowedLogoModes(plan);
 
   async function uploadLogo(file: File) {
-    setUploading(true); onError("");
+    const validationError = workspaceLogoMetadataError(file);
+    if (validationError) { setUploadStatus({ kind: "error", message: validationError }); onError(validationError); if (fileInput.current) fileInput.current.value = ""; return; }
+    setUploading(true); setUploadStatus({ kind: "uploading", message: "Subiendo..." }); onError("");
     try {
       const form = new FormData(); form.set("logo", file);
       const response = await fetch("/api/workspace/logo", { method: "POST", body: form });
-      const body = await response.json() as { branding?: WorkspaceBranding; error?: string };
-      if (!response.ok || !body.branding) throw new Error(body.error ?? "No se pudo subir el logo.");
+      const body = await response.json().catch(() => null) as { branding?: WorkspaceBranding; error?: string } | null;
+      if (!response.ok || !body?.branding) throw new Error(body?.error ?? "No se pudo subir el logo. Intentá nuevamente.");
       onChange(body.branding);
-    } catch (error) { onError(error instanceof Error ? error.message : "No se pudo subir el logo."); }
+      setUploadStatus({ kind: "success", message: "Logo actualizado" });
+    } catch (error) { const message = error instanceof Error ? error.message : "No se pudo subir el logo. Intentá nuevamente."; setUploadStatus({ kind: "error", message }); onError(message); }
     finally { setUploading(false); if (fileInput.current) fileInput.current.value = ""; }
   }
 
   async function removeLogo() {
-    setUploading(true); onError("");
+    setUploading(true); setUploadStatus({ kind: "uploading", message: "Eliminando..." }); onError("");
     try {
       const response = await fetch("/api/workspace/logo", { method: "DELETE" });
       const body = await response.json() as { branding?: WorkspaceBranding; error?: string };
       if (!response.ok || !body.branding) throw new Error(body.error ?? "No se pudo eliminar el logo.");
       onChange(body.branding);
-    } catch (error) { onError(error instanceof Error ? error.message : "No se pudo eliminar el logo."); }
+      setUploadStatus({ kind: "success", message: "Logo eliminado" });
+    } catch (error) { const message = error instanceof Error ? error.message : "No se pudo eliminar el logo."; setUploadStatus({ kind: "error", message }); onError(message); }
     finally { setUploading(false); }
   }
 
-  return <div className="mt-7 border-t border-zinc-800 pt-5"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Estilo del logo</p><p className="mt-1 text-xs text-zinc-500">Opciones disponibles para tu plan {plan}.</p></div><span className="rounded-full border border-yellow-400/25 px-2 py-1 text-[10px] font-bold text-yellow-300">{plan}</span></div><div className="mt-3 grid grid-cols-2 gap-2">{modes.map((mode) => <button key={mode} type="button" disabled={mode === "CUSTOM" && !value.customLogoUrl} onClick={() => onChange({ logoMode: mode })} aria-pressed={value.logoMode === mode} className={`min-h-11 rounded-xl border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${value.logoMode === mode ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-zinc-700 bg-zinc-950 text-zinc-300"}`}>{logoLabels[mode]}</button>)}</div>{plan === "PREMIUM" && <div className="mt-4 flex flex-wrap gap-2"><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLogo(file); }} /><button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className="min-h-10 rounded-xl border border-yellow-400/30 px-3 text-xs font-bold text-yellow-300 disabled:opacity-50">{uploading ? "Procesando…" : value.customLogoUrl ? "Reemplazar logo" : "Subir logo propio"}</button>{value.customLogoUrl && <button type="button" disabled={uploading} onClick={() => void removeLogo()} className="min-h-10 rounded-xl border border-red-400/25 px-3 text-xs font-bold text-red-300 disabled:opacity-50">Eliminar logo</button>}<button type="button" onClick={() => onChange({ logoMode: "DEFAULT" })} className="min-h-10 rounded-xl px-3 text-xs font-bold text-zinc-300">Volver al logo BM</button><p className="w-full text-[11px] text-zinc-500">PNG, JPG o WEBP · máximo 3 MB.</p></div>}</div>;
+  return <div className="mt-7 border-t border-zinc-800 pt-5"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Estilo del logo</p><p className="mt-1 text-xs text-zinc-500">Opciones disponibles para tu plan {plan}.</p></div><span className="rounded-full border border-yellow-400/25 px-2 py-1 text-[10px] font-bold text-yellow-300">{plan}</span></div><div className="mt-3 grid grid-cols-2 gap-2">{modes.map((mode) => <button key={mode} type="button" disabled={mode === "CUSTOM" && !value.customLogoUrl} onClick={() => onChange({ logoMode: mode })} aria-pressed={value.logoMode === mode} className={`min-h-11 rounded-xl border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${value.logoMode === mode ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-zinc-700 bg-zinc-950 text-zinc-300"}`}>{logoLabels[mode]}</button>)}</div>{plan === "PREMIUM" && <div className="mt-4 flex flex-wrap gap-2"><label className={`inline-flex min-h-10 cursor-pointer items-center rounded-xl border border-yellow-400/30 px-3 text-xs font-bold text-yellow-300 ${uploading ? "pointer-events-none opacity-50" : ""}`}><input ref={fileInput} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" disabled={uploading} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLogo(file); }} /><span>{uploading ? "Subiendo..." : value.customLogoUrl ? "Reemplazar logo" : "Subir logo propio"}</span></label>{value.customLogoUrl && <button type="button" disabled={uploading} onClick={() => void removeLogo()} className="min-h-10 rounded-xl border border-red-400/25 px-3 text-xs font-bold text-red-300 disabled:opacity-50">Eliminar logo</button>}<button type="button" disabled={uploading} onClick={() => onChange({ logoMode: "DEFAULT" })} className="min-h-10 rounded-xl px-3 text-xs font-bold text-zinc-300 disabled:opacity-50">Volver al logo BM</button><p className="w-full text-[11px] text-zinc-500">PNG, JPG o WEBP · máximo 3 MB.</p>{uploadStatus.message && <p role={uploadStatus.kind === "error" ? "alert" : "status"} aria-live="polite" className={`w-full text-xs font-semibold ${uploadStatus.kind === "success" ? "text-emerald-300" : uploadStatus.kind === "error" ? "text-red-300" : "text-yellow-300"}`}>{uploadStatus.message}</p>}</div>}</div>;
 }
