@@ -1,4 +1,20 @@
 export const BM_DEFAULT_ACCENT = "#D4A72C";
+export const WORKSPACE_LOGO_MODES = ["DEFAULT", "WHITE", "ACCENT", "CUSTOM"] as const;
+
+export type WorkspaceLogoMode = typeof WORKSPACE_LOGO_MODES[number];
+export type WorkspaceBranding = {
+  accentColor: string;
+  logoMode: WorkspaceLogoMode;
+  customLogoUrl: string;
+};
+
+export const DEFAULT_WORKSPACE_BRANDING: WorkspaceBranding = {
+  accentColor: BM_DEFAULT_ACCENT,
+  logoMode: "DEFAULT",
+  customLogoUrl: "",
+};
+
+type BrandingPlan = "STARTER" | "PRO" | "PREMIUM";
 
 const HEX_COLOR = /^#[0-9A-F]{6}$/;
 
@@ -10,6 +26,40 @@ export function normalizeAccentColor(value: unknown) {
 
 export function workspaceAccentColor(value: unknown) {
   return normalizeAccentColor(value) ?? BM_DEFAULT_ACCENT;
+}
+
+export function normalizeLogoMode(value: unknown): WorkspaceLogoMode | null {
+  return typeof value === "string" && WORKSPACE_LOGO_MODES.includes(value as WorkspaceLogoMode)
+    ? value as WorkspaceLogoMode
+    : null;
+}
+
+export function allowedLogoModes(plan: BrandingPlan) {
+  if (plan === "PREMIUM") return WORKSPACE_LOGO_MODES;
+  if (plan === "PRO") return WORKSPACE_LOGO_MODES.slice(0, 3);
+  return WORKSPACE_LOGO_MODES.slice(0, 2);
+}
+
+export function normalizeCustomLogoUrl(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" && url.hostname.endsWith(".blob.vercel-storage.com") ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+export function resolveWorkspaceBranding(
+  data: { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown } | null | undefined,
+  plan: BrandingPlan = "STARTER",
+): WorkspaceBranding {
+  const requestedMode = normalizeLogoMode(data?.logoMode) ?? "DEFAULT";
+  const customLogoUrl = normalizeCustomLogoUrl(data?.customLogoUrl);
+  const logoMode = allowedLogoModes(plan).includes(requestedMode) && (requestedMode !== "CUSTOM" || customLogoUrl)
+    ? requestedMode
+    : "DEFAULT";
+  return { accentColor: workspaceAccentColor(data?.accentColor), logoMode, customLogoUrl };
 }
 
 function channel(hex: string, offset: number) {

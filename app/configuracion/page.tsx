@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState, type CSSProperties } from "react";
+import { FormEvent, useMemo, useRef, useState, type CSSProperties } from "react";
 import { BmBellIcon, BmDeleteIcon, BmPaymentIcon, BmPlusIcon, BmSettingsIcon, BmSlidersIcon } from "@/componentes/icons";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { PushDiagnostics } from "@/componentes/push-diagnostics";
@@ -10,11 +10,12 @@ import { planId, planSelectionKey, validateCoachPlans, validatePaymentMethods } 
 import { emptyTransferDetails, normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
 import type { CoachSettings } from "@/types/gestion";
 import { WORKSPACE_BRANDING_EVENT } from "@/componentes/workspace-branding-provider";
-import { BM_DEFAULT_ACCENT, normalizeAccentColor, workspaceAccentColor, workspaceBrandingVariables } from "@/lib/workspace-branding";
+import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
+import { allowedLogoModes, BM_DEFAULT_ACCENT, normalizeAccentColor, workspaceAccentColor, workspaceBrandingVariables, type WorkspaceBranding, type WorkspaceLogoMode } from "@/lib/workspace-branding";
 
 type Section = "general" | "personalizacion" | "cobros" | "planes" | "notificaciones" | "avanzado";
 const sections: Array<{ id: Section; label: string }> = [{ id: "general", label: "General" }, { id: "personalizacion", label: "Personalización" }, { id: "cobros", label: "Cobros" }, { id: "planes", label: "Planes y precios" }, { id: "notificaciones", label: "Notificaciones" }, { id: "avanzado", label: "Avanzado" }];
-const defaults: CoachSettings = { id: "main", systemName: "BM Training", coachName: "", phone: "", email: "", address: "", currency: "ARS", dueDay: 10, paymentMethods: ["Transferencia", "Efectivo"], transferDetails: emptyTransferDetails, plans: [], primaryColor: "#000000", accentColor: BM_DEFAULT_ACCENT, compactMode: false };
+const defaults: CoachSettings = { id: "main", systemName: "BM Training", coachName: "", phone: "", email: "", address: "", currency: "ARS", dueDay: 10, paymentMethods: ["Transferencia", "Efectivo"], transferDetails: emptyTransferDetails, plans: [], primaryColor: "#000000", accentColor: BM_DEFAULT_ACCENT, logoMode: "DEFAULT", customLogoUrl: "", brandingPlan: "STARTER", compactMode: false };
 const accentPresets = [["Dorado BM", BM_DEFAULT_ACCENT], ["Azul", "#3B82F6"], ["Verde", "#22C55E"], ["Violeta", "#8B5CF6"], ["Rojo", "#EF4444"], ["Celeste", "#06B6D4"]] as const;
 
 export default function ConfiguracionPage() {
@@ -29,12 +30,13 @@ export default function ConfiguracionPage() {
   const hydratedPlans = useMemo(() => stored?.plans.map((plan) => ({ ...plan, id: planId(plan) || crypto.randomUUID() })) ?? [], [stored]);
   const value = settings ?? (stored ? { ...defaults, ...stored, id: stored.id ?? "main", plans: hydratedPlans, transferDetails: normalizeTransferDetails(stored.transferDetails) } : defaults);
   function update<K extends keyof CoachSettings>(key: K, next: CoachSettings[K]) { setSettings({ ...value, [key]: next }); setSavedSection(null); setError(""); }
+  function updateBranding(next: Partial<WorkspaceBranding>) { const updated = { ...value, ...next }; setSettings(updated); setSavedSection(null); setError(""); window.dispatchEvent(new CustomEvent(WORKSPACE_BRANDING_EVENT, { detail: updated })); }
   async function submit(event: FormEvent) {
     event.preventDefault();
     const validationError = validateCoachPlans(value.plans) ?? validatePaymentMethods(value.paymentMethods) ?? validateTransferDetails(value.transferDetails);
     if (validationError) { setError(validationError); setSavedSection(null); return; }
     setSaving(true); setError("");
-    try { const result = await save([value]); const saved = result.settings ?? value; setSettings(saved); window.dispatchEvent(new CustomEvent(WORKSPACE_BRANDING_EVENT, { detail: { accentColor: saved.accentColor } })); setSavedSection(active); }
+    try { const result = await save([value]); const saved = result.settings ?? value; setSettings(saved); window.dispatchEvent(new CustomEvent(WORKSPACE_BRANDING_EVENT, { detail: { accentColor: saved.accentColor, logoMode: saved.logoMode, customLogoUrl: saved.customLogoUrl } })); setSavedSection(active); }
     catch (saveError) { setError(saveError instanceof Error ? saveError.message : "No se pudieron guardar los cambios."); setSavedSection(null); }
     finally { setSaving(false); }
   }
@@ -53,7 +55,7 @@ export default function ConfiguracionPage() {
         <Field label="Nombre del sistema"><input value={value.systemName} onChange={(e) => update("systemName", e.target.value)} className={inputClass} /></Field><Field label="Nombre del entrenador"><input value={value.coachName} onChange={(e) => update("coachName", e.target.value)} className={inputClass} /></Field><Field label="Teléfono"><input type="tel" value={value.phone} onChange={(e) => update("phone", e.target.value)} className={inputClass} /></Field><Field label="Correo"><input type="email" value={value.email} onChange={(e) => update("email", e.target.value)} className={inputClass} /></Field><Field label="Dirección"><input value={value.address} onChange={(e) => update("address", e.target.value)} className={inputClass} /></Field><Field label="Moneda"><select value={value.currency} onChange={(e) => update("currency", e.target.value)} className={inputClass}><option value="ARS">Peso argentino (ARS)</option><option value="USD">Dólar estadounidense (USD)</option><option value="EUR">Euro (EUR)</option></select></Field>
       </div><SaveButton saving={saving} label="Guardar General" /></Panel>}
       {active === "personalizacion" && <div className="workspace-brand" style={workspaceBrandingVariables(value.accentColor) as CSSProperties}><Panel title="Personalización" description="Este color identifica tu espacio y se aplica también al portal de todos tus alumnos." icon={<BmSlidersIcon className="size-5" />}>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.75fr)]"><div><Field label="Color principal"><div className="flex gap-3"><input aria-label="Selector visual de color principal" type="color" value={workspaceAccentColor(value.accentColor)} onChange={(event) => update("accentColor", event.target.value.toUpperCase())} className="h-11 w-16 cursor-pointer rounded-xl border border-zinc-700 bg-zinc-950 p-1" /><input aria-label="Color principal en formato HEX" value={value.accentColor || ""} onChange={(event) => update("accentColor", event.target.value.toUpperCase())} placeholder={BM_DEFAULT_ACCENT} maxLength={7} className={inputClass} /></div></Field><p className={`mt-2 text-xs ${normalizeAccentColor(value.accentColor) ? "text-zinc-500" : "text-red-300"}`}>{normalizeAccentColor(value.accentColor) ? "Formato HEX válido. Ejemplo: #3B82F6." : "Ingresá un color HEX de 6 dígitos, por ejemplo #3B82F6."}</p><div className="mt-5 flex flex-wrap gap-2" aria-label="Colores sugeridos">{accentPresets.map(([label, color]) => <button key={color} type="button" onClick={() => update("accentColor", color)} aria-pressed={workspaceAccentColor(value.accentColor) === color} className="flex min-h-10 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-xs font-semibold hover:border-zinc-500"><span className="size-4 rounded-full border border-white/20" style={{ backgroundColor: color }} />{label}</button>)}</div><button type="button" onClick={() => update("accentColor", BM_DEFAULT_ACCENT)} className="mt-4 min-h-10 rounded-xl px-2 text-sm font-semibold text-yellow-400">Restablecer color BM</button></div><div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4"><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Vista previa</p><div className="mt-4 rounded-xl border border-yellow-400/25 bg-yellow-400/10 p-4"><p className="font-bold text-yellow-300">Tu marca en BM Training</p><p className="mt-1 text-xs text-zinc-400">Botones, enlaces y estados activos usan el color del workspace.</p><button type="button" className="bm-accent-button mt-4 min-h-10 rounded-xl px-4 text-sm font-black">Acción principal</button></div></div></div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,.75fr)]"><div><Field label="Color principal"><div className="flex gap-3"><input aria-label="Selector visual de color principal" type="color" value={workspaceAccentColor(value.accentColor)} onChange={(event) => update("accentColor", event.target.value.toUpperCase())} className="h-11 w-16 cursor-pointer rounded-xl border border-zinc-700 bg-zinc-950 p-1" /><input aria-label="Color principal en formato HEX" value={value.accentColor || ""} onChange={(event) => update("accentColor", event.target.value.toUpperCase())} placeholder={BM_DEFAULT_ACCENT} maxLength={7} className={inputClass} /></div></Field><p className={`mt-2 text-xs ${normalizeAccentColor(value.accentColor) ? "text-zinc-500" : "text-red-300"}`}>{normalizeAccentColor(value.accentColor) ? "Formato HEX válido. Ejemplo: #3B82F6." : "Ingresá un color HEX de 6 dígitos, por ejemplo #3B82F6."}</p><div className="mt-5 flex flex-wrap gap-2" aria-label="Colores sugeridos">{accentPresets.map(([label, color]) => <button key={color} type="button" onClick={() => update("accentColor", color)} aria-pressed={workspaceAccentColor(value.accentColor) === color} className="flex min-h-10 items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-xs font-semibold hover:border-zinc-500"><span className="size-4 rounded-full border border-white/20" style={{ backgroundColor: color }} />{label}</button>)}</div><button type="button" onClick={() => update("accentColor", BM_DEFAULT_ACCENT)} className="mt-4 min-h-10 rounded-xl px-2 text-sm font-semibold text-yellow-400">Restablecer color BM</button><WorkspaceLogoControls value={value} onChange={updateBranding} onError={setError} /></div><div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4"><p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Vista previa</p><div className="mt-4 rounded-xl border border-yellow-400/25 bg-yellow-400/10 p-4"><div className="flex items-center gap-3"><WorkspaceBrandLogo branding={value} className="h-14 w-14 rounded-xl" /><p className="font-bold text-yellow-300">Tu marca en BM Training</p></div><p className="mt-3 text-xs text-zinc-400">Botones, enlaces y estados activos usan el color del workspace.</p><button type="button" className="bm-accent-button mt-4 min-h-10 rounded-xl px-4 text-sm font-black">Acción principal</button></div></div></div>
         <SaveButton saving={saving} label="Guardar Personalización" />
       </Panel></div>}
       {active === "cobros" && <Panel title="Cobros" description="Definí vencimientos y las formas disponibles para pagar." icon={<BmPaymentIcon className="size-5" />}><div className="grid gap-5 md:grid-cols-2"><Field label="Día habitual de vencimiento"><input type="number" min="1" max="31" value={value.dueDay} onChange={(e) => update("dueDay", Number(e.target.value))} className={inputClass} /></Field><div><p className="text-sm">Métodos de pago</p><div className="mt-2 space-y-2">{value.paymentMethods.map((method, index) => <div key={methodKeys[index] ?? `pending-method-${index}`} className="flex min-w-0 gap-2"><input value={method} onChange={(e) => update("paymentMethods", value.paymentMethods.map((item, i) => i === index ? e.target.value : item))} className={inputClass} /><IconButton label="Quitar método" onClick={() => { setMethodKeys((current) => current.filter((_, i) => i !== index)); update("paymentMethods", value.paymentMethods.filter((_, i) => i !== index)); }} /></div>)}<AddButton onClick={addMethod}>Agregar método</AddButton></div></div></div>
@@ -72,3 +74,37 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function SaveButton({ saving, label }: { saving: boolean; label: string }) { return <div className="mt-6 flex justify-end"><button disabled={saving} className="min-h-11 w-full rounded-xl bg-yellow-400 px-4 py-2.5 font-bold text-zinc-950 disabled:opacity-50 sm:w-auto">{saving ? "Guardando…" : label}</button></div>; }
 function AddButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} className="flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-yellow-400"><BmPlusIcon className="size-4" />{children}</button>; }
 function IconButton({ label, onClick }: { label: string; onClick: () => void }) { return <button type="button" aria-label={label} onClick={onClick} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-xl border border-red-400/20 text-red-300"><BmDeleteIcon className="size-4" /></button>; }
+
+const logoLabels: Record<WorkspaceLogoMode, string> = { DEFAULT: "Logo BM", WHITE: "Blanco", ACCENT: "Color principal", CUSTOM: "Logo propio" };
+
+function WorkspaceLogoControls({ value, onChange, onError }: { value: CoachSettings; onChange: (next: Partial<WorkspaceBranding>) => void; onError: (message: string) => void }) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const plan = value.brandingPlan ?? "STARTER";
+  const modes = allowedLogoModes(plan);
+
+  async function uploadLogo(file: File) {
+    setUploading(true); onError("");
+    try {
+      const form = new FormData(); form.set("logo", file);
+      const response = await fetch("/api/workspace/logo", { method: "POST", body: form });
+      const body = await response.json() as { branding?: WorkspaceBranding; error?: string };
+      if (!response.ok || !body.branding) throw new Error(body.error ?? "No se pudo subir el logo.");
+      onChange(body.branding);
+    } catch (error) { onError(error instanceof Error ? error.message : "No se pudo subir el logo."); }
+    finally { setUploading(false); if (fileInput.current) fileInput.current.value = ""; }
+  }
+
+  async function removeLogo() {
+    setUploading(true); onError("");
+    try {
+      const response = await fetch("/api/workspace/logo", { method: "DELETE" });
+      const body = await response.json() as { branding?: WorkspaceBranding; error?: string };
+      if (!response.ok || !body.branding) throw new Error(body.error ?? "No se pudo eliminar el logo.");
+      onChange(body.branding);
+    } catch (error) { onError(error instanceof Error ? error.message : "No se pudo eliminar el logo."); }
+    finally { setUploading(false); }
+  }
+
+  return <div className="mt-7 border-t border-zinc-800 pt-5"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Estilo del logo</p><p className="mt-1 text-xs text-zinc-500">Opciones disponibles para tu plan {plan}.</p></div><span className="rounded-full border border-yellow-400/25 px-2 py-1 text-[10px] font-bold text-yellow-300">{plan}</span></div><div className="mt-3 grid grid-cols-2 gap-2">{modes.map((mode) => <button key={mode} type="button" disabled={mode === "CUSTOM" && !value.customLogoUrl} onClick={() => onChange({ logoMode: mode })} aria-pressed={value.logoMode === mode} className={`min-h-11 rounded-xl border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${value.logoMode === mode ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-zinc-700 bg-zinc-950 text-zinc-300"}`}>{logoLabels[mode]}</button>)}</div>{plan === "PREMIUM" && <div className="mt-4 flex flex-wrap gap-2"><input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLogo(file); }} /><button type="button" disabled={uploading} onClick={() => fileInput.current?.click()} className="min-h-10 rounded-xl border border-yellow-400/30 px-3 text-xs font-bold text-yellow-300 disabled:opacity-50">{uploading ? "Procesando…" : value.customLogoUrl ? "Reemplazar logo" : "Subir logo propio"}</button>{value.customLogoUrl && <button type="button" disabled={uploading} onClick={() => void removeLogo()} className="min-h-10 rounded-xl border border-red-400/25 px-3 text-xs font-bold text-red-300 disabled:opacity-50">Eliminar logo</button>}<button type="button" onClick={() => onChange({ logoMode: "DEFAULT" })} className="min-h-10 rounded-xl px-3 text-xs font-bold text-zinc-300">Volver al logo BM</button><p className="w-full text-[11px] text-zinc-500">PNG, JPG o WEBP · máximo 3 MB.</p></div>}</div>;
+}
