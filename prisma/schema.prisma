@@ -129,6 +129,19 @@ model TrainerInvitation {
   @@map("trainer_invitations")
 }
 
+model PlatformSettings {
+  id                   String                  @id @default("main")
+  platformName         String                  @default("BM Training")
+  supportEmail         String                  @default("")
+  invitationDays       Int                     @default(7)
+  defaultTrainerPlan   TrainerSubscriptionPlan @default(STARTER)
+  initialPeriodMonths  Int                     @default(1)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@map("platform_settings")
+}
+
 model Workspace {
   id                       String                    @id @default(cuid())
   name                     String
