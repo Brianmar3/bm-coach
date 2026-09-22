@@ -1,4 +1,4 @@
-export const TRAINER_SUBSCRIPTION_PLANS = ["STARTER", "PRO", "PREMIUM"] as const;
+export const TRAINER_SUBSCRIPTION_PLANS = ["FREE", "STARTER", "PRO", "PREMIUM"] as const;
 export const TRAINER_SUBSCRIPTION_STATUSES = ["ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED"] as const;
 export const TRAINER_SUBSCRIPTION_PERIODS = [1, 3, 6, 12] as const;
 
@@ -6,6 +6,20 @@ export type TrainerSubscriptionPlanValue = typeof TRAINER_SUBSCRIPTION_PLANS[num
 export type TrainerSubscriptionStatusValue = typeof TRAINER_SUBSCRIPTION_STATUSES[number];
 
 type SubscriptionStatusInput = { status: TrainerSubscriptionStatusValue; nextDueAt: Date | string | null };
+
+export const TRAINER_TRIAL_DAYS = 30;
+
+export function trialEndsAt(startedAt: Date) {
+  return new Date(startedAt.getTime() + TRAINER_TRIAL_DAYS * 86400000);
+}
+
+export function trainerTrialIsActive(value: Date | string | null | undefined, now = new Date()) {
+  return Boolean(value && new Date(value) > now);
+}
+
+export function effectiveTrainerPlan(subscription: { plan: TrainerSubscriptionPlanValue; trialEndsAt?: Date | string | null }, now = new Date()): TrainerSubscriptionPlanValue {
+  return trainerTrialIsActive(subscription.trialEndsAt, now) ? "PREMIUM" : subscription.plan;
+}
 
 export function effectiveTrainerSubscriptionStatus(subscription: SubscriptionStatusInput, now = new Date()): TrainerSubscriptionStatusValue {
   if (subscription.status === "ACTIVE" && subscription.nextDueAt && new Date(subscription.nextDueAt) < now) return "PAST_DUE";

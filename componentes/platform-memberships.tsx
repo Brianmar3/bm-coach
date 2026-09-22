@@ -8,6 +8,7 @@ export type MembershipTrainer = { id: string; name: string; email: string; statu
 type Filter = "ALL" | keyof typeof subscriptionLabel | "EXPIRING";
 const filters: Array<[Filter, string]> = [["ALL", "Todas"], ["ACTIVE", "Al día"], ["PAST_DUE", "Vencidas"], ["SUSPENDED", "Suspendidas"], ["CANCELLED", "Canceladas"], ["EXPIRING", "Próximas a vencer"]];
 const showDate = (value: string | null | undefined) => value ? new Date(value).toLocaleDateString("es-AR") : "—";
+const expiringWindowEnd = Date.now() + 7 * 86400000;
 
 export function PlatformMemberships({ trainers, initialFilter = "ALL" }: { trainers: MembershipTrainer[]; initialFilter?: Filter }) {
   const router = useRouter();
@@ -17,7 +18,7 @@ export function PlatformMemberships({ trainers, initialFilter = "ALL" }: { train
   const [error, setError] = useState("");
   const visible = useMemo(() => trainers.filter((trainer) => {
     if (filter === "ALL") return true;
-    if (filter === "EXPIRING") { const due = trainer.subscription?.nextDueAt; return trainer.effectiveStatus === "ACTIVE" && !!due && new Date(due).getTime() <= Date.now() + 7 * 86400000; }
+    if (filter === "EXPIRING") { const due = trainer.subscription?.nextDueAt; return trainer.effectiveStatus === "ACTIVE" && !!due && new Date(due).getTime() <= expiringWindowEnd; }
     return trainer.effectiveStatus === filter;
   }), [trainers, filter]);
 

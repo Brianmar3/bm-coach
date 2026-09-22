@@ -32,8 +32,9 @@ export async function proxy(request: NextRequest) {
   const portalRoute = path === "/portal" || path.startsWith("/portal/") || path === "/api/portal" || path.startsWith("/api/portal/");
   const exerciseLibraryRead = path.startsWith("/api/exercise-library") && SAFE_METHODS.has(request.method);
   const trainerInvitationRoute = path.startsWith("/trainer/invite/") || path.startsWith("/api/trainer/invitations/");
+  const trainerPasswordResetRoute = path.startsWith("/trainer/reset-password/") || path.startsWith("/api/trainer/password-reset/");
   const authRoute = path === "/admin/login" || path === "/master" || path === "/api/admin/auth/login" || path === "/api/platform/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";
-  if (portalRoute || authRoute || trainerInvitationRoute || exerciseLibraryRead) {
+  if (portalRoute || authRoute || trainerInvitationRoute || trainerPasswordResetRoute || exerciseLibraryRead) {
     if (path === "/admin/login") {
       const adminSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
       if (adminSession.ok && await sessionUserIsActive(adminSession.userId)) {

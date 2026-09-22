@@ -3,11 +3,12 @@ import { coachedStudentsWhere } from "@/lib/coached-students";
 import { isSelfService } from "@/lib/self-service";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings, Student } from "@/types/gestion";
 import { normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
 import { normalizeAccentColor } from "@/lib/workspace-branding";
+import { assertTrainerCanReplaceStudents, TrainerStudentLimitError } from "@/lib/trainer-plan-limits-server";
 
 const collections = {
   "bm-coach-students": prisma.studentRecord,
@@ -49,14 +50,20 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
   if (collection === "bm-coach-students") {
     const items = body.items;
     if (items.some(isSelfService)) return Response.json({ error: "Las cuentas autogestionadas se administran por separado." }, { status: 400 });
-    const saved = await prisma.$transaction(async (transaction) => {
-      const reserved = await transaction.studentRecord.count({ where: { workspaceId, id: { in: items.map((item) => item.id) }, data: { path: ["accountType"], equals: "SELF_SERVICE" } } });
-      if (reserved) return false;
-      await transaction.studentRecord.deleteMany({ where: { workspaceId, AND: [coachedStudentsWhere] } });
-      if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: item as Prisma.InputJsonValue })) });
-      return true;
-    });
-    return Response.json(saved ? { ok: true } : { error: "Una cuenta autogestionada no puede reemplazarse desde alumnos." }, { status: saved ? 200 : 409 });
+    try {
+      const saved = await prisma.$transaction(async (transaction) => {
+        const reserved = await transaction.studentRecord.count({ where: { workspaceId, id: { in: items.map((item) => item.id) }, data: { path: ["accountType"], equals: "SELF_SERVICE" } } });
+        if (reserved) return false;
+        await assertTrainerCanReplaceStudents(workspaceId, items.map((data) => ({ data })), transaction);
+        await transaction.studentRecord.deleteMany({ where: { workspaceId, AND: [coachedStudentsWhere] } });
+        if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: item as Prisma.InputJsonValue })) });
+        return true;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return Response.json(saved ? { ok: true } : { error: "Una cuenta autogestionada no puede reemplazarse desde alumnos." }, { status: saved ? 200 : 409 });
+    } catch (error) {
+      if (error instanceof TrainerStudentLimitError) return Response.json({ error: error.message, code: "TRAINER_STUDENT_LIMIT_REACHED", action: "Ver planes" }, { status: error.status });
+      throw error;
+    }
   }
   if (collection === "bm-coach-payments") {
     await prisma.paymentRecord.deleteMany({ where: { workspaceId } });

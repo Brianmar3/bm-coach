@@ -25,7 +25,7 @@ test("modelo comercial es único por trainer y no depende del workspace", () => 
 });
 
 test("planes y estados admiten sólo el catálogo comercial", () => {
-  for (const plan of ["STARTER", "PRO", "PREMIUM"]) assert.equal(isSubscriptionPlan(plan), true);
+  for (const plan of ["FREE", "STARTER", "PRO", "PREMIUM"]) assert.equal(isSubscriptionPlan(plan), true);
   for (const status of ["ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED"]) assert.equal(isSubscriptionStatus(status), true);
   assert.equal(isSubscriptionPlan("ENTERPRISE"), false);
   assert.equal(isSubscriptionStatus("DELETED"), false);

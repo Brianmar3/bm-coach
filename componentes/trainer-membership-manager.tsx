@@ -5,12 +5,13 @@ import { inputClass } from "@/componentes/module-shell";
 
 export type Subscription = {
   id: string;
-  plan: "STARTER" | "PRO" | "PREMIUM";
+  plan: "FREE" | "STARTER" | "PRO" | "PREMIUM";
   status: "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED";
   startedAt: string;
   lastPaidAt: string | null;
   currentPeriodEnd: string | null;
   nextDueAt: string | null;
+  trialEndsAt?: string | null;
   notes: string;
 };
 
@@ -53,7 +54,7 @@ export function TrainerMembershipManager({ trainer, subscription, onClose, onSav
       <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">Membresía comercial</p><h2 id="membership-title" className="mt-1 text-2xl font-black">{trainer.name}</h2></div><button type="button" onClick={onClose} className="text-zinc-400">Cerrar</button></div>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
       <form onSubmit={save} className="mt-6 grid gap-4 sm:grid-cols-2">
-        <label className="text-sm">Plan<select name="plan" defaultValue={subscription?.plan ?? "STARTER"} className={`${inputClass} mt-1`}><option>STARTER</option><option>PRO</option><option>PREMIUM</option></select></label>
+        <label className="text-sm">Plan<select name="plan" defaultValue={subscription?.plan ?? "STARTER"} className={`${inputClass} mt-1`}><option>FREE</option><option>STARTER</option><option>PRO</option><option>PREMIUM</option></select></label>
         <label className="text-sm">Estado<select name="status" defaultValue={subscription?.status ?? "ACTIVE"} className={`${inputClass} mt-1`}><option value="ACTIVE">Al día</option><option value="PAST_DUE">Vencido</option><option value="SUSPENDED">Suspendido</option><option value="CANCELLED">Cancelado</option></select></label>
         <label className="text-sm">Inicio<input name="startedAt" type="date" required defaultValue={dateInput(subscription?.startedAt) || new Date().toISOString().slice(0, 10)} className={`${inputClass} mt-1`} /></label>
         <label className="text-sm">Último pago<input name="lastPaidAt" type="date" defaultValue={dateInput(subscription?.lastPaidAt)} className={`${inputClass} mt-1`} /></label>

@@ -63,11 +63,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const notes = body.notes === undefined ? existing?.notes ?? "" : typeof body.notes === "string" ? body.notes.trim() : null;
   if (notes === null || notes.length > 2000) return Response.json({ error: "Las notas no son válidas." }, { status: 400 });
   const data = { plan, status, startedAt, lastPaidAt, currentPeriodEnd, nextDueAt, notes };
-  const suspendUser = status === "CANCELLED" || status === "SUSPENDED" && body.suspendAccess === true;
+  const synchronizedUserStatus = status === "ACTIVE" ? "ACTIVE" : status === "CANCELLED" || status === "SUSPENDED" && body.suspendAccess === true ? "SUSPENDED" : trainer.status;
   const subscription = await prisma.$transaction(async (tx) => {
     const saved = await tx.trainerSubscription.upsert({ where: { trainerUserId: trainer.id }, create: { trainerUserId: trainer.id, ...data }, update: data });
-    if (suspendUser) await tx.user.update({ where: { id: trainer.id }, data: { status: "SUSPENDED" } });
+    if (synchronizedUserStatus !== trainer.status) await tx.user.update({ where: { id: trainer.id }, data: { status: synchronizedUserStatus } });
     return saved;
   });
-  return Response.json({ subscription, effectiveStatus: effectiveTrainerSubscriptionStatus(subscription), userStatus: suspendUser ? "SUSPENDED" : trainer.status });
+  return Response.json({ subscription, effectiveStatus: effectiveTrainerSubscriptionStatus(subscription), userStatus: synchronizedUserStatus });
 }

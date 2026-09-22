@@ -74,7 +74,8 @@ test("20. suspensión conserva datos y sólo cambia el estado de un TRAINER prof
   assert.match(trainerStatusApi, /platformRole: "TRAINER"/);
   assert.match(trainerStatusApi, /type: "PROFESSIONAL"/);
   assert.match(trainerStatusApi, /body\?\.status !== "ACTIVE".*body\?\.status !== "SUSPENDED"/s);
-  assert.match(trainerStatusApi, /prisma\.user\.update/);
+  assert.match(trainerStatusApi, /tx\.user\.update/);
+  assert.match(trainerStatusApi, /tx\.trainerSubscription\.updateMany/);
   assert.doesNotMatch(trainerStatusApi, /delete/);
   assert.match(sessionApi, /user\.status !== "ACTIVE"/);
 });
