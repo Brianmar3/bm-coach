@@ -11,7 +11,7 @@ import { WorkspaceBrandingProvider } from "@/componentes/workspace-branding-prov
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const standalone = pathname.startsWith("/portal") || pathname === "/admin/login" || pathname === "/master" || pathname.startsWith("/platform") || pathname.startsWith("/trainer/invite/") || pathname === "/trainer/onboarding";
+  const standalone = pathname.startsWith("/portal") || pathname === "/admin/login" || pathname === "/master" || pathname.startsWith("/platform") || pathname.startsWith("/trainer/invite/") || pathname.startsWith("/trainer/reset-password/") || pathname === "/trainer/onboarding";
   const classesModule = pathname === "/clases" || pathname === "/asistencias";
   const viewportStickyPage = pathname === "/resumen-mensual";
   return (

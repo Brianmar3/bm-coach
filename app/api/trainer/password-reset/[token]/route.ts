@@ -1,8 +1,6 @@
 import { hashPassword, passwordValidationError, validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
-import { trainerPasswordResetTokenHash } from "@/lib/trainer-password-reset";
-
-class ResetRejected extends Error {}
+import { consumeTrainerPasswordResetToken, TrainerPasswordResetRejected } from "@/lib/trainer-password-reset";
 
 export async function POST(request: Request, context: RouteContext<"/api/trainer/password-reset/[token]">) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen de solicitud inválido." }, { status: 403 });
@@ -16,14 +14,14 @@ export async function POST(request: Request, context: RouteContext<"/api/trainer
   const now = new Date();
   try {
     await prisma.$transaction(async (tx) => {
-      const reset = await tx.trainerPasswordResetToken.findUnique({ where: { tokenHash: trainerPasswordResetTokenHash(token) }, select: { id: true, trainerUserId: true, expiresAt: true, usedAt: true, trainer: { select: { platformRole: true } } } });
-      if (!reset || reset.usedAt || reset.expiresAt <= now || reset.trainer.platformRole !== "TRAINER") throw new ResetRejected();
-      const claimed = await tx.trainerPasswordResetToken.updateMany({ where: { id: reset.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
-      if (claimed.count !== 1) throw new ResetRejected();
-      await tx.user.update({ where: { id: reset.trainerUserId }, data: { passwordHash } });
+      await consumeTrainerPasswordResetToken({
+        findByTokenHash: (tokenHash) => tx.trainerPasswordResetToken.findUnique({ where: { tokenHash }, select: { id: true, trainerUserId: true, expiresAt: true, usedAt: true, trainer: { select: { platformRole: true } } } }),
+        claim: async (id, claimedAt) => (await tx.trainerPasswordResetToken.updateMany({ where: { id, usedAt: null, expiresAt: { gt: claimedAt } }, data: { usedAt: claimedAt } })).count === 1,
+        updateTrainerPassword: async (trainerUserId, nextPasswordHash) => { await tx.user.update({ where: { id: trainerUserId }, data: { passwordHash: nextPasswordHash } }); },
+      }, token, passwordHash, now);
     });
   } catch (error) {
-    if (error instanceof ResetRejected) return Response.json({ error: "El enlace venció o ya fue utilizado." }, { status: 410 });
+    if (error instanceof TrainerPasswordResetRejected) return Response.json({ error: "El enlace venció o ya fue utilizado." }, { status: 410 });
     throw error;
   }
   return Response.json({ ok: true });

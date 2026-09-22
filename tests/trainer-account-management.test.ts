@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { countActiveManagedStudents, getTrainerPlanLimits, trainerStudentCapacity, trainerStudentLimitMessage } from "../lib/trainer-plan-limits.ts";
 import { effectiveTrainerPlan, trainerTrialIsActive, trialEndsAt } from "../lib/trainer-subscription.ts";
-import { trainerPasswordResetExpiresAt, trainerPasswordResetIsUsable, trainerPasswordResetToken, trainerPasswordResetTokenHash } from "../lib/trainer-password-reset.ts";
+import { consumeTrainerPasswordResetToken, TrainerPasswordResetRejected, trainerPasswordResetExpiresAt, trainerPasswordResetIsUsable, trainerPasswordResetToken, trainerPasswordResetTokenHash, type TrainerPasswordResetStore } from "../lib/trainer-password-reset.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const schema = read("prisma/schema.prisma");
@@ -17,6 +17,8 @@ const resetPublicApi = read("app/api/trainer/password-reset/[token]/route.ts");
 const trainersUi = read("componentes/platform-trainers.tsx");
 const trainerDetail = read("app/platform/trainers/[id]/page.tsx");
 const proxy = read("proxy.ts");
+const appFrame = read("componentes/app-frame.tsx");
+const adminLogin = read("app/api/admin/auth/login/route.ts");
 
 test("catálogo central aplica FREE 5, STARTER 20, PRO 50 y PREMIUM sin límite", () => {
   assert.equal(getTrainerPlanLimits("FREE").studentLimit, 5);
@@ -69,10 +71,14 @@ test("prueba comercial dura 30 días y concede capacidades PREMIUM sin mutar el 
 
 test("cancelación y reactivación sincronizan User y suscripción sin borrar la cuenta ni sus datos", () => {
   assert.match(membershipApi, /REACTIVATE_ACCESS/);
-  assert.match(membershipApi, /data: \{ status: "ACTIVE" \}/);
+  assert.match(membershipApi, /prisma\.user\.update\(\{ where: \{ id: trainer\.id \}, data: \{ status: "ACTIVE" \} \}\)/);
+  assert.match(membershipApi, /prisma\.trainerSubscription\.update\(\{ where: \{ trainerUserId: trainer\.id \}, data: \{ status: "ACTIVE"/);
   assert.match(membershipApi, /status === "CANCELLED"/);
   assert.match(membershipApi, /synchronizedUserStatus/);
-  assert.doesNotMatch(membershipApi, /workspace\.(delete|update)|studentRecord\.(delete|update)|user\.delete|trainerSubscription\.delete/);
+  assert.match(membershipApi, /revalidatePath\(`\/platform\/trainers\/\$\{id\}`\)/);
+  assert.match(trainerDetail, /Acceso \{trainer\.status === "ACTIVE" \? "activo" : "suspendido"\}/);
+  assert.match(adminLogin, /user\.status !== "ACTIVE"/);
+  assert.doesNotMatch(membershipApi, /workspace(Membership)?\.(delete|update)|studentRecord\.(delete|update)|user\.delete|trainerSubscription\.delete/);
 });
 
 test("reset usa token aleatorio, hash, vencimiento y consumo único", () => {
@@ -87,10 +93,42 @@ test("reset usa token aleatorio, hash, vencimiento y consumo único", () => {
   assert.equal(trainerPasswordResetIsUsable({ expiresAt, usedAt: now }, now), false);
   assert.match(resetOwnerApi, /platformOwnerApiAccess/);
   assert.match(resetOwnerApi, /tokenHash: trainerPasswordResetTokenHash\(token\)/);
-  assert.match(resetPublicApi, /updateMany/);
-  assert.match(resetPublicApi, /claimed\.count !== 1/);
-  assert.match(resetPublicApi, /data: \{ passwordHash \}/);
+  assert.match(resetPublicApi, /consumeTrainerPasswordResetToken/);
+  assert.match(resetPublicApi, /where: \{ id, usedAt: null, expiresAt: \{ gt: claimedAt \} \}/);
+  assert.match(resetPublicApi, /where: \{ id: trainerUserId \}/);
   assert.doesNotMatch(resetOwnerApi + resetPublicApi, /console\.(log|error).*token|passwordHash:\s*console/i);
+});
+
+test("Alumno B logueado no interviene: el token cambia sólo el passwordHash de Trainer A y queda consumido", async () => {
+  const token = trainerPasswordResetToken();
+  const now = new Date("2026-09-22T12:00:00Z");
+  const trainerPasswords = new Map([["trainer-a", "trainer-a-old"], ["trainer-c", "trainer-c-old"]]);
+  const studentCredentials = new Map([["student-b", "student-b-old"]]);
+  const activeStudentSession = { studentId: "student-b", tokenHash: "active-student-session" };
+  let usedAt: Date | null = null;
+  const store: TrainerPasswordResetStore = {
+    async findByTokenHash(tokenHash) {
+      assert.equal(tokenHash, trainerPasswordResetTokenHash(token));
+      return { id: "reset-a", trainerUserId: "trainer-a", expiresAt: trainerPasswordResetExpiresAt(now), usedAt, trainer: { platformRole: "TRAINER" } };
+    },
+    async claim(_id, claimedAt) {
+      if (usedAt) return false;
+      usedAt = claimedAt;
+      return true;
+    },
+    async updateTrainerPassword(trainerUserId, passwordHash) {
+      assert.equal(trainerUserId, "trainer-a");
+      trainerPasswords.set(trainerUserId, passwordHash);
+    },
+  };
+
+  const changedUserId = await consumeTrainerPasswordResetToken(store, token, "trainer-a-new", now);
+  assert.equal(changedUserId, "trainer-a");
+  assert.equal(trainerPasswords.get("trainer-a"), "trainer-a-new");
+  assert.equal(trainerPasswords.get("trainer-c"), "trainer-c-old");
+  assert.equal(studentCredentials.get(activeStudentSession.studentId), "student-b-old");
+  await assert.rejects(() => consumeTrainerPasswordResetToken(store, token, "second-password", now), TrainerPasswordResetRejected);
+  assert.equal(trainerPasswords.get("trainer-a"), "trainer-a-new");
 });
 
 test("Ver abre sólo el detalle administrativo y conserva la sesión PLATFORM_OWNER", () => {
@@ -102,6 +140,7 @@ test("Ver abre sólo el detalle administrativo y conserva la sesión PLATFORM_OW
 
 test("reset público es la única excepción y las APIs de gestión siguen bajo PLATFORM_OWNER", () => {
   assert.match(proxy, /trainerPasswordResetRoute/);
+  assert.match(appFrame, /pathname\.startsWith\("\/trainer\/reset-password\/"\)/);
   assert.match(resetOwnerApi, /if \(!access\.ok\) return access\.response/);
   assert.match(createStudentApi, /requireTrainerWorkspace/);
   assert.match(storeApi, /where: \{ workspaceId/);

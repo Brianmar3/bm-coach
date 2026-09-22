@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { platformOwnerApiAccess } from "@/lib/platform-auth";
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
@@ -8,6 +9,12 @@ async function managedTrainer(id: string) {
     where: { id, platformRole: "TRAINER", memberships: { some: { role: "OWNER", workspace: { type: "PROFESSIONAL" } } } },
     select: { id: true, name: true, email: true, status: true },
   });
+}
+
+function revalidateTrainerViews(id: string) {
+  revalidatePath("/platform/trainers");
+  revalidatePath(`/platform/trainers/${id}`);
+  revalidatePath("/platform/memberships");
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -35,6 +42,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       prisma.user.update({ where: { id: trainer.id }, data: { status: "SUSPENDED" } }),
       prisma.trainerSubscription.update({ where: { trainerUserId: trainer.id }, data: { status: "SUSPENDED" } }),
     ]);
+    revalidateTrainerViews(trainer.id);
     return Response.json({ subscription, effectiveStatus: subscription.status, userStatus: "SUSPENDED" });
   }
 
@@ -47,6 +55,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       prisma.user.update({ where: { id: trainer.id }, data: { status: "ACTIVE" } }),
       prisma.trainerSubscription.update({ where: { trainerUserId: trainer.id }, data: { status: "ACTIVE", nextDueAt, currentPeriodEnd } }),
     ]);
+    revalidateTrainerViews(trainer.id);
     return Response.json({ subscription, effectiveStatus: "ACTIVE", userStatus: "ACTIVE" });
   }
 
@@ -69,5 +78,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (synchronizedUserStatus !== trainer.status) await tx.user.update({ where: { id: trainer.id }, data: { status: synchronizedUserStatus } });
     return saved;
   });
+  revalidateTrainerViews(trainer.id);
   return Response.json({ subscription, effectiveStatus: effectiveTrainerSubscriptionStatus(subscription), userStatus: synchronizedUserStatus });
 }

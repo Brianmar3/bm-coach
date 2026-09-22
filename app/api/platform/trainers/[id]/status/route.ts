@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { platformOwnerApiAccess } from "@/lib/platform-auth";
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
@@ -17,5 +18,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     await tx.trainerSubscription.updateMany({ where: { trainerUserId: trainer.id }, data: { status: nextStatus === "ACTIVE" ? "ACTIVE" : "SUSPENDED" } });
     return user;
   });
+  revalidatePath("/platform/trainers");
+  revalidatePath(`/platform/trainers/${trainer.id}`);
+  revalidatePath("/platform/memberships");
   return Response.json({ trainer: updated });
 }
