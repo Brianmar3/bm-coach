@@ -4,6 +4,8 @@ import { getPortalSession } from "@/lib/portal-auth";
 import { isSelfService, selfServicePreferences } from "@/lib/self-service";
 import { onboardingData, onboardingIsComplete } from "@/lib/student-onboarding";
 import type { Student } from "@/types/gestion";
+import { DEFAULT_WORKSPACE_BRANDING } from "@/lib/workspace-branding";
+import { loadWorkspaceBranding } from "@/lib/workspace-branding-server";
 
 export default async function OnboardingPage() {
   const session = await getPortalSession({ allowSelfService: true });
@@ -12,5 +14,6 @@ export default async function OnboardingPage() {
   const student = session.credential.student.data as unknown as Student;
   const selfService = isSelfService(student);
   if (onboardingIsComplete(student)) redirect(selfService ? "/portal/autogestion" : "/portal");
-  return <StudentOnboarding selfService={selfService} initial={{ ...onboardingData(student), ...(selfService ? selfServicePreferences(student) : {}) }} />;
+  const branding = selfService ? DEFAULT_WORKSPACE_BRANDING : await loadWorkspaceBranding(session.credential.student.workspaceId);
+  return <StudentOnboarding branding={branding} selfService={selfService} initial={{ ...onboardingData(student), ...(selfService ? selfServicePreferences(student) : {}) }} />;
 }

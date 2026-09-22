@@ -159,6 +159,9 @@ export type CoachSettings = {
   plans: CoachPlan[];
   primaryColor: string;
   accentColor: string;
+  logoMode: "DEFAULT" | "WHITE" | "ACCENT" | "CUSTOM";
+  customLogoUrl: string;
+  brandingPlan?: "FREE" | "STARTER" | "PRO" | "PREMIUM";
   compactMode: boolean;
 };
 

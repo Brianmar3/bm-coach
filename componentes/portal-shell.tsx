@@ -18,7 +18,7 @@ import {
 } from "@/componentes/icons";
 import { PortalHeader, PortalNavigationLink, PORTAL_MOBILE_NAV_CLASS } from "@/componentes/portal-visuals";
 import { RestTimerIndicator, RestTimerProvider } from "@/componentes/rest-timer-provider";
-import { workspaceBrandingVariables } from "@/lib/workspace-branding";
+import { workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
 
 type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
@@ -35,18 +35,18 @@ export function PortalShell({
   profileImageUrl,
   serviceType,
   hasRoutine,
-  accentColor,
+  branding,
   children,
 }: {
   studentName: string;
   profileImageUrl: string;
   serviceType: StudentServiceType;
   hasRoutine: boolean;
-  accentColor: string;
+  branding: WorkspaceBranding;
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const [currentAccentColor, setCurrentAccentColor] = useState(accentColor);
+  const [currentBranding, setCurrentBranding] = useState(branding);
   const [currentProfileImageUrl, setCurrentProfileImageUrl] =
     useState(profileImageUrl);
   useEffect(() => {
@@ -59,8 +59,8 @@ export function PortalShell({
       try {
         const response = await fetch("/api/portal/branding", { cache: "no-store", signal: controller.signal });
         if (!response.ok) return;
-        const body = await response.json() as { accentColor?: string };
-        if (!stopped && body.accentColor) setCurrentAccentColor((current) => current === body.accentColor ? current : body.accentColor!);
+        const body = await response.json() as WorkspaceBranding;
+        if (!stopped && body.accentColor) setCurrentBranding((current) => current.accentColor === body.accentColor && current.logoMode === body.logoMode && current.customLogoUrl === body.customLogoUrl ? current : body);
       } catch (error) {
         if (!(error instanceof Error && error.name === "AbortError")) return;
       }
@@ -116,9 +116,9 @@ export function PortalShell({
   };
 
   return <RestTimerProvider>
-    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(currentAccentColor) as CSSProperties}>
+    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties}>
       <AchievementCelebration />
-      <PortalHeader studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>
+      <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>
         <nav
           aria-label="Navegación del portal"
           className="mx-auto hidden max-w-6xl gap-5 px-5 pb-2 md:flex"

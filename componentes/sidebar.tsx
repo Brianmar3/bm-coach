@@ -1,10 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
+import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
+import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 
 const links = [
   ["Dashboard", "/dashboard", "dashboard"],
@@ -21,6 +22,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const branding = useWorkspaceBranding();
 
   useEscapeLayer(open, () => setOpen(false), { priority: 50 });
 
@@ -66,7 +68,7 @@ export function Sidebar() {
           <aside role="dialog" aria-modal="true" aria-label="Menú de navegación" className="h-full w-[min(19rem,88vw)] overflow-y-auto border-r border-yellow-400/15 bg-[linear-gradient(180deg,#111114_0%,#050505_100%)] p-5 shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <Image src="/bm-training-mark.png" alt="" width={42} height={42} className="h-10 w-10 rounded-xl object-contain" />
+                <WorkspaceBrandLogo branding={branding} className="h-10 w-10 rounded-xl" />
                 <div><p className="text-sm font-black tracking-wider text-white">BM <span className="text-yellow-400">TRAINING</span></p><p className="text-[9px] text-zinc-500">Panel del entrenador</p></div>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-800" aria-label="Cerrar menú">×</button>

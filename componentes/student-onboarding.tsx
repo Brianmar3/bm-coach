@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState, type ComponentType } from "react";
+import { useState, type ComponentType, type CSSProperties } from "react";
 import {
   BmBackIcon, BmBarbellIcon, BmCalendarIcon, BmCheckIcon, BmEditIcon, BmFlameIcon,
   BmHealthIcon, BmInfoIcon, BmMeasurementsIcon, BmMoreIcon, BmProfileIcon,
@@ -11,6 +10,8 @@ import {
 import { EXPERIENCE_LEVELS, ONBOARDING_GOALS, TRAINING_EXPERIENCE, onboardingValidation, type StudentOnboardingData } from "@/lib/student-onboarding";
 import { SELF_SERVICE_GOALS, selfServicePreferences, selfServicePreferencesError } from "@/lib/self-service";
 import { SelfServicePreferencesFields } from "@/componentes/self-service-preferences";
+import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
+import { DEFAULT_WORKSPACE_BRANDING, workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
 
 const goalIcons: Record<(typeof ONBOARDING_GOALS)[number], ComponentType<BmIconProps>> = {
   "Ganar masa muscular": BmBarbellIcon,
@@ -21,11 +22,11 @@ const goalIcons: Record<(typeof ONBOARDING_GOALS)[number], ComponentType<BmIconP
   Otro: BmMoreIcon,
 };
 
-function Brand({ compact = false }: { compact?: boolean }) {
-  return <div className="onboarding-brand"><Image src="/bm-training-mark.png" alt="" width={72} height={72} priority /><span>BM <strong>Training</strong></span>{!compact && <small>Gestión, entrenamiento<br />tu mejor versión.</small>}</div>;
+function Brand({ branding, compact = false }: { branding: WorkspaceBranding; compact?: boolean }) {
+  return <div className="onboarding-brand"><WorkspaceBrandLogo branding={branding} className="h-[72px] w-[72px]" /><span>BM <strong>Training</strong></span>{!compact && <small>Gestión, entrenamiento<br />tu mejor versión.</small>}</div>;
 }
 
-export function StudentOnboarding({ initial, selfService = false }: { initial: StudentOnboardingData; selfService?: boolean }) {
+export function StudentOnboarding({ initial, selfService = false, branding = DEFAULT_WORKSPACE_BRANDING }: { initial: StudentOnboardingData; selfService?: boolean; branding?: WorkspaceBranding }) {
   const router = useRouter();
   const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [form, setForm] = useState(initial);
@@ -49,14 +50,14 @@ export function StudentOnboarding({ initial, selfService = false }: { initial: S
     finally { setSaving(false); }
   }
 
-  return <main className="onboarding-shell"><div className="onboarding-aurora" /><div className="onboarding-phone">
+  return <main className="workspace-brand onboarding-shell" style={workspaceBrandingVariables(branding.accentColor) as CSSProperties}><div className="onboarding-aurora" /><div className="onboarding-phone">
     {step === 0 ? <section className="onboarding-welcome onboarding-enter">
-      <Brand />
+      <Brand branding={branding} />
       <div><h1>Completa tu <strong>perfil</strong></h1><p>Son unos datos rápidos para<br />personalizar mejor tu seguimiento.</p></div>
       <div className="onboarding-orbit" aria-label="Perfil, salud y progreso"><span /><span /><span /><div><BmTargetIcon size={38} /></div><i className="onboarding-orbit-icon onboarding-orbit-icon-profile"><BmProfileIcon size={22} /></i><i className="onboarding-orbit-icon onboarding-orbit-icon-health"><BmHealthIcon size={22} /></i><i className="onboarding-orbit-icon onboarding-orbit-icon-progress"><BmProgressIcon size={22} /></i></div>
       <div className="w-full"><button type="button" onClick={() => setStep(1)} className="onboarding-primary">Empezar <span>→</span></button><small className="mt-3 block">Un mejor entrenamiento<br />comienza conociéndote.</small></div>
     </section> : <section className={step === 4 ? "onboarding-confirm onboarding-enter" : "onboarding-form onboarding-enter"}>
-      {step < 4 && <><header><button type="button" className="onboarding-back" onClick={() => setStep((step - 1) as 0 | 1 | 2)} aria-label="Volver"><BmBackIcon size={24} /></button><span>{step} de 4</span><Brand compact /></header><div className="onboarding-progress" aria-label={`Paso ${step} de 4`}>{[1, 2, 3, 4].map((item) => <i key={item} className={item <= step ? "active" : ""} />)}</div></>}
+      {step < 4 && <><header><button type="button" className="onboarding-back" onClick={() => setStep((step - 1) as 0 | 1 | 2)} aria-label="Volver"><BmBackIcon size={24} /></button><span>{step} de 4</span><Brand branding={branding} compact /></header><div className="onboarding-progress" aria-label={`Paso ${step} de 4`}>{[1, 2, 3, 4].map((item) => <i key={item} className={item <= step ? "active" : ""} />)}</div></>}
       {step === 1 && <div className="onboarding-content"><h1>Datos físicos</h1><p>Contanos un poco sobre vos.</p><div className="onboarding-fields">
         <Field Icon={BmCalendarIcon} label="Fecha de nacimiento"><input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} /></Field>
         <Field Icon={BmMeasurementsIcon} label="Altura"><input type="number" inputMode="numeric" min="80" max="250" placeholder="Ej. 178" value={form.height || ""} onChange={(event) => setForm({ ...form, height: Number(event.target.value) })} /><b>cm</b></Field>

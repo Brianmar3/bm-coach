@@ -14,7 +14,7 @@ export const DEFAULT_WORKSPACE_BRANDING: WorkspaceBranding = {
   customLogoUrl: "",
 };
 
-type BrandingPlan = "STARTER" | "PRO" | "PREMIUM";
+type BrandingPlan = "FREE" | "STARTER" | "PRO" | "PREMIUM";
 
 const HEX_COLOR = /^#[0-9A-F]{6}$/;
 

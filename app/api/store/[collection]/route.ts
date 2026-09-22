@@ -7,7 +7,8 @@ import { Prisma } from "@prisma/client";
 import { canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings, Student } from "@/types/gestion";
 import { normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
-import { normalizeAccentColor } from "@/lib/workspace-branding";
+import { allowedLogoModes, normalizeAccentColor, normalizeCustomLogoUrl, normalizeLogoMode, resolveWorkspaceBranding } from "@/lib/workspace-branding";
+import { loadWorkspaceBrandingPlan } from "@/lib/workspace-branding-server";
 import { assertTrainerCanReplaceStudents, TrainerStudentLimitError } from "@/lib/trainer-plan-limits-server";
 
 const collections = {
@@ -36,6 +37,10 @@ export async function GET(_request: Request, context: RouteContext<"/api/store/[
       : collection === "bm-coach-payments"
         ? await prisma.paymentRecord.findMany({ where: { workspaceId }, orderBy: { updatedAt: "desc" } })
         : await prisma.eventRecord.findMany({ where: { workspaceId }, orderBy: { updatedAt: "desc" } });
+  if (collection === "bm-coach-settings") {
+    const brandingPlan = await loadWorkspaceBrandingPlan(workspaceId);
+    return Response.json(records.map((record) => ({ id: record.id, ...record.data as object, ...resolveWorkspaceBranding(record.data as { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown }, brandingPlan), brandingPlan })));
+  }
   return Response.json(records.map((record) => ({ id: record.id, ...record.data as object })));
 }
 
@@ -46,7 +51,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
   const { workspaceId } = await requireTrainerWorkspace();
   const body = await request.json() as { items?: Array<{ id: string }> };
   if (!Array.isArray(body.items) || body.items.some((item) => !item.id)) return Response.json({ error: "Datos inválidos." }, { status: 400 });
-  if (collection === "bm-coach-settings") return saveCoachSettings(body.items);
+  if (collection === "bm-coach-settings") return saveCoachSettings(body.items, workspaceId);
   if (collection === "bm-coach-students") {
     const items = body.items;
     if (items.some(isSelfService)) return Response.json({ error: "Las cuentas autogestionadas se administran por separado." }, { status: 400 });
@@ -75,9 +80,8 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
   return Response.json({ ok: true });
 }
 
-async function saveCoachSettings(items: Array<{ id: string }>) {
+async function saveCoachSettings(items: Array<{ id: string }>, workspaceId: string) {
   if (items.length !== 1) return Response.json({ error: "La configuración principal no es válida." }, { status: 400 });
-  const { workspaceId } = await requireTrainerWorkspace();
   const requested = items[0] as unknown as CoachSettings;
   if (!Array.isArray(requested.plans) || !Array.isArray(requested.paymentMethods)) {
     return Response.json({ error: "Los planes y métodos de pago no son válidos." }, { status: 400 });
@@ -86,14 +90,21 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
   const methodError = validatePaymentMethods(requested.paymentMethods);
   const transferError = validateTransferDetails(requested.transferDetails);
   const accentColor = normalizeAccentColor(requested.accentColor);
+  const logoMode = normalizeLogoMode(requested.logoMode);
   if (!accentColor) return Response.json({ error: "El color principal debe usar formato HEX, por ejemplo #3B82F6." }, { status: 400 });
+  if (!logoMode) return Response.json({ error: "El estilo del logo no es válido." }, { status: 400 });
   if (planError || methodError || transferError) return Response.json({ error: planError ?? methodError ?? transferError }, { status: 400 });
 
-  const [currentRecord, studentRecords] = await Promise.all([
-    prisma.coachSettingsRecord.findFirst({ where: { workspaceId: (await requireTrainerWorkspace()).workspaceId }, orderBy: { updatedAt: "desc" }, select: { id: true, data: true } }),
+  const [currentRecord, studentRecords, brandingPlan] = await Promise.all([
+    prisma.coachSettingsRecord.findFirst({ where: { workspaceId }, orderBy: { updatedAt: "desc" }, select: { id: true, data: true } }),
     prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true } }),
+    loadWorkspaceBrandingPlan(workspaceId),
   ]);
   const current = currentRecord?.data as unknown as CoachSettings | undefined;
+  const currentCustomLogoUrl = normalizeCustomLogoUrl(current?.customLogoUrl);
+  if (!allowedLogoModes(brandingPlan).includes(logoMode)) return Response.json({ error: `El plan ${brandingPlan} no permite usar el estilo ${logoMode}.` }, { status: 403 });
+  if (normalizeCustomLogoUrl(requested.customLogoUrl) !== currentCustomLogoUrl) return Response.json({ error: "El logo personalizado sólo puede cambiarse mediante la carga segura de archivos." }, { status: 400 });
+  if (logoMode === "CUSTOM" && !currentCustomLogoUrl) return Response.json({ error: "Subí un logo válido antes de activar el estilo personalizado." }, { status: 400 });
   const requestedPersistentPlans = plansWithIds(requested.plans);
   const currentPlans = plansWithIds(current?.plans).map((plan, index) => {
     if (plan.id) return plan;
@@ -119,9 +130,13 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
     );
   }
 
+  const { brandingPlan: _brandingPlan, ...persistedRequested } = requested;
+  void _brandingPlan;
   const settings: CoachSettings = {
-    ...requested,
+    ...persistedRequested,
     accentColor,
+    logoMode,
+    customLogoUrl: currentCustomLogoUrl,
     plans: nextPlans,
     paymentMethods: requested.paymentMethods.map((method) => method.trim()),
     transferDetails: normalizeTransferDetails(requested.transferDetails),
@@ -140,5 +155,5 @@ async function saveCoachSettings(items: Array<{ id: string }>) {
     prisma.coachSettingsRecord.deleteMany({ where: { workspaceId } }),
     prisma.coachSettingsRecord.create({ data: { id: currentRecord?.id ?? `settings-${workspaceId}`, workspaceId, data: settings as unknown as Prisma.InputJsonObject } }),
   ]);
-  return Response.json({ ok: true, settings });
+  return Response.json({ ok: true, settings: { ...settings, brandingPlan } });
 }

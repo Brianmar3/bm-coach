@@ -9,7 +9,7 @@ import type { CoachSettings, Student } from "../types/gestion.ts";
 
 const settings = (plans: CoachSettings["plans"]): CoachSettings => ({
   id: "main", systemName: "BM", coachName: "", phone: "", email: "", address: "", currency: "ARS",
-  dueDay: 10, paymentMethods: ["Efectivo"], plans, primaryColor: "#000", accentColor: "#fc0", compactMode: false,
+  dueDay: 10, paymentMethods: ["Efectivo"], plans, primaryColor: "#000", accentColor: "#fc0", logoMode: "DEFAULT", customLogoUrl: "", compactMode: false,
 });
 
 const student = (plan: string, planId = ""): Student => ({

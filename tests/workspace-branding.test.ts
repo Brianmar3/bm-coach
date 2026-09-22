@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { BM_DEFAULT_ACCENT, normalizeAccentColor, workspaceAccentColor, workspaceBrandingVariables } from "../lib/workspace-branding.ts";
+import { allowedLogoModes, BM_DEFAULT_ACCENT, normalizeAccentColor, normalizeCustomLogoUrl, resolveWorkspaceBranding, workspaceAccentColor, workspaceBrandingVariables } from "../lib/workspace-branding.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -9,6 +9,20 @@ test("workspace sin color y SELF_SERVICE conservan el dorado BM", () => {
   assert.equal(workspaceAccentColor(undefined), BM_DEFAULT_ACCENT);
   assert.equal(workspaceAccentColor(""), BM_DEFAULT_ACCENT);
   assert.match(read("componentes/self-service-shell.tsx"), /workspaceBrandingVariables\(BM_DEFAULT_ACCENT\)/);
+});
+
+test("los estilos de logo quedan limitados por plan", () => {
+  assert.deepEqual(allowedLogoModes("STARTER"), ["DEFAULT", "WHITE"]);
+  assert.deepEqual(allowedLogoModes("PRO"), ["DEFAULT", "WHITE", "ACCENT"]);
+  assert.deepEqual(allowedLogoModes("PREMIUM"), ["DEFAULT", "WHITE", "ACCENT", "CUSTOM"]);
+});
+
+test("CUSTOM exige PREMIUM y una URL segura de Vercel Blob", () => {
+  const logoUrl = "https://example.public.blob.vercel-storage.com/workspace-branding/logo.webp";
+  assert.equal(resolveWorkspaceBranding({ logoMode: "CUSTOM", customLogoUrl: logoUrl }, "PREMIUM").logoMode, "CUSTOM");
+  assert.equal(resolveWorkspaceBranding({ logoMode: "CUSTOM", customLogoUrl: logoUrl }, "PRO").logoMode, "DEFAULT");
+  assert.equal(resolveWorkspaceBranding({ logoMode: "CUSTOM", customLogoUrl: "" }, "PREMIUM").logoMode, "DEFAULT");
+  assert.equal(normalizeCustomLogoUrl("https://attacker.example/logo.png"), "");
 });
 
 test("normaliza HEX válido y rechaza valores que no son un color seguro", () => {
@@ -30,31 +44,55 @@ test("trainer sólo guarda el color del workspace resuelto por su sesión", () =
   assert.match(route, /const \{ workspaceId \} = await requireTrainerWorkspace\(\)/);
   assert.match(route, /normalizeAccentColor\(requested\.accentColor\)/);
   assert.match(route, /if \(!accentColor\) return Response\.json\([^]*status: 400/);
+  assert.match(route, /allowedLogoModes\(brandingPlan\)\.includes\(logoMode\)/);
+  assert.match(route, /normalizeCustomLogoUrl\(requested\.customLogoUrl\) !== currentCustomLogoUrl/);
   assert.doesNotMatch(route, /requested\.workspaceId|body\.workspaceId/);
 });
 
-test("alumno hereda el color de su workspace y lo conserva tras un nuevo login", () => {
+test("alumno hereda color y logo de su workspace y los conserva tras un nuevo login", () => {
   const layout = read("app/portal/(student)/layout.tsx");
   const server = read("lib/workspace-branding-server.ts");
-  assert.match(layout, /loadWorkspaceAccentColor\(session\.credential\.student\.workspaceId\)/);
-  assert.match(layout, /<PortalShell accentColor=\{accentColor\}/);
+  assert.match(layout, /loadWorkspaceBranding\(session\.credential\.student\.workspaceId\)/);
+  assert.match(layout, /<PortalShell branding=\{branding\}/);
   assert.match(server, /where: \{ workspaceId \}/);
-  assert.match(read("componentes/portal-shell.tsx"), /useState\(accentColor\)/);
-  assert.match(read("componentes/portal-shell.tsx"), /workspaceBrandingVariables\(currentAccentColor\)/);
+  assert.match(server, /trainerSubscription: \{ select: \{ plan: true, trialEndsAt: true \} \}/);
+  assert.match(server, /effectiveTrainerPlan/);
+  assert.match(read("componentes/portal-shell.tsx"), /useState\(branding\)/);
+  assert.match(read("componentes/portal-shell.tsx"), /workspaceBrandingVariables\(currentBranding\.accentColor\)/);
 });
 
-test("alumno conectado actualiza sólo las variables de su workspace sin refresh", () => {
+test("alumno conectado actualiza color y logo sólo desde su sesión sin refresh", () => {
   const route = read("app/api/portal/branding/route.ts");
   const shell = read("componentes/portal-shell.tsx");
   assert.match(route, /const session = await getPortalSession\(\)/);
-  assert.match(route, /loadWorkspaceAccentColor\(session\.credential\.student\.workspaceId\)/);
+  assert.match(route, /loadWorkspaceBranding\(session\.credential\.student\.workspaceId\)/);
   assert.doesNotMatch(route, /searchParams|request\.url|workspaceId:/);
   assert.match(route, /Cache-Control": "private, no-store"/);
   assert.match(shell, /fetch\("\/api\/portal\/branding"/);
   assert.match(shell, /setInterval\([^]*10000\)/);
-  assert.match(shell, /setCurrentAccentColor/);
-  assert.match(shell, /workspaceBrandingVariables\(currentAccentColor\)/);
+  assert.match(shell, /setCurrentBranding/);
+  assert.match(shell, /current\.logoMode === body\.logoMode/);
+  assert.match(shell, /current\.customLogoUrl === body\.customLogoUrl/);
   assert.doesNotMatch(shell, /router\.refresh|location\.reload|window\.location/);
+});
+
+test("carga PREMIUM reutiliza Blob, valida el archivo y persiste sólo su URL", () => {
+  const upload = read("app/api/workspace/logo/route.ts");
+  assert.match(upload, /plan !== "PREMIUM"/);
+  assert.match(upload, /image\/jpeg/);
+  assert.match(upload, /image\/png/);
+  assert.match(upload, /image\/webp/);
+  assert.doesNotMatch(upload, /image\/svg/);
+  assert.match(upload, /workspace-branding\/\$\{auth\.workspace\.workspaceId\}/);
+  assert.match(upload, /customLogoUrl: blob\.url/);
+  assert.doesNotMatch(upload, /data: \{[^}]*Buffer/);
+});
+
+test("logo roto o downgrade usan el logo BM como fallback", () => {
+  const logo = read("componentes/workspace-brand-logo.tsx");
+  assert.match(logo, /onError=\{\(\) => setFailedCustomUrl\(branding\.customLogoUrl\)\}/);
+  assert.match(logo, /src="\/bm-training-mark\.png"/);
+  assert.equal(resolveWorkspaceBranding({ logoMode: "CUSTOM", customLogoUrl: "https://example.public.blob.vercel-storage.com/logo.png" }, "STARTER").logoMode, "DEFAULT");
 });
 
 test("polling se pausa al desmontar y se reactiva al volver a la app", () => {
@@ -70,15 +108,22 @@ test("Master conserva dorado BM y la personalización queda fuera de Plataforma"
   assert.match(appFrame, /pathname === "\/master" \|\| pathname\.startsWith\("\/platform"\)/);
   assert.match(appFrame, /<WorkspaceBrandingProvider><div className=\{`admin-panel/);
   assert.doesNotMatch(read("componentes/platform-shell.tsx"), /WorkspaceBrandingProvider|workspaceBrandingVariables/);
+  assert.doesNotMatch(read("app/master/page.tsx"), /WorkspaceBrandLogo|customLogoUrl|logoMode/);
 });
 
-test("Configuración ofrece presets, preview y restablecimiento", () => {
+test("Configuración ofrece presets, preview y controles de logo por plan", () => {
   const settings = read("app/configuracion/page.tsx");
   assert.match(settings, /label: "Personalización"/);
   assert.match(settings, /type="color"/);
   assert.match(settings, /Vista previa/);
   assert.match(settings, /Restablecer color BM/);
   assert.match(settings, /update\("accentColor", BM_DEFAULT_ACCENT\)/);
+  assert.match(settings, /Estilo del logo/);
+  assert.match(settings, /Subir logo propio/);
+  assert.match(settings, /Reemplazar logo/);
+  assert.match(settings, /Eliminar logo/);
+  assert.match(settings, /Volver al logo BM/);
+  assert.match(settings, /<WorkspaceBrandLogo branding=\{value\}/);
 });
 
 test("listado Master es compacto, conserva filtros y agrega búsqueda", () => {

@@ -3,27 +3,15 @@ import Link from "next/link";
 import type { ReactNode, ComponentType } from "react";
 import type { BmIconProps } from "@/componentes/icons";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
+import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
+import { DEFAULT_WORKSPACE_BRANDING, type WorkspaceBranding } from "@/lib/workspace-branding";
 
 export function PortalProfileAvatar({ src, name }: { src?: string; name: string }) {
   // eslint-disable-next-line @next/next/no-img-element -- same uploaded/bundled avatar rendering as the existing profile
   return <div className="size-28 shrink-0 overflow-hidden rounded-full border border-yellow-300/65 bg-black shadow-[0_0_28px_rgba(250,204,21,.14)] sm:size-40"><img src={src || DEFAULT_PROFILE_AVATAR.src} alt={`Avatar de ${name}`} className="h-full w-full object-cover" /></div>;
 }
 
-function BrandMark() {
-  return (
-    <Image
-      src="/bm-training-mark.png"
-      alt=""
-      width={44}
-      height={44}
-      priority
-      className="h-9 w-9 shrink-0 rounded-xl object-contain sm:h-11 sm:w-11"
-    />
-  );
-}
-
-
-export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perfil", studentName, profileImageUrl = "", actions, children }: { homeHref?: string; profileHref?: string; studentName: string; profileImageUrl?: string; actions?: ReactNode; children?: ReactNode }) {
+export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perfil", studentName, profileImageUrl = "", branding = DEFAULT_WORKSPACE_BRANDING, actions, children }: { homeHref?: string; profileHref?: string; studentName: string; profileImageUrl?: string; branding?: WorkspaceBranding; actions?: ReactNode; children?: ReactNode }) {
   return <header className="sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
           <Link
@@ -31,7 +19,7 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
             className="flex min-w-0 items-center gap-2 sm:gap-3"
             aria-label="Ir al inicio de BM Training"
           >
-            <BrandMark />
+            <WorkspaceBrandLogo branding={branding} className="h-9 w-9 rounded-xl sm:h-11 sm:w-11" />
             <span className="min-w-0">
               <span className="block whitespace-nowrap text-xs font-black tracking-[.08em] text-white min-[390px]:text-sm sm:text-base sm:tracking-[.12em]">
                 BM <span className="text-yellow-400">TRAINING</span>

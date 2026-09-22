@@ -1,14 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 
 import { AdminNotificationCenter } from "@/componentes/admin-notification-center";
 import { useBrowserStore } from "@/lib/browser-store";
 import type { CoachSettings } from "@/types/gestion";
+import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
+import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 
 export function AdminTopbar() {
   const { items } = useBrowserStore<CoachSettings>("bm-coach-settings", []);
+  const branding = useWorkspaceBranding();
   const coachName = items[0]?.coachName?.trim() || "Entrenador";
   const initials =
     coachName
@@ -26,14 +28,7 @@ export function AdminTopbar() {
           aria-label="Ir al Dashboard de BM Training"
         >
           <span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl border border-yellow-400/20 bg-zinc-950 shadow-[0_0_24px_rgba(250,204,21,.08)] sm:h-11 sm:w-11">
-            <Image
-              src="/bm-training-mark.png"
-              alt=""
-              width={44}
-              height={44}
-              priority
-              className="h-9 w-9 object-contain sm:h-10 sm:w-10"
-            />
+            <WorkspaceBrandLogo branding={branding} className="h-9 w-9 sm:h-10 sm:w-10" />
           </span>
           <span className="min-w-0">
             <span className="block whitespace-nowrap text-xs font-black tracking-[.08em] text-white min-[390px]:text-sm sm:text-base sm:tracking-[.12em]">
