@@ -1,6 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 
 export const TRAINER_INVITATION_DAYS = 7;
+export type TrainerInvitationDisplayStatus = "PENDING" | "USED" | "EXPIRED" | "CANCELLED";
+
+export function trainerInvitationDisplayStatus(invitation: { status: string; acceptedAt: Date | null; expiresAt: Date }, now = new Date()): TrainerInvitationDisplayStatus {
+  if (invitation.status === "ACCEPTED" || invitation.acceptedAt) return "USED";
+  if (invitation.status === "REVOKED") return "CANCELLED";
+  return invitation.expiresAt <= now ? "EXPIRED" : "PENDING";
+}
 
 export function trainerInvitationToken() {
   return randomBytes(32).toString("base64url");

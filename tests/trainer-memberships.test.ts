@@ -10,6 +10,7 @@ const membershipApi = read("app/api/platform/trainers/[id]/membership/route.ts")
 const paidApi = read("app/api/platform/trainers/[id]/membership/mark-paid/route.ts");
 const trainersApi = read("app/api/platform/trainers/route.ts");
 const trainersUi = read("componentes/platform-trainers.tsx");
+const membershipsUi = read("componentes/platform-memberships.tsx");
 const managerUi = read("componentes/trainer-membership-manager.tsx");
 const proxy = read("proxy.ts");
 const adminApiAuth = read("lib/admin-api-auth.ts");
@@ -86,10 +87,17 @@ test("cancelar suspende acceso y conserva la membresía y sus relaciones", () =>
 
 test("listado soporta ausencia de membresía, filtros y acceso al detalle", () => {
   assert.match(trainersApi, /trainerSubscription: true/);
-  assert.match(trainersUi, /Sin membresía configurada/);
+  assert.match(trainersUi, /Sin membresía/);
   for (const label of ["Todos", "Al día", "Vencidos", "Suspendidos", "Cancelados", "Próximos a vencer"]) assert.match(trainersUi, new RegExp(label));
   assert.match(trainersUi, /\/platform\/trainers\/\$\{trainer\.id\}/);
   assert.match(managerUi, /Gestionar membresía|Configurar membresía/);
+});
+
+test("panel dedicado reutiliza contratos de pago, suspensión y reactivación", () => {
+  for (const label of ["Todas", "Al día", "Vencidas", "Suspendidas", "Canceladas", "Próximas a vencer"]) assert.match(membershipsUi, new RegExp(label));
+  assert.match(membershipsUi, /\/mark-paid/);
+  assert.match(membershipsUi, /SUSPEND_ACCESS/);
+  assert.match(membershipsUi, /REACTIVATE_ACCESS/);
 });
 
 test("una sesión de trainer suspendido se corta con 401 antes de llegar a las APIs operativas", () => {

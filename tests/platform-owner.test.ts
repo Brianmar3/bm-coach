@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createAdminSessionValue, verifyAdminSessionValue } from "../lib/admin-auth.ts";
 import { invitationIsUsable, isPlatformOwner, trainerWorkspaceSlug } from "../lib/platform-access.ts";
-import { parseTrainerInvitation, studentEmailConflict, trainerInvitationToken, trainerInvitationTokenHash } from "../lib/trainer-invitations.ts";
+import { parseTrainerInvitation, studentEmailConflict, trainerInvitationDisplayStatus, trainerInvitationToken, trainerInvitationTokenHash } from "../lib/trainer-invitations.ts";
+import { parsePlatformSettings } from "../lib/platform-settings.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const platformLayout = read("app/platform/layout.tsx");
@@ -19,6 +20,12 @@ const sessionApi = read("app/api/admin/auth/session/route.ts");
 const invitationsApi = read("app/api/platform/trainers/invitations/route.ts");
 const acceptApi = read("app/api/trainer/invitations/[token]/accept/route.ts");
 const onboardingApi = read("app/api/trainer/onboarding/route.ts");
+const membershipsPage = read("app/platform/memberships/page.tsx");
+const membershipsUi = read("componentes/platform-memberships.tsx");
+const invitationsPage = read("app/platform/invitations/page.tsx");
+const invitationsUi = read("componentes/platform-invitations.tsx");
+const settingsPage = read("app/platform/settings/page.tsx");
+const settingsApi = read("app/api/platform/settings/route.ts");
 const migration = read("prisma/migrations/20260917120000_platform_owner_trainers/migration.sql");
 
 test("1. PLATFORM_OWNER puede abrir /platform", () => { assert.equal(isPlatformOwner("PLATFORM_OWNER"), true); assert.match(platformLayout, /requirePlatformOwnerPage/); });
@@ -56,9 +63,10 @@ test("18. plataforma tiene navegación propia y conserva regreso a BM", () => {
 });
 
 test("19. resumen usa métricas comerciales reales", () => {
-  assert.match(platformPage, /prisma\.user\.count/);
+  assert.match(platformPage, /prisma\.user\.findMany/);
   assert.match(platformPage, /prisma\.trainerSubscription\.findMany/);
   assert.match(platformPage, /effectiveTrainerSubscriptionStatus/);
+  assert.match(platformPage, /trainerInvitation\.count/);
 });
 
 test("20. suspensión conserva datos y sólo cambia el estado de un TRAINER profesional", () => {
@@ -85,4 +93,45 @@ test("invitación valida campos y rechaza propiedades de privilegio", () => {
 test("conflictos cubren trainer, credencial de alumno, SELF_SERVICE y pendientes", () => {
   for (const pattern of [/tx\.user\.findFirst/, /tx\.studentPortalCredential\.findFirst/, /tx\.studentRecord\.findMany/, /tx\.trainerInvitation\.findFirst/]) assert.match(invitationsApi, pattern);
   assert.equal(studentEmailConflict([{ data: { email: " ALUMNO@Example.com " } }], "alumno@example.com"), true);
+});
+
+test("navegación master habilita todas las secciones en una sola franja móvil", () => {
+  for (const href of ["/platform/trainers", "/platform/memberships", "/platform/invitations", "/platform/settings"]) assert.match(platformShell, new RegExp(href));
+  assert.doesNotMatch(platformShell, /aria-disabled/);
+  assert.match(platformShell, /overflow-x-auto/);
+  assert.match(platformShell, /Opciones de cuenta/);
+});
+
+test("membresías ofrece filtros y acciones comerciales protegidas por las APIs existentes", () => {
+  assert.match(membershipsPage, /requirePlatformOwnerPage/);
+  for (const label of ["Todas", "Al día", "Vencidas", "Suspendidas", "Canceladas", "Próximas a vencer", "Marcar pagado", "Suspender", "Reactivar"]) assert.match(membershipsUi, new RegExp(label));
+  assert.match(membershipsUi, /\/mark-paid/);
+  assert.match(membershipsUi, /SUSPEND_ACCESS/);
+  assert.match(membershipsUi, /REACTIVATE_ACCESS/);
+});
+
+test("invitaciones distingue estados y regenera el mismo registro sin crear otro trainer", () => {
+  assert.match(invitationsPage, /requirePlatformOwnerPage/);
+  for (const label of ["Pendiente", "Usada", "Vencida", "Cancelada", "Copiar link", "Generar nuevo link"]) assert.match(invitationsUi, new RegExp(label));
+  assert.equal(trainerInvitationDisplayStatus({ status: "PENDING", acceptedAt: null, expiresAt: new Date(Date.now() - 1) }), "EXPIRED");
+  assert.equal(trainerInvitationDisplayStatus({ status: "ACCEPTED", acceptedAt: new Date(), expiresAt: new Date() }), "USED");
+  assert.match(invitationsApi, /trainerInvitation\.update/);
+  assert.match(invitationsApi, /tokenHash: trainerInvitationTokenHash/);
+});
+
+test("configuración master valida catálogo y permanece separada del branding de workspaces", () => {
+  assert.match(settingsPage, /requirePlatformOwnerPage/);
+  assert.match(settingsApi, /platformOwnerApiAccess/);
+  assert.match(settingsApi, /validRequestOrigin/);
+  assert.doesNotMatch(settingsApi, /CoachSettings|accentColor|logoMode/);
+  assert.ok(parsePlatformSettings({ platformName: "BM Training", supportEmail: "soporte@bm.test", invitationDays: 7, defaultTrainerPlan: "STARTER", initialPeriodMonths: 1 }));
+  assert.equal(parsePlatformSettings({ platformName: "BM", supportEmail: "", invitationDays: 999, defaultTrainerPlan: "STARTER", initialPeriodMonths: 1 }), null);
+});
+
+test("aceptación aplica plan y período inicial configurados sin permitirlos desde el frontend", () => {
+  assert.match(acceptApi, /loadPlatformSettings/);
+  assert.match(acceptApi, /trainerSubscription\.create/);
+  assert.match(acceptApi, /settings\.defaultTrainerPlan/);
+  assert.match(acceptApi, /settings\.initialPeriodMonths/);
+  assert.doesNotMatch(acceptApi, /body\.defaultTrainerPlan|body\.initialPeriodMonths/);
 });

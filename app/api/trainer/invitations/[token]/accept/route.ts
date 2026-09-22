@@ -6,6 +6,8 @@ import { invitationIsUsable, trainerWorkspaceSlug } from "@/lib/platform-access"
 import { prisma } from "@/lib/prisma";
 import { hashPassword, passwordValidationError, validRequestOrigin } from "@/lib/portal-auth";
 import { studentEmailConflict, trainerInvitationTokenHash } from "@/lib/trainer-invitations";
+import { loadPlatformSettings } from "@/lib/platform-settings-server";
+import { addUtcMonths } from "@/lib/trainer-subscription";
 
 export const runtime = "nodejs";
 class InvitationRejected extends Error {}
@@ -21,6 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const { token } = await params;
   if (!token || token.length > 128) return Response.json({ error: "Invitación inválida." }, { status: 404 });
   const passwordHash = await hashPassword(password);
+  const settings = await loadPlatformSettings();
   let userId = "";
   try {
     await prisma.$transaction(async (tx) => {
@@ -39,7 +42,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       const workspaceName = invitation.brandName || `Workspace ${displayName}`;
       const account = await tx.user.create({ data: { name: displayName, email: invitation.email, passwordHash, phone: invitation.phone, brandName: invitation.brandName, platformRole: "TRAINER", status: "ACTIVE", onboardingCompleted: false } });
       const workspace = await tx.workspace.create({ data: { name: workspaceName, slug: trainerWorkspaceSlug(workspaceName, randomBytes(6).toString("hex")), type: "PROFESSIONAL", status: "ACTIVE", timeZone: "America/Argentina/Buenos_Aires" } });
-      await tx.workspaceMembership.create({ data: { userId: account.id, workspaceId: workspace.id, role: "OWNER", status: "ACTIVE" } });
+      const startedAt = new Date();
+      const nextDueAt = addUtcMonths(startedAt, settings.initialPeriodMonths);
+      await Promise.all([
+        tx.workspaceMembership.create({ data: { userId: account.id, workspaceId: workspace.id, role: "OWNER", status: "ACTIVE" } }),
+        tx.trainerSubscription.create({ data: { trainerUserId: account.id, plan: settings.defaultTrainerPlan, status: "ACTIVE", startedAt, currentPeriodEnd: nextDueAt, nextDueAt } }),
+      ]);
       userId = account.id;
     }, { timeout: 15000 });
   } catch (error) {
