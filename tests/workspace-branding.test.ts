@@ -83,8 +83,8 @@ test("carga PREMIUM reutiliza Blob, valida el archivo y persiste sólo su URL", 
   assert.match(upload, /validateWorkspaceLogoBytes/);
   assert.doesNotMatch(upload, /image\/svg/);
   assert.match(upload, /workspace-branding\/\$\{auth\.workspace\.workspaceId\}/);
-  assert.match(upload, /customLogoUrl: blob\.url/);
-  assert.match(upload, /logoMode: "CUSTOM"/);
+  assert.match(upload, /persistUploadedWorkspaceLogo/);
+  assert.match(read("lib/workspace-logo-persistence.ts"), /customLogoUrl: uploadedUrl, logoMode: "CUSTOM"/);
   assert.doesNotMatch(upload, /data: \{[^}]*Buffer/);
 });
 

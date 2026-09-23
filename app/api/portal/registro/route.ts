@@ -32,12 +32,12 @@ export async function POST(request: Request) {
       if (recent >= 10) throw new Error("REGISTRATION_LIMIT");
       const [credential, records] = await Promise.all([
         tx.studentPortalCredential.findUnique({ where: { username: input.email }, select: { studentId: true } }),
-        tx.studentRecord.findMany({ select: { data: true, phoneNormalized: true } }),
+        tx.studentRecord.findMany({ select: { data: true } }),
       ]);
       const phoneNormalized = input.phone.replace(/\D/g, "");
       if (credential || records.some((record) => {
         const data = record.data as Prisma.JsonObject;
-        return (typeof data.email === "string" && data.email.trim().toLowerCase() === input.email) || record.phoneNormalized === phoneNormalized || (typeof data.phone === "string" && data.phone.replace(/\D/g, "") === phoneNormalized);
+        return typeof data.email === "string" && data.email.trim().toLowerCase() === input.email;
       })) throw new AccountConflict();
       const id = randomUUID();
       const personalWorkspace = await tx.workspace.create({

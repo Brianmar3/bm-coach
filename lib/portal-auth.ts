@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isSelfService } from "@/lib/self-service";
 import { authSessionExpiresAt, clearAuthCookieOptions, persistentAuthCookieOptions } from "@/lib/session-persistence";
+import { resolvePortalStudentIdentity } from "@/lib/portal-student-identity";
 
 export const PORTAL_COOKIE = "bm_coach_student_session";
 const SCRYPT_KEY_LENGTH = 64;
@@ -83,7 +84,7 @@ export async function getPortalSession({ allowSelfService = false }: { allowSelf
     where: { tokenHash: sessionTokenHash(token) },
     include: { credential: { include: { student: true } } },
   });
-  if (!session || session.expiresAt <= new Date() || !session.credential.active) return null;
+  if (!session || session.expiresAt <= new Date() || !session.credential.active || !resolvePortalStudentIdentity(session)) return null;
   // Stage A exposes only account/onboarding. Existing student APIs fail closed.
   if (!allowSelfService && isSelfService(session.credential.student.data)) return null;
   return session;

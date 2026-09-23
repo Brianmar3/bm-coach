@@ -9,8 +9,9 @@ export function WorkspaceBrandLogo({ branding, className = "h-10 w-10" }: { bran
   const [failedCustomUrl, setFailedCustomUrl] = useState("");
 
   if (branding.logoMode === "CUSTOM" && branding.customLogoUrl && failedCustomUrl !== branding.customLogoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element -- Vercel Blob URL is validated server-side and can change at runtime.
-    return <img src={branding.customLogoUrl} alt="" className={`${className} shrink-0 object-contain`} onError={() => setFailedCustomUrl(branding.customLogoUrl)} />;
+    const source = `/api/workspace/logo/image?source=${encodeURIComponent(branding.customLogoUrl)}`;
+    // eslint-disable-next-line @next/next/no-img-element -- The authenticated route streams a private Vercel Blob that changes at runtime.
+    return <img src={source} alt="" className={`${className} shrink-0 object-contain`} onError={() => setFailedCustomUrl(branding.customLogoUrl)} />;
   }
 
   if (branding.logoMode === "WHITE" || branding.logoMode === "ACCENT") {

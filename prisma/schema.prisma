@@ -209,7 +209,7 @@ model WorkspaceMembership {
 model StudentRecord {
   id                       String                          @id
   workspaceId              String
-  phoneNormalized          String?                         @unique
+  phoneNormalized          String?
   primaryScheduleId        String?
   serviceType              StudentServiceType              @default(CLASSES)
   data                     Json
@@ -257,6 +257,7 @@ model StudentRecord {
   workspace                Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
+  @@unique([workspaceId, phoneNormalized])
   @@index([primaryScheduleId])
   @@map("students")
 }

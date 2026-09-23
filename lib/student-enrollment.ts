@@ -8,6 +8,7 @@ import { isStudentType } from "@/types/gestion";
 import type { CoachSettings, Student, StudentPlanOption, StudentStatus, StudentType } from "@/types/gestion";
 import { isStudentServiceType } from "@/lib/student-service";
 import { isPersistentPlanId, resolveStudentPlan, studentPlanOptions } from "@/lib/coach-plans";
+import { findWorkspacePhoneDuplicate } from "@/lib/student-phone-identity";
 
 const DAY_LABELS = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" } as const;
 
@@ -189,8 +190,11 @@ export function studentJsonData(input: ParsedStudentInput): Prisma.InputJsonObje
   };
 }
 
-export async function duplicatePhone(transaction: Prisma.TransactionClient, normalizedPhone: string, excludeId?: string) {
+export async function duplicatePhone(transaction: Prisma.TransactionClient, workspaceId: string, normalizedPhone: string, excludeId?: string) {
   if (!normalizedPhone) return null;
-  const records = await transaction.studentRecord.findMany({ where: excludeId ? { id: { not: excludeId } } : undefined, select: { id: true, phoneNormalized: true, data: true } });
-  return records.find((record) => record.phoneNormalized === normalizedPhone || normalizePhone(((record.data as unknown as Partial<Student>).phone ?? "")) === normalizedPhone) ?? null;
+  const records = await transaction.studentRecord.findMany({
+    where: { workspaceId, ...(excludeId ? { id: { not: excludeId } } : {}) },
+    select: { id: true, workspaceId: true, phoneNormalized: true, data: true },
+  });
+  return findWorkspacePhoneDuplicate(records, workspaceId, normalizedPhone, excludeId);
 }

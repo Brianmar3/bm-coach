@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const normalizedPhone = normalizePhone(input.phone);
     const record = await prisma.$transaction(async (transaction) => {
       await assertTrainerCanAddStudent(workspaceId, transaction);
-      if (normalizedPhone && await duplicatePhone(transaction, normalizedPhone)) throw new EnrollmentError("Ya existe un alumno registrado con ese teléfono.");
+      if (normalizedPhone && await duplicatePhone(transaction, workspaceId, normalizedPhone)) throw new EnrollmentError("Ya existe un alumno registrado con ese teléfono.");
       const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
         where: { id: { in: input.scheduleIds } },
         select: { id: true, active: true, capacity: true, _count: { select: { assignments: { where: { active: true } } } } },

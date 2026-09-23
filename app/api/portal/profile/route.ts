@@ -31,14 +31,20 @@ export async function PATCH(request: Request) {
   if (!Number.isFinite(height) || height < 80 || height > 250 || !Number.isFinite(weight) || weight < 25 || weight > 350) return Response.json({ error: "Revisá la altura y el peso ingresados." }, { status: 400 });
   if (!EXPERIENCE_LEVELS.includes(experienceLevel as (typeof EXPERIENCE_LEVELS)[number]) || !TRAINING_EXPERIENCE.includes(trainingExperience as (typeof TRAINING_EXPERIENCE)[number])) return Response.json({ error: "Revisá tu experiencia de entrenamiento." }, { status: 400 });
   if (hasLimitations && limitations.length < 3) return Response.json({ error: "Describí brevemente la molestia o limitación." }, { status: 400 });
-  const record = await prisma.studentRecord.findUnique({ where: { id: session.studentId }, select: { data: true } });
+  const record = await prisma.studentRecord.findUnique({ where: { id: session.studentId }, select: { data: true, workspaceId: true } });
   if (!record) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
   const stored = record.data as Prisma.JsonObject;
-  const duplicate = await prisma.$transaction(async (transaction) => {
-    const found = await duplicatePhone(transaction, normalizedPhone, session.studentId);
-    if (!found) await transaction.studentRecord.update({ where: { id: session.studentId }, data: { phoneNormalized: normalizedPhone, data: { ...stored, phone, email, birthDate, goal, height, weight, experienceLevel, trainingExperience, hasLimitations, limitations, onboardingUpdatedAt: new Date().toISOString() } } });
-    return found;
-  });
+  let duplicate;
+  try {
+    duplicate = await prisma.$transaction(async (transaction) => {
+      const found = await duplicatePhone(transaction, record.workspaceId, normalizedPhone, session.studentId);
+      if (!found) await transaction.studentRecord.update({ where: { id: session.studentId }, data: { phoneNormalized: normalizedPhone, data: { ...stored, phone, email, birthDate, goal, height, weight, experienceLevel, trainingExperience, hasLimitations, limitations, onboardingUpdatedAt: new Date().toISOString() } } });
+      return found;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return Response.json({ error: "Ese teléfono ya pertenece a otro alumno." }, { status: 409 });
+    throw error;
+  }
   if (duplicate) return Response.json({ error: "Ese teléfono ya pertenece a otro alumno." }, { status: 409 });
   return Response.json({ profile: { phone, email, birthDate, goal, height, weight, experienceLevel, trainingExperience, hasLimitations, limitations } });
 }
