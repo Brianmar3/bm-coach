@@ -2,6 +2,7 @@ import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import "server-only";
 
 import { Prisma } from "@prisma/client";
+import { centimetersToStoredHeight, storedHeightToCentimeters } from "@/lib/height";
 import { prisma } from "@/lib/prisma";
 import { isDateKey } from "@/lib/payment-dates";
 import { isStudentType } from "@/types/gestion";
@@ -62,7 +63,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     email: stored.email ?? "",
     birthDate: stored.birthDate ?? "",
     weight: Number(stored.weight ?? 0),
-    height: Number(stored.height ?? 0),
+    height: storedHeightToCentimeters(stored.height),
     goal: stored.goal ?? "",
     plan: stored.plan ?? "",
     planId: typeof stored.planId === "string" ? stored.planId : "",
@@ -127,9 +128,9 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   if (!(status === "activo" || status === "inactivo" || status === "suspendido")) return { data: null, error: "Seleccioná un estado válido." };
 
   const weight = input.weight === "" || input.weight === undefined ? 0 : Number(input.weight);
-  const height = input.height === "" || input.height === undefined ? 0 : Number(input.height);
+  const heightCm = input.height === "" || input.height === undefined ? 0 : Number(input.height);
   if (!Number.isFinite(weight) || weight < 0 || weight > 500) return { data: null, error: "El peso debe estar entre 0 y 500 kg." };
-  if (!Number.isFinite(height) || height < 0 || height > 3) return { data: null, error: "La altura debe estar entre 0 y 3 metros." };
+  if (!Number.isFinite(heightCm) || (heightCm !== 0 && (heightCm < 50 || heightCm > 300))) return { data: null, error: "La altura debe estar entre 50 y 300 cm." };
   const birthDate = typeof input.birthDate === "string" ? input.birthDate : "";
   if (birthDate && (!isDateKey(birthDate) || birthDate > new Date().toISOString().slice(0, 10))) return { data: null, error: "La fecha de nacimiento no es válida." };
 
@@ -141,7 +142,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
       email: typeof input.email === "string" ? input.email.trim() : "",
       birthDate,
       weight,
-      height,
+      height: centimetersToStoredHeight(heightCm),
       goal: typeof input.goal === "string" ? input.goal.trim() : "",
       plan: selectedPlan.name,
       planId: selectedPlan.persistentId,
