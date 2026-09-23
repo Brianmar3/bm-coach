@@ -1,5 +1,6 @@
 import type { PaymentAccountStatus } from "@/types/gestion";
 import type { DashboardCompletedWorkout } from "@/lib/dashboard-workout-priority";
+import type { DashboardBirthday } from "@/lib/dashboard-read-model";
 
 export type DashboardPriority = {
   id: string;
@@ -53,6 +54,8 @@ export type DashboardData = {
     completedWorkouts: DashboardCompletedWorkout[];
     registeredPaymentTotal: number;
     registeredPaymentCount: number;
+    birthdayCount: number;
+    birthdays: DashboardBirthday[];
   };
   ranking: Array<{
     studentId: string;

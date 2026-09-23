@@ -18,6 +18,7 @@ import {
   countPaymentStatuses,
   dashboardPaymentAttention,
   dashboardTodayAttendance,
+  dashboardBirthdays,
   latestEvaluationPriorityCounts,
   lowActivityStudentIds,
 } from "@/lib/dashboard-read-model";
@@ -173,6 +174,14 @@ export async function GET() {
 
     const students = studentRecords.map((record) => ({ ...record, student: studentData(record.data) }));
     const active = students.filter(({ student }) => student.status !== "inactivo");
+    const birthdays = dashboardBirthdays(active.map(({ id, student }) => ({
+      studentId: id,
+      studentName: studentName(student),
+      birthDate: student.birthDate ?? "",
+      status: student.status ?? "",
+      workspaceId,
+      accountType: student.accountType,
+    })), today, workspaceId);
     const activeStudentIds = new Set(active.map(({ id }) => id));
     const personalizedStudentIds = new Set(active.filter(({ student }) => student.serviceType === "PERSONALIZED" || student.serviceType === "MIXED").map(({ id }) => id));
     const namesByStudent = new Map(active.map(({ id, student }) => [id, studentName(student)]));
@@ -378,6 +387,8 @@ export async function GET() {
         completedWorkouts: todayCompletedWorkouts,
         registeredPaymentTotal: todayPaymentSummary.registeredTotal,
         registeredPaymentCount: todayPaymentSummary.registeredCount,
+        birthdayCount: birthdays.length,
+        birthdays,
       },
       ranking,
       todayClasses: todayClasses.slice(0, 3),

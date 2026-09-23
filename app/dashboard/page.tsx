@@ -162,8 +162,9 @@ function AttentionToday({ data }: { data: DashboardData["attentionToday"] }) {
     data.lowActivityStudentCount ? { id: "activity", title: `${data.lowActivityStudentCount} ${data.lowActivityStudentCount === 1 ? "alumno con baja actividad" : "alumnos con baja actividad"}`, subtitle: "Sin asistencias en los últimos 7 días", href: "/asistencias?view=low-activity", tone: "warning", icon: <BmProgressIcon size={18}/> } : null,
     data.completedWorkoutCount ? { id: "workouts", title: `${data.completedWorkoutCount} ${data.completedWorkoutCount === 1 ? "entrenamiento completado" : "entrenamientos completados"}`, subtitle: completedWorkoutPrioritySubtitle(data.completedWorkouts), href: completedWorkoutPriorityHref(data.completedWorkouts), tone: "gold", icon: <BmRoutineIcon size={18}/> } : null,
     data.registeredPaymentCount ? { id: "payments", title: `${money(data.registeredPaymentTotal)} registrados hoy`, subtitle: `${data.registeredPaymentCount} ${data.registeredPaymentCount === 1 ? "pago" : "pagos"}`, href: "/resumen-mensual", tone: "positive", icon: <BmCheckIcon size={18}/> } : null,
-  ].filter((row): row is NonNullable<typeof row> => Boolean(row)).slice(0, 4);
-  const hasPriority = quotaCount > 0 || data.lowActivityStudentCount > 0 || data.completedWorkoutCount > 0;
+    ...data.birthdays.map((birthday) => ({ id: `birthday-${birthday.studentId}`, title: `Cumpleaños de ${birthday.studentName}`, subtitle: `${birthday.studentName} cumple años hoy.`, href: `/alumnos?studentId=${encodeURIComponent(birthday.studentId)}`, tone: "gold", icon: <span aria-hidden>🎂</span> })),
+  ].filter((row): row is NonNullable<typeof row> => Boolean(row));
+  const hasPriority = quotaCount > 0 || data.lowActivityStudentCount > 0 || data.completedWorkoutCount > 0 || data.birthdayCount > 0;
   const visibleRows = rows.filter((row) => hasPriority || row.id === "payments");
   const tones: Record<string, string> = { danger: "bg-red-400/10 text-red-300", warning: "bg-orange-400/10 text-orange-300", gold: "bg-yellow-400/10 text-yellow-300", positive: "bg-emerald-400/10 text-emerald-300" };
   return <Panel title="ATENCIÓN HOY" subtitle="Prioridades de gestión">

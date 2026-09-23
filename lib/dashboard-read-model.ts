@@ -3,6 +3,31 @@ import type { DashboardPriority } from "@/types/dashboard";
 import type { PaymentAccountStatus } from "@/types/gestion";
 import type { StudentServiceType } from "@/types/gestion";
 
+export type DashboardBirthdayCandidate = {
+  studentId: string;
+  studentName: string;
+  birthDate: string;
+  status: string;
+  workspaceId: string;
+  accountType?: string | null;
+};
+
+export type DashboardBirthday = {
+  studentId: string;
+  studentName: string;
+};
+
+export function dashboardBirthdays(candidates: DashboardBirthdayCandidate[], today: string, workspaceId: string): DashboardBirthday[] {
+  const todayMonthDay = /^\d{4}-(\d{2}-\d{2})$/.exec(today)?.[1];
+  if (!todayMonthDay) return [];
+  return candidates
+    .filter((candidate) => candidate.workspaceId === workspaceId)
+    .filter((candidate) => candidate.accountType !== "SELF_SERVICE")
+    .filter((candidate) => candidate.status !== "inactivo")
+    .filter((candidate) => /^\d{4}-(\d{2}-\d{2})$/.test(candidate.birthDate) && candidate.birthDate.slice(5) === todayMonthDay)
+    .map(({ studentId, studentName }) => ({ studentId, studentName }));
+}
+
 export type EvaluationPriorityRecord = {
   studentId: string;
   status: EvaluationStatus;
