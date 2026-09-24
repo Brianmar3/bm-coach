@@ -1,6 +1,6 @@
 "use client";
+import { StudentPhoto } from "@/componentes/student-photo";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
@@ -120,7 +120,7 @@ function RankingRow({ entry, currentStudentId, delay, reducedMotion }: {
     </span>}
     {isCurrent && <span className="absolute -top-3 right-4 rounded-md border border-yellow-400/25 bg-[#261b03] px-3 py-1 text-[9px] font-black uppercase tracking-[.15em] text-yellow-300">Tú</span>}
     <RankBadge position={entry.position} />
-    <Image src={entry.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" width={52} height={52} unoptimized className="size-10 rounded-full border border-white/10 object-cover sm:size-12" />
+    <StudentPhoto src={entry.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" width={52} height={52} className="size-10 rounded-full border border-white/10 object-cover sm:size-12" />
     <span className="min-w-0 truncate text-[13px] font-bold text-zinc-100 min-[390px]:text-sm sm:text-base">{entry.studentName}</span>
     <strong className="shrink-0 whitespace-nowrap text-[13px] text-yellow-300 min-[390px]:text-sm sm:text-base">{entry.total.toLocaleString("es-AR")} pts</strong>
   </li>;

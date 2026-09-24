@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { del, put } from "@vercel/blob";
+import { removeStudentPhoto, studentPhotoToken, uploadStudentPhoto } from "@/lib/student-media-storage";
+import { studentProfilePhoto } from "@/lib/student-media";
 import type { Student } from "@/types/gestion";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
@@ -38,11 +39,8 @@ function detectedType(bytes: Uint8Array) {
   return null;
 }
 
-async function removeOwnedBlob(url: string) {
-  if (!url || !url.includes(".blob.vercel-storage.com/")) return;
-  await del(url).catch((error) =>
-    console.error("No se pudo retirar la foto anterior", error),
-  );
+async function removeOwnedBlob(url: string, studentId: string) {
+  await removeStudentPhoto(url, studentId, "profile");
 }
 
 async function authorize(request: Request) {
@@ -51,19 +49,22 @@ async function authorize(request: Request) {
       response: json({ success: false, error: "Origen no permitido." }, 403),
       session: null,
     };
-  const session = await getPortalSession();
+  const session = await getPortalSession({ allowSelfService: true });
   if (!session)
     return {
       response: json({ success: false, error: "Sesión vencida." }, 401),
       session: null,
     };
+  if (session.credential.mustChangePassword) return { response: json({ success: false, error: "Actualizá tu contraseña antes de cambiar la foto." }, 403), session: null };
+  const workspace = await prisma.workspace.findUnique({ where: { id: session.credential.student.workspaceId }, select: { status: true } });
+  if (workspace?.status !== "ACTIVE") return { response: json({ success: false, error: "Workspace no disponible." }, 403), session: null };
   return { response: null, session };
 }
 
 export async function POST(request: Request) {
   const auth = await authorize(request);
   if (auth.response || !auth.session) return auth.response!;
-  if (!process.env.BLOB_READ_WRITE_TOKEN)
+  if (!studentPhotoToken())
     return json(
       {
         success: false,
@@ -108,32 +109,29 @@ export async function POST(request: Request) {
       );
 
     const student = auth.session.credential.student.data as unknown as Student;
-    const blob = await put(
+    const blob = await uploadStudentPhoto(
       `student-profile/${auth.session.studentId}/${randomUUID()}.${type.extension}`,
       Buffer.from(bytes),
-      {
-        access: "public",
-        contentType: type.mime,
-        addRandomSuffix: false,
-      },
+      type.mime,
     );
     if (!blob.url)
       throw new Error("Vercel Blob no devolvió una URL para la imagen.");
     uploadedUrl = blob.url;
-    await prisma.studentRecord.update({
-      where: { id: auth.session.studentId },
+    const saved = await prisma.studentRecord.updateMany({
+      where: { id: auth.session.studentId, workspaceId: auth.session.credential.student.workspaceId, updatedAt: auth.session.credential.student.updatedAt },
       data: { data: { ...student, profileImageUrl: blob.url } },
     });
-    await removeOwnedBlob(student.profileImageUrl ?? "");
+    if (saved.count !== 1) throw new Error("STUDENT_PHOTO_CONCURRENT_UPDATE");
+    await removeOwnedBlob(student.profileImageUrl ?? "", auth.session.studentId);
     return json({
       success: true,
-      photoUrl: blob.url,
-      url: blob.url,
+      photoUrl: studentProfilePhoto(auth.session.studentId, blob.url),
+      url: studentProfilePhoto(auth.session.studentId, blob.url),
       message: "Foto de perfil actualizada.",
     });
   } catch (error) {
-    if (uploadedUrl) await removeOwnedBlob(uploadedUrl);
-    console.error("No se pudo guardar la foto de perfil", error);
+    if (uploadedUrl) await removeOwnedBlob(uploadedUrl, auth.session.studentId);
+    console.error("STUDENT_PHOTO_UPLOAD_FAILED", error instanceof Error && error.message === "STUDENT_PHOTO_CONCURRENT_UPDATE" ? "CONFLICT" : "STORAGE_OR_PERSISTENCE");
     return json(
       {
         success: false,
@@ -161,18 +159,20 @@ export async function PUT(request: Request) {
         400,
       );
     const student = auth.session.credential.student.data as unknown as Student;
-    await prisma.studentRecord.update({
-      where: { id: auth.session.studentId },
+    const saved = await prisma.studentRecord.updateMany({
+      where: { id: auth.session.studentId, workspaceId: auth.session.credential.student.workspaceId, updatedAt: auth.session.credential.student.updatedAt },
       data: { data: { ...student, profileImageUrl: avatar.src } },
     });
+    if (saved.count !== 1) return json({ success: false, error: "El perfil cambió. Actualizá antes de reintentar." }, 409);
+    await removeOwnedBlob(student.profileImageUrl ?? "", auth.session.studentId);
     return json({
       success: true,
       photoUrl: avatar.src,
       url: avatar.src,
       message: "Avatar actualizado correctamente.",
     });
-  } catch (error) {
-    console.error("No se pudo guardar el avatar de perfil", error);
+  } catch {
+    console.error("STUDENT_AVATAR_UPDATE_FAILED");
     return json(
       { success: false, error: "No se pudo guardar el avatar." },
       500,
@@ -185,19 +185,20 @@ export async function DELETE(request: Request) {
   if (auth.response || !auth.session) return auth.response!;
   try {
     const student = auth.session.credential.student.data as unknown as Student;
-    await prisma.studentRecord.update({
-      where: { id: auth.session.studentId },
+    const saved = await prisma.studentRecord.updateMany({
+      where: { id: auth.session.studentId, workspaceId: auth.session.credential.student.workspaceId, updatedAt: auth.session.credential.student.updatedAt },
       data: { data: { ...student, profileImageUrl: "" } },
     });
-    await removeOwnedBlob(student.profileImageUrl ?? "");
+    if (saved.count !== 1) return json({ success: false, error: "El perfil cambió. Actualizá antes de reintentar." }, 409);
+    await removeOwnedBlob(student.profileImageUrl ?? "", auth.session.studentId);
     return json({
       success: true,
       photoUrl: "",
       url: "",
       message: "Foto eliminada correctamente.",
     });
-  } catch (error) {
-    console.error("No se pudo eliminar la foto de perfil", error);
+  } catch {
+    console.error("STUDENT_PHOTO_DELETE_FAILED");
     return json(
       { success: false, error: "No se pudo eliminar la foto." },
       500,

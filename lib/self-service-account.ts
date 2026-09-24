@@ -1,3 +1,4 @@
+import { publicStudent } from "@/lib/student-media";
 import { redirect } from "next/navigation";
 import { getPortalSession } from "@/lib/portal-auth";
 import { isSelfService } from "@/lib/self-service";
@@ -12,5 +13,5 @@ export async function requireSelfServiceAccount() {
   if (!onboardingIsComplete(student)) redirect("/portal/onboarding");
   const workspaceId = session.credential.student.workspaceId;
   if (!workspaceId) redirect("/portal/login");
-  return { student, studentId: session.studentId, workspaceId };
+  return { student: publicStudent(session.studentId, student), studentId: session.studentId, workspaceId };
 }

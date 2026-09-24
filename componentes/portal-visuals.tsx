@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { StudentPhoto } from "@/componentes/student-photo";
 import type { ReactNode, ComponentType } from "react";
 import type { BmIconProps } from "@/componentes/icons";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
@@ -7,8 +7,7 @@ import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
 import { DEFAULT_WORKSPACE_BRANDING, type WorkspaceBranding } from "@/lib/workspace-branding";
 
 export function PortalProfileAvatar({ src, name }: { src?: string; name: string }) {
-  // eslint-disable-next-line @next/next/no-img-element -- same uploaded/bundled avatar rendering as the existing profile
-  return <div className="size-28 shrink-0 overflow-hidden rounded-full border border-yellow-300/65 bg-black shadow-[0_0_28px_rgba(250,204,21,.14)] sm:size-40"><img src={src || DEFAULT_PROFILE_AVATAR.src} alt={`Avatar de ${name}`} className="h-full w-full object-cover" /></div>;
+  return <div className="size-28 shrink-0 overflow-hidden rounded-full border border-yellow-300/65 bg-black shadow-[0_0_28px_rgba(250,204,21,.14)] sm:size-40"><StudentPhoto src={src || DEFAULT_PROFILE_AVATAR.src} alt={`Avatar de ${name}`} className="h-full w-full object-cover" /></div>;
 }
 
 export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perfil", studentName, profileImageUrl = "", branding = DEFAULT_WORKSPACE_BRANDING, actions, children }: { homeHref?: string; profileHref?: string; studentName: string; profileImageUrl?: string; branding?: WorkspaceBranding; actions?: ReactNode; children?: ReactNode }) {
@@ -37,12 +36,11 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
               className="group flex min-h-11 min-w-11 items-center gap-2 rounded-full p-1 transition hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 sm:pr-3"
               aria-label={`Abrir perfil de ${studentName}`}
             >
-              <Image
+              <StudentPhoto
                 src={profileImageUrl || DEFAULT_PROFILE_AVATAR.src}
                 alt=""
                 width={36}
                 height={36}
-                unoptimized
                 className="h-9 w-9 shrink-0 rounded-full border border-yellow-400/25 object-cover"
               />
               <span className="hidden min-w-0 md:block">

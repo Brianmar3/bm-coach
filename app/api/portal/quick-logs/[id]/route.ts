@@ -1,4 +1,4 @@
-import { del } from "@vercel/blob";
+import { removeStudentPhoto } from "@/lib/student-media-storage";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { QUICK_LOG_TYPES, quickLogJson, quickLogRelations } from "@/lib/quick-logs";
@@ -78,14 +78,14 @@ export async function DELETE(request: Request, context: RouteContext<"/api/porta
     const photo = existing.photos.find((item) => item.id === input.photoId);
     if (!photo) return Response.json({ error: "No se encontró la foto." }, { status: 404 });
     await prisma.quickLogPhoto.delete({ where: { id: photo.id } });
-    await del(photo.blobUrl).catch((error) => console.error("No se pudo retirar la foto del Blob Store", error));
+    await removeStudentPhoto(photo.blobUrl, session.studentId, "progress", id);
     return Response.json({ message: "Foto eliminada correctamente." });
   }
   await prisma.$transaction(async (transaction) => {
     await transaction.quickLog.delete({ where: { id } });
     await recalculateQuickLogAchievements(transaction, session.studentId);
   });
-  await Promise.all(existing.photos.map((photo) => del(photo.blobUrl).catch((error) => console.error("No se pudo retirar una foto del registro", error))));
+  await Promise.all(existing.photos.map((photo) => removeStudentPhoto(photo.blobUrl, session.studentId, "progress", id)));
   await reconcileStudentPointsAfterMutation(session.studentId);
   return Response.json({ message: "Registro eliminado correctamente." });
 }

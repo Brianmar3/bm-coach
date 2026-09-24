@@ -1,3 +1,4 @@
+import { studentProfilePhoto } from "@/lib/student-media";
 import "server-only";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 
@@ -45,7 +46,7 @@ export async function loadPointRanking(period: PointRankingPeriod, workspaceId: 
     return {
       studentId: record.id,
       studentName: studentName(record.data),
-      profileImageUrl: data.profileImageUrl ?? "",
+      profileImageUrl: studentProfilePhoto(record.id, data.profileImageUrl, true),
       total: totalByStudent.get(record.id) ?? 0,
       historicalTotal,
       level: historicalTotal >= 500 ? "Hito" : historicalTotal >= 250 ? "Progreso" : historicalTotal >= 100 ? "Constancia" : "Inicio",

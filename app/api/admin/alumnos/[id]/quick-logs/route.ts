@@ -1,6 +1,6 @@
 import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
-import { del } from "@vercel/blob";
+import { removeStudentPhoto } from "@/lib/student-media-storage";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { validRequestOrigin } from "@/lib/portal-auth";
@@ -47,7 +47,7 @@ export async function DELETE(request: Request, context: RouteContext<"/api/admin
     await transaction.quickLog.delete({ where: { id: existing.id } });
     await recalculateQuickLogAchievements(transaction, id);
   });
-  await Promise.all(existing.photos.map((photo) => del(photo.blobUrl).catch((error) => console.error("No se pudo retirar una foto del registro", error))));
+  await Promise.all(existing.photos.map((photo) => removeStudentPhoto(photo.blobUrl, id, "progress", existing.id)));
   await reconcileStudentPointsAfterMutation(id);
   return Response.json({ message: "Registro eliminado correctamente." });
 }

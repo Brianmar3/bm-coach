@@ -1,3 +1,4 @@
+import { studentMediaPath } from "@/lib/student-media";
 import type { Prisma } from "@prisma/client";
 
 export const QUICK_LOG_TYPES = ["WORKOUT", "NOTE", "PROGRESS", "PHOTO"] as const;
@@ -7,8 +8,8 @@ export const MAX_QUICK_LOG_PHOTO_BYTES = 3 * 1024 * 1024;
 
 export function detectedImageType(bytes: Uint8Array) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { mime: "image/jpeg", extension: "jpg" };
-  if (bytes.slice(0, 8).every((value, index) => value === [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a][index])) return { mime: "image/png", extension: "png" };
-  if (String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP") return { mime: "image/webp", extension: "webp" };
+  if (bytes.length >= 8 && bytes.slice(0, 8).every((value, index) => value === [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a][index])) return { mime: "image/png", extension: "png" };
+  if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP") return { mime: "image/webp", extension: "webp" };
   return null;
 }
 
@@ -31,7 +32,7 @@ export function quickLogJson(log: {
     currentValue: log.currentValue === null ? null : Number(log.currentValue),
     createdAt: log.createdAt.toISOString(),
     updatedAt: log.updatedAt.toISOString(),
-    photos: log.photos.map((photo) => ({ ...photo, createdAt: photo.createdAt.toISOString() })),
+    photos: log.photos.map((photo) => ({ id: photo.id, blobUrl: studentMediaPath("progress", photo.id), blobPathname: "", createdAt: photo.createdAt.toISOString() })),
     achievements: (log.achievements ?? []).map((achievement) => ({
       ...achievement,
       currentLoad: achievement.currentLoad === null ? null : Number(achievement.currentLoad),

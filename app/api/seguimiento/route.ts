@@ -1,3 +1,4 @@
+import { studentProfilePhoto } from "@/lib/student-media";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -137,7 +138,7 @@ export async function GET(request: Request) {
       return {
         studentId: id,
         studentName: student ? name(student.data) : latestSession?.studentName ?? "Alumno",
-        profileImageUrl: studentData?.profileImageUrl ?? "",
+        profileImageUrl: studentProfilePhoto(id, studentData?.profileImageUrl),
         activeRoutine: assignment ? {
           id: assignment.routine.id,
           name: assignment.routine.name,

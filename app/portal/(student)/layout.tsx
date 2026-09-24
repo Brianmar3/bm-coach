@@ -1,3 +1,4 @@
+import { studentProfilePhoto } from "@/lib/student-media";
 import type { ReactNode } from "react";
 import { requirePortalPageSession } from "@/lib/portal-auth";
 import { PortalShell } from "@/componentes/portal-shell";
@@ -19,5 +20,5 @@ export default async function StudentPortalLayout({ children }: { children: Reac
     establishAchievementBaseline(session.studentId),
     loadWorkspaceBranding(session.credential.student.workspaceId),
   ]);
-  return <PortalShell branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={student.profileImageUrl ?? ""} serviceType={session.credential.student.serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
+  return <PortalShell branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={studentProfilePhoto(session.studentId, student.profileImageUrl)} serviceType={session.credential.student.serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
 }

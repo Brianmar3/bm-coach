@@ -1,4 +1,5 @@
 import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { publicStudent } from "@/lib/student-media";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 import { isSelfService } from "@/lib/self-service";
 import { randomUUID } from "node:crypto";
@@ -41,7 +42,9 @@ export async function GET(_request: Request, context: RouteContext<"/api/store/[
     const brandingPlan = await loadWorkspaceBrandingPlan(workspaceId);
     return Response.json(records.map((record) => ({ id: record.id, ...record.data as object, ...resolveWorkspaceBranding(record.data as { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown }, brandingPlan), brandingPlan })));
   }
-  return Response.json(records.map((record) => ({ id: record.id, ...record.data as object })));
+  return Response.json(records.map((record) => collection === "bm-coach-students"
+    ? publicStudent(record.id, { ...record.data as { profileImageUrl?: string }, id: record.id })
+    : ({ id: record.id, ...record.data as object })));
 }
 
 export async function PUT(request: Request, context: RouteContext<"/api/store/[collection]">) {
@@ -60,8 +63,10 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
         const reserved = await transaction.studentRecord.count({ where: { workspaceId, id: { in: items.map((item) => item.id) }, data: { path: ["accountType"], equals: "SELF_SERVICE" } } });
         if (reserved) return false;
         await assertTrainerCanReplaceStudents(workspaceId, items.map((data) => ({ data })), transaction);
+        const existingPhotos = await transaction.studentRecord.findMany({ where: { workspaceId }, select: { id: true, data: true } });
+        const photos = new Map(existingPhotos.map(record => [record.id, (record.data as { profileImageUrl?: string }).profileImageUrl ?? ""]));
         await transaction.studentRecord.deleteMany({ where: { workspaceId, AND: [coachedStudentsWhere] } });
-        if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: item as Prisma.InputJsonValue })) });
+        if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: { ...item, profileImageUrl: photos.get(item.id) ?? "" } as Prisma.InputJsonValue })) });
         return true;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return Response.json(saved ? { ok: true } : { error: "Una cuenta autogestionada no puede reemplazarse desde alumnos." }, { status: saved ? 200 : 409 });

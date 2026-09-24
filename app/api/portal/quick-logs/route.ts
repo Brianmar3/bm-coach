@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { del, put } from "@vercel/blob";
+import { removeStudentPhoto, studentPhotoToken, uploadStudentPhoto } from "@/lib/student-media-storage";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
@@ -68,13 +68,13 @@ export async function POST(request: Request) {
   if (type === "PROGRESS" && metricType === "carga" && (sets === null || repetitions === null)) return Response.json({ error: "Series y repeticiones son obligatorias." }, { status: 400 });
   const files = form.getAll("photos").filter((item): item is File => item instanceof File && item.size > 0);
   if (files.length > 4) return Response.json({ error: "Podés adjuntar hasta 4 fotos por registro." }, { status: 400 });
-  if (files.length && !process.env.BLOB_READ_WRITE_TOKEN) return Response.json({ error: "La carga de fotos todavía no está configurada." }, { status: 503 });
+  if (files.length && !studentPhotoToken()) return Response.json({ error: "La carga privada de fotos todavía no está configurada." }, { status: 503 });
   const checkedFiles: Array<{ bytes: Uint8Array; type: { mime: string; extension: string } }> = [];
   for (const file of files) {
     if (file.size > MAX_QUICK_LOG_PHOTO_BYTES) return Response.json({ error: "Cada foto debe pesar hasta 3 MB." }, { status: 400 });
     const bytes = new Uint8Array(await file.arrayBuffer());
     const detected = detectedImageType(bytes);
-    if (!detected || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return Response.json({ error: "Las fotos deben ser JPG, PNG o WEBP válidos." }, { status: 400 });
+    if (!detected || (file.type && file.type !== "application/octet-stream" && file.type !== detected.mime)) return Response.json({ error: "Las fotos deben ser JPG, PNG o WEBP válidos." }, { status: 400 });
     checkedFiles.push({ bytes, type: detected });
   }
   let log: { id: string };
@@ -164,15 +164,15 @@ export async function POST(request: Request) {
   try {
     for (const file of checkedFiles) {
       const pathname = `quick-logs/${session.studentId}/${log.id}/${randomUUID()}.${file.type.extension}`;
-      const blob = await put(pathname, Buffer.from(file.bytes), { access: "public", contentType: file.type.mime, addRandomSuffix: false });
+      const blob = await uploadStudentPhoto(pathname, file.bytes, file.type.mime);
       uploaded.push(blob.url);
       await prisma.quickLogPhoto.create({ data: { quickLogId: log.id, blobUrl: blob.url, blobPathname: pathname } });
     }
-  } catch (error) {
-    await Promise.all(uploaded.map((url) => del(url).catch(() => undefined)));
+  } catch {
+    await Promise.all(uploaded.map((url) => removeStudentPhoto(url, session.studentId, "progress", log.id)));
     await prisma.quickLog.delete({ where: { id: log.id } }).catch(() => undefined);
     await prisma.$transaction((transaction) => recalculateQuickLogAchievements(transaction, session.studentId)).catch(() => undefined);
-    console.error("No se pudo guardar una foto del registro rápido", error);
+    console.error("STUDENT_PROGRESS_PHOTO_UPLOAD_FAILED");
     return Response.json({ error: "No se pudo guardar el registro. Intentá nuevamente." }, { status: 500 });
   }
   const saved = await prisma.quickLog.findUniqueOrThrow({ where: { id: log.id }, include: quickLogRelations });

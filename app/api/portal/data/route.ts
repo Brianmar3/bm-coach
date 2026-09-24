@@ -1,3 +1,4 @@
+import { studentProfilePhoto } from "@/lib/student-media";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession } from "@/lib/portal-auth";
 import { routineInclude, serializeRoutine } from "@/lib/rutinas";
@@ -192,7 +193,7 @@ export async function GET(request: Request) {
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
       exerciseMediaEnabled: await exerciseMediaAvailable(),
-      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: student.profileImageUrl ?? "", height: Number(student.height) || 0, weight: Number(student.weight) || 0, experienceLevel: student.experienceLevel ?? "", trainingExperience: student.trainingExperience ?? "", hasLimitations: student.hasLimitations === true, limitations: student.limitations ?? "", onboardingUpdatedAt: student.onboardingUpdatedAt ?? "" },
+      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: studentProfilePhoto(studentId, student.profileImageUrl), height: Number(student.height) || 0, weight: Number(student.weight) || 0, experienceLevel: student.experienceLevel ?? "", trainingExperience: student.trainingExperience ?? "", hasLimitations: student.hasLimitations === true, limitations: student.limitations ?? "", onboardingUpdatedAt: student.onboardingUpdatedAt ?? "" },
       routine: privateRoutine,
       evaluations: normalizedEvaluations.map((evaluation) => ({ ...toStudentEvaluation(evaluation), notes: "", frontPhotoUrl: "", sidePhotoUrl: "", backPhotoUrl: "" })),
       payments: payments.map(serializePayment),

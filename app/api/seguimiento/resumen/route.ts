@@ -1,3 +1,4 @@
+import { studentProfilePhoto } from "@/lib/student-media";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isActivePainReport } from "@/lib/routine-follow-up-filters";
@@ -59,7 +60,7 @@ export async function GET() {
         pendingComments: 0, exercises: [],
       } : null;
       return {
-        studentId: id, studentName: studentName(assignment.student.data), profileImageUrl: profile.profileImageUrl ?? "",
+        studentId: id, studentName: studentName(assignment.student.data), profileImageUrl: studentProfilePhoto(id, profile.profileImageUrl),
         activeRoutine: {
           id: assignment.routine.id, name: assignment.routine.name, location: assignment.routine.location,
           status: assignment.routine.status.toLowerCase(), startDate: assignment.routine.startDate?.toISOString().slice(0, 10) ?? "",

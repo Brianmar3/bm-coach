@@ -1,4 +1,5 @@
 "use client";
+import { StudentPhoto } from "@/componentes/student-photo";
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -151,8 +152,7 @@ export function PointsRanking() {
               <li key={student.studentId} className="min-w-0 rounded-xl border border-zinc-800/80 bg-black/35">
                 <button type="button" aria-expanded={open} onClick={() => setSelectedStudentId(open ? null : student.studentId)} className="grid w-full min-w-0 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2 p-3 text-left sm:gap-3">
                   <span className="w-5 text-center text-sm font-black text-yellow-300">{index + 1}</span>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- validated profile URL or bundled avatar */}
-                  <img src={student.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" className="h-9 w-9 rounded-full border border-yellow-400/20 object-cover" />
+                  <StudentPhoto src={student.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" className="h-9 w-9 rounded-full border border-yellow-400/20 object-cover" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-bold">{student.studentName}</span>
                     <span className="block truncate text-[10px] text-zinc-500">{student.level} · {student.movements.length} movimientos en el período</span>
