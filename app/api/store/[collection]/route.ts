@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings, Student } from "@/types/gestion";
 import { normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
-import { allowedLogoModes, normalizeAccentColor, normalizeCustomLogoUrl, normalizeLogoMode, resolveWorkspaceBranding } from "@/lib/workspace-branding";
+import { allowedLogoModes, normalizeAccentColor, normalizeCustomLogoUrl, normalizeLogoMode, normalizeWorkspaceName, resolveWorkspaceBranding } from "@/lib/workspace-branding";
 import { loadWorkspaceBrandingPlan } from "@/lib/workspace-branding-server";
 import { assertTrainerCanReplaceStudents, TrainerStudentLimitError } from "@/lib/trainer-plan-limits-server";
 
@@ -107,6 +107,8 @@ async function saveCoachSettings(items: Array<{ id: string }>, workspaceId: stri
   ]);
   const current = currentRecord?.data as unknown as CoachSettings | undefined;
   const currentCustomLogoUrl = normalizeCustomLogoUrl(current?.customLogoUrl);
+  const systemName = brandingPlan === "PREMIUM" ? normalizeWorkspaceName(requested.systemName) : normalizeWorkspaceName(current?.systemName) ?? "BM Training";
+  if (!systemName) return Response.json({ error: "El nombre de tu espacio debe tener entre 1 y 36 caracteres." }, { status: 400 });
   if (!allowedLogoModes(brandingPlan).includes(logoMode)) return Response.json({ error: `El plan ${brandingPlan} no permite usar el estilo ${logoMode}.` }, { status: 403 });
   if (normalizeCustomLogoUrl(requested.customLogoUrl) !== currentCustomLogoUrl) return Response.json({ error: "El logo personalizado sólo puede cambiarse mediante la carga segura de archivos." }, { status: 400 });
   if (logoMode === "CUSTOM" && !currentCustomLogoUrl) return Response.json({ error: "Subí un logo válido antes de activar el estilo personalizado." }, { status: 400 });
@@ -135,13 +137,15 @@ async function saveCoachSettings(items: Array<{ id: string }>, workspaceId: stri
     );
   }
 
-  const { brandingPlan: _brandingPlan, ...persistedRequested } = requested;
+  const { brandingPlan: _brandingPlan, displayName: _displayName, ...persistedRequested } = requested as CoachSettings & { displayName?: string };
   void _brandingPlan;
+  void _displayName;
   const settings: CoachSettings = {
     ...persistedRequested,
     accentColor,
     logoMode,
     customLogoUrl: currentCustomLogoUrl,
+    systemName,
     plans: nextPlans,
     paymentMethods: requested.paymentMethods.map((method) => method.trim()),
     transferDetails: normalizeTransferDetails(requested.transferDetails),

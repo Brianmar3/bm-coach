@@ -16,12 +16,12 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
           <Link
             href={homeHref}
             className="flex min-w-0 items-center gap-2 sm:gap-3"
-            aria-label="Ir al inicio de BM Training"
+            aria-label={`Ir al inicio de ${branding.displayName}`}
           >
             <WorkspaceBrandLogo branding={branding} className="h-9 w-9 rounded-xl sm:h-11 sm:w-11" />
             <span className="min-w-0">
-              <span className="block whitespace-nowrap text-xs font-black tracking-[.08em] text-white min-[390px]:text-sm sm:text-base sm:tracking-[.12em]">
-                BM <span className="text-yellow-400">TRAINING</span>
+              <span className="block max-w-[9rem] truncate text-xs font-black tracking-[.08em] text-white min-[390px]:max-w-[11rem] min-[390px]:text-sm sm:max-w-[16rem] sm:text-base sm:tracking-[.12em]" title={branding.displayName}>
+                {branding.displayName}
               </span>
               <span className="block max-w-[8.5rem] text-[8px] leading-tight tracking-wide text-zinc-400 min-[390px]:max-w-[10.5rem] min-[390px]:text-[9px] sm:max-w-none sm:text-[10px]">
                 Gestión, entrenamiento y seguimiento

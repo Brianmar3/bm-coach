@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { allowedLogoModes, BM_DEFAULT_ACCENT, normalizeAccentColor, normalizeCustomLogoUrl, resolveWorkspaceBranding, workspaceAccentColor, workspaceBrandingVariables } from "../lib/workspace-branding.ts";
+import { allowedLogoModes, BM_DEFAULT_ACCENT, normalizeAccentColor, normalizeCustomLogoUrl, normalizeWorkspaceName, resolveWorkspaceBranding, workspaceAccentColor, workspaceBrandingVariables } from "../lib/workspace-branding.ts";
 import { MAX_WORKSPACE_LOGO_BYTES, validateWorkspaceLogoBytes, workspaceLogoMetadataError } from "../lib/workspace-logo-upload.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -24,6 +24,25 @@ test("CUSTOM exige PREMIUM y una URL segura de Vercel Blob", () => {
   assert.equal(resolveWorkspaceBranding({ logoMode: "CUSTOM", customLogoUrl: logoUrl }, "PRO").logoMode, "DEFAULT");
   assert.equal(resolveWorkspaceBranding({ logoMode: "CUSTOM", customLogoUrl: "" }, "PREMIUM").logoMode, "DEFAULT");
   assert.equal(normalizeCustomLogoUrl("https://attacker.example/logo.png"), "");
+});
+
+test("nombre comercial premium usa el campo existente y queda aislado por plan y workspace", () => {
+  assert.equal(normalizeWorkspaceName("  SUPER FITNESS  "), "SUPER FITNESS");
+  assert.equal(normalizeWorkspaceName("   "), null);
+  assert.equal(normalizeWorkspaceName("X".repeat(37)), null);
+  const workspaceA = { systemName: "SUPER FITNESS" };
+  const workspaceB = { systemName: "OTRO GIMNASIO" };
+  assert.equal(resolveWorkspaceBranding(workspaceA, "PREMIUM").displayName, "SUPER FITNESS");
+  assert.equal(resolveWorkspaceBranding(workspaceB, "PREMIUM").displayName, "OTRO GIMNASIO");
+  for (const plan of ["FREE", "STARTER", "PRO"] as const) assert.equal(resolveWorkspaceBranding(workspaceA, plan).displayName, "BM TRAINING");
+  assert.equal(resolveWorkspaceBranding(workspaceA, "PREMIUM").displayName, "SUPER FITNESS");
+  assert.equal(resolveWorkspaceBranding({}, "PREMIUM").displayName, "BM TRAINING");
+  const route = read("app/api/store/[collection]/route.ts");
+  assert.match(route, /systemName = brandingPlan === "PREMIUM" \? normalizeWorkspaceName\(requested\.systemName\) : normalizeWorkspaceName\(current\?\.systemName\)/);
+  assert.match(read("componentes/admin-topbar.tsx"), /branding\.displayName/);
+  assert.match(read("componentes/portal-visuals.tsx"), /branding\.displayName/);
+  assert.match(read("componentes/portal-shell.tsx"), /current\.displayName === body\.displayName/);
+  assert.doesNotMatch(read("componentes/platform-shell.tsx"), /branding\.displayName/);
 });
 
 test("normaliza HEX válido y rechaza valores que no son un color seguro", () => {

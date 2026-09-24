@@ -19,7 +19,7 @@ export function WorkspaceBrandingProvider({ children }: { children: ReactNode })
   const branding = updatedBranding ?? resolveWorkspaceBranding(items[0], plan);
 
   useEffect(() => {
-    const update = (event: Event) => setUpdatedBranding(resolveWorkspaceBranding((event as CustomEvent<Partial<WorkspaceBranding>>).detail, plan));
+    const update = (event: Event) => setUpdatedBranding(resolveWorkspaceBranding((event as CustomEvent<Partial<CoachSettings>>).detail, plan));
     window.addEventListener(WORKSPACE_BRANDING_EVENT, update);
     return () => window.removeEventListener(WORKSPACE_BRANDING_EVENT, update);
   }, [plan]);

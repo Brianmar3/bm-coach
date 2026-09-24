@@ -100,6 +100,19 @@ test("panel dedicado reutiliza contratos de pago, suspensión y reactivación", 
   assert.match(membershipsUi, /REACTIVATE_ACCESS/);
 });
 
+test("modal mobile prioriza vencimiento, conserva fechas internas y espera guardado para cerrar", () => {
+  assert.match(managerUi, /Período actual/);
+  assert.match(managerUi, /<details[^>]*>[^]*Más información y fechas internas/);
+  for (const field of ["startedAt", "lastPaidAt", "currentPeriodEnd", "nextDueAt"]) assert.match(managerUi, new RegExp(`name="${field}"`));
+  assert.match(managerUi, /if \(busy\.current\) return/);
+  assert.match(managerUi, /await onSaved\(message\)/);
+  assert.match(managerUi, /Guardando\.\.\./);
+  assert.match(managerUi, /catch \(cause\) \{ setError/);
+  assert.match(read("componentes/platform-trainers.tsx"), /await load\(\); setManaging\(null\); setMembershipNotice\(message\)/);
+  assert.match(read("componentes/platform-memberships.tsx"), /setMembershipNotice\(message\)/);
+  assert.match(read("componentes/trainer-membership-detail-manager.tsx"), /setNotice\(message\)/);
+});
+
 test("una sesión de trainer suspendido se corta con 401 antes de llegar a las APIs operativas", () => {
   assert.match(proxy, /export async function proxy/);
   assert.match(proxy, /prisma\.user\.findUnique/);

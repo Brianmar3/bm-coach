@@ -22,7 +22,7 @@ export async function loadWorkspaceBranding(workspaceId: string) {
     }),
     loadWorkspaceBrandingPlan(workspaceId),
   ]);
-  const data = settings?.data as { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown } | null;
+  const data = settings?.data as { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown; systemName?: unknown } | null;
   return resolveWorkspaceBranding(data, plan);
 }
 

@@ -6,17 +6,26 @@ export type WorkspaceBranding = {
   accentColor: string;
   logoMode: WorkspaceLogoMode;
   customLogoUrl: string;
+  displayName: string;
 };
 
 export const DEFAULT_WORKSPACE_BRANDING: WorkspaceBranding = {
   accentColor: BM_DEFAULT_ACCENT,
   logoMode: "DEFAULT",
   customLogoUrl: "",
+  displayName: "BM TRAINING",
 };
 
 type BrandingPlan = "FREE" | "STARTER" | "PRO" | "PREMIUM";
 
 const HEX_COLOR = /^#[0-9A-F]{6}$/;
+export const MAX_WORKSPACE_NAME_LENGTH = 36;
+
+export function normalizeWorkspaceName(value: unknown) {
+  if (typeof value !== "string") return null;
+  const name = value.trim();
+  return name && name.length <= MAX_WORKSPACE_NAME_LENGTH ? name : null;
+}
 
 export function normalizeAccentColor(value: unknown) {
   if (typeof value !== "string") return null;
@@ -51,7 +60,7 @@ export function normalizeCustomLogoUrl(value: unknown) {
 }
 
 export function resolveWorkspaceBranding(
-  data: { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown } | null | undefined,
+  data: { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown; systemName?: unknown } | null | undefined,
   plan: BrandingPlan = "STARTER",
 ): WorkspaceBranding {
   const requestedMode = normalizeLogoMode(data?.logoMode) ?? "DEFAULT";
@@ -59,7 +68,7 @@ export function resolveWorkspaceBranding(
   const logoMode = allowedLogoModes(plan).includes(requestedMode) && (requestedMode !== "CUSTOM" || customLogoUrl)
     ? requestedMode
     : "DEFAULT";
-  return { accentColor: workspaceAccentColor(data?.accentColor), logoMode, customLogoUrl };
+  return { accentColor: workspaceAccentColor(data?.accentColor), logoMode, customLogoUrl, displayName: plan === "PREMIUM" ? normalizeWorkspaceName(data?.systemName) ?? "BM TRAINING" : "BM TRAINING" };
 }
 
 function channel(hex: string, offset: number) {

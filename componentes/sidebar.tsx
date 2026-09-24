@@ -69,7 +69,7 @@ export function Sidebar() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <WorkspaceBrandLogo branding={branding} className="h-10 w-10 rounded-xl" />
-                <div><p className="text-sm font-black tracking-wider text-white">BM <span className="text-yellow-400">TRAINING</span></p><p className="text-[9px] text-zinc-500">Panel del entrenador</p></div>
+                <div className="min-w-0"><p className="max-w-40 truncate text-sm font-black tracking-wider text-white" title={branding.displayName}>{branding.displayName}</p><p className="text-[9px] text-zinc-500">Panel del entrenador</p></div>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-800" aria-label="Cerrar menú">×</button>
             </div>

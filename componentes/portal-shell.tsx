@@ -60,7 +60,7 @@ export function PortalShell({
         const response = await fetch("/api/portal/branding", { cache: "no-store", signal: controller.signal });
         if (!response.ok) return;
         const body = await response.json() as WorkspaceBranding;
-        if (!stopped && body.accentColor) setCurrentBranding((current) => current.accentColor === body.accentColor && current.logoMode === body.logoMode && current.customLogoUrl === body.customLogoUrl ? current : body);
+        if (!stopped && body.accentColor) setCurrentBranding((current) => current.accentColor === body.accentColor && current.logoMode === body.logoMode && current.customLogoUrl === body.customLogoUrl && current.displayName === body.displayName ? current : body);
       } catch (error) {
         if (!(error instanceof Error && error.name === "AbortError")) return;
       }

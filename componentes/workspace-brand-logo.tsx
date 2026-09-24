@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useId, useState } from "react";
 import type { WorkspaceBranding } from "@/lib/workspace-branding";
 
-export function WorkspaceBrandLogo({ branding, className = "h-10 w-10" }: { branding: WorkspaceBranding; className?: string }) {
+export function WorkspaceBrandLogo({ branding, className = "h-10 w-10" }: { branding: Pick<WorkspaceBranding, "logoMode" | "customLogoUrl" | "accentColor">; className?: string }) {
   const maskId = useId().replaceAll(":", "");
   const [failedCustomUrl, setFailedCustomUrl] = useState("");
 
