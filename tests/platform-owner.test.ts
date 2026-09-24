@@ -24,6 +24,8 @@ const membershipsPage = read("app/platform/memberships/page.tsx");
 const membershipsUi = read("componentes/platform-memberships.tsx");
 const invitationsPage = read("app/platform/invitations/page.tsx");
 const invitationsUi = read("componentes/platform-invitations.tsx");
+const trainersUi = read("componentes/platform-trainers.tsx");
+const settingsUi = read("componentes/platform-settings-form.tsx");
 const settingsPage = read("app/platform/settings/page.tsx");
 const settingsApi = read("app/api/platform/settings/route.ts");
 const migration = read("prisma/migrations/20260917120000_platform_owner_trainers/migration.sql");
@@ -59,14 +61,16 @@ test("17. BM público y su sidebar no publican el acceso master", () => {
 
 test("18. plataforma tiene navegación propia y conserva regreso a BM", () => {
   assert.match(platformLayout, /PlatformShell/);
-  for (const label of ["Resumen", "Entrenadores", "Membresías", "Invitaciones", "Configuración", "Ir a BM Training"]) assert.match(platformShell, new RegExp(label));
+  for (const label of ["Resumen", "Entrenadores", "Configuración", "Ir a BM Training"]) assert.match(platformShell, new RegExp(label));
+  assert.doesNotMatch(platformShell, /"Membresías"|"Invitaciones"/);
 });
 
 test("19. resumen usa métricas comerciales reales", () => {
   assert.match(platformPage, /prisma\.user\.findMany/);
-  assert.match(platformPage, /prisma\.trainerSubscription\.findMany/);
+  assert.match(platformPage, /trainerSubscription: \{ select:/);
   assert.match(platformPage, /effectiveTrainerSubscriptionStatus/);
-  assert.match(platformPage, /trainerInvitation\.count/);
+  assert.match(platformPage, /trainerInvitation\.findMany/);
+  for (const label of ["Requiere atención", "Todo al día", "Planes", "Próximos a vencer"]) assert.match(platformPage, new RegExp(label));
 });
 
 test("20. suspensión conserva datos y sólo cambia el estado de un TRAINER profesional", () => {
@@ -96,8 +100,11 @@ test("conflictos cubren trainer, credencial de alumno, SELF_SERVICE y pendientes
   assert.equal(studentEmailConflict([{ data: { email: " ALUMNO@Example.com " } }], "alumno@example.com"), true);
 });
 
-test("navegación master habilita todas las secciones en una sola franja móvil", () => {
-  for (const href of ["/platform/trainers", "/platform/memberships", "/platform/invitations", "/platform/settings"]) assert.match(platformShell, new RegExp(href));
+test("navegación master concentra cuentas e invitaciones y conserva rutas antiguas", () => {
+  for (const href of ["/platform/trainers", "/platform/settings"]) assert.match(platformShell, new RegExp(href));
+  assert.match(membershipsPage, /redirect\(`\/platform\/trainers\?filter=/);
+  assert.match(invitationsPage, /redirect\("\/platform\/trainers\?view=invitations"\)/);
+  for (const label of ["Cuentas", "Invitaciones", "Gestionar", "Próximos a vencer"]) assert.match(trainersUi, new RegExp(label));
   assert.doesNotMatch(platformShell, /aria-disabled/);
   assert.match(platformShell, /overflow-x-auto/);
   assert.match(platformShell, /Opciones de cuenta/);
@@ -127,6 +134,8 @@ test("configuración master valida catálogo y permanece separada del branding d
   assert.doesNotMatch(settingsApi, /CoachSettings|accentColor|logoMode/);
   assert.ok(parsePlatformSettings({ platformName: "BM Training", supportEmail: "soporte@bm.test", invitationDays: 7, defaultTrainerPlan: "STARTER", initialPeriodMonths: 1 }));
   assert.equal(parsePlatformSettings({ platformName: "BM", supportEmail: "", invitationDays: 999, defaultTrainerPlan: "STARTER", initialPeriodMonths: 1 }), null);
+  assert.match(settingsUi, /General/);
+  assert.match(settingsUi, /Altas de entrenadores/);
 });
 
 test("aceptación aplica plan y período inicial configurados sin permitirlos desde el frontend", () => {

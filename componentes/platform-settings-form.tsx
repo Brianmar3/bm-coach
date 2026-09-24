@@ -21,13 +21,15 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettingsVal
     finally { setSaving(false); }
   }
   return <form onSubmit={save} className="max-w-2xl rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
-    <div className="grid gap-4 sm:grid-cols-2">
+    <section aria-labelledby="general-heading"><h2 id="general-heading" className="mb-3 font-bold text-yellow-400">General</h2><div className="grid gap-4 sm:grid-cols-2">
       <label className="text-sm">Nombre de plataforma<input name="platformName" required maxLength={100} defaultValue={initial.platformName} className={field} /></label>
       <label className="text-sm">Email de soporte<input name="supportEmail" type="email" maxLength={254} defaultValue={initial.supportEmail} placeholder="soporte@ejemplo.com" className={field} /></label>
-      <label className="text-sm">Duración de invitaciones<select name="invitationDays" defaultValue={initial.invitationDays} className={field}>{[1, 3, 7, 14, 30].map((value) => <option key={value} value={value}>{value} {value === 1 ? "día" : "días"}</option>)}</select></label>
-      <label className="text-sm">Plan para nuevos trainers<select name="defaultTrainerPlan" defaultValue={initial.defaultTrainerPlan} className={field}><option>STARTER</option><option>PRO</option><option>PREMIUM</option></select></label>
+    </div></section>
+    <section aria-labelledby="onboarding-heading" className="mt-5 border-t border-zinc-800 pt-5"><h2 id="onboarding-heading" className="mb-3 font-bold text-yellow-400">Altas de entrenadores</h2><div className="grid gap-4 sm:grid-cols-2">
+      <label className="text-sm">Plan para nuevos trainers<select name="defaultTrainerPlan" defaultValue={initial.defaultTrainerPlan} className={field}><option>FREE</option><option>STARTER</option><option>PRO</option><option>PREMIUM</option></select></label>
       <label className="text-sm">Período inicial sugerido<select name="initialPeriodMonths" defaultValue={initial.initialPeriodMonths} className={field}>{[1, 3, 6, 12].map((value) => <option key={value} value={value}>{value} {value === 1 ? "mes" : "meses"}</option>)}</select></label>
-    </div>
+      <label className="text-sm">Duración de invitaciones<select name="invitationDays" defaultValue={initial.invitationDays} className={field}>{[1, 3, 7, 14, 30].map((value) => <option key={value} value={value}>{value} {value === 1 ? "día" : "días"}</option>)}</select></label>
+    </div></section>
     <div className="mt-5 flex items-center gap-3"><button disabled={saving} className="rounded-lg bg-yellow-400 px-4 py-2.5 text-sm font-black text-zinc-950 disabled:opacity-60">{saving ? "Guardando…" : "Guardar configuración"}</button>{message && <p role="status" className="text-sm text-zinc-400">{message}</p>}</div>
     <p className="mt-4 border-t border-zinc-800 pt-3 text-xs text-zinc-500">La identidad del panel Master continúa siendo BM Training. El branding de cada workspace se administra desde la cuenta de su entrenador.</p>
   </form>;
