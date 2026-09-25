@@ -1,0 +1,23 @@
+{
+  "appId": "com.bmtraining.app.capacitortest",
+  "appName": "BM Training Capacitor Test",
+  "webDir": "www",
+  "loggingBehavior": "debug",
+  "backgroundColor": "#000000",
+  "android": {
+    "backgroundColor": "#000000",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false,
+    "useLegacyBridge": false
+  },
+  "server": {
+    "url": "https://bm-training-app.vercel.app",
+    "appStartPath": "/portal/login",
+    "cleartext": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

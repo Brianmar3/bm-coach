@@ -45,3 +45,8 @@ prisma/*.db
 .env
 
 /external/
+.vercel
+.env*
+
+# Firebase private credentials
+**/*firebase-adminsdk*.json

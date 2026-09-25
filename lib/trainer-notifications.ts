@@ -5,6 +5,7 @@ import webpush from "web-push";
 import { ClassResponseStatus, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { sendTrainerNativePush } from "@/lib/native-push-notifications";
 import { buildWorkoutCompletionNotification, type WorkoutCompletionNotificationInput } from "@/lib/workout-completion-notification";
 
 export const TRAINER_OWNER_KEY = "coach";
@@ -169,45 +170,54 @@ export async function dispatchTrainerPush(
 
   const vapid = getVapidConfiguration();
   const attemptedAt = new Date();
-
-  if (!vapid) {
-    await prisma.trainerNotification.update({
-      where: { id: notificationId },
-      data: {
-        pushAttemptedAt: attemptedAt,
-        pushError: "VAPID no está configurado.",
-      },
-    });
-    return;
-  }
-
-  if (subscriptions.length === 0) {
-    await prisma.trainerNotification.update({
-      where: { id: notificationId },
-      data: {
-        pushAttemptedAt: attemptedAt,
-        pushError: "No hay dispositivos activos.",
-      },
-    });
-    return;
-  }
-
-  webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
-
-  const results = await Promise.all(
-    subscriptions.map((subscription) => sendToSubscription(subscription, payload)),
+  const nativeResultPromise = sendTrainerNativePush(workspaceId, payload).catch(
+    (error) => {
+      console.error("[trainer-native-push] No se pudo procesar la notificación", {
+        workspaceId,
+        errorName: error instanceof Error ? error.name : "UnknownError",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      return { configured: true, delivered: false, results: [] };
+    },
   );
-  const delivered = results.some((result) => result.delivered);
-  const errors = results
+
+  let webResults: Awaited<ReturnType<typeof sendToSubscription>>[] = [];
+  if (vapid && subscriptions.length > 0) {
+    webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
+    webResults = await Promise.all(
+      subscriptions.map((subscription) => sendToSubscription(subscription, payload)),
+    );
+  }
+
+  const nativeResult = await nativeResultPromise;
+  const delivered =
+    webResults.some((result) => result.delivered) || nativeResult.delivered;
+  const errors = webResults
     .map((result) => result.error)
     .filter((error): error is string => Boolean(error));
+  if (!vapid) errors.push("VAPID no está configurado.");
+  if (!nativeResult.configured) errors.push("Firebase no está configurado.");
+  if (
+    subscriptions.length === 0 &&
+    nativeResult.results.length === 0 &&
+    errors.length === 0
+  ) {
+    errors.push("No hay dispositivos activos.");
+  }
+  errors.push(
+    ...nativeResult.results
+      .map((result) => result.error)
+      .filter((error): error is string => Boolean(error)),
+  );
 
   await prisma.trainerNotification.update({
     where: { id: notificationId },
     data: {
       pushAttemptedAt: attemptedAt,
       pushDeliveredAt: delivered ? new Date() : null,
-      pushError: delivered ? null : errors.join(" | ").slice(0, 1000),
+      pushError: delivered
+        ? null
+        : (errors.join(" | ") || "No hay dispositivos activos.").slice(0, 1000),
     },
   });
 }

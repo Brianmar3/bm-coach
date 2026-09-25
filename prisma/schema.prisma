@@ -199,6 +199,7 @@ model Workspace {
   settings                 CoachSettingsRecord[]
   monthlySummaries         MonthlySummary[]
   trainerPushSubscriptions TrainerPushSubscription[]
+  trainerNativePushDevices TrainerNativePushDevice[]
   trainerNotifications     TrainerNotification[]
   paymentRecords           PaymentRecord[]
   eventRecords             EventRecord[]
@@ -254,6 +255,7 @@ model StudentRecord {
   classResponses           ClassOccurrenceAttendance[]
   classWorkoutLogs         ClassWorkoutLog[]
   pushSubscriptions        StudentPushSubscription[]
+  nativePushDevices        StudentNativePushDevice[]
   achievementNotifications AchievementNotification[]
   quickLogs                QuickLog[]
   quickLogAchievements     QuickLogAchievement[]
@@ -893,6 +895,47 @@ model TrainerPushSubscription {
   @@unique([workspaceId, endpoint])
   @@index([workspaceId, active])
   @@map("trainer_push_subscriptions")
+}
+
+model StudentNativePushDevice {
+  id          String        @id @default(cuid())
+  studentId   String
+  appId       String
+  token       String
+  platform    String        @default("ANDROID")
+  deviceLabel String?
+  userAgent   String?
+  active      Boolean       @default(true)
+  lastUsedAt  DateTime?
+  lastError   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  student     StudentRecord @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, token])
+  @@index([studentId, active])
+  @@map("student_native_push_devices")
+}
+
+model TrainerNativePushDevice {
+  id          String    @id @default(cuid())
+  workspaceId String
+  ownerKey    String    @default("coach")
+  appId       String
+  token       String
+  platform    String    @default("ANDROID")
+  deviceLabel String?
+  userAgent   String?
+  active      Boolean   @default(true)
+  lastUsedAt  DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@unique([appId, token])
+  @@index([workspaceId, active])
+  @@map("trainer_native_push_devices")
 }
 
 model TrainerNotification {

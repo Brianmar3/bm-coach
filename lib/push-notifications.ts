@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { after } from "next/server";
 import webpush from "web-push";
 import { loadNotifiableAchievements } from "@/lib/notifiable-achievements";
+import { sendStudentNativePush } from "@/lib/native-push-notifications";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { prisma } from "@/lib/prisma";
 import { getNotificationDestination } from "@/lib/student-notification-destination";
@@ -26,30 +27,38 @@ async function deliverStudentPush(
   message: StudentPushMessage,
 ) {
   try {
-    if (!vapidConfigured()) return;
-    const subscriptions = await prisma.studentPushSubscription.findMany({ where: { studentId, active: true } });
-    if (!subscriptions.length) return;
-    webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
-    const payload = JSON.stringify({
+    const resolvedMessage = {
       ...message,
       url: getNotificationDestination(message),
-    });
-    await Promise.all(subscriptions.map(async (subscription) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
-          payload,
-          { TTL: 86400, urgency: "normal" },
-        );
-        await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { lastUsedAt: new Date() } });
-      } catch (error) {
-        const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0;
-        if (statusCode === 404 || statusCode === 410) {
-          await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { active: false } });
-        }
-        console.error("No se pudo entregar una notificación al alumno", { statusCode });
+    };
+    const nativeDelivery = sendStudentNativePush(studentId, resolvedMessage).catch(
+      (error) => console.error("No se pudo entregar la notificación Android al alumno", error),
+    );
+
+    if (vapidConfigured()) {
+      const subscriptions = await prisma.studentPushSubscription.findMany({ where: { studentId, active: true } });
+      if (subscriptions.length) {
+        webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
+        const payload = JSON.stringify(resolvedMessage);
+        await Promise.all(subscriptions.map(async (subscription) => {
+          try {
+            await webpush.sendNotification(
+              { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+              payload,
+              { TTL: 86400, urgency: "normal" },
+            );
+            await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { lastUsedAt: new Date() } });
+          } catch (error) {
+            const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0;
+            if (statusCode === 404 || statusCode === 410) {
+              await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { active: false } });
+            }
+            console.error("No se pudo entregar una notificación web al alumno", { statusCode });
+          }
+        }));
       }
-    }));
+    }
+    await nativeDelivery;
   } catch (error) {
     console.error("No se pudo procesar la notificación al alumno", error);
   }
@@ -114,53 +123,53 @@ type ClaimedAchievement = {
 };
 
 async function deliverAchievementPush(studentId: string, claimed: ClaimedAchievement[]) {
-  if (!vapidConfigured()) {
-    await prisma.achievementNotification.updateMany({
-      where: { id: { in: claimed.map((item) => item.notificationId) } },
-      data: { status: "FAILED", error: "Web Push no configurado" },
-    });
-    return;
-  }
-  const subscriptions = await prisma.studentPushSubscription.findMany({ where: { studentId, active: true } });
-  if (!subscriptions.length) {
-    await prisma.achievementNotification.updateMany({
-      where: { id: { in: claimed.map((item) => item.notificationId) } },
-      data: { status: "FAILED", error: "Sin dispositivos suscriptos" },
-    });
-    return;
-  }
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
   const message = content(claimed.map((item) => item.achievement));
-  const payload = JSON.stringify({
+  const resolvedMessage = {
     ...message,
     url: getNotificationDestination({ type: "ACHIEVEMENT" }),
     tag: "bm-training-achievements",
-    event: "achievement",
-  });
-  let delivered = false;
+    type: "ACHIEVEMENT",
+  };
+  const nativeResult = await sendStudentNativePush(studentId, resolvedMessage).catch(
+    (error) => {
+      console.error("No se pudo entregar el logro por Android", error);
+      return { configured: true, delivered: false, results: [] };
+    },
+  );
+  let delivered = nativeResult.delivered;
   const errors: string[] = [];
-  await Promise.all(subscriptions.map(async (subscription) => {
-    try {
-      await webpush.sendNotification(
-        { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
-        payload,
-        { TTL: 86400, urgency: "normal" },
-      );
-      delivered = true;
-      await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { lastUsedAt: new Date() } });
-    } catch (error) {
-      const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0;
-      if (statusCode === 404 || statusCode === 410) {
-        await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { active: false } });
+  if (!nativeResult.configured) errors.push("Firebase no configurado");
+  errors.push(...nativeResult.results.map((result) => result.error).filter((error): error is string => Boolean(error)));
+
+  if (vapidConfigured()) {
+    const subscriptions = await prisma.studentPushSubscription.findMany({ where: { studentId, active: true } });
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT!, process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
+    const payload = JSON.stringify({ ...resolvedMessage, event: "achievement" });
+    await Promise.all(subscriptions.map(async (subscription) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+          payload,
+          { TTL: 86400, urgency: "normal" },
+        );
+        delivered = true;
+        await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { lastUsedAt: new Date() } });
+      } catch (error) {
+        const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : 0;
+        if (statusCode === 404 || statusCode === 410) {
+          await prisma.studentPushSubscription.update({ where: { id: subscription.id }, data: { active: false } });
+        }
+        errors.push(statusCode ? `Web Push ${statusCode}` : "Error Web Push");
       }
-      errors.push(statusCode ? `Push ${statusCode}` : "Error de entrega");
-    }
-  }));
+    }));
+  } else {
+    errors.push("Web Push no configurado");
+  }
   await prisma.achievementNotification.updateMany({
     where: { id: { in: claimed.map((item) => item.notificationId) } },
     data: delivered
       ? { status: "SENT", notifiedAt: new Date(), error: null }
-      : { status: "FAILED", error: errors.join("; ").slice(0, 500) },
+      : { status: "FAILED", error: (errors.join("; ") || "Sin dispositivos suscriptos").slice(0, 500) },
   });
 }
 

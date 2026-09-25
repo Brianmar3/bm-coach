@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "698712506244",
+    "firebase_url": "https://primer-proyecto-66d76.firebaseio.com",
+    "project_id": "primer-proyecto-66d76",
+    "storage_bucket": "primer-proyecto-66d76.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:698712506244:android:c91a74333bef4f854ca7d1",
+        "android_client_info": {
+          "package_name": "com.bmtraining.app.capacitortest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHhivRcHZsrM2oUQfZMQzYwW99aqqWHSs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

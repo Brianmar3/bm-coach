@@ -3,6 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { resolvePushUiState, sameApplicationServerKey, type PushUiState } from "@/lib/push-notification-state";
 import { SettingsIcon } from "@/componentes/settings-icons";
+import {
+  checkNativePushPermissions,
+  createNativePushChannel,
+  getNativePushEnvironment,
+  listenForNativePushActions,
+  permissionIsBlocked,
+  registerNativePushToken,
+  requestNativePushPermissions,
+  unregisterNativePush,
+  type NativePushEnvironment,
+} from "@/lib/native-push-client";
 
 type PushConfig = {
   configured: boolean;
@@ -13,6 +24,12 @@ type PushConfig = {
     publicKeyLength: number;
     publicKeyValid: boolean;
   };
+};
+
+type NativePushConfig = {
+  configured: boolean;
+  activeCurrent?: boolean;
+  activeDevices?: number;
 };
 
 const WORKER_URL = "/sw.js";
@@ -44,7 +61,10 @@ function friendlyError(error: unknown) {
   if (technicalMessage.includes("VAPID_")) {
     return "Las notificaciones todavía no están configuradas.";
   }
-  if (Notification.permission === "denied" || name === "NotAllowedError") {
+  if (
+    (typeof Notification !== "undefined" && Notification.permission === "denied") ||
+    name === "NotAllowedError"
+  ) {
     return "Las notificaciones están bloqueadas en la configuración del teléfono.";
   }
   if (
@@ -61,6 +81,18 @@ function friendlyError(error: unknown) {
     return "No se pudo preparar el servicio de notificaciones.";
   }
   return "No pudimos activar las notificaciones.";
+}
+
+function nativeFriendlyError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("[BM Training Native Push] activación fallida", {
+    name: error instanceof Error ? error.name : "UnknownError",
+    message,
+  });
+  if (/Firebase|FCM_REGISTRATION|SERVICE_NOT_AVAILABLE/i.test(message)) {
+    return "No se pudo registrar este dispositivo con Firebase. Revisá la conexión e intentá nuevamente.";
+  }
+  return "No pudimos activar las notificaciones Android.";
 }
 
 async function validateWorkerResponse() {
@@ -110,13 +142,77 @@ export function PushNotificationsCard({
     () => (audience === "trainer" ? "/api/admin/push" : "/api/portal/push"),
     [audience],
   );
+  const nativeEndpoint = useMemo(
+    () =>
+      audience === "trainer"
+        ? "/api/admin/native-push"
+        : "/api/portal/native-push",
+    [audience],
+  );
   const [state, setState] = useState<PushUiState>("loading");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [config, setConfig] = useState<PushConfig | null>(null);
+  const [nativeEnvironment, setNativeEnvironment] =
+    useState<NativePushEnvironment | null>(null);
+  const [nativeConfigured, setNativeConfigured] = useState(false);
+  const [nativeToken, setNativeToken] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+    let actionListener: Awaited<
+      ReturnType<typeof listenForNativePushActions>
+    > | null = null;
+
     void (async () => {
+      const detectedNativeEnvironment = await getNativePushEnvironment();
+      if (detectedNativeEnvironment) {
+        if (cancelled) return;
+        setNativeEnvironment(detectedNativeEnvironment);
+        actionListener = await listenForNativePushActions();
+
+        const configResponse = await fetch(
+          `${nativeEndpoint}?appId=${encodeURIComponent(detectedNativeEnvironment.appId)}`,
+          { cache: "no-store" },
+        );
+        if (!configResponse.ok) {
+          throw new Error(`NATIVE_PUSH_CONFIG_HTTP_${configResponse.status}`);
+        }
+        const loaded = (await configResponse.json()) as NativePushConfig;
+        if (cancelled) return;
+        setNativeConfigured(loaded.configured);
+        if (!loaded.configured) {
+          setState("unconfigured");
+          return;
+        }
+
+        const permission = await checkNativePushPermissions();
+        if (cancelled) return;
+        if (permissionIsBlocked(permission)) {
+          setState("blocked");
+          return;
+        }
+        if (permission.receive !== "granted") {
+          setState("inactive");
+          return;
+        }
+
+        await createNativePushChannel();
+        const token = await registerNativePushToken();
+        if (cancelled) return;
+        setNativeToken(token);
+        const statusResponse = await fetch(
+          `${nativeEndpoint}?appId=${encodeURIComponent(detectedNativeEnvironment.appId)}&token=${encodeURIComponent(token)}`,
+          { cache: "no-store" },
+        );
+        if (!statusResponse.ok) {
+          throw new Error(`NATIVE_PUSH_STATUS_HTTP_${statusResponse.status}`);
+        }
+        const status = (await statusResponse.json()) as NativePushConfig;
+        if (!cancelled) setState(status.activeCurrent ? "active" : "inactive");
+        return;
+      }
+
       const supported = window.isSecureContext && (
           "serviceWorker" in navigator &&
           "PushManager" in window &&
@@ -168,16 +264,66 @@ export function PushNotificationsCard({
       }
       setState(resolvePushUiState({ supported, iphoneBrowser: false, permission: Notification.permission, configured: loaded.configured, hasSubscription: validSubscription, backendActive }));
     })().catch((error) => {
+      if (cancelled) return;
       console.error("[BM Training Push] diagnóstico inicial fallido", error);
       setState("error");
       setMessage("No pudimos comprobar el estado de las notificaciones. Revisá tu conexión e intentá nuevamente.");
     });
-  }, [audience, endpoint]);
+    return () => {
+      cancelled = true;
+      if (actionListener) void actionListener.remove();
+    };
+  }, [audience, endpoint, nativeEndpoint]);
 
   async function activate() {
     setBusy(true);
     setMessage("");
     try {
+      if (nativeEnvironment) {
+        if (!nativeConfigured) {
+          setState("unconfigured");
+          setMessage("Firebase todavía no está configurado para esta APK.");
+          return;
+        }
+        let permission = await checkNativePushPermissions();
+        if (permissionIsBlocked(permission)) {
+          setState("blocked");
+          setMessage("Las notificaciones están bloqueadas en Android. Habilitalas desde Ajustes > Apps > BM Training > Notificaciones.");
+          return;
+        }
+        if (permission.receive !== "granted") {
+          permission = await requestNativePushPermissions();
+        }
+        if (permission.receive !== "granted") {
+          const blocked = permissionIsBlocked(permission);
+          setState(blocked ? "blocked" : "inactive");
+          setMessage(
+            blocked
+              ? "Las notificaciones están bloqueadas en Android. Habilitalas desde Ajustes > Apps > BM Training > Notificaciones."
+              : "No se concedió el permiso. Podés intentarlo nuevamente cuando quieras.",
+          );
+          return;
+        }
+        await createNativePushChannel();
+        const token = await registerNativePushToken();
+        const response = await fetch(nativeEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appId: nativeEnvironment.appId,
+            token,
+            platform: nativeEnvironment.platform,
+            deviceLabel: nativeEnvironment.appName,
+          }),
+        });
+        const data = (await response.json()) as { message?: string; error?: string };
+        if (!response.ok) throw new Error(data.error || "NATIVE_PUSH_REGISTER_FAILED");
+        setNativeToken(token);
+        setState("active");
+        setMessage(data.message ?? "Notificaciones Android activadas correctamente.");
+        return;
+      }
+
       if (
         !config?.configured ||
         !config.publicKey ||
@@ -235,8 +381,13 @@ export function PushNotificationsCard({
       setState("active");
       setMessage(data.message ?? "Notificaciones activadas correctamente.");
     } catch (error) {
-      setState(Notification.permission === "denied" ? "blocked" : "error");
-      setMessage(friendlyError(error));
+      if (nativeEnvironment) {
+        setState("error");
+        setMessage(nativeFriendlyError(error));
+      } else {
+        setState(Notification.permission === "denied" ? "blocked" : "error");
+        setMessage(friendlyError(error));
+      }
     } finally {
       setBusy(false);
     }
@@ -246,6 +397,26 @@ export function PushNotificationsCard({
     setBusy(true);
     setMessage("");
     try {
+      if (nativeEnvironment) {
+        const token = nativeToken || await registerNativePushToken();
+        const response = await fetch(nativeEndpoint, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appId: nativeEnvironment.appId,
+            token,
+            platform: nativeEnvironment.platform,
+            deviceLabel: nativeEnvironment.appName,
+          }),
+        });
+        if (!response.ok) throw new Error(`NATIVE_PUSH_DELETE_HTTP_${response.status}`);
+        await unregisterNativePush();
+        setNativeToken("");
+        setState("inactive");
+        setMessage("Notificaciones desactivadas en este dispositivo.");
+        return;
+      }
+
       const registration = await readyRegistration();
       const subscription = await registration.pushManager?.getSubscription();
       if (subscription) {
@@ -273,6 +444,24 @@ export function PushNotificationsCard({
     setBusy(true);
     setMessage("");
     try {
+      if (nativeEnvironment) {
+        const token = nativeToken || await registerNativePushToken();
+        const response = await fetch(nativeEndpoint, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appId: nativeEnvironment.appId,
+            token,
+            platform: nativeEnvironment.platform,
+            deviceLabel: nativeEnvironment.appName,
+          }),
+        });
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(data.error || "NATIVE_TEST_PUSH_FAILED");
+        setMessage("Notificación de prueba enviada.");
+        return;
+      }
+
       const registration = await readyRegistration();
       const subscription = await registration.pushManager?.getSubscription();
       if (!subscription) throw new Error("SUBSCRIPTION_NOT_FOUND");
@@ -314,9 +503,13 @@ export function PushNotificationsCard({
     state === "iphone-browser"
       ? "Para recibir notificaciones en iPhone, agregá BM Training a la pantalla de inicio desde Compartir → Agregar a pantalla de inicio; luego abrí la app y activalas."
       : state === "blocked"
-        ? "Las notificaciones están desactivadas para BM Training. Podés habilitarlas desde la configuración del navegador o del teléfono."
+        ? nativeEnvironment
+          ? "Las notificaciones están bloqueadas en Android. Habilitalas desde Ajustes > Apps > BM Training > Notificaciones."
+          : "Las notificaciones están desactivadas para BM Training. Podés habilitarlas desde la configuración del navegador o del teléfono."
         : state === "unconfigured"
-          ? "Las notificaciones todavía no están configuradas."
+          ? nativeEnvironment
+            ? "Firebase todavía no está configurado para esta APK."
+            : "Las notificaciones todavía no están configuradas."
           : state === "active"
             ? "Notificaciones activadas."
             : state === "error"
