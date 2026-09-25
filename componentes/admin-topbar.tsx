@@ -28,7 +28,7 @@ export function AdminTopbar() {
           aria-label={`Ir al Dashboard de ${branding.displayName}`}
         >
           <span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-xl border border-yellow-400/20 bg-zinc-950 shadow-[0_0_24px_rgba(250,204,21,.08)] sm:h-11 sm:w-11">
-            <WorkspaceBrandLogo branding={branding} className="h-9 w-9 sm:h-10 sm:w-10" />
+            <WorkspaceBrandLogo branding={branding} className="h-9 w-9 sm:h-10 sm:w-10" compactDefault />
           </span>
           <span className="min-w-0">
             <span className="block max-w-[9rem] truncate text-xs font-black tracking-[.08em] text-white min-[390px]:max-w-[11rem] min-[390px]:text-sm sm:max-w-[16rem] sm:text-base sm:tracking-[.12em]" title={branding.displayName}>

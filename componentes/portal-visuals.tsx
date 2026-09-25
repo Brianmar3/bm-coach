@@ -18,7 +18,7 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
             className="flex min-w-0 items-center gap-2 sm:gap-3"
             aria-label={`Ir al inicio de ${branding.displayName}`}
           >
-            <WorkspaceBrandLogo branding={branding} className="h-9 w-9 rounded-xl sm:h-11 sm:w-11" />
+            <WorkspaceBrandLogo branding={branding} className="h-9 w-9 rounded-xl sm:h-11 sm:w-11" compactDefault />
             <span className="min-w-0">
               <span className="block max-w-[9rem] truncate text-xs font-black tracking-[.08em] text-white min-[390px]:max-w-[11rem] min-[390px]:text-sm sm:max-w-[16rem] sm:text-base sm:tracking-[.12em]" title={branding.displayName}>
                 {branding.displayName}

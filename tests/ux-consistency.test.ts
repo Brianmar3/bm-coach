@@ -57,16 +57,16 @@ test("el puente de arranque existe en el HTML inicial y se retira por hidrataciÃ
   assert.doesNotMatch(globals, /@keyframes bm-[^{]+\{[^}]*(?:width|height|top|left):/s);
 });
 
-test("el shell SSR conserva el logo oficial, un aro liviano y el fondo nativo", () => {
+test("el shell SSR conserva el logo oficial transparente sobre el fondo base", () => {
   assert.match(splash, /src="\/bm-training-splash\.png"/);
-  assert.match(splash, /<svg[^>]+viewBox="0 0 200 200"/);
-  assert.match(splash, /className="bm-splash-ring-base"/);
-  assert.match(splash, /className="bm-app-splash-logo relative z-10 w-\[96%\]"/);
   assert.match(splash, /bm-app-splash-logo-image/);
   assert.match(splash, /\bpreload\b/);
+  assert.match(splash, /\bunoptimized\b/);
   assert.doesNotMatch(splash, /\bpriority\b/);
+  assert.doesNotMatch(splash, /bm-app-splash-ring|bm-splash-ring-base/);
   assert.match(rootLayout, /backgroundColor: "#0B0B0C"/);
   assert.match(globals, /--background: #0b0b0c/);
+  assert.match(globals, /\.bm-app-splash \{[\s\S]*?background: transparent;/);
   assert.match(splash, /h-\[100dvh\]/);
   assert.match(globals, /width: min\(88vw, 74dvh, 42rem\)/);
   assert.match(splash, /width=\{1536\}/);

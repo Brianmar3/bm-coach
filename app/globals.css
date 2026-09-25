@@ -141,7 +141,7 @@ body {
 .bm-app-splash {
   opacity: 1;
   visibility: visible;
-  background: #0b0b0c;
+  background: transparent;
   transition:
     opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
     visibility 0s linear 140ms;
@@ -164,18 +164,6 @@ html[data-bm-app-ready="true"] #bm-app-root {
 .bm-app-splash-stage {
   width: min(88vw, 74dvh, 42rem);
   max-width: calc(100vw - 2rem);
-}
-
-.bm-app-splash-ring {
-  opacity: 0.78;
-}
-
-.bm-splash-ring-base {
-  filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.22));
-}
-
-.bm-app-splash-logo {
-  isolation: isolate;
 }
 
 .bm-app-splash-logo-image {
@@ -459,10 +447,6 @@ html[data-bm-app-ready="true"] #bm-app-root {
   .portal-home-mini-bars i { transform: none; }
   .portal-home-interactive { transition: none; }
   .portal-home-interactive:active { transform: none; }
-
-  .bm-app-splash-ring {
-    opacity: 0.62;
-  }
 
   .portal-route-enter {
     animation: bm-content-enter 80ms linear both;
