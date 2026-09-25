@@ -156,6 +156,7 @@ model StudentInvitation {
   id              String                  @id @default(cuid())
   workspaceId     String
   inviterId       String
+  serviceType     StudentServiceType?
   tokenHash       String                  @unique
   tokenCiphertext String
   status          StudentInvitationStatus @default(PENDING)

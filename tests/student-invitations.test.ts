@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { decryptStudentInvitationToken, encryptStudentInvitationToken, parseStudentInvitationRegistration, STUDENT_INVITATION_DAYS, studentInvitationDisplayStatus, studentInvitationToken, studentInvitationTokenHash, studentInvitationWhatsappText, validStudentInvitationToken } from "../lib/student-invitations.ts";
+import { decryptStudentInvitationToken, encryptStudentInvitationToken, invitationServiceType, parseStudentInvitationRegistration, STUDENT_INVITATION_DAYS, studentInvitationDisplayStatus, studentInvitationToken, studentInvitationTokenHash, studentInvitationWhatsappText, validStudentInvitationToken } from "../lib/student-invitations.ts";
 import { findWorkspacePhoneDuplicate } from "../lib/student-phone-identity.ts";
 import { trainerStudentCapacity } from "../lib/trainer-plan-limits.ts";
 import { resolveWorkspaceBranding } from "../lib/workspace-branding.ts";
@@ -35,6 +35,25 @@ test("registro valida username, teléfono y confirmación", () => {
   assert.match(parseStudentInvitationRegistration({ ...validInput, confirmPassword: "otro" }).error, /contraseñas/);
   assert.equal(parseStudentInvitationRegistration({ ...validInput, phone: "123" }).input, null);
   assert.equal(parseStudentInvitationRegistration({ ...validInput, username: "a" }).input, null);
+});
+test("el trainer elige Clases, Personalizado o Mixto antes de generar el enlace", () => {
+  const chooser = read("componentes/student-invitations.tsx");
+  assert.match(chooser, /STUDENT_SERVICE_OPTIONS\.map/);
+  assert.match(chooser, /body: JSON\.stringify\(\{ serviceType \}\)/);
+  assert.match(manage, /isStudentServiceType\(serviceType\)/);
+  assert.match(manage, /studentInvitation\.create\(\{ data: \{[^}]*serviceType/);
+  for (const serviceType of ["CLASSES", "PERSONALIZED", "MIXED"] as const) {
+    assert.equal(invitationServiceType(serviceType), serviceType);
+  }
+});
+test("el alta usa el servicio guardado en el token y el alumno no puede cambiarlo", () => {
+  assert.match(consume, /serviceType: invitationServiceType\(invitation!\.serviceType\)/);
+  assert.match(consume, /serviceType: studentInput\.serviceType/);
+  assert.equal(parseStudentInvitationRegistration({ ...validInput, serviceType: "MIXED" }).input, null);
+  assert.doesNotMatch(read("componentes/student-invitation-form.tsx"), /name="serviceType"/);
+  assert.match(read("componentes/student-invitation-form.tsx"), /Nombre de usuario<input name="username"/);
+  assert.equal(invitationServiceType(null), "PERSONALIZED"); // Sólo enlaces anteriores a esta migración.
+  assert.match(read("prisma/migrations/20260924180000_student_invitation_service_type/migration.sql"), /ADD COLUMN "serviceType" "StudentServiceType";/);
 });
 test("teléfono duplicado sólo dentro del workspace", () => {
   const records = [{ id: "a", workspaceId: "A", phoneNormalized: "3415551234", data: {} }];

@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import type { StudentServiceType } from "@/types/gestion";
 
 export const STUDENT_INVITATION_DAYS = 7;
 export type StudentInvitationDisplayStatus = "PENDING" | "USED" | "EXPIRED" | "REVOKED";
@@ -23,6 +24,7 @@ export function decryptStudentInvitationToken(value: string) {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
 export function validStudentInvitationToken(token: unknown): token is string { return typeof token === "string" && /^[A-Za-z0-9_-]{43}$/.test(token); }
+export function invitationServiceType(stored: StudentServiceType | null): StudentServiceType { return stored ?? "PERSONALIZED"; }
 export function studentInvitationDisplayStatus(invitation: { status: string; expiresAt: Date; usedAt?: Date | null }, now = new Date()): StudentInvitationDisplayStatus {
   if (invitation.status === "USED" || invitation.usedAt) return "USED";
   if (invitation.status === "REVOKED") return "REVOKED";

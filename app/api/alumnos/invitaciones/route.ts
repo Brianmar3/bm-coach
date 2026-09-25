@@ -4,6 +4,7 @@ import { assertTrainerCanAddStudent, TrainerStudentLimitError } from "@/lib/trai
 import { validRequestOrigin } from "@/lib/portal-auth";
 import { decryptStudentInvitationToken, encryptStudentInvitationToken, STUDENT_INVITATION_DAYS, studentInvitationDisplayStatus, studentInvitationToken, studentInvitationTokenHash } from "@/lib/student-invitations";
 import { studentInvitationWorkspaceAccess } from "@/lib/student-invitations-server";
+import { isStudentServiceType } from "@/lib/student-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,13 +22,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
+  const body = await request.json().catch(() => null) as { serviceType?: unknown } | null;
+  const serviceType = body?.serviceType;
+  if (!isStudentServiceType(serviceType)) return Response.json({ error: "Seleccioná un tipo de servicio válido." }, { status: 400 });
   try {
     const { workspaceId, userId } = await requireTrainerWorkspace();
     if (!await studentInvitationWorkspaceAccess(workspaceId, userId)) return Response.json({ error: "No podés invitar alumnos a este espacio." }, { status: 403 });
     await assertTrainerCanAddStudent(workspaceId);
     const token = studentInvitationToken();
     const expiresAt = new Date(Date.now() + STUDENT_INVITATION_DAYS * 86400000);
-    await prisma.studentInvitation.create({ data: { workspaceId, inviterId: userId, tokenHash: studentInvitationTokenHash(token), tokenCiphertext: encryptStudentInvitationToken(token), expiresAt } });
+    await prisma.studentInvitation.create({ data: { workspaceId, inviterId: userId, serviceType, tokenHash: studentInvitationTokenHash(token), tokenCiphertext: encryptStudentInvitationToken(token), expiresAt } });
     return Response.json({ url: new URL(`/join/student/${token}`, request.url).toString(), expiresAt }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof TrainerStudentLimitError) return Response.json({ error: error.message }, { status: 409 });

@@ -6,7 +6,7 @@ import { duplicatePhone, normalizePhone, studentJsonData, type ParsedStudentInpu
 import { recordInitialStudentHistory } from "@/lib/student-history";
 import { assertTrainerCanAddStudent, TrainerStudentLimitError } from "@/lib/trainer-plan-limits-server";
 import { activeStudentInvitation, invitationUnavailableMessage, studentInvitationWorkspaceAccess } from "@/lib/student-invitations-server";
-import { parseStudentInvitationRegistration, studentInvitationTokenHash } from "@/lib/student-invitations";
+import { invitationServiceType, parseStudentInvitationRegistration, studentInvitationTokenHash } from "@/lib/student-invitations";
 
 export const runtime = "nodejs";
 
@@ -43,7 +43,7 @@ export async function POST(request: Request, context: RouteContext<"/api/student
       const claimed = await tx.studentInvitation.updateMany({ where: { id: invitation!.id, tokenHash: studentInvitationTokenHash(token), status: "PENDING", usedAt: null, expiresAt: { gt: new Date() } }, data: { status: "USED", usedAt: new Date() } });
       if (claimed.count !== 1) throw new RegistrationConflict("Este enlace ya fue utilizado o venció.");
       const joinedAt = new Date().toISOString().slice(0, 10);
-      const studentInput: ParsedStudentInput = { firstName: input.firstName, lastName: input.lastName, phone: input.phone, birthDate: input.birthDate, email: "", weight: 0, height: 0, goal: "", plan: "", planId: "", monthlyFee: 0, joinedAt, dueDate: "", status: "activo", serviceType: "PERSONALIZED", notes: "", studentType: "Adulto", responsibleName: "", responsiblePhone: "", responsibleRelation: "", scheduleId: "", scheduleIds: [], flexibleSchedule: "" };
+      const studentInput: ParsedStudentInput = { firstName: input.firstName, lastName: input.lastName, phone: input.phone, birthDate: input.birthDate, email: "", weight: 0, height: 0, goal: "", plan: "", planId: "", monthlyFee: 0, joinedAt, dueDate: "", status: "activo", serviceType: invitationServiceType(invitation!.serviceType), notes: "", studentType: "Adulto", responsibleName: "", responsiblePhone: "", responsibleRelation: "", scheduleId: "", scheduleIds: [], flexibleSchedule: "" };
       const studentId = randomUUID();
       await tx.studentRecord.create({ data: { id: studentId, workspaceId: invitation!.workspaceId, phoneNormalized, serviceType: studentInput.serviceType, data: { ...studentJsonData(studentInput), onboardingCompleted: false }, portalCredential: { create: { username: input.username, passwordHash, active: true, mustChangePassword: false } } } });
       await recordInitialStudentHistory(tx, studentId, studentInput);
