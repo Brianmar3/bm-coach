@@ -50,8 +50,8 @@ test("Alumnos tiene hero limpio y abre Nuevo alumno desde un único acceso flota
   assert.equal(componentCount(students), 1);
   assert.match(students, /<TrainerFloatingActions mode="direct"/);
   assert.match(students, /label: "Nuevo alumno"/);
-  assert.match(students, /onSelect: \(\) => void begin\(\)/);
-  assert.match(students, /enabled=\{!open && !viewing\}/);
+  assert.match(students, /onSelect: \(\) => setChooseEnrollment\(true\)/);
+  assert.match(students, /enabled=\{!open && !viewing && !chooseEnrollment && !inviteOpen\}/);
 });
 
 test("Clases expone Crear horario y Tomar asistencia sin repetir el CTA grande", () => {

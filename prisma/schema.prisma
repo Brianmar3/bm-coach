@@ -30,6 +30,12 @@ enum TrainerInvitationStatus {
   REVOKED
 }
 
+enum StudentInvitationStatus {
+  PENDING
+  USED
+  REVOKED
+}
+
 enum TrainerSubscriptionPlan {
   FREE
   STARTER
@@ -85,6 +91,7 @@ model User {
   updatedAt           DateTime              @updatedAt
   memberships         WorkspaceMembership[]
   trainerInvitations  TrainerInvitation[]   @relation("TrainerInvitationInviter")
+  studentInvitations  StudentInvitation[]   @relation("StudentInvitationInviter")
   trainerSubscription TrainerSubscription?
   passwordResetTokens TrainerPasswordResetToken[]
 
@@ -145,6 +152,24 @@ model TrainerInvitation {
   @@map("trainer_invitations")
 }
 
+model StudentInvitation {
+  id              String                  @id @default(cuid())
+  workspaceId     String
+  inviterId       String
+  tokenHash       String                  @unique
+  tokenCiphertext String
+  status          StudentInvitationStatus @default(PENDING)
+  expiresAt       DateTime
+  usedAt          DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime                @default(now())
+  workspace       Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  inviter         User                    @relation("StudentInvitationInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status, expiresAt])
+  @@map("student_invitations")
+}
+
 model PlatformSettings {
   id                   String                  @id @default("main")
   platformName         String                  @default("BM Training")
@@ -169,6 +194,7 @@ model Workspace {
   updatedAt                DateTime                  @updatedAt
   memberships              WorkspaceMembership[]
   students                 StudentRecord[]
+  studentInvitations       StudentInvitation[]
   settings                 CoachSettingsRecord[]
   monthlySummaries         MonthlySummary[]
   trainerPushSubscriptions TrainerPushSubscription[]
