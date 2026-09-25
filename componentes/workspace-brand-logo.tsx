@@ -25,5 +25,5 @@ export function WorkspaceBrandLogo({ branding, className = "h-10 w-10" }: { bran
     </svg>;
   }
 
-  return <Image src="/bm-training-mark.png" alt="" width={44} height={44} priority className={`${className} shrink-0 object-contain`} />;
+  return <Image src="/bm-training-mark.png" alt="" width={44} height={44} priority unoptimized className={`${className} shrink-0 object-contain`} />;
 }

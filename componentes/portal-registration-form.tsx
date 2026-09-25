@@ -26,7 +26,7 @@ export function PortalRegistrationForm() {
     finally { pending.current = false; setSaving(false); }
   }
   return <main className="grid min-h-[100dvh] place-items-center bg-black p-4 text-white"><section className="w-full max-w-md rounded-3xl border border-yellow-400/25 bg-zinc-900 p-5 sm:p-7">
-    <Image src="/bm-training-mark.png" width={72} height={72} alt="BM Training" className="mx-auto" priority />
+    <Image src="/bm-training-mark.png" width={72} height={72} alt="BM Training" className="mx-auto" priority unoptimized />
     <p className="mt-4 text-center text-xs font-bold uppercase tracking-widest text-yellow-400">Crear una cuenta nueva</p><h1 className="mt-2 text-center text-2xl font-bold">Empezá con tu perfil</h1><p className="mt-2 text-sm text-zinc-300">Creá tu cuenta para entrenar por tu cuenta. Después te vamos a pedir tus datos iniciales.</p>
     <form onSubmit={submit} className="mt-5 space-y-4"><fieldset disabled={saving} className="space-y-4">
       {([{ name: "firstName", label: "Nombre", type: "text", autoComplete: "given-name", max: 80 }, { name: "lastName", label: "Apellido", type: "text", autoComplete: "family-name", max: 80 }, { name: "email", label: "Correo electrónico", type: "email", autoComplete: "email", max: 254 }, { name: "phone", label: "Teléfono", type: "tel", autoComplete: "tel", max: 40 }] as const).map((field) => <label key={field.name} className="block text-sm font-semibold">{field.label}<input name={field.name} type={field.type} autoComplete={field.autoComplete} required maxLength={field.max} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-base outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20" /></label>)}

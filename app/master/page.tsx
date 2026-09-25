@@ -37,7 +37,7 @@ export default function MasterLoginPage() {
 
   return <main className="grid min-h-screen place-items-center bg-zinc-950 p-5 text-white">
     <form noValidate onSubmit={submit} className="w-full max-w-md rounded-3xl border border-yellow-400/20 bg-zinc-900 p-7 shadow-2xl shadow-black">
-      <Image src="/bm-training-logo.png" alt="BM Training" width={526} height={430} priority className="mx-auto h-auto w-full max-w-[230px] object-contain" />
+      <Image src="/bm-training-logo.png" alt="BM Training" width={526} height={430} priority unoptimized className="mx-auto h-auto w-full max-w-[230px] object-contain" />
       <p className="mt-3 text-center text-xs font-bold uppercase tracking-[.25em] text-yellow-400">Acceso reservado</p>
       <h1 className="mt-3 text-center text-3xl font-black">Gestión de plataforma</h1>
       <p className="mt-2 text-center text-sm text-zinc-400">Ingresá con la cuenta propietaria de la plataforma.</p>
