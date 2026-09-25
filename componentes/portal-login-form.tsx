@@ -51,7 +51,7 @@ export function PortalLoginForm() {
   return <main className="grid min-h-[100dvh] place-items-center overflow-y-auto bg-black p-4 text-white">
     <section className="w-full max-w-md rounded-3xl border border-yellow-400/25 bg-zinc-900 p-5 shadow-2xl shadow-black sm:p-7">
       <div className="text-center">
-        <Image src="/bm-training-logo.png" alt="BM Training — Gestión, entrenamiento y seguimiento" width={300} height={200} priority sizes="(max-width: 480px) 240px, 300px" className="mx-auto h-auto w-full max-w-[260px] object-contain" />
+        <Image src="/bm-training-logo.png" alt="BM Training — Gestión, entrenamiento y seguimiento" width={526} height={430} priority sizes="(max-width: 480px) 240px, 300px" className="mx-auto h-auto w-full max-w-[260px] object-contain" />
         <p className="mt-2 text-xs font-bold uppercase tracking-[.2em] text-yellow-400">Portal del alumno</p>
         <h1 className="mt-2 text-2xl font-bold">Ingresá a tu cuenta</h1>
         <p className="mt-2 text-sm text-zinc-400">Usá tu usuario o el correo con el que creaste tu cuenta.</p>

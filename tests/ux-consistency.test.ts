@@ -87,18 +87,18 @@ test("cada documento comparte el puente SSR y los redirects de sesión ocurren a
   assert.match(globals, /\.bm-app-splash \{\s+transition-duration: 0ms;/);
 });
 
-test("los manifests y metadatos usan la identidad oficial v5 y su variante maskable", () => {
+test("los manifests y metadatos usan la identidad oficial v6 y su variante maskable", () => {
   for (const source of [rootLayout, portalLayout, appManifest, portalManifest]) {
-    assert.match(source, /bm-training-pwa-192-v5\.png/);
-    assert.match(source, /bm-training-pwa-512-v5\.png/);
+    assert.match(source, /bm-training-pwa-192-v6\.png/);
+    assert.match(source, /bm-training-pwa-512-v6\.png/);
     assert.doesNotMatch(source, /bm-training-(?:pwa|maskable|apple-touch)-[^"']*-v4\.png/);
   }
 
-  assert.match(rootLayout, /bm-training-apple-touch-v5\.png/);
-  assert.match(portalLayout, /bm-training-apple-touch-v5\.png/);
-  assert.match(appManifest, /bm-training-maskable-512-v5\.png/);
+  assert.match(rootLayout, /bm-training-apple-touch-v6\.png/);
+  assert.match(portalLayout, /bm-training-apple-touch-v6\.png/);
+  assert.match(appManifest, /bm-training-maskable-512-v6\.png/);
   assert.match(appManifest, /purpose: "maskable"/);
-  assert.match(portalManifest, /bm-training-maskable-512-v5\.png/);
+  assert.match(portalManifest, /bm-training-maskable-512-v6\.png/);
   assert.match(portalManifest, /"purpose": "maskable"/);
 });
 

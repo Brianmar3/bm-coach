@@ -1,4 +1,4 @@
-self.__BM_TRAINING_SW_VERSION__ = "push-v8-live-home";
+self.__BM_TRAINING_SW_VERSION__ = "push-v9-brand-v6";
 
 const BM_PORTAL_FALLBACK = "/portal";
 const BM_ALLOWED_NOTIFICATION_PATHS = [
@@ -51,8 +51,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(Promise.all([
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/icons/bm-training-pwa-192-v5.png",
-      badge: "/icons/bm-training-pwa-192-v5.png",
+      icon: "/icons/bm-training-pwa-192-v6.png",
+      badge: "/icons/bm-training-pwa-192-v6.png",
       tag: data.tag,
       vibrate: [120, 60, 120],
       data: { url: data.url },

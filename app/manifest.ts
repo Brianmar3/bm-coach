@@ -14,19 +14,19 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#000000",
     icons: [
       {
-        src: "/icons/bm-training-pwa-192-v5.png",
+        src: "/icons/bm-training-pwa-192-v6.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/bm-training-pwa-512-v5.png",
+        src: "/icons/bm-training-pwa-512-v6.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/bm-training-maskable-512-v5.png",
+        src: "/icons/bm-training-maskable-512-v6.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
