@@ -8,6 +8,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:698712506244:android:725cae40bac2c3924ca7d1",
+        "android_client_info": {
+          "package_name": "com.bmtraining.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHhivRcHZsrM2oUQfZMQzYwW99aqqWHSs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:698712506244:android:c91a74333bef4f854ca7d1",
         "android_client_info": {
           "package_name": "com.bmtraining.app.capacitortest"
