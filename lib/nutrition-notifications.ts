@@ -46,7 +46,7 @@ export async function notifyNutritionEvaluationUpdate(
       data: {
         studentId,
         type: "REMINDER",
-        title: "Tu evaluación fue actualizada",
+        title: "Nueva actualización",
         message:
           "Ya podés revisar la guía y regenerar tus recomendaciones de Nutrición.",
         url,

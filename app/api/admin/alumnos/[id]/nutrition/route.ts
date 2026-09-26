@@ -168,7 +168,7 @@ export async function POST(
       data: {
         studentId,
         type: "MESSAGE",
-        title: "Nueva recomendación",
+        title: "Nueva actualización",
         message: "Tu entrenador dejó una recomendación sobre nutrición y hábitos.",
         url: "/portal/nutricion",
       },

@@ -60,7 +60,7 @@ export async function persistPaymentConfirmation(
       studentId: payment.studentId,
       type: "PAYMENT",
       eventKey: paymentConfirmationEventKey(payment.id),
-      title: "Pago registrado ✅",
+      title: "Pago registrado",
       message,
       url: PAYMENT_PORTAL_URL,
     },

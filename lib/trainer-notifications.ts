@@ -233,6 +233,8 @@ export async function createAttendanceTrainerNotification(
 ) {
   const message = buildAttendanceMessage(input);
   const url = buildAttendanceUrl(input);
+  const internalTitle = input.response === "GOING" ? "Asistencia confirmada" : "Nueva respuesta";
+  const pushTitle = "Respuesta de asistencia";
 
   try {
     const notification = await prisma.trainerNotification.create({
@@ -241,7 +243,7 @@ export async function createAttendanceTrainerNotification(
         ownerKey: TRAINER_OWNER_KEY,
         type: "CLASS_RESPONSE",
         eventKey: input.eventKey,
-        title: "Respuesta de asistencia",
+        title: internalTitle,
         message,
         url,
         studentId: input.studentId,
@@ -253,7 +255,7 @@ export async function createAttendanceTrainerNotification(
     return {
       notification,
       payload: {
-        title: notification.title,
+        title: pushTitle,
         body: notification.message,
         url: notification.url,
         tag: `class-response-${input.occurrenceId}-${input.studentId}`,
@@ -288,7 +290,7 @@ export async function createWorkoutCompletedTrainerNotification(
         ownerKey: TRAINER_OWNER_KEY,
         type: "WORKOUT_COMPLETED",
         eventKey: content.eventKey,
-        title: content.title,
+        title: "Rutina completada",
         message: content.message,
         url: content.url,
         studentId: input.studentId,
