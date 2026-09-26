@@ -35,7 +35,7 @@ def generate_web(source: Image.Image, root: Path) -> None:
     save(render_square(source, 180, 0.80), icons / "bm-training-apple-touch-v5.png")
 
 
-def generate_android(source: Image.Image, root: Path) -> None:
+def generate_android(source: Image.Image, splash_source: Image.Image, root: Path) -> None:
     res = root / "app" / "src" / "main" / "res"
     densities = {
         "mdpi": (48, 82, 300),
@@ -46,18 +46,22 @@ def generate_android(source: Image.Image, root: Path) -> None:
     }
     for density, (launcher_size, maskable_size, splash_size) in densities.items():
         save(
-            render_square(source, launcher_size, 0.78),
+            render_square(source, launcher_size, 0.94),
             res / f"mipmap-{density}" / "ic_launcher.png",
         )
         save(
-            render_square(source, maskable_size, 0.60, transparent=True),
+            render_square(source, maskable_size, 0.76, transparent=True),
             res / f"mipmap-{density}" / "ic_maskable.png",
         )
         save(
-            render_square(source, splash_size, 0.82),
+            render_square(splash_source, splash_size, 0.76),
             res / f"drawable-{density}" / "splash.png",
         )
-    save(render_square(source, 512, 0.82), root / "store_icon.png")
+    save(render_square(source, 512, 0.94), root / "store_icon.png")
+    save(
+        render_square(splash_source, 432, 0.76, transparent=True),
+        res / "drawable-nodpi" / "splash_android12.png",
+    )
 
 
 def main() -> None:
@@ -65,6 +69,7 @@ def main() -> None:
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--web-root", type=Path)
     parser.add_argument("--android-root", type=Path)
+    parser.add_argument("--android-splash-source", type=Path)
     args = parser.parse_args()
 
     source = Image.open(args.source).convert("RGBA")
@@ -73,10 +78,18 @@ def main() -> None:
         raise ValueError("The official logo has no visible pixels")
     source = source.crop(alpha_box)
 
+    splash_source = source
+    if args.android_splash_source:
+        splash_source = Image.open(args.android_splash_source).convert("RGBA")
+        splash_alpha_box = splash_source.getchannel("A").getbbox()
+        if splash_alpha_box is None:
+            raise ValueError("The Android splash mark has no visible pixels")
+        splash_source = splash_source.crop(splash_alpha_box)
+
     if args.web_root:
         generate_web(source, args.web_root)
     if args.android_root:
-        generate_android(source, args.android_root)
+        generate_android(source, splash_source, args.android_root)
 
 
 if __name__ == "__main__":

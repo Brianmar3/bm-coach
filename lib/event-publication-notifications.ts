@@ -17,7 +17,7 @@ export async function notifyPublishedCoachEvent(event: CoachEvent) {
       where: { workspaceId: event.workspaceId, AND: [coachedStudentsWhere, event.audience === "ALL" ? {} : { serviceType: event.audience }] },
       select: { id: true },
     });
-    const title = "Nuevo evento en BM Training";
+    const title = "Nuevo evento";
     const message = publicationMessage(event);
     const url = `/portal#evento-${event.id}`;
     for (const student of students) {

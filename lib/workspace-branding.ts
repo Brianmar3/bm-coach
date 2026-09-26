@@ -7,13 +7,19 @@ export type WorkspaceBranding = {
   logoMode: WorkspaceLogoMode;
   customLogoUrl: string;
   displayName: string;
+  isPremium: boolean;
+  platformFallbackName: string;
 };
+
+export const PLATFORM_FALLBACK_NAME = "BM Training";
 
 export const DEFAULT_WORKSPACE_BRANDING: WorkspaceBranding = {
   accentColor: BM_DEFAULT_ACCENT,
   logoMode: "DEFAULT",
   customLogoUrl: "",
-  displayName: "BM TRAINING",
+  displayName: PLATFORM_FALLBACK_NAME,
+  isPremium: false,
+  platformFallbackName: PLATFORM_FALLBACK_NAME,
 };
 
 type BrandingPlan = "FREE" | "STARTER" | "PRO" | "PREMIUM";
@@ -25,6 +31,12 @@ export function normalizeWorkspaceName(value: unknown) {
   if (typeof value !== "string") return null;
   const name = value.trim();
   return name && name.length <= MAX_WORKSPACE_NAME_LENGTH ? name : null;
+}
+
+function normalizeBrandIdentity(value: unknown) {
+  if (typeof value !== "string") return null;
+  const name = value.trim();
+  return name && name.length <= 120 ? name : null;
 }
 
 export function normalizeAccentColor(value: unknown) {
@@ -59,17 +71,42 @@ export function normalizeCustomLogoUrl(value: unknown) {
   }
 }
 
-export function resolveWorkspaceBranding(
-  data: { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown; systemName?: unknown } | null | undefined,
+export function getWorkspaceBranding(
+  data: {
+    accentColor?: unknown;
+    logoMode?: unknown;
+    customLogoUrl?: unknown;
+    businessName?: unknown;
+    systemName?: unknown;
+    workspaceName?: unknown;
+    trainerDisplayName?: unknown;
+  } | null | undefined,
   plan: BrandingPlan = "STARTER",
 ): WorkspaceBranding {
+  const isPremium = plan === "PREMIUM";
   const requestedMode = normalizeLogoMode(data?.logoMode) ?? "DEFAULT";
   const customLogoUrl = normalizeCustomLogoUrl(data?.customLogoUrl);
   const logoMode = allowedLogoModes(plan).includes(requestedMode) && (requestedMode !== "CUSTOM" || customLogoUrl)
     ? requestedMode
     : "DEFAULT";
-  return { accentColor: workspaceAccentColor(data?.accentColor), logoMode, customLogoUrl, displayName: plan === "PREMIUM" ? normalizeWorkspaceName(data?.systemName) ?? "BM TRAINING" : "BM TRAINING" };
+  const displayName = isPremium
+    ? normalizeBrandIdentity(data?.businessName)
+      ?? normalizeWorkspaceName(data?.systemName)
+      ?? normalizeBrandIdentity(data?.workspaceName)
+      ?? normalizeBrandIdentity(data?.trainerDisplayName)
+      ?? PLATFORM_FALLBACK_NAME
+    : PLATFORM_FALLBACK_NAME;
+  return {
+    accentColor: workspaceAccentColor(data?.accentColor),
+    logoMode,
+    customLogoUrl,
+    displayName,
+    isPremium,
+    platformFallbackName: PLATFORM_FALLBACK_NAME,
+  };
 }
+
+export const resolveWorkspaceBranding = getWorkspaceBranding;
 
 function channel(hex: string, offset: number) {
   return Number.parseInt(hex.slice(offset, offset + 2), 16);

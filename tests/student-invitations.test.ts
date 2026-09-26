@@ -97,7 +97,7 @@ test("branding de la invitación se resuelve tras validar token", () => {
   assert.ok(publicPage.indexOf("invitationUnavailableMessage") < publicPage.indexOf("loadWorkspaceBranding"));
   assert.match(read("app/api/student-invitations/[token]/logo/route.ts"), /activeStudentInvitation/);
   assert.equal(resolveWorkspaceBranding({ systemName: "Mi Gym" }, "PREMIUM").displayName, "Mi Gym");
-  assert.equal(resolveWorkspaceBranding({ systemName: "Mi Gym" }, "STARTER").displayName, "BM TRAINING");
+  assert.equal(resolveWorkspaceBranding({ systemName: "Mi Gym" }, "STARTER").displayName, "BM Training");
 });
 test("gestión sólo del workspace trainer, copiar, revocar y WhatsApp", () => {
   assert.match(manage, /requireTrainerWorkspace/);

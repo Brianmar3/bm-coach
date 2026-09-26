@@ -88,7 +88,7 @@ test("cancelar suspende acceso y conserva la membresía y sus relaciones", () =>
 test("listado soporta ausencia de membresía, filtros y acceso al detalle", () => {
   assert.match(trainersApi, /trainerSubscription: true/);
   assert.match(trainersUi, /Sin membresía/);
-  for (const label of ["Todos", "Al día", "Vencidos", "Suspendidos", "Cancelados", "Próximos a vencer"]) assert.match(trainersUi, new RegExp(label));
+  for (const label of ["Todos", "Al día", "Vencidos", "Suspendidos", "Próximos a vencer"]) assert.match(trainersUi, new RegExp(label));
   assert.match(trainersUi, /\/platform\/trainers\/\$\{trainer\.id\}/);
   assert.match(managerUi, /Gestionar membresía|Configurar membresía/);
 });

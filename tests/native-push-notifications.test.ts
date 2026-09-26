@@ -44,10 +44,21 @@ test("las APIs resuelven cuenta y workspace desde sesiones del servidor", () => 
 test("confirmar o rechazar asistencia reutiliza el envío nativo del workspace", () => {
   const trainer = source("lib/trainer-notifications.ts");
   const attendance = source("app/api/portal/clases/route.ts");
-  assert.match(trainer, /sendTrainerNativePush\(workspaceId, payload\)/);
+  assert.match(trainer, /sendTrainerNativePush\(workspaceId, brandedPayload\)/);
+  assert.match(trainer, /workspaceNotificationTitle\(workspaceId, payload\.title\)/);
   assert.match(attendance, /createAttendanceTrainerNotification/);
   assert.match(attendance, /dispatchTrainerPush/);
   assert.match(trainer, /ClassResponseStatus\.GOING/);
+});
+
+test("Web Push y Native Push comparten la identidad resuelta del workspace", () => {
+  const studentPush = source("lib/push-notifications.ts");
+  const trainerPush = source("lib/trainer-notifications.ts");
+  const branding = source("lib/workspace-branding-server.ts");
+  assert.match(studentPush, /studentNotificationTitle\(studentId, message\.title\)/);
+  assert.match(studentPush, /sendStudentNativePush\(studentId, resolvedMessage\)/);
+  assert.match(trainerPush, /sendTrainerNativePush\(workspaceId, brandedPayload\)/);
+  assert.match(branding, /branding\.isPremium \? branding\.displayName : requestedTitle/);
 });
 
 test("Android declara permiso, plugin, canal e ícono monocromático", () => {

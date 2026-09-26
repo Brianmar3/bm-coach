@@ -40,7 +40,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("push", (event) => {
   let data = {
-    title: "Nuevo logro en BM Training",
+    title: "Nueva notificación",
     body: "Entrá a la app para ver tu progreso.",
     url: BM_PORTAL_FALLBACK,
     tag: "bm-training-achievements",

@@ -41,7 +41,7 @@ export function openTransferObligations(obligations: PortalPaymentObligation[]) 
 
 export function transferCopyText(details: TransferPaymentDetails, amount: number) {
   const rows = [
-    "Transferencia BM Training",
+    "Transferencia bancaria",
     details.holder && `Titular: ${details.holder}`,
     details.alias && `Alias: ${details.alias}`,
     details.accountNumber && `CBU/CVU: ${details.accountNumber}`,

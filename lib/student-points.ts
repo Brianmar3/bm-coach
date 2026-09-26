@@ -237,7 +237,7 @@ async function notifyPointGain(
     },
   });
   await sendStudentPush(studentId, {
-    title: `+${gainedTotal} puntos en BM Training`,
+    title: `+${gainedTotal} puntos`,
     body:
       gained.length === 1
         ? latest.description
@@ -292,7 +292,7 @@ async function notifyPointGain(
     });
   if (!notification) return;
   after(() => dispatchTrainerPush(notification.id, {
-    title: "BM Training",
+    title: "Progreso destacado",
     body: message,
     url: notification.url,
     tag: `points-${studentId}`,

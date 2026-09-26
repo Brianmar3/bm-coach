@@ -1,6 +1,6 @@
 {
-  "appId": "com.bmtraining.app.capacitortest",
-  "appName": "BM Training Capacitor Test",
+  "appId": "com.bmtraining.app",
+  "appName": "BM Training",
   "webDir": "www",
   "loggingBehavior": "debug",
   "backgroundColor": "#000000",

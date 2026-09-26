@@ -53,7 +53,7 @@ export async function notifyNutritionEvaluationUpdate(
       },
     });
     await sendStudentPush(studentId, {
-      title: "BM Training",
+      title: "Evaluación de nutrición actualizada",
       body: "Tu evaluación fue actualizada. Ya podés revisar tu guía de Nutrición.",
       url,
       tag: `nutrition-evaluation-${evaluationId}`,

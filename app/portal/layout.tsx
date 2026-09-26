@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: {
     default: "BM Training",
-    template: "%s · BM Training",
+    template: "%s",
   },
   description: "Gestión, entrenamiento y seguimiento",
   manifest: "/portal/manifest.webmanifest",

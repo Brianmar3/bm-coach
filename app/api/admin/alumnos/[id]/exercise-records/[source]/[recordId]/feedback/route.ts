@@ -128,7 +128,7 @@ export async function PUT(
   });
 
   await sendStudentPush(studentId, {
-    title: "Nueva devolución en BM Training",
+    title: "Nueva devolución",
     body: `Tu entrenador dejó una devolución en ${exerciseName}.`,
     url,
     tag: `exercise-feedback-${source}-${recordId}`,

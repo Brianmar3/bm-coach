@@ -8,6 +8,7 @@ import { sendStudentNativePush } from "@/lib/native-push-notifications";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { prisma } from "@/lib/prisma";
 import { getNotificationDestination } from "@/lib/student-notification-destination";
+import { studentNotificationTitle } from "@/lib/workspace-branding-server";
 
 type StudentPushMessage = {
   title: string;
@@ -27,8 +28,10 @@ async function deliverStudentPush(
   message: StudentPushMessage,
 ) {
   try {
+    const title = await studentNotificationTitle(studentId, message.title);
     const resolvedMessage = {
       ...message,
+      title,
       url: getNotificationDestination(message),
     };
     const nativeDelivery = sendStudentNativePush(studentId, resolvedMessage).catch(
@@ -108,12 +111,12 @@ export async function establishAchievementBaseline(studentId: string) {
 }
 
 function content(items: PortalAchievement[]) {
-  if (items.length > 1) return { title: `Desbloqueaste ${items.length} logros`, body: "Entrá a BM Training para verlos." };
+  if (items.length > 1) return { title: `Desbloqueaste ${items.length} logros`, body: "Entrá a la app para verlos." };
   const item = items[0];
   if (item.id.includes(":first:")) return { title: "Primera marca registrada", body: `Guardaste tu primera marca en ${item.exercise}.` };
   if (item.id.includes(":milestone:")) return { title: "Nuevo logro desbloqueado", body: item.description };
   if (item.exercise) return { title: "Nuevo récord personal", body: `Mejoraste tu marca en ${item.exercise}.` };
-  if (item.category === "EVALUACIONES") return { title: "Nuevo logro en BM Training", body: "Entrá a la app para ver tu progreso." };
+  if (item.category === "EVALUACIONES") return { title: "Nuevo logro desbloqueado", body: "Entrá a la app para ver tu progreso." };
   return { title: "Nuevo logro desbloqueado", body: item.description };
 }
 
@@ -124,8 +127,10 @@ type ClaimedAchievement = {
 
 async function deliverAchievementPush(studentId: string, claimed: ClaimedAchievement[]) {
   const message = content(claimed.map((item) => item.achievement));
+  const title = await studentNotificationTitle(studentId, message.title);
   const resolvedMessage = {
     ...message,
+    title,
     url: getNotificationDestination({ type: "ACHIEVEMENT" }),
     tag: "bm-training-achievements",
     type: "ACHIEVEMENT",

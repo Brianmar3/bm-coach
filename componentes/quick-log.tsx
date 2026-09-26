@@ -205,15 +205,27 @@ export function QuickLogHistory() {
   const distinctExercises = useMemo(() => new Set(logs.map((log) => log.exerciseKey || normalizeExerciseName(log.exerciseName)).filter(Boolean)).size, [logs]);
   async function remove(log: QuickLog) {
     if (!window.confirm(`¿Eliminar “${log.title || labels[log.type].title}”? Esta acción no se puede deshacer.`)) return;
-    const response = await fetch(`/api/portal/quick-logs/${log.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: "{}" });
-    const body = await response.json() as { error?: string; message?: string }; if (!response.ok) { setError(body.error ?? "No se pudo eliminar."); return; }
-    setNotice(body.message ?? "Registro eliminado correctamente."); await load();
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/portal/quick-logs/${log.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const body = await response.json() as { error?: string; message?: string }; if (!response.ok) { setError(body.error ?? "No se pudo eliminar."); return; }
+      setNotice(body.message ?? "Registro eliminado correctamente."); await load();
+    } catch {
+      setError("No se pudo confirmar la eliminación. Revisá tu conexión y actualizá los registros antes de reintentar.");
+    }
   }
   async function removePhoto(log: QuickLog, photoId: string) {
     if (!window.confirm("¿Eliminar esta foto del registro?")) return;
-    const response = await fetch(`/api/portal/quick-logs/${log.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photoId }) });
-    const body = await response.json() as { error?: string; message?: string }; if (!response.ok) { setError(body.error ?? "No se pudo eliminar la foto."); return; }
-    setNotice(body.message ?? "Foto eliminada correctamente."); await load();
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/portal/quick-logs/${log.id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photoId }) });
+      const body = await response.json() as { error?: string; message?: string }; if (!response.ok) { setError(body.error ?? "No se pudo eliminar la foto."); return; }
+      setNotice(body.message ?? "Foto eliminada correctamente."); await load();
+    } catch {
+      setError("No se pudo confirmar la eliminación de la foto. Revisá tu conexión y actualizá los registros antes de reintentar.");
+    }
   }
   return <div><header className="portal-home-class-row"><p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Registro personal</p><h1 className="mt-1.5 text-3xl font-black tracking-[-.03em] text-zinc-50">Mis registros</h1><p className="mt-1.5 text-sm text-zinc-400">{logs.length} {logs.length === 1 ? "registro" : "registros"} · {distinctExercises} {distinctExercises === 1 ? "ejercicio" : "ejercicios"}</p>{!creating && <button onClick={() => setCreating(true)} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 px-4 py-2.5 text-sm font-black text-zinc-950 shadow-[0_10px_28px_rgba(250,204,21,.14)] transition active:scale-[.98]"><BmPlusIcon size={17} />Nuevo registro</button>}</header>
     {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}{notice && <p role="status" className="mt-4 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}

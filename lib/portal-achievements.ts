@@ -112,7 +112,7 @@ export function calculatePortalAchievements(facts: AchievementFacts): PortalAchi
   achievements.push({ id: "first-strength-log", icon: "▲", name: "Primera marca de fuerza", description: "Registraste una marca válida en una clase presencial.", unlocked: Boolean(facts.firstStrengthLogDate), unlockedAt: facts.firstStrengthLogDate, progress: facts.firstStrengthLogDate ? 1 : 0, target: 1, category: "FUERZA", level: "COMUN" });
 
   const seniorityDays = facts.active && facts.joinedAt ? Math.max(0, daysBetween(facts.joinedAt, facts.today)) : 0;
-  for (const [days, name, level] of [[30, "Primer mes en BM Training", "COMUN"], [90, "3 meses entrenando", "DESTACADO"], [183, "6 meses entrenando", "ESPECIAL"], [365, "1 año entrenando", "HITO"], [730, "2 años entrenando", "HITO"]] as const) {
+  for (const [days, name, level] of [[30, "Primer mes de entrenamiento", "COMUN"], [90, "3 meses entrenando", "DESTACADO"], [183, "6 meses entrenando", "ESPECIAL"], [365, "1 año entrenando", "HITO"], [730, "2 años entrenando", "HITO"]] as const) {
     achievements.push({ id: `seniority-${days}`, icon: "◈", name, description: "Antigüedad calculada desde tu fecha individual de ingreso.", unlocked: seniorityDays >= days, unlockedAt: seniorityDays >= days ? addDays(facts.joinedAt, days) : "", progress: Math.min(seniorityDays, days), target: days, category: "ANTIGUEDAD", level });
   }
   return achievements;

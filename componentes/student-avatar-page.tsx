@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 import { DEFAULT_PROFILE_AVATAR, PROFILE_AVATARS } from "@/lib/profile-avatars";
 import type { PortalProfile } from "@/types/portal";
 
@@ -37,6 +38,7 @@ async function readAvatarResponse(response: Response): Promise<AvatarResponse> {
 }
 
 export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
+  const branding = useWorkspaceBranding();
   const router = useRouter();
   const initialAvatar =
     PROFILE_AVATARS.find((avatar) => avatar.src === profile.profileImageUrl) ??
@@ -97,7 +99,7 @@ export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
 
       <header>
         <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">
-          BM Training
+          {branding.displayName}
         </p>
         <h1 className="mt-2 text-3xl font-black tracking-tight text-white">
           Elegí tu avatar

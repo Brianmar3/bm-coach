@@ -61,4 +61,6 @@ test("publicar reutiliza notificación interna y Push con clave idempotente", ()
   assert.match(publication, /sendStudentPush/);
   assert.match(publication, /coach-event:\$\{event\.id\}:\$\{student\.id\}/);
   assert.match(publication, /error\.code === "P2002"/);
+  assert.doesNotMatch(publication, /Nuevo evento en BM Training/);
+  assert.match(readFileSync("componentes/portal-section.tsx", "utf8"), /Evento de \{branding\.displayName\}/);
 });

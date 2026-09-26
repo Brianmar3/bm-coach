@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { studentInvitationWhatsappText } from "@/lib/student-invitations";
+import { studentInvitationWhatsappText as buildStudentInvitationWhatsappText } from "@/lib/student-invitations";
 import { STUDENT_SERVICE_OPTIONS } from "@/lib/student-service";
 import type { StudentServiceType } from "@/types/gestion";
+import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 
 type Invitation = { id: string; createdAt: string; expiresAt: string; status: "PENDING" | "USED" | "EXPIRED" | "REVOKED"; url: string | null };
 
 export function StudentInvitations({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const branding = useWorkspaceBranding();
+  const studentInvitationWhatsappText = (url: string) => buildStudentInvitationWhatsappText(url, branding.displayName);
   const [items, setItems] = useState<Invitation[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

@@ -34,9 +34,12 @@ test("nombre comercial premium usa el campo existente y queda aislado por plan y
   const workspaceB = { systemName: "OTRO GIMNASIO" };
   assert.equal(resolveWorkspaceBranding(workspaceA, "PREMIUM").displayName, "SUPER FITNESS");
   assert.equal(resolveWorkspaceBranding(workspaceB, "PREMIUM").displayName, "OTRO GIMNASIO");
-  for (const plan of ["FREE", "STARTER", "PRO"] as const) assert.equal(resolveWorkspaceBranding(workspaceA, plan).displayName, "BM TRAINING");
+  for (const plan of ["FREE", "STARTER", "PRO"] as const) assert.equal(resolveWorkspaceBranding(workspaceA, plan).displayName, "BM Training");
   assert.equal(resolveWorkspaceBranding(workspaceA, "PREMIUM").displayName, "SUPER FITNESS");
-  assert.equal(resolveWorkspaceBranding({}, "PREMIUM").displayName, "BM TRAINING");
+  assert.equal(resolveWorkspaceBranding({}, "PREMIUM").displayName, "BM Training");
+  assert.equal(resolveWorkspaceBranding({ businessName: "Fuerza & Funcional", workspaceName: "Workspace Norte", trainerDisplayName: "Brian Martínez" }, "PREMIUM").displayName, "Fuerza & Funcional");
+  assert.equal(resolveWorkspaceBranding({ businessName: " ", workspaceName: "Workspace Norte", trainerDisplayName: "Brian Martínez" }, "PREMIUM").displayName, "Workspace Norte");
+  assert.equal(resolveWorkspaceBranding({ businessName: " ", workspaceName: " ", trainerDisplayName: "Brian Martínez" }, "PREMIUM").displayName, "Brian Martínez");
   const route = read("app/api/store/[collection]/route.ts");
   assert.match(route, /systemName = brandingPlan === "PREMIUM" \? normalizeWorkspaceName\(requested\.systemName\) : normalizeWorkspaceName\(current\?\.systemName\)/);
   assert.match(read("componentes/admin-topbar.tsx"), /branding\.displayName/);
@@ -74,7 +77,7 @@ test("alumno hereda color y logo de su workspace y los conserva tras un nuevo lo
   const server = read("lib/workspace-branding-server.ts");
   assert.match(layout, /loadWorkspaceBranding\(session\.credential\.student\.workspaceId\)/);
   assert.match(layout, /<PortalShell branding=\{branding\}/);
-  assert.match(server, /where: \{ workspaceId \}/);
+  assert.match(server, /where: \{ id: workspaceId \}/);
   assert.match(server, /trainerSubscription: \{ select: \{ plan: true, trialEndsAt: true \} \}/);
   assert.match(server, /effectiveTrainerPlan/);
   assert.match(read("componentes/portal-shell.tsx"), /useState\(branding\)/);
@@ -175,6 +178,6 @@ test("listado Master es compacto, conserva filtros y agrega búsqueda", () => {
   const trainers = read("componentes/platform-trainers.tsx");
   for (const label of ["Todos", "Al día", "Vencidos", "Suspendidos", "Cancelados", "Próximos a vencer"]) assert.match(trainers, new RegExp(`"${label}"`));
   assert.match(trainers, /type="search"/);
-  assert.match(trainers, /md:grid-cols-\[minmax\(190px,1\.35fr\)/);
+  assert.match(trainers, /md:grid-cols-\[minmax\(180px,1\.3fr\)/);
   assert.doesNotMatch(trainers, /Último pago/);
 });

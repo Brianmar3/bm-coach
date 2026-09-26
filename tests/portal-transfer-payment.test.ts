@@ -35,7 +35,7 @@ test("sólo habilita transferencia para obligaciones con saldo real abierto", ()
 
 test("copiar todos incluye importe dinámico y únicamente datos presentes", () => {
   const copied = transferCopyText({ holder: "Brian", alias: "bm.training", accountNumber: "", institution: "Billetera" }, 20000);
-  assert.match(copied, /^Transferencia BM Training/);
+  assert.match(copied, /^Transferencia bancaria/);
   assert.match(copied, /Titular: Brian/);
   assert.match(copied, /Alias: bm\.training/);
   assert.match(copied, /Importe: \$\s?20\.000/);

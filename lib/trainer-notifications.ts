@@ -7,6 +7,7 @@ import { ClassResponseStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendTrainerNativePush } from "@/lib/native-push-notifications";
 import { buildWorkoutCompletionNotification, type WorkoutCompletionNotificationInput } from "@/lib/workout-completion-notification";
+import { workspaceNotificationTitle } from "@/lib/workspace-branding-server";
 
 export const TRAINER_OWNER_KEY = "coach";
 
@@ -155,6 +156,10 @@ export async function dispatchTrainerPush(
   workspaceId: string,
 ) {
   if (!workspaceId) throw new Error("Workspace requerido para Push.");
+  const brandedPayload = {
+    ...payload,
+    title: await workspaceNotificationTitle(workspaceId, payload.title),
+  };
   const subscriptions = await prisma.trainerPushSubscription.findMany({
     where: {
       workspaceId,
@@ -170,7 +175,7 @@ export async function dispatchTrainerPush(
 
   const vapid = getVapidConfiguration();
   const attemptedAt = new Date();
-  const nativeResultPromise = sendTrainerNativePush(workspaceId, payload).catch(
+  const nativeResultPromise = sendTrainerNativePush(workspaceId, brandedPayload).catch(
     (error) => {
       console.error("[trainer-native-push] No se pudo procesar la notificación", {
         workspaceId,
@@ -185,7 +190,7 @@ export async function dispatchTrainerPush(
   if (vapid && subscriptions.length > 0) {
     webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
     webResults = await Promise.all(
-      subscriptions.map((subscription) => sendToSubscription(subscription, payload)),
+      subscriptions.map((subscription) => sendToSubscription(subscription, brandedPayload)),
     );
   }
 
@@ -236,7 +241,7 @@ export async function createAttendanceTrainerNotification(
         ownerKey: TRAINER_OWNER_KEY,
         type: "CLASS_RESPONSE",
         eventKey: input.eventKey,
-        title: "BM Training",
+        title: "Respuesta de asistencia",
         message,
         url,
         studentId: input.studentId,

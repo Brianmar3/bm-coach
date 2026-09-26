@@ -19,6 +19,7 @@ import {
 import { PortalHeader, PortalNavigationLink, PORTAL_MOBILE_NAV_CLASS } from "@/componentes/portal-visuals";
 import { RestTimerIndicator, RestTimerProvider } from "@/componentes/rest-timer-provider";
 import { workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
+import { WorkspaceBrandingValueProvider } from "@/componentes/workspace-branding-provider";
 
 type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
@@ -87,6 +88,9 @@ export function PortalShell({
     window.addEventListener("bm:profile-photo-updated", update);
     return () => window.removeEventListener("bm:profile-photo-updated", update);
   }, []);
+  useEffect(() => {
+    document.title = currentBranding.displayName;
+  }, [currentBranding.displayName]);
   const links = allLinks.filter(([, href]) => {
     if (href === "/portal/clases") return serviceType !== "PERSONALIZED";
     if (href === "/portal/rutina") return serviceType !== "CLASSES" || hasRoutine;
@@ -115,7 +119,7 @@ export function PortalShell({
       : "text-zinc-500 hover:text-zinc-200";
   };
 
-  return <RestTimerProvider>
+  return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider>
     <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties}>
       <AchievementCelebration />
       <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>
@@ -165,5 +169,5 @@ export function PortalShell({
         {showNavigationQuickLog && mobileQuickLogIndex === links.length && <QuickNoteButton placement="navigation" />}
       </nav>
     </div>
-  </RestTimerProvider>;
+  </RestTimerProvider></WorkspaceBrandingValueProvider>;
 }
