@@ -48,7 +48,7 @@ export async function POST(request: Request, context: RouteContext<"/api/student
       await tx.studentRecord.create({ data: { id: studentId, workspaceId: invitation!.workspaceId, phoneNormalized, serviceType: studentInput.serviceType, data: { ...studentJsonData(studentInput), onboardingCompleted: false }, portalCredential: { create: { username: input.username, passwordHash, active: true, mustChangePassword: false } } } });
       await recordInitialStudentHistory(tx, studentId, studentInput);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 });
-    return Response.json({ message: "Tu cuenta fue creada.", loginUrl: "/portal/login" }, { status: 201 });
+    return Response.json({ message: "Tu cuenta fue creada.", loginUrl: "/portal/login?mode=student" }, { status: 201 });
   } catch (error) {
     if (error instanceof TrainerStudentLimitError) return Response.json({ error: "Este espacio alcanzó el máximo de alumnos permitido por su plan." }, { status: 409 });
     if (error instanceof RegistrationConflict) return Response.json({ error: error.message }, { status: 409 });

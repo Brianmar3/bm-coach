@@ -11,6 +11,7 @@ const consume = read("app/api/student-invitations/[token]/route.ts");
 const manage = read("app/api/alumnos/invitaciones/route.ts");
 const access = read("lib/student-invitations-server.ts");
 const publicPage = read("app/join/student/[token]/page.tsx");
+const publicForm = read("componentes/student-invitation-form.tsx");
 const manual = read("app/api/alumnos/route.ts");
 const proxy = read("proxy.ts");
 const validInput = { firstName: "Ana", lastName: "Paz", phone: "341 555 1234", birthDate: "2000-01-01", username: "AnA.Paz", password: "Password123", confirmPassword: "Password123" };
@@ -116,6 +117,21 @@ test("rutas públicas no dependen de sesión activa", () => {
   assert.match(proxy, /studentInvitationRoute/);
   assert.match(proxy, /\/join\/student\//);
   assert.match(proxy, /\/api\/student-invitations\//);
+  assert.match(read("componentes/app-frame.tsx"), /pathname\.startsWith\("\/join\/student\/"\)/);
+});
+test("la invitación usa acceso explícito de alumno sin heredar la sesión trainer", () => {
+  const loginPage = read("app/portal/login/page.tsx");
+  assert.match(publicForm, /href="\/portal\/login\?mode=student"/);
+  assert.match(publicForm, /Ingresar como alumno/);
+  assert.match(consume, /loginUrl: "\/portal\/login\?mode=student"/);
+  assert.match(loginPage, /explicitStudentLogin/);
+  assert.ok(loginPage.indexOf("if (explicitStudentLogin)") < loginPage.indexOf("const experience = choosePortalExperience"));
+  assert.doesNotMatch(loginPage.slice(loginPage.indexOf("if (explicitStudentLogin)"), loginPage.indexOf("const experience = choosePortalExperience")), /redirect\("\/dashboard"\)/);
+});
+test("la invitación aplica branding del workspace en un contenedor público móvil", () => {
+  assert.match(publicForm, /workspace-brand min-h-\[100dvh\] overflow-x-hidden/);
+  assert.match(publicForm, /Powered by BM Training/);
+  assert.match(publicForm, /workspaceBrandingVariables\(branding\.accentColor\)/);
 });
 test("username global duplicado se rechaza antes de crear el alumno", () => {
   assert.match(consume, /studentPortalCredential\.findUnique\(\{ where: \{ username: input\.username \}/);
