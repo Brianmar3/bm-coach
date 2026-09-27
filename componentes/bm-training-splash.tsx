@@ -9,13 +9,13 @@ export function BmTrainingSplash() {
     >
       <div className="bm-app-splash-stage grid place-items-center">
         <Image
-          src="/bm-training-splash.png"
+          src="/bm-training-full-logo.png"
           alt="BM Training — Gestión, entrenamiento y seguimiento"
-          width={1536}
-          height={1024}
+          width={1448}
+          height={1086}
           preload
           unoptimized
-          sizes="(max-width: 640px) 84vw, 645px"
+          sizes="(max-width: 640px) 88vw, 672px"
           className="bm-app-splash-logo-image h-auto w-full object-contain"
         />
       </div>

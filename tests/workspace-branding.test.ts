@@ -163,12 +163,12 @@ test("Blanco y Color principal tiñen el nuevo isotipo sin recuperar el kettlebe
   assert.doesNotMatch(variants, /bm-training-mark\.png/);
 });
 
-test("las demás superficies BM visibles usan el nuevo isotipo", () => {
+test("las superficies BM usan isotipo o logo completo según su contexto", () => {
   assert.match(read("app/configuracion/page.tsx"), /<WorkspaceBrandLogo branding=\{value\}[^>]*officialBmMark/);
   assert.match(read("componentes/student-onboarding.tsx"), /<WorkspaceBrandLogo branding=\{branding\}[^>]*officialBmMark/);
   assert.match(read("componentes/portal-registration-form.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
-  assert.match(read("componentes/portal-login-form.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
-  assert.match(read("app/admin/login/page.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
+  assert.match(read("componentes/portal-login-form.tsx"), /src="\/bm-training-full-logo\.png"/);
+  assert.match(read("app/admin/login/page.tsx"), /src="\/bm-training-full-logo\.png"/);
 });
 
 test("polling se pausa al desmontar y se reactiva al volver a la app", () => {

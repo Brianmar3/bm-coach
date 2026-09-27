@@ -57,8 +57,11 @@ test("el puente de arranque existe en el HTML inicial y se retira por hidrataciÃ
   assert.doesNotMatch(globals, /@keyframes bm-[^{]+\{[^}]*(?:width|height|top|left):/s);
 });
 
-test("el shell SSR conserva el logo oficial transparente sobre el fondo base", () => {
-  assert.match(splash, /src="\/bm-training-splash\.png"/);
+test("el shell SSR muestra el logo completo oficial sobre el fondo oscuro", () => {
+  assert.match(splash, /src="\/bm-training-full-logo\.png"/);
+  assert.match(splash, /width=\{1448\}/);
+  assert.match(splash, /height=\{1086\}/);
+  assert.match(splash, /object-contain/);
   assert.match(splash, /bm-app-splash-logo-image/);
   assert.match(splash, /\bpreload\b/);
   assert.match(splash, /\bunoptimized\b/);
@@ -69,8 +72,6 @@ test("el shell SSR conserva el logo oficial transparente sobre el fondo base", (
   assert.match(globals, /\.bm-app-splash \{[\s\S]*?background: transparent;/);
   assert.match(splash, /h-\[100dvh\]/);
   assert.match(globals, /width: min\(88vw, 74dvh, 42rem\)/);
-  assert.match(splash, /width=\{1536\}/);
-  assert.match(splash, /height=\{1024\}/);
   assert.doesNotMatch(splash, /onAnimationEnd|onTransitionEnd/);
   assert.doesNotMatch(globals, /bm-splash-orbit|bm-app-splash--playing/);
 });
