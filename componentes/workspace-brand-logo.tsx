@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useId, useState } from "react";
 import type { WorkspaceBranding } from "@/lib/workspace-branding";
 
-export function WorkspaceBrandLogo({ branding, className = "h-10 w-10", compactDefault = false }: { branding: Pick<WorkspaceBranding, "logoMode" | "customLogoUrl" | "accentColor">; className?: string; compactDefault?: boolean }) {
+export function WorkspaceBrandLogo({ branding, className = "h-10 w-10", compactDefault = false, officialBmMark = false }: { branding: Pick<WorkspaceBranding, "logoMode" | "customLogoUrl" | "accentColor">; className?: string; compactDefault?: boolean; officialBmMark?: boolean }) {
   const maskId = useId().replaceAll(":", "");
   const [failedCustomUrl, setFailedCustomUrl] = useState("");
 
@@ -23,6 +23,10 @@ export function WorkspaceBrandLogo({ branding, className = "h-10 w-10", compactD
       </defs>
       <rect width="384" height="384" fill="currentColor" mask={`url(#${maskId})`} />
     </svg>;
+  }
+
+  if (officialBmMark) {
+    return <Image src="/bm-training-logo(2).png" alt="" width={44} height={44} priority unoptimized className={`${className} shrink-0 object-contain ${compactDefault ? "scale-[0.82]" : ""}`} />;
   }
 
   return <Image src="/bm-training-mark.png" alt="" width={44} height={44} priority unoptimized className={`${className} shrink-0 object-contain ${compactDefault ? "scale-[0.82]" : ""}`} />;

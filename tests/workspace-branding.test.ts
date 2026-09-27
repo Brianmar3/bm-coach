@@ -139,8 +139,27 @@ test("Configuración muestra progreso, éxito y error y aplica el branding sin r
 test("logo roto o downgrade usan el logo BM como fallback", () => {
   const logo = read("componentes/workspace-brand-logo.tsx");
   assert.match(logo, /onError=\{\(\) => setFailedCustomUrl\(branding\.customLogoUrl\)\}/);
+  assert.match(logo, /officialBmMark/);
+  assert.match(logo, /src="\/bm-training-logo\(2\)\.png"/);
   assert.match(logo, /src="\/bm-training-mark\.png"/);
   assert.equal(resolveWorkspaceBranding({ logoMode: "CUSTOM", customLogoUrl: "https://example.public.blob.vercel-storage.com/logo.png" }, "STARTER").logoMode, "DEFAULT");
+});
+
+test("cabeceras BM usan el nuevo isotipo y conservan CUSTOM como primera prioridad", () => {
+  const logo = read("componentes/workspace-brand-logo.tsx");
+  assert.ok(logo.indexOf('branding.logoMode === "CUSTOM"') < logo.indexOf("if (officialBmMark)"));
+  assert.match(read("componentes/admin-topbar.tsx"), /officialBmMark/);
+  assert.match(read("componentes/portal-visuals.tsx"), /officialBmMark/);
+  assert.match(read("componentes/sidebar.tsx"), /officialBmMark/);
+  assert.match(read("app/master/page.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
+});
+
+test("las demás superficies BM visibles usan el nuevo isotipo", () => {
+  assert.match(read("app/configuracion/page.tsx"), /<WorkspaceBrandLogo branding=\{value\}[^>]*officialBmMark/);
+  assert.match(read("componentes/student-onboarding.tsx"), /<WorkspaceBrandLogo branding=\{branding\}[^>]*officialBmMark/);
+  assert.match(read("componentes/portal-registration-form.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
+  assert.match(read("componentes/portal-login-form.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
+  assert.match(read("app/admin/login/page.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
 });
 
 test("polling se pausa al desmontar y se reactiva al volver a la app", () => {

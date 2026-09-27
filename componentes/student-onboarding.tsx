@@ -23,7 +23,7 @@ const goalIcons: Record<(typeof ONBOARDING_GOALS)[number], ComponentType<BmIconP
 };
 
 function Brand({ branding, compact = false }: { branding: WorkspaceBranding; compact?: boolean }) {
-  return <div className="onboarding-brand"><WorkspaceBrandLogo branding={branding} className="h-[72px] w-[72px]" /><span>{branding.displayName}</span>{!compact && <small>Gestión, entrenamiento<br />tu mejor versión.</small>}</div>;
+  return <div className="onboarding-brand"><WorkspaceBrandLogo branding={branding} className="h-[72px] w-[72px]" officialBmMark /><span>{branding.displayName}</span>{!compact && <small>Gestión, entrenamiento<br />tu mejor versión.</small>}</div>;
 }
 
 export function StudentOnboarding({ initial, selfService = false, branding = DEFAULT_WORKSPACE_BRANDING }: { initial: StudentOnboardingData; selfService?: boolean; branding?: WorkspaceBranding }) {
