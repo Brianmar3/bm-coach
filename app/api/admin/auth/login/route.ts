@@ -3,6 +3,7 @@ import { ADMIN_SESSION_COOKIE, adminSessionCookieOptions, createAdminSessionValu
 import { prisma } from "@/lib/prisma";
 import { consumePasswordVerificationTime, normalizeUsername, validRequestOrigin, verifyPassword } from "@/lib/portal-auth";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions } from "@/lib/portal-experience";
+import { trainerIdentityHasWorkspaceAccess } from "@/lib/trainer-session-access";
 
 export const runtime = "nodejs";
 
@@ -12,9 +13,12 @@ export async function POST(request: Request) {
   const email = normalizeUsername(body?.email ?? "");
   const password = body?.password ?? "";
   if (!email || !password || password.length > 128) return Response.json({ error: "Ingresá email y contraseña." }, { status: 400 });
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { memberships: { include: { workspace: true } } },
+  });
   const validPassword = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await consumePasswordVerificationTime(password), false);
-  if (!user || user.status !== "ACTIVE" || user.platformRole !== "TRAINER" || !validPassword) return Response.json({ error: "Email o contraseña incorrectos." }, { status: 401 });
+  if (!user || !trainerIdentityHasWorkspaceAccess(user) || !validPassword) return Response.json({ error: "Email o contraseña incorrectos." }, { status: 401 });
   const userId = user.id;
   const onboardingCompleted = user.onboardingCompleted;
   const session = createAdminSessionValue(userId);

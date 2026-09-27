@@ -53,7 +53,8 @@ test("16. acceso master usa credenciales existentes y exige PLATFORM_OWNER activ
   assert.match(platformLogin, /PLATFORM_SESSION_COOKIE/);
   assert.match(platformLogin, /createPlatformSessionValue/);
   assert.doesNotMatch(platformLogin, /verifyAdminCredential/);
-  assert.match(trainerLoginApi, /user\.platformRole !== "TRAINER"/);
+  assert.match(trainerLoginApi, /trainerIdentityHasWorkspaceAccess\(user\)/);
+  assert.doesNotMatch(trainerLoginApi, /platformRole !== "TRAINER"/);
 });
 
 test("17. BM público y su sidebar no publican el acceso master", () => {
@@ -83,7 +84,7 @@ test("20. suspensión conserva datos y sólo cambia el estado de un TRAINER prof
   assert.match(trainerStatusApi, /tx\.user\.update/);
   assert.match(trainerStatusApi, /tx\.trainerSubscription\.updateMany/);
   assert.doesNotMatch(trainerStatusApi, /delete/);
-  assert.match(sessionApi, /user\.status !== "ACTIVE"/);
+  assert.match(sessionApi, /trainerIdentityHasWorkspaceAccess\(user\)/);
 });
 
 test("21. listado master se limita a trainers profesionales y no mezcla workspaces", () => {

@@ -10,6 +10,7 @@ import {
   verifyPlatformSessionValue,
 } from "../lib/admin-auth.ts";
 import { masterEntryDestination } from "../lib/master-access.ts";
+import { trainerIdentityHasWorkspaceAccess } from "../lib/trainer-session-access.ts";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -44,9 +45,16 @@ test("TRAINER y STUDENT que intentan /master vuelven a su portal", () => {
 
 test("la entrada normal mantiene al TRAINER en el dashboard", () => {
   const trainerLogin = read("app/api/admin/auth/login/route.ts");
-  assert.match(trainerLogin, /user\.platformRole !== "TRAINER"/);
+  assert.match(trainerLogin, /trainerIdentityHasWorkspaceAccess\(user\)/);
   assert.match(trainerLogin, /next: onboardingCompleted \? "\/dashboard"/);
   assert.doesNotMatch(trainerLogin, /PLATFORM_SESSION_COOKIE|createPlatformSessionValue/);
+});
+
+test("PLATFORM_OWNER con workspace profesional activo también puede iniciar como Trainer", () => {
+  const memberships = [{ role: "OWNER", status: "ACTIVE", workspace: { status: "ACTIVE", type: "PROFESSIONAL" } }];
+  assert.equal(trainerIdentityHasWorkspaceAccess({ status: "ACTIVE", memberships }), true);
+  assert.equal(trainerIdentityHasWorkspaceAccess({ status: "ACTIVE", memberships: [] }), false);
+  assert.equal(trainerIdentityHasWorkspaceAccess({ status: "SUSPENDED", memberships }), false);
 });
 
 test("Master no aparece en la navegación visible normal", () => {
@@ -79,4 +87,6 @@ test("Master, Trainer y Student coexisten sin compartir cookie ni logout", () =>
   assert.match(read("componentes/platform-shell.tsx"), /\/api\/platform\/auth\/logout/);
   assert.match(read("app/api/platform/auth/logout/route.ts"), /PLATFORM_SESSION_COOKIE/);
   assert.doesNotMatch(read("app/api/platform/auth/logout/route.ts"), /ADMIN_SESSION_COOKIE|STUDENT_SESSION_COOKIE/);
+  assert.match(read("app/api/admin/auth/logout/route.ts"), /ADMIN_SESSION_COOKIE/);
+  assert.doesNotMatch(read("app/api/admin/auth/logout/route.ts"), /PLATFORM_SESSION_COOKIE|STUDENT_SESSION_COOKIE/);
 });

@@ -5,6 +5,7 @@ import { ADMIN_SESSION_COOKIE, PLATFORM_SESSION_COOKIE, adminAuthError, verifyAd
 import { masterEntryDestination } from "@/lib/master-access";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions, STUDENT_SESSION_COOKIE } from "@/lib/portal-experience";
 import { prisma } from "@/lib/prisma";
+import { trainerIdentityHasWorkspaceAccess } from "@/lib/trainer-session-access";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -22,9 +23,12 @@ function sameOrigin(request: NextRequest) {
 }
 
 async function sessionUserAccess(userId: string | null) {
-  if (!userId) return { active: true, platformRole: "TRAINER" as const };
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true, platformRole: true } });
-  return { active: user?.status === "ACTIVE", platformRole: user?.platformRole ?? null };
+  if (!userId) return { active: true, platformRole: "TRAINER" as const, trainerWorkspaceValid: true };
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { status: true, platformRole: true, memberships: { select: { role: true, status: true, workspace: { select: { status: true, type: true } } } } },
+  });
+  return { active: user?.status === "ACTIVE", platformRole: user?.platformRole ?? null, trainerWorkspaceValid: trainerIdentityHasWorkspaceAccess(user) };
 }
 
 async function studentSessionIsActive(token: string | undefined) {
@@ -57,7 +61,7 @@ export async function proxy(request: NextRequest) {
     const trainerAccess = trainerSession.ok ? await sessionUserAccess(trainerSession.userId) : null;
     const destination = masterEntryDestination({
       platformOwnerValid: Boolean(platformAccess?.active && platformAccess.platformRole === "PLATFORM_OWNER"),
-      trainerValid: Boolean(trainerAccess?.active && trainerAccess.platformRole === "TRAINER"),
+      trainerValid: Boolean(trainerAccess?.trainerWorkspaceValid),
       studentValid: await studentSessionIsActive(request.cookies.get(STUDENT_SESSION_COOKIE)?.value),
     });
     return destination ? NextResponse.redirect(new URL(destination, request.url)) : NextResponse.next();
@@ -80,7 +84,7 @@ export async function proxy(request: NextRequest) {
       const trainerAccess = trainerSession.ok ? await sessionUserAccess(trainerSession.userId) : null;
       const destination = masterEntryDestination({
         platformOwnerValid: false,
-        trainerValid: Boolean(trainerAccess?.active && trainerAccess.platformRole === "TRAINER"),
+        trainerValid: Boolean(trainerAccess?.trainerWorkspaceValid),
         studentValid: await studentSessionIsActive(request.cookies.get(STUDENT_SESSION_COOKIE)?.value),
       });
       if (destination) return NextResponse.redirect(new URL(destination, request.url));
@@ -99,7 +103,7 @@ export async function proxy(request: NextRequest) {
     if (path === "/admin/login") {
       const adminSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
       const adminAccess = adminSession.ok ? await sessionUserAccess(adminSession.userId) : null;
-      if (adminAccess?.active && adminAccess.platformRole === "TRAINER") {
+      if (adminAccess?.trainerWorkspaceValid) {
         const requested = request.nextUrl.searchParams.get("next");
         const safeNext = requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/dashboard";
         const response = NextResponse.redirect(new URL(safeNext, request.url));
@@ -122,8 +126,8 @@ export async function proxy(request: NextRequest) {
   }
   if (session.userId) {
     const access = await sessionUserAccess(session.userId);
-    if (!access.active || access.platformRole !== "TRAINER") {
-      if (path.startsWith("/api/")) return NextResponse.json({ error: access.active ? "Acceso exclusivo del entrenador." : "La cuenta no está activa." }, { status: access.active ? 403 : 401 });
+    if (!access.trainerWorkspaceValid) {
+      if (path.startsWith("/api/")) return NextResponse.json({ error: access.active ? "No hay un workspace de entrenador autorizado." : "La cuenta no está activa." }, { status: access.active ? 403 : 401 });
       const login = new URL("/admin/login", request.url);
       login.searchParams.set("next", `${path}${request.nextUrl.search}`);
       return NextResponse.redirect(login);
