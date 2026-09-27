@@ -15,10 +15,14 @@ export function WorkspaceBrandLogo({ branding, className = "h-10 w-10", compactD
   }
 
   if (branding.logoMode === "WHITE" || branding.logoMode === "ACCENT") {
+    const thresholdId = `${maskId}Threshold`;
     return <svg viewBox="0 0 384 384" aria-hidden="true" className={`${className} shrink-0 ${branding.logoMode === "WHITE" ? "text-white" : "text-[var(--bm-accent)]"}`}>
       <defs>
-        <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="384" height="384" style={{ maskType: "luminance" }}>
-          <image href="/bm-training-mark.png" x="0" y="0" width="384" height="384" />
+        <filter id={thresholdId} colorInterpolationFilters="sRGB">
+          <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.8504 2.8608 0.2888 0 -2.6" />
+        </filter>
+        <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="384" height="384" style={{ maskType: "alpha" }}>
+          <image href="/bm-training-logo(2).png" x="0" y="0" width="384" height="384" filter={`url(#${thresholdId})`} />
         </mask>
       </defs>
       <rect width="384" height="384" fill="currentColor" mask={`url(#${maskId})`} />

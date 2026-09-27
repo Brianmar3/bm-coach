@@ -154,6 +154,15 @@ test("cabeceras BM usan el nuevo isotipo y conservan CUSTOM como primera priorid
   assert.match(read("app/master/page.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
 });
 
+test("Blanco y Color principal tiñen el nuevo isotipo sin recuperar el kettlebell", () => {
+  const logo = read("componentes/workspace-brand-logo.tsx");
+  const variants = logo.slice(logo.indexOf('branding.logoMode === "WHITE"'), logo.indexOf("if (officialBmMark)"));
+  assert.match(variants, /href="\/bm-training-logo\(2\)\.png"/);
+  assert.match(variants, /maskType: "alpha"/);
+  assert.match(variants, /fill="currentColor"/);
+  assert.doesNotMatch(variants, /bm-training-mark\.png/);
+});
+
 test("las demás superficies BM visibles usan el nuevo isotipo", () => {
   assert.match(read("app/configuracion/page.tsx"), /<WorkspaceBrandLogo branding=\{value\}[^>]*officialBmMark/);
   assert.match(read("componentes/student-onboarding.tsx"), /<WorkspaceBrandLogo branding=\{branding\}[^>]*officialBmMark/);
