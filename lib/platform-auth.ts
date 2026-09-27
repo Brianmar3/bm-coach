@@ -1,25 +1,21 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
+import { PLATFORM_SESSION_COOKIE, adminAuthError, verifyPlatformSessionValue } from "@/lib/admin-auth";
 import { isPlatformOwner } from "@/lib/platform-access";
 import { prisma } from "@/lib/prisma";
 
 async function currentUser() {
-  const session = verifyAdminSessionValue((await cookies()).get(ADMIN_SESSION_COOKIE)?.value);
+  const session = verifyPlatformSessionValue((await cookies()).get(PLATFORM_SESSION_COOKIE)?.value);
   if (!session.ok) return { session, user: null };
-  let user = session.userId ? await prisma.user.findUnique({ where: { id: session.userId } }) : null;
-  if (!session.userId) {
-    const memberships = await prisma.workspaceMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { status: "ACTIVE" }, workspace: { slug: "bm-fuerza-funcional", status: "ACTIVE" } }, include: { user: true } });
-    user = memberships.length === 1 ? memberships[0].user : null;
-  }
+  const user = session.userId ? await prisma.user.findUnique({ where: { id: session.userId } }) : null;
   return { session, user };
 }
 
 export async function requirePlatformOwnerPage() {
   const actor = await currentUser();
   if (!actor.session.ok) redirect("/master");
-  if (!actor.user || actor.user.status !== "ACTIVE" || !isPlatformOwner(actor.user.platformRole)) redirect("/dashboard");
+  if (!actor.user || actor.user.status !== "ACTIVE" || !isPlatformOwner(actor.user.platformRole)) redirect("/master");
   return actor.user;
 }
 

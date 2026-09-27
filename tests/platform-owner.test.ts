@@ -31,7 +31,7 @@ const settingsApi = read("app/api/platform/settings/route.ts");
 const migration = read("prisma/migrations/20260917120000_platform_owner_trainers/migration.sql");
 
 test("1. PLATFORM_OWNER puede abrir /platform", () => { assert.equal(isPlatformOwner("PLATFORM_OWNER"), true); assert.match(platformLayout, /requirePlatformOwnerPage/); });
-test("2. TRAINER_OWNER recibe redirect seguro", () => { assert.equal(isPlatformOwner("TRAINER"), false); assert.match(read("lib/platform-auth.ts"), /redirect\("\/dashboard"\)/); });
+test("2. TRAINER_OWNER recibe redirect seguro", () => { assert.equal(isPlatformOwner("TRAINER"), false); assert.match(read("lib/platform-auth.ts"), /redirect\("\/master"\)/); assert.doesNotMatch(read("lib/platform-auth.ts"), /redirect\("\/dashboard"\)/); });
 test("3. PLATFORM_OWNER puede listar trainers", () => { assert.match(trainersApi, /platformOwnerApiAccess/); assert.match(trainersApi, /user\.findMany/); });
 test("4. TRAINER_OWNER no puede listar trainers", () => { assert.match(trainersApi, /if \(!access\.ok\) return access\.response/); assert.match(read("lib/platform-auth.ts"), /status: 403/); });
 test("5. PLATFORM_OWNER puede crear invitación", () => { assert.match(invitationsApi, /platformOwnerApiAccess/); assert.match(invitationsApi, /trainerInvitation\.create/); });
@@ -50,8 +50,10 @@ test("16. acceso master usa credenciales existentes y exige PLATFORM_OWNER activ
   assert.match(platformLogin, /verifyPassword/);
   assert.match(platformLogin, /user\.platformRole !== "PLATFORM_OWNER"/);
   assert.match(platformLogin, /user\.status !== "ACTIVE"/);
+  assert.match(platformLogin, /PLATFORM_SESSION_COOKIE/);
+  assert.match(platformLogin, /createPlatformSessionValue/);
   assert.doesNotMatch(platformLogin, /verifyAdminCredential/);
-  assert.doesNotMatch(trainerLoginApi, /platformRole/);
+  assert.match(trainerLoginApi, /user\.platformRole !== "TRAINER"/);
 });
 
 test("17. BM público y su sidebar no publican el acceso master", () => {

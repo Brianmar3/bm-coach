@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
+import { ADMIN_SESSION_COOKIE, PLATFORM_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue, verifyPlatformSessionValue } from "@/lib/admin-auth";
+import { masterEntryDestination } from "@/lib/master-access";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions, STUDENT_SESSION_COOKIE } from "@/lib/portal-experience";
 import { prisma } from "@/lib/prisma";
 
@@ -19,10 +21,19 @@ function sameOrigin(request: NextRequest) {
   }
 }
 
-async function sessionUserIsActive(userId: string | null) {
-  if (!userId) return true;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
-  return user?.status === "ACTIVE";
+async function sessionUserAccess(userId: string | null) {
+  if (!userId) return { active: true, platformRole: "TRAINER" as const };
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true, platformRole: true } });
+  return { active: user?.status === "ACTIVE", platformRole: user?.platformRole ?? null };
+}
+
+async function studentSessionIsActive(token: string | undefined) {
+  if (!token) return false;
+  const session = await prisma.studentPortalSession.findUnique({
+    where: { tokenHash: createHash("sha256").update(token).digest("hex") },
+    select: { expiresAt: true, credential: { select: { active: true } } },
+  });
+  return Boolean(session && session.expiresAt > new Date() && session.credential.active);
 }
 
 export async function proxy(request: NextRequest) {
@@ -35,11 +46,60 @@ export async function proxy(request: NextRequest) {
   const trainerInvitationRoute = path.startsWith("/trainer/invite/") || path.startsWith("/api/trainer/invitations/");
   const studentInvitationRoute = path.startsWith("/join/student/") || path.startsWith("/api/student-invitations/");
   const trainerPasswordResetRoute = path.startsWith("/trainer/reset-password/") || path.startsWith("/api/trainer/password-reset/");
-  const authRoute = path === "/admin/login" || path === "/master" || path === "/api/admin/auth/login" || path === "/api/platform/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";
+  const platformRoute = path === "/platform" || path.startsWith("/platform/") || path === "/api/platform" || path.startsWith("/api/platform/");
+  const platformAuthRoute = path === "/api/platform/auth/login" || path === "/api/platform/auth/logout";
+  const authRoute = path === "/admin/login" || path === "/api/admin/auth/login" || path === "/api/admin/auth/logout" || path === "/api/admin/auth/session";
+
+  if (path === "/master") {
+    const platformSession = verifyPlatformSessionValue(request.cookies.get(PLATFORM_SESSION_COOKIE)?.value);
+    const platformAccess = platformSession.ok ? await sessionUserAccess(platformSession.userId) : null;
+    const trainerSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
+    const trainerAccess = trainerSession.ok ? await sessionUserAccess(trainerSession.userId) : null;
+    const destination = masterEntryDestination({
+      platformOwnerValid: Boolean(platformAccess?.active && platformAccess.platformRole === "PLATFORM_OWNER"),
+      trainerValid: Boolean(trainerAccess?.active && trainerAccess.platformRole === "TRAINER"),
+      studentValid: await studentSessionIsActive(request.cookies.get(STUDENT_SESSION_COOKIE)?.value),
+    });
+    return destination ? NextResponse.redirect(new URL(destination, request.url)) : NextResponse.next();
+  }
+
+  if (platformAuthRoute) return NextResponse.next();
+
+  if (platformRoute) {
+    const session = verifyPlatformSessionValue(request.cookies.get(PLATFORM_SESSION_COOKIE)?.value);
+    const access = session.ok ? await sessionUserAccess(session.userId) : null;
+    if (!session.ok || !access?.active || access.platformRole !== "PLATFORM_OWNER") {
+      if (path.startsWith("/api/")) {
+        if (!session.ok) {
+          const failure = adminAuthError(session);
+          return NextResponse.json({ error: failure.error }, { status: failure.status });
+        }
+        return NextResponse.json({ error: "Acceso exclusivo del propietario de la plataforma." }, { status: 403 });
+      }
+      const trainerSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
+      const trainerAccess = trainerSession.ok ? await sessionUserAccess(trainerSession.userId) : null;
+      const destination = masterEntryDestination({
+        platformOwnerValid: false,
+        trainerValid: Boolean(trainerAccess?.active && trainerAccess.platformRole === "TRAINER"),
+        studentValid: await studentSessionIsActive(request.cookies.get(STUDENT_SESSION_COOKIE)?.value),
+      });
+      if (destination) return NextResponse.redirect(new URL(destination, request.url));
+      const login = new URL("/master", request.url);
+      login.searchParams.set("next", `${path}${request.nextUrl.search}`);
+      return NextResponse.redirect(login);
+    }
+    if (!sameOrigin(request)) {
+      if (path.startsWith("/api/")) return NextResponse.json({ error: "Origen de solicitud inválido." }, { status: 403 });
+      return new NextResponse("Origen de solicitud inválido.", { status: 403 });
+    }
+    return NextResponse.next();
+  }
+
   if (portalRoute || portalBrandingAsset || authRoute || trainerInvitationRoute || studentInvitationRoute || trainerPasswordResetRoute || exerciseLibraryRead) {
     if (path === "/admin/login") {
       const adminSession = verifyAdminSessionValue(request.cookies.get(ADMIN_SESSION_COOKIE)?.value);
-      if (adminSession.ok && await sessionUserIsActive(adminSession.userId)) {
+      const adminAccess = adminSession.ok ? await sessionUserAccess(adminSession.userId) : null;
+      if (adminAccess?.active && adminAccess.platformRole === "TRAINER") {
         const requested = request.nextUrl.searchParams.get("next");
         const safeNext = requested?.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\") ? requested : "/dashboard";
         const response = NextResponse.redirect(new URL(safeNext, request.url));
@@ -61,9 +121,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
   if (session.userId) {
-    if (!await sessionUserIsActive(session.userId)) {
-      if (path.startsWith("/api/")) return NextResponse.json({ error: "La cuenta no está activa." }, { status: 401 });
-      const login = new URL(path === "/platform" || path.startsWith("/platform/") ? "/master" : "/admin/login", request.url);
+    const access = await sessionUserAccess(session.userId);
+    if (!access.active || access.platformRole !== "TRAINER") {
+      if (path.startsWith("/api/")) return NextResponse.json({ error: access.active ? "Acceso exclusivo del entrenador." : "La cuenta no está activa." }, { status: access.active ? 403 : 401 });
+      const login = new URL("/admin/login", request.url);
       login.searchParams.set("next", `${path}${request.nextUrl.search}`);
       return NextResponse.redirect(login);
     }

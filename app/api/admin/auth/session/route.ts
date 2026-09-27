@@ -13,6 +13,6 @@ export async function GET() {
     const owners = await prisma.workspaceMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { status: "ACTIVE" }, workspace: { slug: "bm-fuerza-funcional", status: "ACTIVE" } }, select: { user: { select: { platformRole: true, onboardingCompleted: true, status: true } } } });
     user = owners.length === 1 ? owners[0].user : null;
   }
-  if (!user || user.status !== "ACTIVE") return Response.json({ authenticated: false, error: "La cuenta no está activa." }, { status: 401 });
-  return Response.json({ authenticated: true, role: result.role, platformOwner: user.platformRole === "PLATFORM_OWNER", onboardingCompleted: user.onboardingCompleted, expiresAt: result.expiresAt.toISOString() });
+  if (!user || user.status !== "ACTIVE" || user.platformRole !== "TRAINER") return Response.json({ authenticated: false, error: "La cuenta no tiene acceso al panel del entrenador." }, { status: 403 });
+  return Response.json({ authenticated: true, role: result.role, platformOwner: false, onboardingCompleted: user.onboardingCompleted, expiresAt: result.expiresAt.toISOString() });
 }

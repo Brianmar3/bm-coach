@@ -10,7 +10,7 @@ export function PlatformShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   async function logout() {
-    await fetch("/api/admin/auth/logout", { method: "POST" });
+    await fetch("/api/platform/auth/logout", { method: "POST" });
     router.replace("/master");
     router.refresh();
   }

@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (!email || !password || password.length > 128) return Response.json({ error: "Ingresá email y contraseña." }, { status: 400 });
   const user = await prisma.user.findUnique({ where: { email } });
   const validPassword = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await consumePasswordVerificationTime(password), false);
-  if (!user || user.status !== "ACTIVE" || !validPassword) return Response.json({ error: "Email o contraseña incorrectos." }, { status: 401 });
+  if (!user || user.status !== "ACTIVE" || user.platformRole !== "TRAINER" || !validPassword) return Response.json({ error: "Email o contraseña incorrectos." }, { status: 401 });
   const userId = user.id;
   const onboardingCompleted = user.onboardingCompleted;
   const session = createAdminSessionValue(userId);

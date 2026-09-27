@@ -2,10 +2,11 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { AUTH_SESSION_DAYS, authSessionExpiresAt, clearAuthCookieOptions, persistentAuthCookieOptions } from "./session-persistence.ts";
 
 export const ADMIN_SESSION_COOKIE = "bm_coach_admin_session";
+export const PLATFORM_SESSION_COOKIE = "bm_coach_platform_session";
 export const ADMIN_SESSION_DAYS = AUTH_SESSION_DAYS;
 
 type AdminSessionResult =
-  | { ok: true; role: "coach"; userId: string | null; expiresAt: Date }
+  | { ok: true; role: "coach" | "platform"; userId: string | null; expiresAt: Date }
   | { ok: false; reason: "missing" | "invalid" | "expired" | "misconfigured" };
 
 function configuredSecret() {
@@ -31,18 +32,26 @@ export function verifyAdminCredential(supplied: string) {
     : { ok: false as const, reason: "invalid" as const };
 }
 
-export function createAdminSessionValue(userId: string | null = null, now = new Date()) {
+function createSessionValue(role: "coach" | "platform", userId: string | null, now: Date) {
   const secret = configuredSecret();
   if (!secret) return null;
   const expiresAt = authSessionExpiresAt(now);
   const nonce = randomBytes(24).toString("base64url");
   const payload = userId
-    ? `v2.${expiresAt.getTime()}.coach.${Buffer.from(userId).toString("base64url")}.${nonce}`
-    : `v1.${expiresAt.getTime()}.coach.${nonce}`;
+    ? `v2.${expiresAt.getTime()}.${role}.${Buffer.from(userId).toString("base64url")}.${nonce}`
+    : `v1.${expiresAt.getTime()}.${role}.${nonce}`;
   return { value: `${payload}.${signature(payload, secret)}`, expiresAt };
 }
 
-export function verifyAdminSessionValue(value: string | undefined, now = new Date()): AdminSessionResult {
+export function createAdminSessionValue(userId: string | null = null, now = new Date()) {
+  return createSessionValue("coach", userId, now);
+}
+
+export function createPlatformSessionValue(userId: string, now = new Date()) {
+  return createSessionValue("platform", userId, now);
+}
+
+function verifySessionValue(value: string | undefined, expectedRole: "coach" | "platform", now: Date): AdminSessionResult {
   if (!value) return { ok: false, reason: "missing" };
   const secret = configuredSecret();
   if (!secret) return { ok: false, reason: "misconfigured" };
@@ -54,7 +63,7 @@ export function verifyAdminSessionValue(value: string | undefined, now = new Dat
   const encodedUserId = version === "v2" ? parts[3] : null;
   const nonce = version === "v2" ? parts[4] : parts[3];
   const suppliedSignature = version === "v2" ? parts[5] : parts[4];
-  if (!['v1', 'v2'].includes(version) || role !== "coach" || !nonce || !suppliedSignature || !/^\d+$/.test(expires)) return { ok: false, reason: "invalid" };
+  if (!['v1', 'v2'].includes(version) || role !== expectedRole || !nonce || !suppliedSignature || !/^\d+$/.test(expires)) return { ok: false, reason: "invalid" };
   if (version === "v2" && !encodedUserId) return { ok: false, reason: "invalid" };
   const payload = version === "v2" ? `${version}.${expires}.${role}.${encodedUserId}.${nonce}` : `${version}.${expires}.${role}.${nonce}`;
   if (!safeEqual(suppliedSignature, signature(payload, secret))) return { ok: false, reason: "invalid" };
@@ -67,7 +76,15 @@ export function verifyAdminSessionValue(value: string | undefined, now = new Dat
     catch { return { ok: false, reason: "invalid" }; }
     if (!userId || userId.length > 191) return { ok: false, reason: "invalid" };
   }
-  return { ok: true, role: "coach", userId, expiresAt };
+  return { ok: true, role: expectedRole, userId, expiresAt };
+}
+
+export function verifyAdminSessionValue(value: string | undefined, now = new Date()): AdminSessionResult {
+  return verifySessionValue(value, "coach", now);
+}
+
+export function verifyPlatformSessionValue(value: string | undefined, now = new Date()): AdminSessionResult {
+  return verifySessionValue(value, "platform", now);
 }
 
 export function adminSessionCookieOptions(expiresAt: Date) {
