@@ -167,8 +167,16 @@ test("las superficies BM usan isotipo o logo completo según su contexto", () =>
   assert.match(read("app/configuracion/page.tsx"), /<WorkspaceBrandLogo branding=\{value\}[^>]*officialBmMark/);
   assert.match(read("componentes/student-onboarding.tsx"), /<WorkspaceBrandLogo branding=\{branding\}[^>]*officialBmMark/);
   assert.match(read("componentes/portal-registration-form.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
-  assert.match(read("componentes/portal-login-form.tsx"), /src="\/bm-training-full-logo\.png"/);
-  assert.match(read("app/admin/login/page.tsx"), /src="\/bm-training-full-logo\.png"/);
+  const portalLogin = read("componentes/portal-login-form.tsx");
+  const trainerLogin = read("app/admin/login/page.tsx");
+  for (const login of [portalLogin, trainerLogin]) {
+    assert.match(login, /src="\/bm-training-full-logo-transparent\.png"/);
+    assert.match(login, /sizes="168px"/);
+    assert.match(login, /max-w-\[168px\]/);
+    assert.doesNotMatch(login, /max-w-\[280px\]/);
+  }
+  assert.match(portalLogin, /<form noValidate onSubmit=\{submit\} className="mt-4 space-y-4"/);
+  assert.match(trainerLogin, /<div className="mt-4 space-y-4"/);
 });
 
 test("polling se pausa al desmontar y se reactiva al volver a la app", () => {

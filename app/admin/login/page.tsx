@@ -44,12 +44,12 @@ export default function AdminLoginPage() {
   }
 
   return <main className="grid min-h-screen place-items-center bg-zinc-950 p-5 text-white">
-    <form noValidate onSubmit={submit} className="w-full max-w-md rounded-3xl border border-yellow-400/20 bg-zinc-900 p-7 shadow-2xl shadow-black">
-      <Image src="/bm-training-full-logo.png" alt="BM Training — Gestión, entrenamiento y seguimiento" width={1448} height={1086} priority unoptimized sizes="(max-width: 480px) 78vw, 280px" className="mx-auto h-auto w-full max-w-[280px] object-contain" />
-      <p className="mt-2 text-center text-xs font-bold uppercase tracking-[.25em] text-yellow-400">Panel del entrenador</p>
-      <h1 className="mt-3 text-center text-3xl font-black">Acceso del entrenador</h1>
-      <p className="mt-2 text-sm text-zinc-400">Ingresá con tu cuenta de entrenador para abrir una sesión segura.</p>
-      <div className="mt-6 space-y-4"><label htmlFor="trainer-email" className="block text-sm font-medium text-zinc-200">Email<input id="trainer-email" type="email" required autoComplete="username" value={email} onChange={(event) => { setEmail(event.target.value); setFieldError(""); }} className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-black px-3 text-white outline-none focus:border-yellow-400"/></label><PasswordField id="trainer-password" label="Contraseña" required autoComplete="current-password" value={password} error={fieldError} onChange={(event) => { setPassword(event.target.value); setError(""); if (fieldError) setFieldError(""); }} className="bg-black" /></div>
+    <form noValidate onSubmit={submit} className="w-full max-w-md rounded-3xl border border-yellow-400/20 bg-zinc-900 px-5 py-5 shadow-2xl shadow-black sm:px-7 sm:py-6">
+      <Image src="/bm-training-full-logo-transparent.png" alt="BM Training — Gestión, entrenamiento y seguimiento" width={1238} height={792} priority unoptimized sizes="168px" className="mx-auto h-auto w-full max-w-[168px] object-contain" />
+      <p className="mt-1 text-center text-xs font-bold uppercase tracking-[.25em] text-yellow-400">Panel del entrenador</p>
+      <h1 className="mt-1.5 text-center text-3xl font-black">Acceso del entrenador</h1>
+      <p className="mt-1 text-sm text-zinc-400">Ingresá con tu cuenta de entrenador para abrir una sesión segura.</p>
+      <div className="mt-4 space-y-4"><label htmlFor="trainer-email" className="block text-sm font-medium text-zinc-200">Email<input id="trainer-email" type="email" required autoComplete="username" value={email} onChange={(event) => { setEmail(event.target.value); setFieldError(""); }} className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-black px-3 text-white outline-none focus:border-yellow-400"/></label><PasswordField id="trainer-password" label="Contraseña" required autoComplete="current-password" value={password} error={fieldError} onChange={(event) => { setPassword(event.target.value); setError(""); if (fieldError) setFieldError(""); }} className="bg-black" /></div>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
       <button type="submit" disabled={loading} aria-busy={loading} className="mt-6 w-full rounded-xl bg-yellow-400 px-4 py-3 font-black text-zinc-950 disabled:cursor-wait disabled:opacity-60">{loading ? "Ingresando…" : "Ingresar"}</button>
       <div className="mt-4 border-t border-zinc-800 pt-3 text-center">

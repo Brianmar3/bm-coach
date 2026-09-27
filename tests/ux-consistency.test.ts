@@ -6,6 +6,7 @@ const globals = readFileSync(new URL("../app/globals.css", import.meta.url), "ut
 const moduleShell = readFileSync(new URL("../componentes/module-shell.tsx", import.meta.url), "utf8");
 const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8") + readFileSync(new URL("../componentes/portal-visuals.tsx", import.meta.url), "utf8");
 const splash = readFileSync(new URL("../componentes/bm-training-splash.tsx", import.meta.url), "utf8");
+const fullLogo = readFileSync(new URL("../public/bm-training-full-logo-transparent.png", import.meta.url));
 const bootReady = readFileSync(new URL("../componentes/bm-boot-ready.tsx", import.meta.url), "utf8");
 const appFrame = readFileSync(new URL("../componentes/app-frame.tsx", import.meta.url), "utf8");
 const portalLoading = readFileSync(new URL("../app/portal/(student)/loading.tsx", import.meta.url), "utf8");
@@ -58,9 +59,9 @@ test("el puente de arranque existe en el HTML inicial y se retira por hidrataci�
 });
 
 test("el shell SSR muestra el logo completo oficial sobre el fondo oscuro", () => {
-  assert.match(splash, /src="\/bm-training-full-logo\.png"/);
-  assert.match(splash, /width=\{1448\}/);
-  assert.match(splash, /height=\{1086\}/);
+  assert.match(splash, /src="\/bm-training-full-logo-transparent\.png"/);
+  assert.match(splash, /width=\{1238\}/);
+  assert.match(splash, /height=\{792\}/);
   assert.match(splash, /object-contain/);
   assert.match(splash, /bm-app-splash-logo-image/);
   assert.match(splash, /\bpreload\b/);
@@ -74,6 +75,13 @@ test("el shell SSR muestra el logo completo oficial sobre el fondo oscuro", () =
   assert.match(globals, /width: min\(88vw, 74dvh, 42rem\)/);
   assert.doesNotMatch(splash, /onAnimationEnd|onTransitionEnd/);
   assert.doesNotMatch(globals, /bm-splash-orbit|bm-app-splash--playing/);
+});
+
+test("el logo completo usa un PNG RGBA real y mantiene su proporción", () => {
+  assert.equal(fullLogo.subarray(1, 4).toString("ascii"), "PNG");
+  assert.equal(fullLogo.readUInt32BE(16), 1238);
+  assert.equal(fullLogo.readUInt32BE(20), 792);
+  assert.equal(fullLogo[25], 6);
 });
 
 test("cada documento comparte el puente SSR y los redirects de sesión ocurren antes del HTML final", () => {
