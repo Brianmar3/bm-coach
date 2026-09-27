@@ -94,6 +94,10 @@ export type PlanResolution =
   | { status: "ambiguous"; candidates: StudentPlanOption[] }
   | { status: "missing"; candidates: [] };
 
+export type StudentPlanFormValue = Pick<Student, "plan" | "planId" | "monthlyFee"> & {
+  selectionKey: string;
+};
+
 export function resolveStudentPlan(
   student: Pick<Student, "plan" | "planId" | "monthlyFee">,
   plans: StudentPlanOption[],
@@ -110,6 +114,26 @@ export function resolveStudentPlan(
   if (candidates.length === 1) return { status: "matched", plan: candidates[0] };
   if (candidates.length > 1) return { status: "ambiguous", candidates };
   return { status: "missing", candidates: [] };
+}
+
+export function selectedStudentPlanFormValue(selectionKey: string, plans: StudentPlanOption[]): StudentPlanFormValue {
+  const selected = plans.find((plan) => plan.selectionKey === selectionKey);
+  return {
+    plan: selected?.name ?? "",
+    planId: selected?.persistentId ?? "",
+    monthlyFee: selected?.price ?? 0,
+    selectionKey: selected?.selectionKey ?? "",
+  };
+}
+
+export function studentPlanFormValue(
+  student: Pick<Student, "plan" | "planId" | "monthlyFee">,
+  plans: StudentPlanOption[],
+): StudentPlanFormValue {
+  const resolution = resolveStudentPlan(student, plans);
+  return resolution.status === "matched"
+    ? selectedStudentPlanFormValue(resolution.plan.selectionKey, plans)
+    : { plan: student.plan ?? "", planId: "", monthlyFee: Number(student.monthlyFee) || 0, selectionKey: "" };
 }
 
 export function assignedPlan(

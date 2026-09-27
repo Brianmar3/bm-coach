@@ -55,6 +55,7 @@ test("el alta usa el servicio guardado en el token y el alumno no puede cambiarl
   assert.match(read("componentes/student-invitation-form.tsx"), /Nombre de usuario<input name="username"/);
   assert.equal(invitationServiceType(null), "PERSONALIZED"); // Sólo enlaces anteriores a esta migración.
   assert.match(read("prisma/migrations/20260924180000_student_invitation_service_type/migration.sql"), /ADD COLUMN "serviceType" "StudentServiceType";/);
+  assert.match(consume, /plan: "", planId: "", monthlyFee: 0/);
 });
 test("teléfono duplicado sólo dentro del workspace", () => {
   const records = [{ id: "a", workspaceId: "A", phoneNormalized: "3415551234", data: {} }];

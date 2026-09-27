@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   assignedPlan, buildStudentEnrollmentPayload, normalizePlanName, plansWithIds, removedAssignedPlan, resolveStudentPlan, studentPlanOptions,
-  synchronizedStudentPlan, validateCoachPlans,
+  selectedStudentPlanFormValue, studentPlanFormValue, synchronizedStudentPlan, validateCoachPlans,
 } from "../lib/coach-plans.ts";
 import type { CoachSettings, Student } from "../types/gestion.ts";
 
@@ -82,7 +82,32 @@ test("Alumnos no reconstruye la lista fija de frecuencias", () => {
   assert.match(source, /return studentPlanOptions\(settings\)/);
   const page = readFileSync("app/alumnos/page.tsx", "utf8");
   assert.match(page, /cache: "no-store"/);
-  assert.match(page, /planId: selected\?\.id/);
+  assert.match(page, /value=\{form\.selectionKey\}/);
+  assert.match(page, /<option value="">Seleccioná un plan mensual<\/option>/);
+  assert.match(page, /selectedStudentPlanFormValue\(value, options\.plans\)/);
+});
+
+test("alumnos invitados CLASSES, PERSONALIZED y MIXED sincronizan selector y plan real al editar", () => {
+  const options = studentPlanOptions(settings([{ id: "mensual", name: "Plan mensual", price: 30000 }]));
+  for (const serviceType of ["CLASSES", "PERSONALIZED", "MIXED"] as const) {
+    const invited = { ...student(""), serviceType, planId: "", monthlyFee: 0 };
+    const initial = studentPlanFormValue(invited, options);
+    assert.deepEqual(initial, { plan: "", planId: "", monthlyFee: 0, selectionKey: "" });
+
+    const selected = selectedStudentPlanFormValue(options[0].selectionKey, options);
+    assert.deepEqual(selected, { plan: "Plan mensual", planId: "mensual", monthlyFee: 30000, selectionKey: "id:mensual" });
+    const payload = buildStudentEnrollmentPayload({ ...invited, ...selected });
+    assert.equal(payload.serviceType, serviceType);
+    assert.equal(payload.planId, "mensual");
+    assert.equal(resolveStudentPlan(payload, options).status, "matched");
+  }
+});
+
+test("un alumno manual conserva el plan asociado y la misma identidad al editar", () => {
+  const options = studentPlanOptions(settings([{ id: "manual", name: "Personalizado", price: 50000 }]));
+  const initial = studentPlanFormValue({ plan: "Personalizado", planId: "manual", monthlyFee: 50000 }, options);
+  assert.deepEqual(initial, { plan: "Personalizado", planId: "manual", monthlyFee: 50000, selectionKey: "id:manual" });
+  assert.equal(buildStudentEnrollmentPayload(initial).planId, "manual");
 });
 
 test("la sincronización no toca datos ajenos al plan", () => {
