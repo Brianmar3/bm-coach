@@ -40,9 +40,12 @@ export function onboardingIsComplete(student: Student) {
 export function onboardingValidation(value: StudentOnboardingData, step: 1 | 2 | 3 | 4) {
   if (step === 1 || step === 4) {
     const birth = new Date(`${value.birthDate}T00:00:00Z`);
+    if (!value.birthDate) return "Seleccioná tu fecha de nacimiento.";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value.birthDate) || !Number.isFinite(birth.getTime()) || birth.toISOString().slice(0, 10) !== value.birthDate || value.birthDate >= new Date().toISOString().slice(0, 10)) return "Ingresá una fecha de nacimiento válida.";
-    if (!Number.isFinite(value.height) || value.height < 80 || value.height > 250) return "Ingresá una altura válida entre 80 y 250 cm.";
-    if (!Number.isFinite(value.weight) || value.weight < 25 || value.weight > 350) return "Ingresá un peso válido entre 25 y 350 kg.";
+    if (!Number.isFinite(value.height) || value.height <= 0) return "Ingresá tu altura.";
+    if (value.height < 80 || value.height > 250) return "Ingresá una altura válida.";
+    if (!Number.isFinite(value.weight) || value.weight <= 0) return "Ingresá tu peso actual.";
+    if (value.weight < 25 || value.weight > 350) return "Ingresá un peso válido.";
   }
   if ((step === 2 || step === 4) && !ONBOARDING_GOALS.includes(value.goal as (typeof ONBOARDING_GOALS)[number])) return "Elegí tu objetivo principal.";
   if (step === 3 || step === 4) {

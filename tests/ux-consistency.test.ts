@@ -7,6 +7,9 @@ const moduleShell = readFileSync(new URL("../componentes/module-shell.tsx", impo
 const portalShell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8") + readFileSync(new URL("../componentes/portal-visuals.tsx", import.meta.url), "utf8");
 const splash = readFileSync(new URL("../componentes/bm-training-splash.tsx", import.meta.url), "utf8");
 const fullLogo = readFileSync(new URL("../public/bm-training-full-logo-transparent.png", import.meta.url));
+const pwaIcon192 = readFileSync(new URL("../public/icons/bm-training-pwa-192-v7.png", import.meta.url));
+const pwaIcon512 = readFileSync(new URL("../public/icons/bm-training-pwa-512-v7.png", import.meta.url));
+const pwaMaskable512 = readFileSync(new URL("../public/icons/bm-training-maskable-512-v7.png", import.meta.url));
 const bootReady = readFileSync(new URL("../componentes/bm-boot-ready.tsx", import.meta.url), "utf8");
 const appFrame = readFileSync(new URL("../componentes/app-frame.tsx", import.meta.url), "utf8");
 const portalLoading = readFileSync(new URL("../app/portal/(student)/loading.tsx", import.meta.url), "utf8");
@@ -96,19 +99,26 @@ test("cada documento comparte el puente SSR y los redirects de sesión ocurren a
   assert.match(globals, /\.bm-app-splash \{\s+transition-duration: 0ms;/);
 });
 
-test("los manifests y metadatos usan la identidad oficial v6 y su variante maskable", () => {
+test("los manifests y metadatos usan la identidad oficial v7 y su variante maskable", () => {
   for (const source of [rootLayout, portalLayout, appManifest, portalManifest]) {
-    assert.match(source, /bm-training-pwa-192-v6\.png/);
-    assert.match(source, /bm-training-pwa-512-v6\.png/);
-    assert.doesNotMatch(source, /bm-training-(?:pwa|maskable|apple-touch)-[^"']*-v4\.png/);
+    assert.match(source, /bm-training-pwa-192-v7\.png/);
+    assert.match(source, /bm-training-pwa-512-v7\.png/);
+    assert.doesNotMatch(source, /bm-training-(?:pwa|maskable|apple-touch)-[^"']*-v[46]\.png/);
   }
 
-  assert.match(rootLayout, /bm-training-apple-touch-v6\.png/);
-  assert.match(portalLayout, /bm-training-apple-touch-v6\.png/);
-  assert.match(appManifest, /bm-training-maskable-512-v6\.png/);
+  assert.match(rootLayout, /bm-training-apple-touch-v7\.png/);
+  assert.match(portalLayout, /bm-training-apple-touch-v7\.png/);
+  assert.match(appManifest, /bm-training-maskable-512-v7\.png/);
   assert.match(appManifest, /purpose: "maskable"/);
-  assert.match(portalManifest, /bm-training-maskable-512-v6\.png/);
+  assert.match(portalManifest, /bm-training-maskable-512-v7\.png/);
   assert.match(portalManifest, /"purpose": "maskable"/);
+
+  assert.equal(pwaIcon192.readUInt32BE(16), 192);
+  assert.equal(pwaIcon192.readUInt32BE(20), 192);
+  assert.equal(pwaIcon512.readUInt32BE(16), 512);
+  assert.equal(pwaIcon512.readUInt32BE(20), 512);
+  assert.equal(pwaMaskable512.readUInt32BE(16), 512);
+  assert.equal(pwaMaskable512.readUInt32BE(20), 512);
 });
 
 test("las esperas reales del portal usan skeleton sin duplicar el logo", () => {

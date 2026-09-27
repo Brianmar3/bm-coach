@@ -17,15 +17,24 @@ test("alumno incompleto entra al onboarding y uno completo entra al portal", () 
   assert.equal(onboardingIsComplete({ ...base, onboardingCompleted: true } as Student), true);
   assert.match(layout, /redirect\("\/portal\/onboarding"\)/);
 });
-test("el flujo tiene bienvenida y progreso de cuatro pasos", () => { assert.match(page, /Completa tu/); assert.match(page, /\[1, 2, 3, 4\]/); assert.match(page, /\{step\} de 4/); });
+test("el flujo tiene bienvenida y progreso de cuatro pasos", () => { assert.match(page, /Completá tu/); assert.match(page, /\[1, 2, 3, 4\]/); assert.match(page, /\{step\} de 4/); });
 test("no vuelve a pedir datos administrativos existentes", () => { assert.doesNotMatch(page, /Nombre|Teléfono|Plan|Días disponibles|Lugar de entrenamiento/); });
-test("valida y guarda fecha, altura y peso", () => { assert.equal(onboardingValidation(base, 1), ""); assert.match(api, /birthDate.*height.*weight/s); });
+test("valida y guarda fecha, altura y peso con mensajes directos", () => {
+  assert.equal(onboardingValidation(base, 1), "");
+  assert.equal(onboardingValidation({ ...base, birthDate: "" }, 1), "Seleccioná tu fecha de nacimiento.");
+  assert.equal(onboardingValidation({ ...base, height: 0 }, 1), "Ingresá tu altura.");
+  assert.equal(onboardingValidation({ ...base, height: 79 }, 1), "Ingresá una altura válida.");
+  assert.equal(onboardingValidation({ ...base, weight: 0 }, 1), "Ingresá tu peso actual.");
+  assert.equal(onboardingValidation({ ...base, weight: 351 }, 1), "Ingresá un peso válido.");
+  assert.match(api, /birthDate.*height.*weight/s);
+});
 test("valida y guarda objetivo", () => { assert.equal(onboardingValidation({ ...base, goal: "" }, 2), "Elegí tu objetivo principal."); assert.match(api, /goal:/); });
 test("valida nivel, experiencia y molestias", () => { assert.equal(onboardingValidation({ ...base, experienceLevel: "" }, 3), "Elegí tu nivel de experiencia."); assert.match(api, /experienceLevel.*trainingExperience.*hasLimitations.*limitations/s); });
 test("el endpoint edita sólo al alumno autenticado", () => { assert.match(api, /where: \{ id: session\.studentId \}/); assert.doesNotMatch(api, /studentId.*body\.data/); });
 test("completar persiste la marca y evita mostrarlo nuevamente", () => { assert.match(api, /onboardingCompleted: body\.complete === true/); assert.match(layout, /onboardingIsComplete/); });
 test("el entrenador recibe el Perfil inicial desde la misma ficha", () => { assert.match(detail, /Perfil inicial/); assert.match(detail, /initialProfile/); });
 test("la edición posterior actualiza los mismos campos", () => { assert.match(profile, /experienceLevel/); assert.match(profile, /trainingExperience/); assert.match(profile, /limitations/); });
-test("la primera pantalla usa anillos, iconos abstractos y el branding compartido", () => { assert.match(page, /onboarding-orbit/); assert.match(page, /BmProfileIcon/); assert.equal((page.match(/<Image /g) ?? []).length, 0); assert.match(page, /<WorkspaceBrandLogo branding=\{branding\}/); });
+test("la primera pantalla conserva la ilustración sin logos ni bloque de marca", () => { assert.match(page, /onboarding-orbit/); assert.match(page, /BmProfileIcon/); assert.doesNotMatch(page, /WorkspaceBrandLogo|onboarding-brand|Gestión, entrenamiento/); });
+test("los pasos enfocan el formulario y muestran errores junto al campo", () => { assert.match(page, /grid-template-columns:2\.5rem 1fr 2\.5rem|aria-hidden="true"/); assert.match(page, /onboarding-field-error/); assert.match(page, /aria-invalid/); assert.match(page, /aria-describedby/); });
 test("los estilos reales incluyen mobile, safe-area y reduced motion", () => { assert.match(styles, /100svh/); assert.match(styles, /safe-area-inset/); assert.match(styles, /prefers-reduced-motion/); assert.match(styles, /onboarding-summary/); });
 test("los datos existentes se normalizan sin crear un perfil paralelo", () => { assert.deepEqual(onboardingData(base as Student), base); assert.match(api, /studentRecord\.update/); });

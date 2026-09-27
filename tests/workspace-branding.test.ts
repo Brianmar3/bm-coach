@@ -165,7 +165,8 @@ test("Blanco y Color principal tiñen el nuevo isotipo sin recuperar el kettlebe
 
 test("las superficies BM usan isotipo o logo completo según su contexto", () => {
   assert.match(read("app/configuracion/page.tsx"), /<WorkspaceBrandLogo branding=\{value\}[^>]*officialBmMark/);
-  assert.match(read("componentes/student-onboarding.tsx"), /<WorkspaceBrandLogo branding=\{branding\}[^>]*officialBmMark/);
+  assert.match(read("componentes/student-invitation-form.tsx"), /<WorkspaceBrandLogo branding=\{\{ \.\.\.branding,[^>]*officialBmMark/);
+  assert.doesNotMatch(read("componentes/student-onboarding.tsx"), /WorkspaceBrandLogo|onboarding-brand/);
   assert.match(read("componentes/portal-registration-form.tsx"), /src="\/bm-training-logo\(2\)\.png"/);
   const portalLogin = read("componentes/portal-login-form.tsx");
   const trainerLogin = read("app/admin/login/page.tsx");

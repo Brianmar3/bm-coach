@@ -130,6 +130,7 @@ test("la invitación usa acceso explícito de alumno sin heredar la sesión trai
 });
 test("la invitación aplica branding del workspace en un contenedor público móvil", () => {
   assert.match(publicForm, /workspace-brand min-h-\[100dvh\] overflow-x-hidden/);
+  assert.match(publicForm, /officialBmMark/);
   assert.match(publicForm, /Powered by BM Training/);
   assert.match(publicForm, /workspaceBrandingVariables\(branding\.accentColor\)/);
 });
