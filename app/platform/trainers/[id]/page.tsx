@@ -1,27 +1,109 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TrainerAccountActions } from "@/componentes/trainer-account-actions";
+import { TrainerEmailEditor } from "@/componentes/trainer-email-editor";
+import { TrainerMembershipDetailManager } from "@/componentes/trainer-membership-detail-manager";
+import { coachedStudentsWhere } from "@/lib/coached-students";
 import { requirePlatformOwnerPage } from "@/lib/platform-auth";
 import { prisma } from "@/lib/prisma";
-import { effectiveTrainerSubscriptionStatus } from "@/lib/trainer-subscription";
-import { TrainerMembershipDetailManager } from "@/componentes/trainer-membership-detail-manager";
-import { TrainerAccountActions } from "@/componentes/trainer-account-actions";
-import { coachedStudentsWhere } from "@/lib/coached-students";
 import { countActiveManagedStudents, trainerStudentCapacity } from "@/lib/trainer-plan-limits";
-import { effectiveTrainerPlan, trainerTrialIsActive } from "@/lib/trainer-subscription";
+import { effectiveTrainerPlan, effectiveTrainerSubscriptionStatus, trainerTrialIsActive } from "@/lib/trainer-subscription";
 
-function showDate(value: Date | null | undefined) { return value ? value.toLocaleDateString("es-AR") : "Sin definir"; }
-const labels = { ACTIVE: "Al día", PAST_DUE: "Vencido", SUSPENDED: "Suspendido", CANCELLED: "Cancelado" } as const;
+function showDate(value: Date | null | undefined) {
+  return value ? value.toLocaleDateString("es-AR") : "Sin definir";
+}
+
+const labels = { ACTIVE: "Al día", PAST_DUE: "Vencida", SUSPENDED: "Suspendida", CANCELLED: "Cancelada" } as const;
+const badge = {
+  ACTIVE: "bg-emerald-400/10 text-emerald-300",
+  PAST_DUE: "bg-red-400/10 text-red-300",
+  SUSPENDED: "bg-orange-400/10 text-orange-300",
+  CANCELLED: "bg-zinc-700 text-zinc-300",
+} as const;
 
 export default async function TrainerDetailPage({ params }: PageProps<"/platform/trainers/[id]">) {
   await requirePlatformOwnerPage();
   const { id } = await params;
-  const trainer = await prisma.user.findFirst({ where: { id, platformRole: "TRAINER", memberships: { some: { role: "OWNER", workspace: { type: "PROFESSIONAL" } } } }, select: { id: true, name: true, email: true, phone: true, brandName: true, city: true, serviceType: true, status: true, onboardingCompleted: true, createdAt: true, trainerSubscription: true, memberships: { where: { role: "OWNER", workspace: { type: "PROFESSIONAL" } }, select: { workspace: { select: { name: true, status: true, students: { where: coachedStudentsWhere, select: { data: true } } } } } } } });
+  const trainer = await prisma.user.findFirst({
+    where: { id, platformRole: "TRAINER", memberships: { some: { role: "OWNER", workspace: { type: "PROFESSIONAL" } } } },
+    select: {
+      id: true, name: true, email: true, phone: true, brandName: true, city: true, serviceType: true,
+      status: true, onboardingCompleted: true, createdAt: true, trainerSubscription: true,
+      memberships: { where: { role: "OWNER", workspace: { type: "PROFESSIONAL" } }, select: { workspace: { select: { name: true, status: true, students: { where: coachedStudentsWhere, select: { data: true } } } } } },
+    },
+  });
   if (!trainer) notFound();
+
   const subscription = trainer.trainerSubscription;
   const effective = subscription ? effectiveTrainerSubscriptionStatus(subscription) : null;
+  const trialActive = subscription ? trainerTrialIsActive(subscription.trialEndsAt) : false;
   const workspace = trainer.memberships[0]?.workspace;
   const capacity = trainerStudentCapacity(subscription ? effectiveTrainerPlan(subscription) : "FREE", workspace ? countActiveManagedStudents(workspace.students) : 0);
-  const serializedSubscription = subscription ? { ...subscription, startedAt: subscription.startedAt.toISOString(), lastPaidAt: subscription.lastPaidAt?.toISOString() ?? null, currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null, nextDueAt: subscription.nextDueAt?.toISOString() ?? null, trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null, createdAt: undefined, updatedAt: undefined, trainerUserId: undefined } : null;
   const percentage = capacity.limit === null ? 0 : Math.min(100, Math.round(capacity.used / capacity.limit * 100));
-  return <main className="px-4 py-8 sm:px-6 lg:px-10"><div className="mx-auto max-w-5xl"><Link href="/platform/trainers" className="text-sm font-bold text-yellow-300">← Volver a entrenadores</Link><div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[.24em] text-yellow-400">Entrenador</p><h1 className="mt-2 text-3xl font-black">{trainer.name}</h1><p className="mt-1 text-zinc-400">{trainer.email}</p></div><span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${trainer.status === "ACTIVE" ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>Acceso {trainer.status === "ACTIVE" ? "activo" : "suspendido"}</span></div><section className="mt-7 grid gap-4 md:grid-cols-2"><article className="rounded-2xl border border-zinc-800 bg-zinc-900/75 p-5"><h2 className="font-bold">Cuenta profesional</h2><dl className="mt-4 grid gap-3 text-sm"><div><dt className="text-zinc-500">Marca</dt><dd>{trainer.brandName || "Sin informar"}</dd></div><div><dt className="text-zinc-500">Teléfono</dt><dd>{trainer.phone || "Sin informar"}</dd></div><div><dt className="text-zinc-500">Ciudad / servicio</dt><dd>{[trainer.city, trainer.serviceType].filter(Boolean).join(" · ") || "Sin informar"}</dd></div><div><dt className="text-zinc-500">Workspace</dt><dd>{workspace?.name || "Sin workspace"}</dd></div><div><dt className="text-zinc-500">Alumnos activos</dt><dd>{capacity.used} / {capacity.limit ?? "Sin límite"}</dd></div><div><dt className="text-zinc-500">Onboarding</dt><dd>{trainer.onboardingCompleted ? "Completo" : "Pendiente"}</dd></div></dl>{capacity.limit !== null && <><div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800"><div className={`h-full ${capacity.reached ? "bg-red-400" : capacity.nearLimit ? "bg-orange-400" : "bg-yellow-400"}`} style={{ width: `${percentage}%` }} /></div>{capacity.nearLimit && <p className={`mt-2 text-xs ${capacity.reached ? "text-red-300" : "text-orange-300"}`}>{capacity.reached ? "Límite alcanzado. Puede gestionar los alumnos actuales, pero no sumar nuevos." : "El workspace alcanzó al menos el 80% de su capacidad."}</p>}</>}</article><article className="rounded-2xl border border-yellow-400/15 bg-zinc-900/75 p-5"><div className="flex items-center justify-between gap-3"><h2 className="font-bold">Membresía</h2>{effective && <span className="rounded-full bg-yellow-400/10 px-2 py-1 text-xs font-bold text-yellow-300">{labels[effective]}</span>}</div>{subscription ? <dl className="mt-4 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-zinc-500">Plan</dt><dd>{subscription.plan}{trainerTrialIsActive(subscription.trialEndsAt) ? " · Prueba PREMIUM" : ""}</dd></div><div><dt className="text-zinc-500">Inicio</dt><dd>{showDate(subscription.startedAt)}</dd></div><div><dt className="text-zinc-500">Fin de prueba</dt><dd>{showDate(subscription.trialEndsAt)}</dd></div><div><dt className="text-zinc-500">Último pago</dt><dd>{showDate(subscription.lastPaidAt)}</dd></div><div><dt className="text-zinc-500">Próximo vencimiento</dt><dd>{showDate(subscription.nextDueAt)}</dd></div><div><dt className="text-zinc-500">Fin del período</dt><dd>{showDate(subscription.currentPeriodEnd)}</dd></div><div className="col-span-2"><dt className="text-zinc-500">Notas internas</dt><dd className="whitespace-pre-wrap">{subscription.notes || "Sin notas"}</dd></div></dl> : <p className="mt-4 text-sm text-zinc-400">Sin membresía configurada.</p>}<TrainerMembershipDetailManager trainer={{ id: trainer.id, name: trainer.name }} subscription={serializedSubscription} /></article></section><TrainerAccountActions trainerId={trainer.id} /></div></main>;
+  const serializedSubscription = subscription ? {
+    ...subscription,
+    startedAt: subscription.startedAt.toISOString(),
+    lastPaidAt: subscription.lastPaidAt?.toISOString() ?? null,
+    currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
+    nextDueAt: subscription.nextDueAt?.toISOString() ?? null,
+    trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
+    createdAt: undefined,
+    updatedAt: undefined,
+    trainerUserId: undefined,
+  } : null;
+
+  return <main className="px-4 py-8 sm:px-6 lg:px-10">
+    <div className="mx-auto max-w-5xl">
+      <Link href="/platform/trainers" className="text-sm font-bold text-yellow-300">← Volver a entrenadores</Link>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[.24em] text-yellow-400">Entrenador</p>
+          <h1 className="mt-2 text-3xl font-black">{trainer.name}</h1>
+          <p className="mt-1 text-zinc-400">{trainer.email}</p>
+        </div>
+        <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${trainer.status === "ACTIVE" ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>Acceso {trainer.status === "ACTIVE" ? "activo" : "suspendido"}</span>
+      </div>
+
+      <section className="mt-7 grid gap-4 md:grid-cols-2">
+        <article className="rounded-2xl border border-zinc-800 bg-zinc-900/75 p-5">
+          <h2 className="font-bold">Cuenta profesional</h2>
+          <dl className="mt-4 grid gap-3 text-sm">
+            <TrainerEmailEditor trainerId={trainer.id} initialEmail={trainer.email} />
+            <div><dt className="text-zinc-500">Marca</dt><dd>{trainer.brandName || "Sin informar"}</dd></div>
+            <div><dt className="text-zinc-500">Teléfono</dt><dd>{trainer.phone || "Sin informar"}</dd></div>
+            <div><dt className="text-zinc-500">Ciudad / servicio</dt><dd>{[trainer.city, trainer.serviceType].filter(Boolean).join(" · ") || "Sin informar"}</dd></div>
+            <div><dt className="text-zinc-500">Workspace</dt><dd>{workspace?.name || "Sin workspace"}</dd></div>
+            <div><dt className="text-zinc-500">Alumnos activos</dt><dd>{capacity.used} / {capacity.limit ?? "Sin límite"}</dd></div>
+            <div><dt className="text-zinc-500">Onboarding</dt><dd>{trainer.onboardingCompleted ? "Completo" : "Pendiente"}</dd></div>
+          </dl>
+          {capacity.limit !== null && <>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800"><div className={`h-full ${capacity.reached ? "bg-red-400" : capacity.nearLimit ? "bg-orange-400" : "bg-yellow-400"}`} style={{ width: `${percentage}%` }} /></div>
+            {capacity.nearLimit && <p className={`mt-2 text-xs ${capacity.reached ? "text-red-300" : "text-orange-300"}`}>{capacity.reached ? "Límite alcanzado. Puede gestionar los alumnos actuales, pero no sumar nuevos." : "El workspace alcanzó al menos el 80% de su capacidad."}</p>}
+          </>}
+        </article>
+
+        <article className="rounded-2xl border border-yellow-400/15 bg-zinc-900/75 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Cuenta comercial</p><h2 className="mt-1 font-bold">Membresía</h2></div>
+            {effective && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${trialActive ? "bg-sky-400/10 text-sky-300" : badge[effective]}`}>{trialActive ? "Prueba" : labels[effective]}</span>}
+          </div>
+          {subscription ? <>
+            <section data-membership-section="commercial-overview" aria-label="Resumen comercial" className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Plan</p><p className="mt-1 text-lg font-black text-white">{subscription.plan}</p>{trialActive && <p className="text-[11px] text-sky-300">Beneficios PREMIUM durante la prueba</p>}</div>
+              <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Estado</p><p className="mt-1 font-bold">{trialActive ? "Período de prueba" : effective ? labels[effective] : "Sin definir"}</p></div>
+              <div className="col-span-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[.04] p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400">Próximo vencimiento</p><p className="mt-1 text-xl font-black">{showDate(subscription.nextDueAt)}</p></div>
+              <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Último pago</p><p className="mt-1 font-semibold">{showDate(subscription.lastPaidAt)}</p></div>
+              <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Fin del período</p><p className="mt-1 font-semibold">{showDate(subscription.currentPeriodEnd)}</p></div>
+            </section>
+            <section data-membership-section="internal-context" aria-label="Información interna" className="mt-3 rounded-xl border border-zinc-800 p-3 text-sm">
+              <dl className="grid grid-cols-2 gap-3"><div><dt className="text-zinc-500">Inicio</dt><dd>{showDate(subscription.startedAt)}</dd></div><div><dt className="text-zinc-500">Fin de prueba</dt><dd>{showDate(subscription.trialEndsAt)}</dd></div><div className="col-span-2"><dt className="text-zinc-500">Notas internas</dt><dd className="mt-1 whitespace-pre-wrap text-zinc-300">{subscription.notes || "Sin notas"}</dd></div></dl>
+            </section>
+          </> : <p className="mt-4 text-sm text-zinc-400">Sin membresía configurada.</p>}
+          {/* Future recurring-billing provider state belongs in its own section, separate from commercial membership state. */}
+          <TrainerMembershipDetailManager trainer={{ id: trainer.id, name: trainer.name }} subscription={serializedSubscription} />
+        </article>
+      </section>
+      <TrainerAccountActions trainerId={trainer.id} />
+    </div>
+  </main>;
 }

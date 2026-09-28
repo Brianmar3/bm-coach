@@ -4,6 +4,7 @@ import test from "node:test";
 import { countActiveManagedStudents, getTrainerPlanLimits, trainerStudentCapacity, trainerStudentLimitMessage } from "../lib/trainer-plan-limits.ts";
 import { effectiveTrainerPlan, trainerTrialIsActive, trialEndsAt } from "../lib/trainer-subscription.ts";
 import { consumeTrainerPasswordResetToken, TrainerPasswordResetRejected, trainerPasswordResetExpiresAt, trainerPasswordResetIsUsable, trainerPasswordResetToken, trainerPasswordResetTokenHash, type TrainerPasswordResetStore } from "../lib/trainer-password-reset.ts";
+import { normalizeTrainerEmail, parseTrainerEmail } from "../lib/trainer-profile.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const schema = read("prisma/schema.prisma");
@@ -19,6 +20,8 @@ const trainerDetail = read("app/platform/trainers/[id]/page.tsx");
 const proxy = read("proxy.ts");
 const appFrame = read("componentes/app-frame.tsx");
 const adminLogin = read("app/api/admin/auth/login/route.ts");
+const trainerProfileApi = read("app/api/platform/trainers/[id]/profile/route.ts");
+const trainerEmailEditor = read("componentes/trainer-email-editor.tsx");
 
 test("catálogo central aplica FREE 5, STARTER 20, PRO 50 y PREMIUM sin límite", () => {
   assert.equal(getTrainerPlanLimits("FREE").studentLimit, 5);
@@ -77,7 +80,7 @@ test("cancelación y reactivación sincronizan User y suscripción sin borrar la
   assert.match(membershipApi, /synchronizedUserStatus/);
   assert.match(membershipApi, /revalidatePath\(`\/platform\/trainers\/\$\{id\}`\)/);
   assert.match(trainerDetail, /Acceso \{trainer\.status === "ACTIVE" \? "activo" : "suspendido"\}/);
-  assert.match(adminLogin, /user\.status !== "ACTIVE"/);
+  assert.match(adminLogin, /trainerIdentityHasWorkspaceAccess\(user\)/);
   assert.doesNotMatch(membershipApi, /workspace(Membership)?\.(delete|update)|studentRecord\.(delete|update)|user\.delete|trainerSubscription\.delete/);
 });
 
@@ -152,4 +155,47 @@ test("Master muestra consumo, advertencias y límite sin copiar identidad extern
   assert.match(trainersUi, /capacity\?\.nearLimit/);
   assert.match(trainerDetail, /80%/);
   assert.match(trainerDetail, /Límite alcanzado/);
+});
+
+test("email de trainer se normaliza y valida antes de persistir", () => {
+  assert.equal(normalizeTrainerEmail("  Profe.Nuevo@Example.COM  "), "profe.nuevo@example.com");
+  assert.equal(parseTrainerEmail("  Profe.Nuevo@Example.COM  "), "profe.nuevo@example.com");
+  for (const invalid of ["", "sin-arroba", "@example.com", "profe@", "profe @example.com", null]) assert.equal(parseTrainerEmail(invalid), null);
+});
+
+test("sólo PLATFORM_OWNER puede editar el email y el trainer objetivo queda acotado a un workspace profesional", () => {
+  assert.match(trainerProfileApi, /const access = await platformOwnerApiAccess\(\)/);
+  assert.match(trainerProfileApi, /if \(!access\.ok\) return access\.response/);
+  assert.ok(trainerProfileApi.indexOf("platformOwnerApiAccess()") < trainerProfileApi.indexOf("prisma.user.update"));
+  assert.match(trainerProfileApi, /platformRole: "TRAINER"/);
+  assert.match(trainerProfileApi, /role: "OWNER"/);
+  assert.match(trainerProfileApi, /workspace: \{ type: "PROFESSIONAL" \}/);
+  assert.match(read("lib/platform-auth.ts"), /status: 403/);
+});
+
+test("email inválido o duplicado se bloquea y el valor guardado vuelve a la ficha", () => {
+  assert.match(trainerProfileApi, /parseTrainerEmail\(body\.email\)/);
+  assert.match(trainerProfileApi, /Ingresá un email válido/);
+  assert.match(trainerProfileApi, /email: \{ equals: email, mode: "insensitive" \}/);
+  assert.match(trainerProfileApi, /error\.code === "P2002"/);
+  assert.match(trainerProfileApi, /data: \{ email \}/);
+  assert.match(trainerProfileApi, /revalidatePath\(`\/platform\/trainers\/\$\{trainer\.id\}`\)/);
+  assert.match(trainerEmailEditor, /setCurrentEmail\(result\.trainer\.email\)/);
+  assert.match(trainerEmailEditor, /router\.refresh\(\)/);
+});
+
+test("edición de email es puntual y ofrece guardar, cancelar, progreso y feedback", () => {
+  for (const label of ["Editar datos", "Guardar", "Cancelar", "Guardando...", "Datos actualizados"]) assert.match(trainerEmailEditor, new RegExp(label.replace(".", "\\.")));
+  assert.match(trainerEmailEditor, /type="email"/);
+  assert.match(trainerEmailEditor, /required/);
+  assert.match(trainerEmailEditor, /setEditing\(false\)/);
+  assert.match(trainerDetail, /TrainerEmailEditor/);
+});
+
+test("User.email sigue siendo la fuente de verdad de login y el cambio no altera contraseña ni sesiones activas", () => {
+  assert.match(schema, /email\s+String\s+@unique/);
+  assert.match(adminLogin, /where: \{ email \}/);
+  assert.match(trainerProfileApi, /prisma\.user\.update/);
+  assert.doesNotMatch(trainerProfileApi, /passwordHash|cookies\(|ADMIN_SESSION_COOKIE|logout|deleteMany/);
+  assert.doesNotMatch(trainerProfileApi, /workspace(Membership)?\.(update|delete)|trainerSubscription\.(update|delete)/);
 });

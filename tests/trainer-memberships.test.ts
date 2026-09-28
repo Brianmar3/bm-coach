@@ -12,6 +12,7 @@ const trainersApi = read("app/api/platform/trainers/route.ts");
 const trainersUi = read("componentes/platform-trainers.tsx");
 const membershipsUi = read("componentes/platform-memberships.tsx");
 const managerUi = read("componentes/trainer-membership-manager.tsx");
+const trainerDetail = read("app/platform/trainers/[id]/page.tsx");
 const proxy = read("proxy.ts");
 const adminApiAuth = read("lib/admin-api-auth.ts");
 const dashboardApi = read("app/api/dashboard/route.ts");
@@ -113,13 +114,25 @@ test("modal mobile prioriza vencimiento, conserva fechas internas y espera guard
   assert.match(read("componentes/trainer-membership-detail-manager.tsx"), /setNotice\(message\)/);
 });
 
+test("detalle prioriza el estado comercial y separa el contexto interno sin inventar cobro automático", () => {
+  assert.match(trainerDetail, /data-membership-section="commercial-overview"/);
+  assert.match(trainerDetail, /data-membership-section="internal-context"/);
+  for (const label of ["Plan", "Estado", "Próximo vencimiento", "Último pago", "Fin del período", "Inicio", "Fin de prueba", "Notas internas"]) assert.match(trainerDetail, new RegExp(label));
+  assert.match(trainerDetail, /trainerTrialIsActive/);
+  assert.match(trainerDetail, /Gestionar membresía|TrainerMembershipDetailManager/);
+  assert.doesNotMatch(trainerDetail, /Método de cobro|Renovación automática|Pago rechazado|Mercado Pago|Suscribirse/);
+  const subscriptionModel = schema.slice(schema.indexOf("model TrainerSubscription"), schema.indexOf("model TrainerPasswordResetToken"));
+  assert.doesNotMatch(subscriptionModel, /paymentMethod|automaticRenewal|lastChargeStatus|gracePeriod/);
+});
+
 test("una sesión de trainer suspendido se corta con 401 antes de llegar a las APIs operativas", () => {
   assert.match(proxy, /export async function proxy/);
   assert.match(proxy, /prisma\.user\.findUnique/);
   assert.match(proxy, /user\?\.status === "ACTIVE"/);
-  assert.match(proxy, /adminSession\.ok && await sessionUserIsActive\(adminSession\.userId\)/);
+  assert.match(proxy, /const access = await sessionUserAccess\(session\.userId\)/);
+  assert.match(proxy, /if \(!access\.trainerWorkspaceValid\)/);
   assert.match(proxy, /La cuenta no está activa\./);
-  assert.match(proxy, /status: 401/);
+  assert.match(proxy, /status: access\.active \? 403 : 401/);
   assert.doesNotMatch(proxy, /workspaceId|trainerSubscription/);
 });
 
@@ -131,7 +144,7 @@ test("dashboard aplica el guard activo antes de resolver workspace y nunca convi
 });
 
 test("el guard común conserva acceso de cuentas ACTIVE y no restringe PLATFORM_OWNER por rol", () => {
-  assert.match(proxy, /if \(!await sessionUserIsActive\(session\.userId\)\)/);
-  assert.doesNotMatch(proxy, /platformRole\s*!==/);
+  assert.match(proxy, /active: user\?\.status === "ACTIVE"/);
+  assert.match(proxy, /trainerWorkspaceValid: trainerIdentityHasWorkspaceAccess\(user\)/);
   assert.match(adminApiAuth, /return null/);
 });
