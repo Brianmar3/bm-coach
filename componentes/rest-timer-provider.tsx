@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { BmTimerIcon } from "@/componentes/icons";
 import { useWorkoutTimerAudio } from "@/componentes/use-workout-timer-audio";
+import { useNativeTimerNotification } from "@/componentes/use-native-timer-notification";
 import { exerciseRestSeconds, finishExerciseRestTimer, formatExerciseRestTime, initialExerciseRestTimer, reduceExerciseRestTimer, type ExerciseRestTimerState } from "@/lib/exercise-rest-timer";
 
 const FINISH_SOUND = ["restFinish"] as const;
-const STORAGE_KEY = "bm-portal-rest-timer-v1";
+const STORAGE_KEY = "bm-portal-rest-timer-v2";
+const LEGACY_STORAGE_KEY = "bm-portal-rest-timer-v1";
 
 type RestTimerContextValue = {
   timer: ExerciseRestTimerState | null;
@@ -42,27 +44,11 @@ function restoreRunningTimer(raw: string | null, nowMs: number): ExerciseRestTim
   }
 }
 
-async function showRestFinishedNotification() {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
-  const options = { body: "Ya podés comenzar tu próxima serie.", tag: "bm-rest-timer-finished" };
-  try {
-    const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.ready : null;
-    if (registration) {
-      await registration.showNotification("Descanso terminado", options);
-      return;
-    }
-    new Notification("Descanso terminado", options);
-  } catch {
-    // El aviso es best effort: el timer sigue finalizando si el SO lo bloquea.
-  }
-}
-
 export function RestTimerProvider({ children }: { children: ReactNode }) {
   const [timer, setTimer] = useState<ExerciseRestTimerState | null>(null);
   const [nowMs, setNowMs] = useState(Date.now);
   const [hydrated, setHydrated] = useState(false);
   const timerRef = useRef<ExerciseRestTimerState | null>(null);
-  const hiddenSinceRef = useRef<number | null>(null);
   const notifiedRunsRef = useRef(new Set<number>());
   const { feedback, prime } = useWorkoutTimerAudio(FINISH_SOUND);
 
@@ -71,9 +57,34 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     setTimer(next);
   }, []);
 
+  const tick = useCallback(() => {
+    const current = timerRef.current;
+    if (current?.status !== "running" || current.endTimestamp === null) return;
+    const tickTime = Date.now();
+    setNowMs(tickTime);
+    if (exerciseRestSeconds(current, tickTime) > 0) return;
+    const runId = current.endTimestamp;
+    updateTimer(finishExerciseRestTimer(current));
+    localStorage.removeItem(STORAGE_KEY);
+    if (current.notified || notifiedRunsRef.current.has(runId)) return;
+    notifiedRunsRef.current.add(runId);
+    if (document.visibilityState === "visible") feedback("restFinish", false);
+  }, [feedback, updateTimer]);
+
+  const { cancelNativeNotification, prepareNativeNotification } = useNativeTimerNotification({
+    key: `rest:${timer?.exerciseId ?? "none"}`,
+    title: "Descanso terminado",
+    body: "Ya podés comenzar tu próxima serie.",
+    endAt: timer?.endTimestamp ?? 0,
+    running: timer?.status === "running" && timer.endTimestamp !== null,
+    onForeground: tick,
+  });
+
   useEffect(() => {
     const restoreId = window.setTimeout(() => {
-      const restored = restoreRunningTimer(sessionStorage.getItem(STORAGE_KEY), Date.now());
+      const raw = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(LEGACY_STORAGE_KEY);
+      const restored = restoreRunningTimer(raw, Date.now());
+      sessionStorage.removeItem(LEGACY_STORAGE_KEY);
       timerRef.current = restored;
       setTimer(restored);
       setNowMs(Date.now());
@@ -86,44 +97,18 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
     if (timer?.status === "running" && timer.endTimestamp !== null && timer.endTimestamp > Date.now()) {
       const stored: StoredRestTimer = { exerciseId: timer.exerciseId, originalDuration: timer.durationSeconds, endTimestamp: timer.endTimestamp, status: "running" };
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     } else {
-      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
     }
   }, [hydrated, timer]);
-
-  const tick = useCallback(() => {
-    const current = timerRef.current;
-    if (current?.status !== "running" || current.endTimestamp === null) return;
-    const tickTime = Date.now();
-    setNowMs(tickTime);
-    if (exerciseRestSeconds(current, tickTime) > 0) return;
-
-    const runId = current.endTimestamp;
-    const endedWhileHidden = document.hidden || (hiddenSinceRef.current !== null && current.endTimestamp >= hiddenSinceRef.current);
-    updateTimer(finishExerciseRestTimer(current));
-    sessionStorage.removeItem(STORAGE_KEY);
-    if (current.notified || notifiedRunsRef.current.has(runId)) return;
-    notifiedRunsRef.current.add(runId);
-    if (endedWhileHidden) void showRestFinishedNotification();
-    else feedback("restFinish", false);
-  }, [feedback, updateTimer]);
 
   useEffect(() => {
     if (timer?.status !== "running") return;
     tick();
     const intervalId = window.setInterval(tick, 250);
-    const onVisibilityChange = () => {
-      if (document.hidden) hiddenSinceRef.current = Date.now();
-      else {
-        tick();
-        hiddenSinceRef.current = null;
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [tick, timer?.status]);
 
@@ -141,15 +126,18 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     } else if (current.status === "running") next = reduceExerciseRestTimer(current, "PAUSE", actionTime);
     else if (current.status === "paused") next = reduceExerciseRestTimer(current, "RESUME", actionTime);
     else next = reduceExerciseRestTimer(current, "RESET", actionTime);
+    if (next.status === "running") prepareNativeNotification();
+    else void cancelNativeNotification();
     updateTimer(next);
-  }, [prime, updateTimer]);
+  }, [cancelNativeNotification, prepareNativeNotification, prime, updateTimer]);
 
   const reset = useCallback((exerciseId: string, durationSeconds: number) => {
+    void cancelNativeNotification();
     const current = timerRef.current;
     updateTimer(current?.exerciseId === exerciseId
       ? reduceExerciseRestTimer(current, "RESET", Date.now())
       : initialExerciseRestTimer(exerciseId, durationSeconds));
-  }, [updateTimer]);
+  }, [cancelNativeNotification, updateTimer]);
 
   return <RestTimerContext.Provider value={{ timer, nowMs, primaryAction, reset }}>{children}</RestTimerContext.Provider>;
 }

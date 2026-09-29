@@ -108,16 +108,24 @@ test("cada tipo usa su cronómetro y guarda el resultado en el bloque", () => {
   assert.match(portal, /updateBlockResult/);
 });
 
+test("los bloques con duración programan y cancelan su aviso nativo por endAt", () => {
+  assert.match(timerComponent, /notificationEndAt/);
+  assert.match(timerComponent, /timer\.anchorTimeMs \+ Math\.max\(0, view\.totalSeconds - timer\.elapsedSeconds\) \* 1_000/);
+  assert.match(timerComponent, /prepareNativeNotification\(\)/);
+  assert.match(timerComponent, /cancelNativeNotification\(\)/);
+});
+
 test("finalizar INTERVAL actualiza estado local y permite continuar sin persisitir en servidor", () => {
   assert.match(timerComponent, /finishingRef\.current/);
   assert.match(timerComponent, /update\(result\)/);
   assert.match(portal, /updateBlockResult/);
 });
 
-test("INTERVAL no se marca completo antes de confirmar y revierte a pausa si falla", () => {
+test("INTERVAL actualiza su resultado local sin falsear la firma del autoguardado", () => {
   assert.match(timerComponent, /setTimer\(finishedTimer\)/);
-  assert.match(portal, /autosaveAbortRef\.current\?\.abort\(\)/);
-  assert.doesNotMatch(portal, /autosaveSignature\.current = signature;\s*setDraft\(next\)/);
+  const localUpdate = portal.slice(portal.indexOf("function updateBlockResult"), portal.indexOf("async function completeBlockResult"));
+  assert.match(localUpdate, /setDraft\(next\)/);
+  assert.doesNotMatch(localUpdate, /autosaveSignature|autosaveAbortRef/);
 });
 
 test("los sonidos usan los tres archivos de audio finales", () => {
@@ -227,5 +235,5 @@ test("avisos, sonido y vibración son progresivos y no usan APIs experimentales"
   assert.match(timerAudioHook, /new Audio/);
   assert.match(timerAudioHook, /navigator\.vibrate\?\./);
   assert.match(timerAudioHook, /catch \{/);
-  assert.doesNotMatch(timerComponent, /wakeLock|Notification|serviceWorker|PushManager/);
+  assert.doesNotMatch(timerComponent, /wakeLock|\bNotification\b|serviceWorker|PushManager/);
 });

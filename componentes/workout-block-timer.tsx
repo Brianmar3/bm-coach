@@ -6,6 +6,7 @@ import type { TrainingRoutineBlock } from "@/types/gestion";
 import { blockTimerView, elapsedBlockSeconds, formatTimerClock, initialBlockTimer, parseBlockTimer, reduceBlockTimer, serializeBlockTimer, type BlockTimerAction, type BlockTimerState, type TimedTrainingBlockType } from "@/lib/block-timer";
 import { phaseTransitionSound } from "@/lib/block-timer-sounds";
 import { useWorkoutTimerAudio } from "@/componentes/use-workout-timer-audio";
+import { useNativeTimerNotification } from "@/componentes/use-native-timer-notification";
 
 type TimerProps = {
   block: PortalWorkoutBlock;
@@ -39,6 +40,17 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }:
     exercises: block.exercises.map(({ exerciseId, name, order }) => ({ exerciseId, name, order })),
   }), [block.exercises, programmed.durationSeconds, programmed.restBetweenRoundsSeconds, programmed.restSeconds, programmed.rounds, programmed.workSeconds]);
   const view = blockTimerView(timer, configuration, nowMs);
+  const notificationEndAt = timer.status === "running" && timer.anchorTimeMs !== null && view.totalSeconds !== null
+    ? timer.anchorTimeMs + Math.max(0, view.totalSeconds - timer.elapsedSeconds) * 1_000
+    : 0;
+  const { cancelNativeNotification, prepareNativeNotification } = useNativeTimerNotification({
+    key: `block:${block.blockId}`,
+    title: "Bloque terminado",
+    body: "Completaste el temporizador de este bloque.",
+    endAt: notificationEndAt,
+    running: timer.status === "running" && notificationEndAt > 0,
+    onForeground: () => setNowMs(Date.now()),
+  });
 
   useEffect(() => {
     const restored = parseBlockTimer(window.localStorage.getItem(persistenceKey), block.blockId, block.blockType as TimedTrainingBlockType);
@@ -88,10 +100,13 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }:
     setTimer(finishedTimer);
     setNowMs(actionTime);
     setNotice(automatic ? "Bloque completado" : "Resultado guardado");
-    feedback("finish");
+    if (document.visibilityState === "visible") {
+      feedback("finish");
+      void cancelNativeNotification();
+    }
     if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
     noticeTimerRef.current = window.setTimeout(() => setNotice(""), 1800);
-  }, [block.exercises, feedback, programmed.rounds, timer, update]);
+  }, [block.exercises, cancelNativeNotification, feedback, programmed.rounds, timer, update]);
 
   useEffect(() => {
     if (timer.status !== "running" || !view.finished) return;
@@ -105,7 +120,9 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }:
     const next = reduceBlockTimer(timer, action, actionTime);
     if (next === timer) return;
     setTimer(next); setNowMs(actionTime);
+    if (action === "START" || action === "RESUME") prepareNativeNotification();
     if (action === "START") feedback("work");
+    if (action === "PAUSE" || action === "RESET") void cancelNativeNotification();
     if (action === "RESET") {
       finishingRef.current = false;
       previousStepRef.current = "";

@@ -60,6 +60,7 @@ import {
 import type { StudentPointMovement } from "@/types/points";
 import { homePaymentCardCopy } from "@/lib/home-payment-card";
 import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
+import { mergePortalRefresh } from "@/lib/portal-weekly-mission-refresh";
 
 type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "puntos-historial" | "perfil" | "avatar" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -95,7 +96,7 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
         if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información.");
         return body;
       })
-      .then((body) => { if (body) { hasLoadedData.current = true; setError(""); setData(body); } })
+      .then((body) => { if (body) { hasLoadedData.current = true; setError(""); setData((previous) => mergePortalRefresh(previous, body, argentinaDateKey())); } })
       .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError" && !hasLoadedData.current) setError(loadError.message); })
       .finally(() => {
         if (activeController.current === controller) { inFlightRefresh.current = null; activeController.current = null; }

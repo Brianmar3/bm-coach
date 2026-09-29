@@ -18,6 +18,10 @@
   "plugins": {
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_bm_notification",
+      "iconColor": "#FACC15"
     }
   }
 }

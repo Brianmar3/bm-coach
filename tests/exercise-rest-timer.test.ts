@@ -8,6 +8,10 @@ const provider = readFileSync(new URL("../componentes/rest-timer-provider.tsx", 
 const portal = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
 const audioHook = readFileSync(new URL("../componentes/use-workout-timer-audio.ts", import.meta.url), "utf8");
+const nativeHook = readFileSync(new URL("../componentes/use-native-timer-notification.ts", import.meta.url), "utf8");
+const nativeNotifications = readFileSync(new URL("../lib/native-timer-notifications.ts", import.meta.url), "utf8");
+const capacitorConfig = readFileSync(new URL("../bm-training-capacitor/capacitor.config.json", import.meta.url), "utf8");
+const androidManifest = readFileSync(new URL("../bm-training-capacitor/android/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
 
 test("120 segundos se muestran como 2:00", () => assert.equal(formatExerciseRestTime(120), "2:00"));
 test("90 segundos se muestran como 1:30", () => assert.equal(formatExerciseRestTime(90), "1:30"));
@@ -103,23 +107,37 @@ test("colapsar la card no desmonta ni reinicia el estado global", () => {
   assert.match(component, /useExerciseRestTimer.*rest-timer-provider/);
 });
 
-test("background recalcula tiempo real y solicita notificación local", () => {
-  assert.match(provider, /visibilitychange/);
-  assert.match(provider, /document\.hidden/);
-  assert.match(provider, /registration\.showNotification\("Descanso terminado", options\)/);
+test("background recalcula tiempo real y programa la notificación nativa", () => {
+  assert.match(nativeHook, /App\.addListener\("appStateChange"/);
+  assert.match(nativeHook, /visibilitychange/);
+  assert.match(nativeNotifications, /LocalNotifications\.schedule/);
+  assert.match(nativeNotifications, /at: new Date\(notification\.endAt\)/);
   assert.match(provider, /Ya podés comenzar tu próxima serie\./);
 });
 
 test("visible reproduce campanita y background no la duplica", () => {
-  assert.match(provider, /if \(endedWhileHidden\) void showRestFinishedNotification\(\);\s*else feedback\("restFinish", false\)/);
+  assert.match(provider, /document\.visibilityState === "visible"\) feedback\("restFinish", false\)/);
+  assert.match(nativeHook, /if \(isActive\) foreground\(\)/);
   assert.match(provider, /notifiedRunsRef\.current\.add\(runId\)/);
 });
 
-test("sessionStorage restaura únicamente un descanso vigente", () => {
-  assert.match(provider, /sessionStorage\.getItem\(STORAGE_KEY\)/);
+test("localStorage restaura únicamente un descanso vigente", () => {
+  assert.match(provider, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(provider, /stored\.endTimestamp <= nowMs/);
   assert.match(provider, /originalDuration: timer\.durationSeconds/);
   assert.doesNotMatch(provider, /exerciseName:/);
+});
+
+test("Android registra permisos, canal e IDs únicos sin depender de Firebase", () => {
+  assert.match(nativeNotifications, /nativeTimerNotificationId/);
+  assert.match(nativeNotifications, /LocalNotifications\.checkPermissions/);
+  assert.match(nativeNotifications, /LocalNotifications\.requestPermissions/);
+  assert.match(nativeNotifications, /allowWhileIdle: true/);
+  assert.match(nativeNotifications, /LocalNotifications\.cancel/);
+  assert.match(capacitorConfig, /LocalNotifications/);
+  assert.match(androidManifest, /android\.permission\.POST_NOTIFICATIONS/);
+  assert.match(androidManifest, /android\.permission\.SCHEDULE_EXACT_ALARM/);
+  assert.doesNotMatch(nativeNotifications, /Firebase|PushNotifications/);
 });
 
 test("fuera de Rutina se muestra un indicador discreto que permite volver", () => {
