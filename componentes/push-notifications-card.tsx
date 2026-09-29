@@ -8,6 +8,7 @@ import {
   createNativePushChannel,
   getNativePushEnvironment,
   listenForNativePushActions,
+  openNativeNotificationSettings,
   permissionIsBlocked,
   registerNativePushToken,
   requestNativePushPermissions,
@@ -83,14 +84,31 @@ function friendlyError(error: unknown) {
   return "No pudimos activar las notificaciones.";
 }
 
-function nativeFriendlyError(error: unknown) {
+type NativePushActivationStage =
+  | "permission-check"
+  | "permission-request"
+  | "channel"
+  | "firebase-token"
+  | "backend-register";
+
+function nativeFriendlyError(error: unknown, stage: NativePushActivationStage) {
   const message = error instanceof Error ? error.message : String(error);
   console.error("[BM Training Native Push] activación fallida", {
+    stage,
     name: error instanceof Error ? error.name : "UnknownError",
     message,
   });
-  if (/Firebase|FCM_REGISTRATION|SERVICE_NOT_AVAILABLE/i.test(message)) {
+  if (stage === "firebase-token") {
     return "No se pudo registrar este dispositivo con Firebase. Revisá la conexión e intentá nuevamente.";
+  }
+  if (stage === "backend-register") {
+    return "Firebase generó el token, pero no pudimos registrar este dispositivo en BM Training. Reintentá en unos minutos.";
+  }
+  if (stage === "permission-check" || stage === "permission-request") {
+    return "No pudimos comprobar el permiso de notificaciones de Android.";
+  }
+  if (stage === "channel") {
+    return "No pudimos preparar el canal de notificaciones de Android.";
   }
   return "No pudimos activar las notificaciones Android.";
 }
@@ -278,6 +296,7 @@ export function PushNotificationsCard({
   async function activate() {
     setBusy(true);
     setMessage("");
+    let nativeStage: NativePushActivationStage = "permission-check";
     try {
       if (nativeEnvironment) {
         if (!nativeConfigured) {
@@ -288,10 +307,11 @@ export function PushNotificationsCard({
         let permission = await checkNativePushPermissions();
         if (permissionIsBlocked(permission)) {
           setState("blocked");
-          setMessage("Las notificaciones están bloqueadas en Android. Habilitalas desde Ajustes > Apps > BM Training > Notificaciones.");
+          setMessage("Las notificaciones están bloqueadas en Android. Podés habilitarlas desde la configuración de BM Training.");
           return;
         }
         if (permission.receive !== "granted") {
+          nativeStage = "permission-request";
           permission = await requestNativePushPermissions();
         }
         if (permission.receive !== "granted") {
@@ -304,8 +324,11 @@ export function PushNotificationsCard({
           );
           return;
         }
+        nativeStage = "channel";
         await createNativePushChannel();
+        nativeStage = "firebase-token";
         const token = await registerNativePushToken();
+        nativeStage = "backend-register";
         const response = await fetch(nativeEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -383,11 +406,24 @@ export function PushNotificationsCard({
     } catch (error) {
       if (nativeEnvironment) {
         setState("error");
-        setMessage(nativeFriendlyError(error));
+        setMessage(nativeFriendlyError(error, nativeStage));
       } else {
         setState(Notification.permission === "denied" ? "blocked" : "error");
         setMessage(friendlyError(error));
       }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openNotificationSettings() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await openNativeNotificationSettings();
+      setMessage("Activá las notificaciones de BM Training y luego volvé a la app.");
+    } catch {
+      setMessage("No pudimos abrir la configuración de notificaciones.");
     } finally {
       setBusy(false);
     }
@@ -548,14 +584,14 @@ export function PushNotificationsCard({
         </p>
       )}
 
-      {(state === "inactive" || state === "error") && (
+      {(state === "inactive" || state === "error" || (state === "blocked" && nativeEnvironment)) && (
         <button
           disabled={busy}
           type="button"
-          onClick={activate}
+          onClick={state === "blocked" && nativeEnvironment ? openNotificationSettings : activate}
           className="mt-4 rounded-lg bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950 disabled:opacity-50"
         >
-          {busy ? "Activando…" : "Activar notificaciones"}
+          {busy ? "Comprobando…" : state === "blocked" && nativeEnvironment ? "Activar desde configuración" : "Activar notificaciones"}
         </button>
       )}
       {state === "active" && (

@@ -132,7 +132,7 @@ test("localStorage restaura únicamente un descanso vigente", () => {
 test("Android registra permisos, canal e IDs únicos sin depender de Firebase", () => {
   assert.match(nativeNotifications, /nativeTimerNotificationId/);
   assert.match(nativeNotifications, /LocalNotifications\.checkPermissions/);
-  assert.match(nativeNotifications, /LocalNotifications\.requestPermissions/);
+  assert.doesNotMatch(nativeNotifications, /LocalNotifications\.requestPermissions/);
   assert.match(nativeNotifications, /allowWhileIdle: true/);
   assert.match(nativeNotifications, /LocalNotifications\.cancel/);
   assert.match(capacitorConfig, /LocalNotifications/);

@@ -4,7 +4,6 @@ import { Capacitor, registerPlugin, type Plugin } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 
 const TIMER_CHANNEL_ID = "bm_training_timers";
-let permissionPreparation: Promise<boolean> | null = null;
 let fallbackNotificationId: number | null = null;
 
 export type NativeTimerNotification = {
@@ -52,10 +51,7 @@ export function nativeTimerNotificationId(key: string, endAt: number) {
 
 async function prepareNativeTimerNotifications() {
   if (!nativeTimerNotificationsAvailable()) return false;
-  const current = await LocalNotifications.checkPermissions();
-  const permission = current.display === "prompt" || current.display === "prompt-with-rationale"
-    ? await LocalNotifications.requestPermissions()
-    : current;
+  const permission = await LocalNotifications.checkPermissions();
   if (permission.display !== "granted") return false;
   if (Capacitor.getPlatform() === "android") {
     await LocalNotifications.createChannel({ id: TIMER_CHANNEL_ID, name: "Temporizadores de entrenamiento", description: "Avisos al terminar un descanso o bloque de entrenamiento.", importance: 4, visibility: 1, vibration: true, lights: true, lightColor: "#FACC15" });
@@ -64,8 +60,7 @@ async function prepareNativeTimerNotifications() {
 }
 
 export function requestNativeTimerNotificationPermission() {
-  permissionPreparation ??= prepareNativeTimerNotifications().catch(() => false);
-  return permissionPreparation;
+  return prepareNativeTimerNotifications().catch(() => false);
 }
 
 async function scheduleCompletionFallback(notification: NativeTimerNotification) {

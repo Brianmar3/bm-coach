@@ -1,7 +1,7 @@
 "use client";
 
 import { App } from "@capacitor/app";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin, type Plugin } from "@capacitor/core";
 import {
   PushNotifications,
   type PermissionStatus,
@@ -19,6 +19,28 @@ export type NativePushEnvironment = {
   appName: string;
   platform: "ANDROID";
 };
+
+export type NativePushAudience = "student" | "trainer";
+
+type BmNotificationSettingsPlugin = Plugin & {
+  openNotificationSettings(): Promise<void>;
+};
+
+const BmNotificationSettings = registerPlugin<BmNotificationSettingsPlugin>(
+  "BmNotificationSettings",
+);
+
+export function nativePushEndpoint(audience: NativePushAudience) {
+  return audience === "trainer"
+    ? "/api/admin/native-push"
+    : "/api/portal/native-push";
+}
+
+export function nativePermissionState(permission: PermissionStatus) {
+  if (permission.receive === "granted") return "granted" as const;
+  if (permission.receive === "denied") return "blocked" as const;
+  return "prompt" as const;
+}
 
 export async function getNativePushEnvironment(): Promise<NativePushEnvironment | null> {
   if (
@@ -45,6 +67,38 @@ export function requestNativePushPermissions() {
 
 export function permissionIsBlocked(permission: PermissionStatus) {
   return permission.receive === "denied";
+}
+
+export async function openNativeNotificationSettings() {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") {
+    return false;
+  }
+  await BmNotificationSettings.openNotificationSettings();
+  return true;
+}
+
+export async function registerNativePushDevice(
+  audience: NativePushAudience,
+  environment: NativePushEnvironment,
+) {
+  await createNativePushChannel();
+  const token = await registerNativePushToken();
+  const response = await fetch(nativePushEndpoint(audience), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      appId: environment.appId,
+      token,
+      platform: environment.platform,
+      deviceLabel: environment.appName,
+    }),
+  });
+  const data = (await response.json().catch(() => ({}))) as {
+    message?: string;
+    error?: string;
+  };
+  if (!response.ok) throw new Error(data.error || "NATIVE_PUSH_REGISTER_FAILED");
+  return { token, message: data.message };
 }
 
 export async function registerNativePushToken(timeoutMs = 15000) {

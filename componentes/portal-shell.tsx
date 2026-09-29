@@ -20,6 +20,7 @@ import { PortalHeader, PortalNavigationLink, PORTAL_MOBILE_NAV_CLASS } from "@/c
 import { RestTimerIndicator, RestTimerProvider } from "@/componentes/rest-timer-provider";
 import { workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
 import { WorkspaceBrandingValueProvider } from "@/componentes/workspace-branding-provider";
+import { NativePushOnboarding } from "@/componentes/native-push-onboarding";
 
 type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
@@ -122,6 +123,7 @@ export function PortalShell({
   return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider>
     <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties}>
       <AchievementCelebration />
+      <NativePushOnboarding audience="student" />
       <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>
         <nav
           aria-label="Navegación del portal"

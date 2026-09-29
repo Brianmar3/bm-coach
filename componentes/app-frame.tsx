@@ -8,6 +8,7 @@ import { ClassesModuleHeader } from "@/componentes/classes-module-header";
 import { Sidebar } from "@/componentes/sidebar";
 import { TrainerCommandPalette } from "@/componentes/trainer-command-palette";
 import { WorkspaceBrandingProvider } from "@/componentes/workspace-branding-provider";
+import { NativePushOnboarding } from "@/componentes/native-push-onboarding";
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -22,6 +23,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
           <AdminTopbar />
           <Sidebar />
           <TrainerCommandPalette />
+          <NativePushOnboarding audience="trainer" />
           <div className="min-h-full min-w-0 max-w-full pt-[calc(env(safe-area-inset-top)+4.5rem)] lg:pl-64">
             {classesModule && <ClassesModuleHeader />}
             {children}

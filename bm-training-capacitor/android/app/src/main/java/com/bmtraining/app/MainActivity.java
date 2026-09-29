@@ -27,6 +27,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(BmTimerPlugin.class);
+        registerPlugin(BmNotificationSettingsPlugin.class);
         splashDeadline = System.currentTimeMillis() + 10000L;
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         splashScreen.setKeepOnScreenCondition(
