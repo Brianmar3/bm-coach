@@ -117,7 +117,7 @@ test("background recalcula tiempo real y programa la notificación nativa", () =
 
 test("visible reproduce campanita y background no la duplica", () => {
   assert.match(provider, /document\.visibilityState === "visible"\) feedback\("restFinish", false\)/);
-  assert.match(nativeHook, /if \(isActive\) foreground\(\)/);
+  assert.match(nativeHook, /if \(isActive\) void reconcile\(\)/);
   assert.match(provider, /notifiedRunsRef\.current\.add\(runId\)/);
 });
 
@@ -125,7 +125,8 @@ test("localStorage restaura únicamente un descanso vigente", () => {
   assert.match(provider, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(provider, /stored\.endTimestamp <= nowMs/);
   assert.match(provider, /originalDuration: timer\.durationSeconds/);
-  assert.doesNotMatch(provider, /exerciseName:/);
+  const storedShape = provider.slice(provider.indexOf("type StoredRestTimer"), provider.indexOf("const RestTimerContext"));
+  assert.doesNotMatch(storedShape, /exerciseName:/);
 });
 
 test("Android registra permisos, canal e IDs únicos sin depender de Firebase", () => {

@@ -20,11 +20,13 @@ import com.getcapacitor.WebViewListener;
 
 public class MainActivity extends BridgeActivity {
     private static final String INTERNAL_HOST = "bm-training-app.vercel.app";
+    private static volatile boolean visible;
     private volatile boolean firstPageVisible = false;
     private long splashDeadline;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        registerPlugin(BmTimerPlugin.class);
         splashDeadline = System.currentTimeMillis() + 10000L;
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         splashScreen.setKeepOnScreenCondition(
@@ -78,6 +80,22 @@ public class MainActivity extends BridgeActivity {
                 setEnabled(true);
             }
         });
+    }
+
+    public static boolean isVisible() {
+        return visible;
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        visible = true;
+    }
+
+    @Override
+    public void onStop() {
+        visible = false;
+        super.onStop();
     }
 
     private void downloadHttpsResource(

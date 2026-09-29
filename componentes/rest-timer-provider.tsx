@@ -15,7 +15,7 @@ const LEGACY_STORAGE_KEY = "bm-portal-rest-timer-v1";
 type RestTimerContextValue = {
   timer: ExerciseRestTimerState | null;
   nowMs: number;
-  primaryAction: (exerciseId: string, durationSeconds: number) => void;
+  primaryAction: (exerciseId: string, durationSeconds: number, exerciseName: string) => void;
   reset: (exerciseId: string, durationSeconds: number) => void;
 };
 
@@ -71,13 +71,22 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     if (document.visibilityState === "visible") feedback("restFinish", false);
   }, [feedback, updateTimer]);
 
-  const { cancelNativeNotification, prepareNativeNotification } = useNativeTimerNotification({
+  const { cancelNativeNotification, prepareNativeNotification, startNativeNotification } = useNativeTimerNotification({
     key: `rest:${timer?.exerciseId ?? "none"}`,
-    title: "Descanso terminado",
-    body: "Ya podés comenzar tu próxima serie.",
+    title: "BM Training · Descanso",
+    body: "Ejercicio en curso",
     endAt: timer?.endTimestamp ?? 0,
+    type: "REST",
+    completionTitle: "Descanso terminado",
+    completionBody: "Ya podés comenzar tu próxima serie.",
     running: timer?.status === "running" && timer.endTimestamp !== null,
-    onForeground: tick,
+    onForeground: (active) => {
+      const current = timerRef.current;
+      if (current?.status === "running" && active?.active && active.timerId === `rest:${current.exerciseId}` && typeof active.endAt === "number" && active.endAt > Date.now() && active.endAt !== current.endTimestamp) {
+        updateTimer({ ...current, endTimestamp: active.endAt, remainingSeconds: Math.ceil((active.endAt - Date.now()) / 1_000) });
+      }
+      tick();
+    },
   });
 
   useEffect(() => {
@@ -112,7 +121,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     };
   }, [tick, timer?.status]);
 
-  const primaryAction = useCallback((exerciseId: string, durationSeconds: number) => {
+  const primaryAction = useCallback((exerciseId: string, durationSeconds: number, exerciseName: string) => {
     const actionTime = Date.now();
     setNowMs(actionTime);
     const current = timerRef.current;
@@ -126,10 +135,13 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     } else if (current.status === "running") next = reduceExerciseRestTimer(current, "PAUSE", actionTime);
     else if (current.status === "paused") next = reduceExerciseRestTimer(current, "RESUME", actionTime);
     else next = reduceExerciseRestTimer(current, "RESET", actionTime);
-    if (next.status === "running") prepareNativeNotification();
+    if (next.status === "running" && next.endTimestamp !== null) {
+      prepareNativeNotification();
+      void startNativeNotification({ key: `rest:${exerciseId}`, title: "BM Training · Descanso", body: exerciseName, endAt: next.endTimestamp, type: "REST", completionTitle: "Descanso terminado", completionBody: `Terminó el descanso de ${exerciseName}.` });
+    }
     else void cancelNativeNotification();
     updateTimer(next);
-  }, [cancelNativeNotification, prepareNativeNotification, prime, updateTimer]);
+  }, [cancelNativeNotification, prepareNativeNotification, prime, startNativeNotification, updateTimer]);
 
   const reset = useCallback((exerciseId: string, durationSeconds: number) => {
     void cancelNativeNotification();

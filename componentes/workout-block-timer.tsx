@@ -43,13 +43,22 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }:
   const notificationEndAt = timer.status === "running" && timer.anchorTimeMs !== null && view.totalSeconds !== null
     ? timer.anchorTimeMs + Math.max(0, view.totalSeconds - timer.elapsedSeconds) * 1_000
     : 0;
-  const { cancelNativeNotification, prepareNativeNotification } = useNativeTimerNotification({
+  const { cancelNativeNotification, prepareNativeNotification, startNativeNotification } = useNativeTimerNotification({
     key: `block:${block.blockId}`,
-    title: "Bloque terminado",
-    body: "Completaste el temporizador de este bloque.",
+    title: `BM Training · ${block.blockType}`,
+    body: block.blockName,
     endAt: notificationEndAt,
+    type: block.blockType,
+    completionTitle: "Bloque terminado",
+    completionBody: `Completaste ${block.blockName}.`,
     running: timer.status === "running" && notificationEndAt > 0,
-    onForeground: () => setNowMs(Date.now()),
+    onForeground: (active) => {
+      const now = Date.now();
+      if (active?.active && active.timerId === `block:${block.blockId}` && typeof active.endAt === "number" && timer.status === "running" && timer.anchorTimeMs !== null && view.totalSeconds !== null) {
+        setTimer((current) => current.status === "running" ? { ...current, anchorTimeMs: active.endAt! - Math.max(0, view.totalSeconds! - current.elapsedSeconds) * 1_000 } : current);
+      }
+      setNowMs(now);
+    },
   });
 
   useEffect(() => {
@@ -120,7 +129,14 @@ export function WorkoutBlockTimer({ block, programmed, persistenceKey, update }:
     const next = reduceBlockTimer(timer, action, actionTime);
     if (next === timer) return;
     setTimer(next); setNowMs(actionTime);
-    if (action === "START" || action === "RESUME") prepareNativeNotification();
+    if (action === "START" || action === "RESUME") {
+      prepareNativeNotification();
+      const nextView = blockTimerView(next, configuration, actionTime);
+      const endAt = next.status === "running" && next.anchorTimeMs !== null && nextView.totalSeconds !== null
+        ? next.anchorTimeMs + Math.max(0, nextView.totalSeconds - next.elapsedSeconds) * 1_000
+        : 0;
+      if (endAt > actionTime) void startNativeNotification({ key: `block:${block.blockId}`, title: `BM Training · ${block.blockType}`, body: block.blockName, endAt, type: block.blockType, completionTitle: "Bloque terminado", completionBody: `Completaste ${block.blockName}.` });
+    }
     if (action === "START") feedback("work");
     if (action === "PAUSE" || action === "RESET") void cancelNativeNotification();
     if (action === "RESET") {
