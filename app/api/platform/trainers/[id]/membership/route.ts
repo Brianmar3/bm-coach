@@ -15,6 +15,9 @@ function revalidateTrainerViews(id: string) {
   revalidatePath("/platform/trainers");
   revalidatePath(`/platform/trainers/${id}`);
   revalidatePath("/platform/memberships");
+  revalidatePath("/dashboard");
+  revalidatePath("/configuracion");
+  revalidatePath("/alumnos");
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -71,7 +74,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!validSubscriptionTimeline({ startedAt, lastPaidAt, currentPeriodEnd, nextDueAt })) return Response.json({ error: "Las fechas no pueden ser anteriores al inicio de la membresía." }, { status: 400 });
   const notes = body.notes === undefined ? existing?.notes ?? "" : typeof body.notes === "string" ? body.notes.trim() : null;
   if (notes === null || notes.length > 2000) return Response.json({ error: "Las notas no son válidas." }, { status: 400 });
-  const data = { plan, status, startedAt, lastPaidAt, currentPeriodEnd, nextDueAt, notes };
+  const planChanged = existing?.plan !== plan;
+  const data = {
+    plan,
+    status,
+    startedAt,
+    lastPaidAt,
+    currentPeriodEnd,
+    nextDueAt,
+    notes,
+    ...(planChanged ? { trialEndsAt: null } : {}),
+  };
   const synchronizedUserStatus = status === "ACTIVE" ? "ACTIVE" : status === "CANCELLED" || status === "SUSPENDED" && body.suspendAccess === true ? "SUSPENDED" : trainer.status;
   const subscription = await prisma.$transaction(async (tx) => {
     const saved = await tx.trainerSubscription.upsert({ where: { trainerUserId: trainer.id }, create: { trainerUserId: trainer.id, ...data }, update: data });

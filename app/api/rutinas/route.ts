@@ -3,8 +3,9 @@ import { createRoutineDays, databaseUnavailable, routineData, routineFingerprint
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { isActivePainReport } from "@/lib/routine-follow-up-filters";
-import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
-import { accessibleContentWhere } from "@/lib/workspace-access";
+import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { accessibleContentWhere, isWorkspaceResourceNotFound } from "@/lib/workspace-access";
+import { followUpSessionWhere } from "@/lib/routine-follow-up-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
     const query = params.get("q")?.trim();
     const status = params.get("status")?.trim();
     const kind = params.get("kind")?.trim();
+    if (studentId) await assertStudentInWorkspace(studentId, workspaceId);
     const records = await prisma.trainingRoutine.findMany({
       where: {
         AND: [accessibleContentWhere(workspaceId)],
@@ -32,7 +34,7 @@ export async function GET(request: Request) {
     });
     const routineIds = records.map((record) => record.id);
     const sessions = routineIds.length ? await prisma.workoutSession.findMany({
-      where: { routineId: { in: routineIds }, status: "COMPLETED" },
+      where: followUpSessionWhere(workspaceId, { routineId: { in: routineIds }, status: "COMPLETED" }),
       select: { routineId: true, studentId: true, date: true, durationMinutes: true, hasPain: true, painDetails: true },
       orderBy: { date: "asc" },
     }) : [];
@@ -72,6 +74,7 @@ export async function GET(request: Request) {
     }));
     return Response.json(records.map((record) => ({ ...serializeRoutine(record), managementSummary: summaries.get(record.id) })));
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
     console.error("Error al consultar rutinas", error);
     const unavailable = databaseUnavailable(error);
     return Response.json({ error: unavailable ? "Neon no está disponible temporalmente." : "No se pudieron cargar las rutinas desde Neon." }, { status: unavailable ? 503 : 500 });

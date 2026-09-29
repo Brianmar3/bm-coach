@@ -78,8 +78,10 @@ test("alumno hereda color y logo de su workspace y los conserva tras un nuevo lo
   assert.match(layout, /loadWorkspaceBranding\(session\.credential\.student\.workspaceId\)/);
   assert.match(layout, /<PortalShell branding=\{branding\}/);
   assert.match(server, /where: \{ id: workspaceId \}/);
-  assert.match(server, /trainerSubscription: \{ select: \{ plan: true, trialEndsAt: true \} \}/);
-  assert.match(server, /effectiveTrainerPlan/);
+  assert.match(server, /loadWorkspaceTrainerPlan\(workspaceId\)/);
+  const entitlement = read("lib/workspace-entitlements-server.ts");
+  assert.match(entitlement, /trainerSubscription:[^]*plan: true, trialEndsAt: true/);
+  assert.match(entitlement, /effectiveTrainerPlan/);
   assert.match(read("componentes/portal-shell.tsx"), /useState\(branding\)/);
   assert.match(read("componentes/portal-shell.tsx"), /workspaceBrandingVariables\(currentBranding\.accentColor\)/);
 });

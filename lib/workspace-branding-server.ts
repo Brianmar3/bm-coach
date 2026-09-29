@@ -2,15 +2,11 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getWorkspaceBranding, normalizeWorkspaceName, PLATFORM_FALLBACK_NAME } from "@/lib/workspace-branding";
-import { effectiveTrainerPlan, type TrainerSubscriptionPlanValue } from "@/lib/trainer-subscription";
+import type { TrainerSubscriptionPlanValue } from "@/lib/trainer-subscription";
+import { loadWorkspaceTrainerPlan } from "@/lib/workspace-entitlements-server";
 
 export async function loadWorkspaceBrandingPlan(workspaceId: string): Promise<TrainerSubscriptionPlanValue> {
-  const owner = await prisma.workspaceMembership.findFirst({
-    where: { workspaceId, role: "OWNER", status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-    select: { user: { select: { trainerSubscription: { select: { plan: true, trialEndsAt: true } } } } },
-  });
-  return owner?.user.trainerSubscription ? effectiveTrainerPlan(owner.user.trainerSubscription) : "STARTER";
+  return loadWorkspaceTrainerPlan(workspaceId);
 }
 
 export async function loadWorkspaceBranding(workspaceId: string) {

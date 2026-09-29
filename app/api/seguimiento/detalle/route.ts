@@ -3,6 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { Student } from "@/types/gestion";
 import type { AdminExerciseProgress, AdminFollowUpDetail, AdminWorkoutSession } from "@/types/follow-up";
+import { requireAdminApiResponse } from "@/lib/admin-api-auth";
+import { followUpSessionWhere } from "@/lib/routine-follow-up-scope";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,24 +16,27 @@ function studentName(data: Prisma.JsonValue) { const value = data as unknown as 
 
 export async function GET(request: Request) {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
     const studentId = new URL(request.url).searchParams.get("studentId")?.trim();
     if (!studentId) return Response.json({ error: "Alumno requerido." }, { status: 400 });
-    await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
+    const { workspaceId } = await requireTrainerWorkspace();
+    await assertStudentInWorkspace(studentId, workspaceId);
     const [sessions, evaluations, studentRecord] = await Promise.all([
       prisma.workoutSession.findMany({
-        where: { studentId }, include: { student: true, routine: true, day: true, blocks: true,
+        where: followUpSessionWhere(workspaceId, { studentId }), include: { student: true, routine: true, day: true, blocks: true,
           exercises: { include: { exercise: true, sets: { orderBy: { setNumber: "asc" } } } },
           comments: { where: { author: "STUDENT", status: "PENDING", parentId: null }, select: { id: true } } },
         orderBy: [{ date: "desc" }, { updatedAt: "desc" }], take: 100,
       }),
-      prisma.physicalEvaluation.findMany({ where: { studentId }, select: { id: true, date: true, weight: true, bodyFatPercentage: true, muscleMass: true }, orderBy: { date: "asc" }, take: 24 }),
-      prisma.studentRecord.findUnique({ where: { id: studentId }, select: { data: true } }),
+      prisma.physicalEvaluation.findMany({ where: { studentId, student: { workspaceId } }, select: { id: true, date: true, weight: true, bodyFatPercentage: true, muscleMass: true }, orderBy: { date: "asc" }, take: 24 }),
+      prisma.studentRecord.findUnique({ where: { id: studentId, workspaceId }, select: { data: true } }),
     ]);
     if (!studentRecord) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
     const studentProfile = studentRecord.data as unknown as Student;
     const exerciseIds = [...new Set(sessions.flatMap((session) => session.exercises.map((log) => log.exerciseReferenceId ?? log.exerciseId).filter((id): id is string => Boolean(id))))];
     const previousLogs = exerciseIds.length ? await prisma.workoutExerciseLog.findMany({
-      where: { session: { studentId, status: "COMPLETED" }, OR: [{ exerciseReferenceId: { in: exerciseIds } }, { exerciseId: { in: exerciseIds } }] },
+      where: { session: followUpSessionWhere(workspaceId, { studentId, status: "COMPLETED" }), OR: [{ exerciseReferenceId: { in: exerciseIds } }, { exerciseId: { in: exerciseIds } }] },
       include: { sets: true, session: { select: { id: true, studentId: true, date: true } } }, orderBy: { session: { date: "desc" } },
     }) : [];
     const serializedSessions: AdminWorkoutSession[] = sessions.map((session) => {
@@ -80,6 +86,7 @@ export async function GET(request: Request) {
     };
     return Response.json(detail);
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Alumno no encontrado." }, { status: 404 });
     console.error("Error al cargar el detalle de seguimiento", error);
     return Response.json({ error: "No se pudo cargar el detalle." }, { status: 500 });
   }

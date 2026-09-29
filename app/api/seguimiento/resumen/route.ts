@@ -5,6 +5,12 @@ import { isActivePainReport } from "@/lib/routine-follow-up-filters";
 import { expectedRoutineSessions, followUpSummary, routineCompliance, routineFollowUpState } from "@/lib/routine-follow-up-metrics";
 import type { Student } from "@/types/gestion";
 import type { AdminStudentFollowUp, AdminWorkoutSession } from "@/types/follow-up";
+import { requireAdminApiResponse } from "@/lib/admin-api-auth";
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import {
+  followUpAssignmentWhere,
+  followUpSessionWhere,
+} from "@/lib/routine-follow-up-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,8 +22,14 @@ function studentName(data: Prisma.JsonValue) {
 
 export async function GET() {
   try {
+    const unauthorized = await requireAdminApiResponse();
+    if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     const assignments = await prisma.trainingRoutineAssignment.findMany({
-      where: { active: true, routine: { kind: "ASSIGNED", status: "ACTIVA" } },
+      where: {
+        ...followUpAssignmentWhere(workspaceId, { active: true }),
+        routine: { workspaceId, kind: "ASSIGNED", status: "ACTIVA" },
+      },
       include: { student: true, routine: { include: { days: { where: { active: true }, select: { id: true } } } } },
       orderBy: { assignedAt: "desc" },
     });
@@ -25,7 +37,7 @@ export async function GET() {
     for (const assignment of assignments) if (!assignedByStudent.has(assignment.studentId)) assignedByStudent.set(assignment.studentId, assignment);
     const studentIds = [...assignedByStudent.keys()];
     const sessions = studentIds.length ? await prisma.workoutSession.findMany({
-      where: { studentId: { in: studentIds } },
+      where: followUpSessionWhere(workspaceId, { studentId: { in: studentIds } }),
       select: {
         id: true, studentId: true, routineId: true, routineNameSnapshot: true, routineDayNumberSnapshot: true,
         date: true, durationMinutes: true, status: true, hasPain: true, painDetails: true, updatedAt: true,

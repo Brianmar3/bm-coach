@@ -8,7 +8,9 @@ import { reconcileStudentPointsAfterMutation } from "@/lib/student-points";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
 import { isActivePainReport } from "@/lib/routine-follow-up-filters";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
-import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { assertRoutineInWorkspace, assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
+import { followUpSessionWhere } from "@/lib/routine-follow-up-scope";
+import { isWorkspaceResourceNotFound } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,9 +29,13 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const routineId = params.get("routineId") || undefined;
     const studentId = params.get("studentId") || undefined;
+    await Promise.all([
+      studentId ? assertStudentInWorkspace(studentId, workspaceId) : Promise.resolve(),
+      routineId ? assertRoutineInWorkspace(routineId, workspaceId) : Promise.resolve(),
+    ]);
     const [sessions, students, routines, classSessions, activeAssignments] = await Promise.all([
       prisma.workoutSession.findMany({
-        where: { student: { workspaceId }, routine: { workspaceId }, ...(routineId ? { routineId } : {}), ...(studentId ? { studentId } : {}) },
+        where: followUpSessionWhere(workspaceId, { ...(routineId ? { routineId } : {}), ...(studentId ? { studentId } : {}) }),
         include: {
           student: true,
           routine: true,
@@ -43,7 +49,7 @@ export async function GET(request: Request) {
       prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true } }),
       prisma.trainingRoutine.findMany({ where: { workspaceId, scope: "WORKSPACE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
       prisma.classWorkoutLog.findMany({
-        where: { student: { workspaceId }, ...(studentId ? { studentId } : {}) },
+        where: { student: { workspaceId }, occurrence: { workspaceId }, ...(studentId ? { studentId } : {}) },
         include: { student: true, exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { setNumber: "asc" } } } } },
         orderBy: { classDateSnapshot: "desc" },
         take: 100,
@@ -186,6 +192,7 @@ export async function GET(request: Request) {
       studentsWithoutTraining: students.filter((item) => (item.data as unknown as Student).status !== "inactivo" && !trained.has(item.id)).map((item) => ({ id: item.id, name: name(item.data) })).slice(0, 20),
     });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Recurso no encontrado." }, { status: 404 });
     console.error("Error al cargar seguimiento", error);
     return Response.json({ error: "No se pudo cargar el seguimiento." }, { status: 500 });
   }
@@ -198,7 +205,7 @@ export async function POST(request: Request) {
     const { workspaceId } = await requireTrainerWorkspace();
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json() as { sessionId?: string; body?: string; private?: boolean; reviewed?: boolean };
-    const session = input.sessionId ? await prisma.workoutSession.findFirst({ where: { id: input.sessionId, student: { workspaceId }, routine: { workspaceId } }, select: { id: true, studentId: true } }) : null;
+    const session = input.sessionId ? await prisma.workoutSession.findFirst({ where: followUpSessionWhere(workspaceId, { id: input.sessionId }), select: { id: true, studentId: true } }) : null;
     if (!session) return Response.json({ error: "Sesión no encontrada." }, { status: 404 });
     const body = input.body?.trim() ?? "";
     if (body.length > 2000) return Response.json({ error: "La devolución no puede superar 2000 caracteres." }, { status: 400 });
@@ -230,6 +237,7 @@ export async function PATCH(request: Request) {
   try {
     const unauthorized = await requireAdminApiResponse();
     if (unauthorized) return unauthorized;
+    const { workspaceId } = await requireTrainerWorkspace();
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const input = await request.json() as {
       classWorkoutLogId?: unknown;
@@ -238,6 +246,11 @@ export async function PATCH(request: Request) {
       exercises?: Array<{ id?: unknown; exerciseName?: unknown; order?: unknown; notes?: unknown; sets?: Array<{ setNumber?: unknown; weight?: unknown; repetitions?: unknown; effort?: unknown; notes?: unknown }> }>;
     };
     if (typeof input.classWorkoutLogId === "string") {
+      const existing = await prisma.classWorkoutLog.findFirst({
+        where: { id: input.classWorkoutLogId, student: { workspaceId }, occurrence: { workspaceId } },
+        select: { id: true },
+      });
+      if (!existing) return Response.json({ error: "No se encontró el bloque." }, { status: 404 });
       return Response.json(
         { error: "Los registros presenciales históricos son de solo lectura. Usá Registro rápido para nuevas cargas." },
         { status: 410 },
@@ -356,8 +369,12 @@ export async function DELETE(request: Request) {
     }
     if (input?.deleteAll) {
       if (!input.studentId?.trim() || !input.routineId?.trim()) return Response.json({ error: "Alumno y rutina son obligatorios." }, { status: 400 });
+      await Promise.all([
+        assertStudentInWorkspace(input.studentId, workspaceId),
+        assertRoutineInWorkspace(input.routineId, workspaceId),
+      ]);
       const result = await prisma.$transaction(async (transaction) => {
-        const where = { studentId: input.studentId!, routineId: input.routineId!, student: { workspaceId }, routine: { workspaceId } };
+        const where = followUpSessionWhere(workspaceId, { studentId: input.studentId!, routineId: input.routineId! });
         const count = await transaction.workoutSession.count({ where });
         if (!count) return 0;
         const deleted = await transaction.workoutSession.deleteMany({ where });
@@ -368,16 +385,17 @@ export async function DELETE(request: Request) {
     }
     if (!input?.sessionId?.trim()) return Response.json({ error: "El registro seleccionado no es válido." }, { status: 400 });
     const existingSession = await prisma.workoutSession.findFirst({
-      where: { id: input.sessionId, student: { workspaceId }, routine: { workspaceId } },
+      where: followUpSessionWhere(workspaceId, { id: input.sessionId }),
       select: { studentId: true },
     });
-    const deleted = await prisma.workoutSession.deleteMany({ where: { id: input.sessionId, student: { workspaceId }, routine: { workspaceId } } });
+    const deleted = await prisma.workoutSession.deleteMany({ where: followUpSessionWhere(workspaceId, { id: input.sessionId }) });
     if (!deleted.count) return Response.json({ error: "Registro de entrenamiento no encontrado." }, { status: 404 });
     if (existingSession) {
       await reconcileStudentPointsAfterMutation(existingSession.studentId);
     }
     return Response.json({ message: "Registro de entrenamiento eliminado correctamente.", deleted: 1 });
   } catch (error) {
+    if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Registro de entrenamiento no encontrado." }, { status: 404 });
     console.error("Error al eliminar seguimiento", error);
     return Response.json({ error: "No se pudo eliminar el registro de entrenamiento." }, { status: 500 });
   }
