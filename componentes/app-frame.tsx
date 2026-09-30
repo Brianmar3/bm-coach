@@ -12,7 +12,7 @@ import { NativePushOnboarding } from "@/componentes/native-push-onboarding";
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const standalone = pathname.startsWith("/portal") || pathname === "/admin/login" || pathname === "/master" || pathname.startsWith("/platform") || pathname.startsWith("/trainer/invite/") || pathname.startsWith("/trainer/reset-password/") || pathname === "/trainer/onboarding" || pathname.startsWith("/join/student/");
+  const standalone = pathname === "/privacidad" || pathname.startsWith("/portal") || pathname === "/admin/login" || pathname === "/master" || pathname.startsWith("/platform") || pathname.startsWith("/trainer/invite/") || pathname.startsWith("/trainer/reset-password/") || pathname === "/trainer/onboarding" || pathname.startsWith("/join/student/");
   const classesModule = pathname === "/clases" || pathname === "/asistencias";
   const viewportStickyPage = pathname === "/resumen-mensual";
   return (

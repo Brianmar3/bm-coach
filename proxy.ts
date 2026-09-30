@@ -44,6 +44,7 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (path === "/sw.js" || path === "/manifest.webmanifest" || path === "/portal/manifest.webmanifest" || path.startsWith("/icons/")) return NextResponse.next();
   if (/\.[^/]+$/.test(path)) return NextResponse.next();
+  if (path === "/privacidad") return NextResponse.next();
   const portalRoute = path === "/portal" || path.startsWith("/portal/") || path === "/api/portal" || path.startsWith("/api/portal/");
   const portalBrandingAsset = path === "/api/workspace/logo/image" && (request.method === "GET" || request.method === "HEAD");
   const exerciseLibraryRead = path.startsWith("/api/exercise-library") && SAFE_METHODS.has(request.method);
