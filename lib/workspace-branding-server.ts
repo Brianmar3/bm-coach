@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { getWorkspaceBranding, normalizeWorkspaceName, PLATFORM_FALLBACK_NAME } from "@/lib/workspace-branding";
+import { getWorkspaceBranding, normalizeWorkspaceName } from "@/lib/workspace-branding";
 import type { TrainerSubscriptionPlanValue } from "@/lib/trainer-subscription";
 import { loadWorkspaceTrainerPlan } from "@/lib/workspace-entitlements-server";
 
@@ -29,16 +29,13 @@ export async function loadWorkspaceBranding(workspaceId: string) {
   const data = workspace?.settings[0]?.data as { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown; systemName?: unknown } | null;
   const owner = workspace?.memberships[0]?.user;
   const configuredName = normalizeWorkspaceName(data?.systemName);
-  const customBusinessName = configuredName?.toLocaleLowerCase("es") === PLATFORM_FALLBACK_NAME.toLocaleLowerCase("es")
-    ? null
-    : configuredName;
   return getWorkspaceBranding({
-    ...data,
-    businessName: customBusinessName ?? owner?.brandName,
-    systemName: undefined,
-    workspaceName: workspace?.name,
-    trainerDisplayName: owner?.name,
-  }, plan);
+  ...data,
+  businessName: configuredName ?? owner?.brandName,
+  systemName: configuredName,
+  workspaceName: workspace?.name,
+  trainerDisplayName: owner?.name,
+}, plan);
 }
 
 export async function loadStudentWorkspaceBranding(studentId: string) {
