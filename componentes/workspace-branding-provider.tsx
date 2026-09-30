@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useBrowserStore } from "@/lib/browser-store";
-import { DEFAULT_WORKSPACE_BRANDING, getWorkspaceBranding, PLATFORM_FALLBACK_NAME, workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
+import { DEFAULT_WORKSPACE_BRANDING, getWorkspaceBranding, workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
 import type { CoachSettings } from "@/types/gestion";
 
 export const WORKSPACE_BRANDING_EVENT = "bm:workspace-branding-updated";
@@ -20,8 +20,8 @@ function clientWorkspaceBranding(settings: Partial<CoachSettings> | undefined, p
   const configuredName = settings?.systemName?.trim();
   return getWorkspaceBranding({
     ...settings,
-    businessName: configuredName?.toLocaleLowerCase("es") === PLATFORM_FALLBACK_NAME.toLocaleLowerCase("es") ? null : configuredName,
-    systemName: undefined,
+    businessName: configuredName,
+    systemName: configuredName,
     trainerDisplayName: settings?.coachName,
   }, plan);
 }
