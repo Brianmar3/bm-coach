@@ -239,8 +239,8 @@ test("Home y detalle comparten el mismo resumen y nunca consultan confirmaciones
   const home = readFileSync(new URL("../app/api/portal/data/route.ts", import.meta.url), "utf8");
   const detail = readFileSync(new URL("../lib/portal-attendance-data.ts", import.meta.url), "utf8");
   const endpoint = readFileSync(new URL("../app/api/portal/asistencias/route.ts", import.meta.url), "utf8");
-  assert.match(home, /loadPortalAttendance\(studentId, "current-month", todayKey\)/);
-  assert.match(home, /loadPortalAttendance\(studentId, "previous-month", todayKey\)/);
+  assert.match(home, /loadPortalAttendance\(studentId, workspaceId, "current-month", todayKey\)/);
+  assert.match(home, /loadPortalAttendance\(studentId, workspaceId, "previous-month", todayKey\)/);
   assert.doesNotMatch(home, /summarizeExpectedPortalAttendancePeriod/);
   assert.match(detail, /summarizeExpectedPortalAttendancePeriod/);
   assert.doesNotMatch(detail, /\bresponse\b/);

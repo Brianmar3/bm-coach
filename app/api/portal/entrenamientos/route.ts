@@ -134,6 +134,9 @@ export async function POST(request: Request) {
       where: { routineId_studentId: { routineId: input.routineId, studentId: session.studentId } },
       include: { routine: { include: { days: { include: { exercises: true, blocks: { include: { exercises: true } } } } } } },
     });
+    if (assignment?.routine.workspaceId !== session.credential.student.workspaceId) {
+      return Response.json({ error: "La rutina no pertenece a tu espacio de trabajo." }, { status: 403 });
+    }
     const day = assignment?.routine.days.find((item) => item.id === input.dayId);
     if (!assignment || !day) return Response.json({ error: "La rutina o el día ya no están asignados a tu perfil." }, { status: 403 });
     const canStartSession =

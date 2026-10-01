@@ -22,7 +22,8 @@ function missionDate(value: Date) {
 }
 
 async function attendanceProgress(start: string, endExclusive: string, studentId: string) {
-  const records = await loadPortalAttendanceRange(studentId, start, endExclusive);
+  const student = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { workspaceId: true } });
+  const records = student ? await loadPortalAttendanceRange(studentId, student.workspaceId, start, endExclusive) : [];
   const missionRecords = records;
   const present = distinctPresentRecords(missionRecords.filter((record) => record.status === "PRESENT"))
     .sort((left, right) => left.date.localeCompare(right.date));

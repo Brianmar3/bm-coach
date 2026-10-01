@@ -58,12 +58,12 @@ async function loadHomeInsights(studentId: string, workspaceId: string, primaryS
   ] = await Promise.all([
     prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
     prisma.workoutSession.count({ where: { studentId, status: "COMPLETED", date: { gte: weekStart } } }),
-    includeClasses ? prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: { in: ["PRESENT", "ABSENT"] }, occurrence: { date: { gte: activityStart }, status: { not: "CANCELLED" } } }, select: { id: true, actualAttendance: true, occurrence: { select: { date: true, classNameSnapshot: true, startTime: true, endTime: true, scheduleId: true } } }, orderBy: { occurrence: { date: "asc" } } }) : Promise.resolve([]),
-    includeClasses ? prisma.classAttendance.findMany({ where: { studentId, date: { gte: activityStart } }, select: { id: true, date: true, status: true, scheduleLabel: true, scheduleStartTime: true, scheduleId: true, schedule: { select: { endTime: true } } }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }) : Promise.resolve([]),
-    includeClasses ? loadPortalAttendance(studentId, "current-month", todayKey) : Promise.resolve(null),
-    includeClasses ? loadPortalAttendance(studentId, "previous-month", todayKey) : Promise.resolve(null),
+    includeClasses ? prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: { in: ["PRESENT", "ABSENT"] }, occurrence: { workspaceId, date: { gte: activityStart }, status: { not: "CANCELLED" } } }, select: { id: true, actualAttendance: true, occurrence: { select: { date: true, classNameSnapshot: true, startTime: true, endTime: true, scheduleId: true } } }, orderBy: { occurrence: { date: "asc" } } }) : Promise.resolve([]),
+    includeClasses ? prisma.classAttendance.findMany({ where: { studentId, date: { gte: activityStart }, OR: [{ scheduleId: null }, { schedule: { workspaceId } }] }, select: { id: true, date: true, status: true, scheduleLabel: true, scheduleStartTime: true, scheduleId: true, schedule: { select: { endTime: true } } }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }) : Promise.resolve([]),
+    includeClasses ? loadPortalAttendance(studentId, workspaceId, "current-month", todayKey) : Promise.resolve(null),
+    includeClasses ? loadPortalAttendance(studentId, workspaceId, "previous-month", todayKey) : Promise.resolve(null),
     prisma.physicalEvaluation.findMany({ where: { ...meaningfulEvaluation, date: { gte: activityStart } }, select: { date: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
-    includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
+    includeClasses ? prisma.classWorkoutLog.findFirst({ where: { studentId, occurrence: { workspaceId }, status: "COMPLETED", classDateSnapshot: { gte: activityStart } }, select: { classDateSnapshot: true }, orderBy: [{ classDateSnapshot: "asc" }, { createdAt: "asc" }] }) : Promise.resolve(null),
     loadStrengthAchievements(studentId, activityStart),
     loadQuickLogAchievements(studentId),
     loadUnifiedRecordAchievements(studentId, activityStart),
@@ -162,7 +162,7 @@ export async function GET(request: Request) {
         : Promise.resolve(null),
       homeInsightsPromise,
       section === "pagos" || section === "inicio" ? prisma.coachSettingsRecord.findFirst({ where: { workspaceId: session.credential.student.workspaceId }, orderBy: { updatedAt: "desc" } }) : Promise.resolve(null),
-      groupClassesEnabled ? prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }) : Promise.resolve([]),
+      groupClassesEnabled ? prisma.weeklyClassAssignment.findMany({ where: { studentId, active: true, schedule: { workspaceId: session.credential.student.workspaceId } }, include: { schedule: true }, orderBy: { schedule: { startTime: "asc" } } }) : Promise.resolve([]),
       section === "pagos" ? prisma.monthlyStudentObligation.findMany({ where: { studentId }, orderBy: [{ period: "desc" }, { dueDate: "desc" }], take: 12 }) : Promise.resolve([]),
       section === "pagos" ? prisma.studentPayment.groupBy({ by: ["billingPeriod"], where: { studentId, status: "PAGADO", billingPeriod: { not: null } }, _sum: { amount: true } }) : Promise.resolve([]),
     ]);
@@ -278,7 +278,7 @@ export async function GET(request: Request) {
       },
     };
     if (section === "inicio" || section === "puntos" || section === "puntos-historial") data.weeklyWorkouts = homeInsights.weeklyWorkoutCount;
-    return Response.json(data);
+    return Response.json(data, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Error al cargar datos del portal", error);
     return Response.json({ error: "No se pudo cargar tu información desde Neon." }, { status: 500 });

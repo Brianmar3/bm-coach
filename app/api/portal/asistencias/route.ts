@@ -17,6 +17,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "Período no válido." }, { status: 400 });
   }
   const period = isPortalAttendancePeriod(requestedPeriod) ? requestedPeriod : "current-month";
-  const result = await loadPortalAttendance(session.studentId, period, argentinaDateKey());
+  const result = await loadPortalAttendance(session.studentId, session.credential.student.workspaceId, period, argentinaDateKey());
   return Response.json(result, { headers: { "Cache-Control": "no-store" } });
 }

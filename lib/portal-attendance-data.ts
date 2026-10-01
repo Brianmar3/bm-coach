@@ -15,14 +15,14 @@ import { hasGroupClasses } from "@/lib/student-service";
 import { planDays } from "@/lib/student-enrollment";
 import type { Student } from "@/types/gestion";
 
-export async function loadPortalAttendanceRange(studentId: string, start: string, endExclusive: string) {
+export async function loadPortalAttendanceRange(studentId: string, workspaceId: string, start: string, endExclusive: string) {
   const range = { gte: dateKeyToDatabase(start), lt: dateKeyToDatabase(endExclusive) };
   const [currentRows, legacyRows] = await Promise.all([
     prisma.classOccurrenceAttendance.findMany({
       where: {
         studentId,
         actualAttendance: { in: ["PRESENT", "ABSENT"] },
-        occurrence: { date: range, status: { not: "CANCELLED" } },
+        occurrence: { workspaceId, date: range, status: { not: "CANCELLED" } },
       },
       select: {
         id: true,
@@ -31,7 +31,7 @@ export async function loadPortalAttendanceRange(studentId: string, start: string
       },
     }),
     prisma.classAttendance.findMany({
-      where: { studentId, date: range },
+      where: { studentId, date: range, OR: [{ scheduleId: null }, { schedule: { workspaceId } }] },
       select: {
         id: true,
         date: true,
@@ -67,16 +67,16 @@ export async function loadPortalAttendanceRange(studentId: string, start: string
   return mergePortalAttendanceRecords(current, legacy);
 }
 
-export async function loadPortalAttendance(studentId: string, periodKey: PortalAttendancePeriod, todayKey: string) {
+export async function loadPortalAttendance(studentId: string, workspaceId: string, periodKey: PortalAttendancePeriod, todayKey: string) {
   const period = portalAttendancePeriod(periodKey, todayKey);
   const firstWeek = weekRange(period.start);
   const lastWeek = weekRange(addDateDays(period.endExclusive, -1));
   const expandedStart = firstWeek?.start ?? period.start;
   const expandedEnd = lastWeek?.endExclusive ?? period.endExclusive;
   const [rawRecords, student, assignments] = await Promise.all([
-    loadPortalAttendanceRange(studentId, expandedStart, expandedEnd),
+    loadPortalAttendanceRange(studentId, workspaceId, expandedStart, expandedEnd),
     prisma.studentRecord.findUnique({
-      where: { id: studentId },
+      where: { id: studentId, workspaceId },
       select: {
         serviceType: true,
         data: true,
@@ -93,6 +93,7 @@ export async function loadPortalAttendance(studentId: string, periodKey: PortalA
     prisma.weeklyClassAssignment.findMany({
       where: {
         studentId,
+        schedule: { workspaceId },
         assignedAt: { lt: dateKeyToDatabase(period.endExclusive) },
         OR: [{ endedAt: null }, { endedAt: { gte: dateKeyToDatabase(period.start) } }],
       },

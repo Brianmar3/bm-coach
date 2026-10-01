@@ -34,6 +34,7 @@ export async function POST(request: Request) {
           active: true,
           routine: {
             status: "ACTIVA",
+            workspaceId: session.credential.student.workspaceId,
             assignments: { some: { studentId: session.studentId, active: true } },
           },
         },

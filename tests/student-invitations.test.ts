@@ -67,7 +67,7 @@ test("capacidad FREE, STARTER, PRO, PREMIUM y trial", () => {
     assert.equal(trainerStudentCapacity(plan, 0).limit, limit);
     if (limit) assert.equal(trainerStudentCapacity(plan, limit).reached, true);
   }
-  assert.match(read("lib/trainer-plan-limits-server.ts"), /effectiveTrainerPlan/);
+  assert.match(read("lib/trainer-plan-limits-server.ts"), /loadWorkspaceTrainerPlan\(workspaceId, client\)/);
 });
 test("alta atómica reclama token, comprueba acceso, cupo, usuario y teléfono", () => {
   for (const pattern of [/TransactionIsolationLevel\.Serializable/, /pg_advisory_xact_lock/, /studentInvitation\.updateMany/, /assertTrainerCanAddStudent/, /studentPortalCredential\.findUnique/, /duplicatePhone/, /studentRecord\.create/, /recordInitialStudentHistory/]) assert.match(consume, pattern);
