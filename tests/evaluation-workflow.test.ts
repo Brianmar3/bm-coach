@@ -185,12 +185,13 @@ test("Edad reutiliza generalData y no requiere otra migración", () => {
   assert.match(schema, /generalData\s+Json/);
 });
 
-test("la API previene doble creación, valida servicio y mantiene edición sólo para admin", () => {
+test("la API previene doble creación y permite Clases con la misma evaluación segura para admin", () => {
   const collection = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/route.ts", "utf8");
   const detail = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/[evaluationId]/route.ts", "utf8");
   const completion = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/[evaluationId]/complete/route.ts", "utf8");
   assert.match(collection, /findUnique\(\{ where: \{ creationKey \}/);
-  assert.match(collection, /serviceType === "CLASSES"/);
+  assert.doesNotMatch(collection, /SERVICE_NOT_ELIGIBLE|serviceType === "CLASSES"/);
+  assert.match(collection, /assertStudentInWorkspace/);
   assert.match(collection, /_max: \{ version: true \}/);
   assert.match(detail, /requireAdminApiResponse/);
   assert.match(detail, /physicalEvaluation\.update\(\{ where: \{ id: evaluationId \}/);

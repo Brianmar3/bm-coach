@@ -96,6 +96,8 @@ export type EvaluationStudentSummary = {
   goal: string;
   serviceType: "CLASSES" | "PERSONALIZED" | "MIXED";
   accountType?: "COACHED" | "SELF_SERVICE";
+  studentStatus?: "ACTIVE" | "INACTIVE";
+  schedules?: Array<{ id: string; label: string }>;
 };
 
 export type AttentionItem = {

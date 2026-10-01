@@ -3,6 +3,7 @@ import type { NormalizedEvaluation } from "../types/evaluation-read-model.ts";
 
 export type EvaluationStatusFilter = "ALL" | "NONE" | "IN_PROGRESS" | "COMPLETED" | "REASSESSMENT_RECOMMENDED";
 export type EvaluationServiceFilter = "ALL" | "CLASSES" | "PERSONALIZED" | "MIXED";
+export type EvaluationStudentStatusFilter = "ACTIVE" | "INACTIVE" | "ALL";
 export type EvaluationValidityFilter = "ALL" | "CURRENT" | "DUE_SOON" | "REASSESSMENT_RECOMMENDED";
 
 export type EvaluationStudentResult = EvaluationStudentSummary & {
@@ -18,7 +19,8 @@ export function isStudentVisibleInEvaluations(
   evaluations: Pick<NormalizedEvaluation, "studentId">[],
 ) {
   if (student.accountType === "SELF_SERVICE") return false;
-  return student.serviceType === "PERSONALIZED"
+  return student.serviceType === "CLASSES"
+    || student.serviceType === "PERSONALIZED"
     || student.serviceType === "MIXED"
     || evaluations.some((evaluation) => evaluation.studentId === student.id);
 }
@@ -30,11 +32,14 @@ export function visibleStudentsInEvaluations(
   return students.filter((student) => isStudentVisibleInEvaluations(student, evaluations));
 }
 
-export function filterEvaluationStudents<T extends EvaluationStudentResult>(items: T[], filters: { query: string; service: EvaluationServiceFilter; status: EvaluationStatusFilter; validity: EvaluationValidityFilter }): T[] {
+export function filterEvaluationStudents<T extends EvaluationStudentResult>(items: T[], filters: { query: string; service: EvaluationServiceFilter; studentStatus?: EvaluationStudentStatusFilter; scheduleId?: string; status: EvaluationStatusFilter; validity: EvaluationValidityFilter }): T[] {
   const query = normalized(filters.query);
   return items.filter((item) => {
     if (query && !normalized(`${item.firstName} ${item.lastName}`).includes(query)) return false;
     if (filters.service !== "ALL" && item.serviceType !== filters.service) return false;
+    if (filters.studentStatus === "ACTIVE" && item.studentStatus === "INACTIVE") return false;
+    if (filters.studentStatus === "INACTIVE" && item.studentStatus !== "INACTIVE") return false;
+    if (filters.service === "CLASSES" && filters.scheduleId && !(item.schedules ?? []).some((schedule) => schedule.id === filters.scheduleId)) return false;
     if (filters.status === "NONE" && item.latestStatus) return false;
     if (filters.status === "REASSESSMENT_RECOMMENDED" && item.latestStatus !== "REASSESSMENT_RECOMMENDED" && item.validity !== "REASSESSMENT_RECOMMENDED") return false;
     if (filters.status !== "ALL" && filters.status !== "NONE" && filters.status !== "REASSESSMENT_RECOMMENDED" && item.latestStatus !== filters.status) return false;

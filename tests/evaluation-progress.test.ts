@@ -18,7 +18,7 @@ test("compara lados y calcula simetría sin completar el lado faltante", () => {
 test("clasifica molestias nuevas, persistentes y ya no informadas", () => { const issue = (bodyZone: string) => ({ bodyZone, side: "RIGHT", intensity: 3, hasPain: true, status: "ACTIVE", studentDescription: "", trainerObservation: "", approximateDate: "" }); const result = compareBodyIssues([issue("Rodilla"), issue("Hombro")], [issue("Rodilla"), issue("Tobillo")]); assert.equal(result.find((item) => item.bodyZone === "Tobillo")?.state, "NEW"); assert.equal(result.find((item) => item.bodyZone === "Rodilla")?.state, "PERSISTENT"); assert.equal(result.find((item) => item.bodyZone === "Hombro")?.state, "NO_LONGER_REPORTED"); });
 test("índice BM requiere dos componentes y es transparente", () => { const before = evaluation({ testResults: [testValue(), testValue({ testKey: "KNEE_TO_WALL", category: "MOBILITY", rightValue: 8, leftValue: 7, numericValue: null, unit: "", rightUnit: "cm", leftUnit: "cm", variation: "", protocol: "pared" })] }); const after = evaluation({ id: "e2", date: "2026-08-08", waist: 76, bodyFatPercentage: 28, testResults: [testValue({ numericValue: 60, status: "CORRECT" }), testValue({ testKey: "KNEE_TO_WALL", category: "MOBILITY", rightValue: 10, leftValue: 9, numericValue: null, unit: "", rightUnit: "cm", leftUnit: "cm", variation: "", protocol: "pared", status: "CORRECT" })] }); const progress = calculateBMProgress(before, after, "2026-08-08"); assert.equal(progress.available, true); assert.ok(progress.score! >= 0 && progress.score! <= 100); assert.match(progress.formula, /peso/i); assert.ok(progress.components.every((item) => item.usedData.length > 0)); assert.equal(calculateBMProgress(evaluation({ testResults: [] }), evaluation({ id: "e2", testResults: [] }), "2026-08-08").available, false); });
 test("el objetivo cambia de forma segura las medidas usadas", () => { const before = evaluation({ muscleMass: 30 }); const after = evaluation({ id: "e2", waist: 76, muscleMass: 32 }); const fat = calculateBMProgress(before, after, "2026-08-08"); const muscle = calculateBMProgress({ ...before, primaryGoal: "Ganancia de masa muscular" }, { ...after, primaryGoal: "Ganancia de masa muscular" }, "2026-08-08"); assert.ok(fat.components.find((item) => item.key === "MEASUREMENTS")?.usedData.some((item) => item.includes("Cintura"))); assert.ok(muscle.components.find((item) => item.key === "MEASUREMENTS")?.usedData.some((item) => item.includes("Masa muscular"))); assert.ok(!muscle.components.find((item) => item.key === "MEASUREMENTS")?.usedData.some((item) => item.includes("Peso"))); });
-test("estadísticas globales cuentan elegibles, faltantes, reevaluaciones y deduplicados", () => { const students = [{ id: "s1", firstName: "Ana", lastName: "P", birthDate: "", goal: "", serviceType: "PERSONALIZED" as const }, { id: "s2", firstName: "Beto", lastName: "Q", birthDate: "", goal: "", serviceType: "MIXED" as const }, { id: "s3", firstName: "C", lastName: "R", birthDate: "", goal: "", serviceType: "CLASSES" as const }]; const records = [evaluation(), evaluation({ id: "e2", date: "2026-08-08", version: 2 }), evaluation({ id: "legacy", source: "LEGACY_JSON" })]; const deduped = deduplicateEvaluations(records); const stats = calculateGlobalEvaluationStats(students, deduped, "2026-08-08"); assert.equal(deduped.length, 2); assert.equal(stats.eligibleStudents, 2); assert.equal(stats.studentsWithEvaluation, 1); assert.equal(stats.studentsWithoutEvaluation, 1); assert.equal(stats.reassessmentsPerformed, 1); assert.ok(stats.attention.some((item) => item.reason === "NO_EVALUATION")); });
+test("estadísticas globales cuentan elegibles, faltantes, reevaluaciones y deduplicados", () => { const students = [{ id: "s1", firstName: "Ana", lastName: "P", birthDate: "", goal: "", serviceType: "PERSONALIZED" as const }, { id: "s2", firstName: "Beto", lastName: "Q", birthDate: "", goal: "", serviceType: "MIXED" as const }, { id: "s3", firstName: "C", lastName: "R", birthDate: "", goal: "", serviceType: "CLASSES" as const }]; const records = [evaluation(), evaluation({ id: "e2", date: "2026-08-08", version: 2 }), evaluation({ id: "legacy", source: "LEGACY_JSON" })]; const deduped = deduplicateEvaluations(records); const stats = calculateGlobalEvaluationStats(students, deduped, "2026-08-08"); assert.equal(deduped.length, 2); assert.equal(stats.eligibleStudents, 3); assert.equal(stats.studentsWithEvaluation, 1); assert.equal(stats.studentsWithoutEvaluation, 2); assert.equal(stats.reassessmentsPerformed, 1); assert.ok(stats.attention.some((item) => item.reason === "NO_EVALUATION")); });
 test("la comparación no usa tests incompatibles en el índice", () => { const before = evaluation({ testResults: [testValue()] }); const after = evaluation({ id: "e2", testResults: [testValue({ protocol: "otro", numericValue: 100 })] }); const comparison = compareEvaluations(before, after, "2026-08-08"); assert.equal(comparison.tests[0].compatible, false); assert.equal(comparison.progress.components.some((item) => item.key === "PERFORMANCE"), false); });
 test("la proyección del portal elimina notas internas", () => { const publicEvaluation = toStudentEvaluation(evaluation({ testResults: [testValue()], bodyIssues: [{ bodyZone: "Rodilla", side: "RIGHT", intensity: 3, hasPain: true, status: "ACTIVE", studentDescription: "del alumno", trainerObservation: "privada", approximateDate: "" }] })); assert.equal("planningNotes" in publicEvaluation, false); assert.equal("finalLimitations" in publicEvaluation, false); assert.equal(publicEvaluation.testResults[0].observations, ""); assert.equal(publicEvaluation.bodyIssues[0].trainerObservation, ""); });
 
@@ -49,13 +49,32 @@ test("SELF_SERVICE queda fuera de cards, filtros y contadores de Evaluaciones", 
   assert.equal(stats.totalEvaluations, 0);
 });
 
+test("Clases, Personalizados y Mixtos comparten listado, con activos predeterminados y horarios combinables", () => {
+  const base = { birthDate: "", goal: "", latestDate: "", latestStatus: "" as const, validity: "" as const };
+  const rows: EvaluationStudentResult[] = [
+    { ...base, id: "a", firstName: "Ana", lastName: "Clase", serviceType: "CLASSES", studentStatus: "ACTIVE", schedules: [{ id: "group-a", label: "Lunes 07:00 · Funcional" }] },
+    { ...base, id: "b", firstName: "Beto", lastName: "Clase", serviceType: "CLASSES", studentStatus: "INACTIVE", schedules: [{ id: "group-b", label: "Martes 08:00 · Funcional" }] },
+    { ...base, id: "c", firstName: "Carla", lastName: "Personal", serviceType: "PERSONALIZED", studentStatus: "ACTIVE" },
+    { ...base, id: "d", firstName: "Diego", lastName: "Mixto", serviceType: "MIXED", studentStatus: "ACTIVE" },
+  ];
+  const filter = (changes: Partial<Parameters<typeof filterEvaluationStudents>[1]> = {}) => filterEvaluationStudents(rows, { query: "", service: "ALL", studentStatus: "ACTIVE", scheduleId: "", status: "ALL", validity: "ALL", ...changes }).map((row) => row.id);
+  assert.deepEqual(filter(), ["a", "c", "d"]);
+  assert.deepEqual(filter({ service: "CLASSES", scheduleId: "group-a", query: "ana" }), ["a"]);
+  assert.deepEqual(filter({ service: "CLASSES", scheduleId: "group-b", studentStatus: "INACTIVE" }), ["b"]);
+  assert.deepEqual(filter({ studentStatus: "ALL" }), ["a", "b", "c", "d"]);
+  assert.deepEqual(filter({ service: "PERSONALIZED" }), ["c"]);
+  assert.deepEqual(filter({ service: "MIXED" }), ["d"]);
+  assert.deepEqual(filter({ service: "PERSONALIZED", scheduleId: "group-a" }), ["c"]);
+  assert.equal(isStudentVisibleInEvaluations(rows[0], []), true);
+});
+
 test("la visibilidad separa servicio actual de historial de evaluaciones", () => {
   const personalized = { id: "personalized", serviceType: "PERSONALIZED" as const };
   const mixed = { id: "mixed", serviceType: "MIXED" as const };
   const classes = { id: "classes", serviceType: "CLASSES" as const };
   assert.equal(isStudentVisibleInEvaluations(personalized, []), true);
   assert.equal(isStudentVisibleInEvaluations(mixed, []), true);
-  assert.equal(isStudentVisibleInEvaluations(classes, []), false);
+  assert.equal(isStudentVisibleInEvaluations(classes, []), true);
   assert.equal(isStudentVisibleInEvaluations(classes, [evaluation({ id: "physical", studentId: "classes", source: "PHYSICAL" })]), true);
 });
 
@@ -76,12 +95,13 @@ test("un cambio PERSONALIZED a CLASSES no oculta el historial ni duplica al alum
   assert.deepEqual(visibleStudentsInEvaluations(students, deduplicated).map((student) => student.id), ["changed"]);
 });
 
-test("Servicio Clases y búsqueda sólo operan sobre CLASSES ya evaluados", () => {
+test("Servicio Clases y búsqueda incluyen CLASSES aunque aún no tengan evaluación", () => {
   const rows: EvaluationStudentResult[] = [
     { id: "classes-evaluated", firstName: "Claudia", lastName: "Reinhardt", birthDate: "", goal: "", serviceType: "CLASSES", latestDate: "2026-08-05", latestStatus: "COMPLETED", validity: "CURRENT" },
+    { id: "classes-new", firstName: "Clara", lastName: "Ríos", birthDate: "", goal: "", serviceType: "CLASSES", latestDate: "", latestStatus: "", validity: "" },
     { id: "personalized", firstName: "Claudio", lastName: "Paz", birthDate: "", goal: "", serviceType: "PERSONALIZED", latestDate: "", latestStatus: "", validity: "" },
   ];
-  assert.deepEqual(filterEvaluationStudents(rows, { query: "", service: "CLASSES", status: "ALL", validity: "ALL" }).map((student) => student.id), ["classes-evaluated"]);
+  assert.deepEqual(filterEvaluationStudents(rows, { query: "", service: "CLASSES", status: "ALL", validity: "ALL" }).map((student) => student.id), ["classes-evaluated", "classes-new"]);
   assert.deepEqual(filterEvaluationStudents(rows, { query: "Claudia", service: "ALL", status: "ALL", validity: "ALL" }).map((student) => student.id), ["classes-evaluated"]);
 });
 

@@ -37,7 +37,6 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
       }
       const student = await transaction.studentRecord.findUnique({ where: { id: studentId }, select: { id: true, serviceType: true, data: true } });
       if (!student) throw new Error("STUDENT_NOT_FOUND");
-      if (student.serviceType === "CLASSES") throw new Error("SERVICE_NOT_ELIGIBLE");
       const inProgress = await transaction.physicalEvaluation.findFirst({ where: { studentId, status: "IN_PROGRESS" }, include: evaluationInclude, orderBy: { updatedAt: "desc" } });
       if (inProgress && body.baseEvaluationId) throw new Error("IN_PROGRESS_EXISTS");
       if (inProgress) return inProgress;
@@ -61,7 +60,6 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
     return Response.json(serializeWorkflowEvaluation(record), { status: record.creationKey === creationKey ? 201 : 200 });
   } catch (error) {
     if (error instanceof Error && error.message === "STUDENT_NOT_FOUND") return Response.json({ error: "El alumno no existe." }, { status: 404 });
-    if (error instanceof Error && error.message === "SERVICE_NOT_ELIGIBLE") return Response.json({ error: "Las evaluaciones nuevas están disponibles para alumnos personalizados o mixtos." }, { status: 409 });
     if (error instanceof Error && error.message === "CREATION_KEY_CONFLICT") return Response.json({ error: "La clave de creación ya fue utilizada." }, { status: 409 });
     if (error instanceof Error && error.message === "IN_PROGRESS_EXISTS") return Response.json({ error: "Ya existe una evaluación en curso. Completala o eliminá el borrador antes de usar otra como base." }, { status: 409 });
     if (error instanceof Error && error.message === "BASE_EVALUATION_NOT_FOUND") return Response.json({ error: "La evaluación base no existe o no pertenece al alumno indicado." }, { status: 404 });

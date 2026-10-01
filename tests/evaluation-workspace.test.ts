@@ -74,6 +74,25 @@ test("el listado usa resumen y el detalle se solicita por alumno", () => {
   assert.match(endpoint, /select: \{ id: true, studentId: true, date: true/);
 });
 
+test("workspaces A y B quedan separados en alumnos, horarios y evaluaciones del endpoint", () => {
+  const route = readFileSync("app/api/admin/evaluaciones/progreso/route.ts", "utf8");
+  const creation = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/route.ts", "utf8");
+  assert.match(route, /const \{ workspaceId \} = await requireTrainerWorkspace\(\)/);
+  assert.match(route, /studentRecord\.findMany\(\{ where: \{ workspaceId/);
+  assert.match(route, /physicalEvaluation\.findMany\(\{ where: \{ student: \{ workspaceId \}/);
+  assert.match(route, /evaluationRecord\.findMany\(\{ where: \{ workspaceId \}/);
+  assert.match(route, /schedule: \{ workspaceId \}/);
+  assert.match(route, /schedule\.workspaceId === workspaceId/);
+  assert.match(route, /if \(studentId && !studentRecords\.length\).*404/);
+  assert.match(creation, /assertStudentInWorkspace\(studentId, \(await requireTrainerWorkspace\(\)\)\.workspaceId\)/);
+  const a = { ...student, id: "A-student", schedules: [{ id: "A-group", label: "Lunes" }] };
+  const b = { ...student, id: "B-student", schedules: [{ id: "B-group", label: "Martes" }] };
+  const aResult = buildEvaluationWorkspaceStudents([a], [item({ studentId: a.id }), item({ id: "B-evaluation", studentId: b.id })], "2026-08-09");
+  const bResult = buildEvaluationWorkspaceStudents([b], [item({ studentId: a.id }), item({ id: "B-evaluation", studentId: b.id })], "2026-08-09");
+  assert.deepEqual(aResult.map((row) => [row.id, row.schedules?.[0]?.id, row.evaluationCount]), [["A-student", "A-group", 1]]);
+  assert.deepEqual(bResult.map((row) => [row.id, row.schedules?.[0]?.id, row.evaluationCount]), [["B-student", "B-group", 1]]);
+});
+
 test("la ficha conserva una sola acción principal para crear evaluaciones", () => {
   const component = readFileSync("componentes/professional-evaluations-dashboard.tsx", "utf8");
   const workspace = component.slice(component.indexOf("function StudentWorkspace"), component.indexOf("function ProgressTab"));

@@ -116,8 +116,9 @@ test("el portal muestra un estado vacío útil sin ofrecer creación al alumno",
 test("Evaluaciones del entrenador no contiene Vista Global y presenta buscador, filtros y lista", () => {
   const dashboard = readFileSync(new URL("../componentes/professional-evaluations-dashboard.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(dashboard, /EvaluationGlobalDashboard|Vista global|Seguimiento de evaluaciones/);
-  assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /label="Estado"/); assert.match(dashboard, /Reevaluación pendiente/);
-  assert.match(dashboard, /Personalizados/); assert.match(dashboard, /Mixtos/);
+  assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /label="Estado del alumno"/); assert.match(dashboard, /label="Estado de evaluación"/); assert.match(dashboard, /Reevaluación pendiente/);
+  assert.match(dashboard, /Personalizados/); assert.match(dashboard, /Mixtos/); assert.match(dashboard, /"CLASSES", "Clases"/);
+  assert.match(dashboard, /service === "CLASSES" && <FilterRow label="Horario \/ grupo"/);
   assert.doesNotMatch(dashboard, /<option value="CLASSES">Clases<\/option>/);
   assert.match(dashboard, /serviceLabel\[student\.serviceType\]/);
   assert.match(dashboard, /Resultados de alumnos/); assert.match(dashboard, /Abrir ficha/);
