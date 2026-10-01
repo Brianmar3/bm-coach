@@ -4,16 +4,20 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { accountDeletionRequestId, ACCOUNT_DELETION_BODY, isAccountDeletionRequest } from "../lib/account-deletion-request.ts";
 
 const nativeRequire = createRequire(import.meta.url);
 
-function loadRoute(prisma: unknown, options: { authenticated?: boolean; origin?: boolean } = {}) {
+function loadRoute(prisma: unknown, options: { authenticated?: boolean; origin?: boolean; push?: (workspaceId: string, payload: unknown) => Promise<unknown> } = {}) {
   const loaded = { exports: {} };
   const code = ts.transpileModule(readFileSync("app/api/portal/account-deletion/route.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const session = options.authenticated === false ? null : { studentId: "student-a", credential: { mustChangePassword: false, student: { workspaceId: "workspace-a" } } };
   const mocks: Record<string, unknown> = {
     "@/lib/prisma": { prisma },
     "@/lib/portal-auth": { getPortalSession: async () => session, validRequestOrigin: () => options.origin !== false },
+    "@/lib/account-deletion-request": { accountDeletionRequestId, ACCOUNT_DELETION_BODY, isAccountDeletionRequest },
+    "@/lib/native-push-notifications": { sendTrainerNativePush: options.push ?? (async () => ({ configured: false, delivered: false, results: [] })) },
+    "@prisma/client": { Prisma: { PrismaClientKnownRequestError: class extends Error {} } },
   };
   runInNewContext(code, {
     module: loaded,
@@ -24,11 +28,11 @@ function loadRoute(prisma: unknown, options: { authenticated?: boolean; origin?:
     Date,
     console,
   });
-  return loaded.exports as { POST: (request: Request) => Promise<Response> };
+  return loaded.exports as { POST: (request: Request) => Promise<Response>; GET: () => Promise<Response> };
 }
 
 test("la solicitud ignora IDs del cliente y usa alumno y workspace de la sesión", async () => {
-  let upsertData: Record<string, unknown> | null = null;
+  let createData: Record<string, unknown> | null = null;
   const prisma = {
     studentRecord: {
       findFirst: async ({ where }: { where: { id: string; workspaceId: string } }) => {
@@ -38,16 +42,17 @@ test("la solicitud ignora IDs del cliente y usa alumno y workspace de la sesión
       },
     },
     followUpComment: {
-      upsert: async (input: Record<string, unknown>) => {
-        upsertData = input;
-        return { id: "request-a", updatedAt: new Date("2026-09-30T12:00:00.000Z") };
+      findFirst: async () => null,
+      create: async (input: Record<string, unknown>) => {
+        createData = input;
+        return { id: accountDeletionRequestId("student-a"), status: "PENDING", updatedAt: new Date("2026-09-30T12:00:00.000Z") };
       },
     },
   };
   const route = loadRoute(prisma);
   const response = await route.POST(new Request("http://localhost/api/portal/account-deletion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: "student-b", workspaceId: "workspace-b" }) }));
   assert.equal(response.status, 201);
-  assert.equal((upsertData?.create as { studentId: string }).studentId, "student-a");
+  assert.equal((createData?.data as { studentId: string }).studentId, "student-a");
   assert.doesNotMatch(readFileSync("app/api/portal/account-deletion/route.ts", "utf8"), /request\.json|searchParams/);
 });
 
@@ -55,7 +60,7 @@ test("sin sesión o sin pertenencia al workspace no se crea ninguna solicitud", 
   let created = false;
   const prisma = {
     studentRecord: { findFirst: async () => null },
-    followUpComment: { upsert: async () => { created = true; } },
+    followUpComment: { create: async () => { created = true; } },
   };
   assert.equal((await loadRoute(prisma, { authenticated: false }).POST(new Request("http://localhost/api/portal/account-deletion", { method: "POST" }))).status, 401);
   assert.equal((await loadRoute(prisma).POST(new Request("http://localhost/api/portal/account-deletion", { method: "POST" }))).status, 401);

@@ -22,7 +22,17 @@ function PrivacySettings() {
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [requested, setRequested] = useState(false);
+  const [requestedAt, setRequestedAt] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/portal/account-deletion", { cache: "no-store", signal: controller.signal })
+      .then((response) => response.ok ? response.json() as Promise<{ requested: boolean; requestedAt: string | null }> : null)
+      .then((state) => { if (state) { setRequested(state.requested); setRequestedAt(state.requestedAt); } })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   async function requestDeletion() {
     if (saving) return;
@@ -30,13 +40,14 @@ function PrivacySettings() {
     setMessage("");
     try {
       const response = await fetch("/api/portal/account-deletion", { method: "POST" });
-      const body = await response.json() as { requested?: boolean; error?: string };
+      const body = await response.json() as { requested?: boolean; requestedAt?: string; error?: string };
       if (response.status === 401) {
         window.location.assign("/portal/login");
         return;
       }
       if (!response.ok || !body.requested) throw new Error(body.error || "No se pudo registrar la solicitud.");
       setRequested(true);
+      setRequestedAt(body.requestedAt ?? null);
       setConfirming(false);
       setMessage("Solicitud registrada. Tu cuenta no se eliminará hasta que la solicitud sea revisada.");
     } catch (error) {
@@ -54,6 +65,7 @@ function PrivacySettings() {
       <button type="button" disabled={saving || requested} onClick={() => setConfirming(true)} className="mt-4 min-h-11 rounded-xl border border-red-400/30 px-4 text-sm font-semibold text-red-300 transition hover:border-red-300/60 hover:bg-red-400/[.06] disabled:cursor-not-allowed disabled:opacity-50">
         {requested ? "Solicitud registrada" : "Solicitar eliminación de cuenta"}
       </button>
+      {requested && requestedAt && <p className="mt-2 text-xs text-zinc-400">Solicitada el {new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(requestedAt))}.</p>}
       {message && <p role="status" className={`mt-3 text-sm ${requested ? "text-emerald-300" : "text-red-300"}`}>{message}</p>}
     </section>
     {confirming && <div className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setConfirming(false); }}>
