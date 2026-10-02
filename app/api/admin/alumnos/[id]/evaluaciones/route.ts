@@ -4,7 +4,7 @@ import { requireAdminApiResponse } from "@/lib/admin-api-auth";
 import { duplicateEvaluationData, evaluationInclude, serializeWorkflowEvaluation, workflowSummary } from "@/lib/evaluation-persistence";
 import { prisma } from "@/lib/prisma";
 import { argentinaDateKey } from "@/lib/payment-dates";
-import { calculateAgeAtDate } from "@/lib/evaluation-workflow";
+import { EVALUATION_FLOW_VERSION, calculateAgeAtDate } from "@/lib/evaluation-workflow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,7 +53,7 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
         });
       }
       return transaction.physicalEvaluation.create({
-        data: { studentId, date: new Date(`${candidate}T12:00:00.000Z`), version: (latest._max.version ?? 0) + 1, status: "IN_PROGRESS", currentStep: 1, completionPercentage: 6, creationKey, generalData: ageSnapshot === null ? {} : { ageSnapshot } },
+        data: { studentId, date: new Date(`${candidate}T12:00:00.000Z`), version: (latest._max.version ?? 0) + 1, status: "IN_PROGRESS", currentStep: 1, completionPercentage: 20, creationKey, generalData: ageSnapshot === null ? { evaluationFlowVersion: EVALUATION_FLOW_VERSION } : { ageSnapshot, evaluationFlowVersion: EVALUATION_FLOW_VERSION } },
         include: evaluationInclude,
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

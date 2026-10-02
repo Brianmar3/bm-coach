@@ -4,10 +4,16 @@ import type {
 } from "../types/evaluation-workflow.ts";
 
 export const EVALUATION_STEPS = [
-  "Información general", "Objetivo y experiencia", "Hábitos",
-  "Observaciones para entrenar", "Movilidad y control motor",
-  "Medidas corporales", "Tests físicos", "Resumen final",
+  "Perfil y objetivo", "Contexto", "Medidas corporales", "Tests físicos", "Resumen final",
 ] as const;
+
+export const EVALUATION_FLOW_VERSION = 5;
+
+/** Old eight-step drafts keep their raw step until the first save in the new flow. */
+export function evaluationWizardStep(currentStep: number, generalData: Record<string, unknown>): number {
+  if (generalData.evaluationFlowVersion === EVALUATION_FLOW_VERSION) return Math.min(5, Math.max(1, currentStep));
+  return [1, 1, 1, 2, 2, 4, 3, 4, 5][currentStep] ?? 1;
+}
 
 export const PRIMARY_GOALS = [
   "Pérdida de grasa", "Ganancia de masa muscular", "Mejora de fuerza",
@@ -68,50 +74,29 @@ export function calculateAgeAtDate(birthDate: string, evaluationDate: string) {
   return age >= 0 && age <= 120 ? age : null;
 }
 
-function hasValue(value: unknown) {
-  if (typeof value === "string") return Boolean(value.trim());
-  if (typeof value === "number") return Number.isFinite(value) && value > 0;
-  if (typeof value === "boolean") return value;
-  if (Array.isArray(value)) return value.length > 0;
-  if (value && typeof value === "object") return Object.values(value).some(hasValue);
-  return false;
-}
-
-function blockScore(values: unknown[], completeWhen: boolean) {
-  const filled = values.filter(hasValue).length;
-  if (!filled) return 0;
-  return completeWhen ? 1 : 0.5;
-}
-
 export function calculateEvaluationCompletion(evaluation: Pick<EvaluationWorkflow,
-  "date" | "weeklyAvailability" | "primaryGoal" | "experienceLevel" | "generalData" | "habits" |
-  "trainingObservations" | "trainerNotes" | "bodyIssues" | "measurements" | "testResults" |
-  "finalStrengths" | "finalPriorities" | "finalLimitations" | "planningNotes" | "finalComment"
+  "date" | "weeklyAvailability" | "primaryGoal" | "experienceLevel" |
+  "measurements" | "testResults" | "finalPriorities" | "planningNotes" | "finalComment"
 >) {
-  const mobility = evaluation.testResults.filter((item) => item.category === "MOBILITY" && item.status !== "NOT_PERFORMED");
-  const physical = evaluation.testResults.filter((item) => item.category === "PHYSICAL" && item.status !== "NOT_PERFORMED");
   const scores = [
-    blockScore([evaluation.date, evaluation.weeklyAvailability, evaluation.generalData], Boolean(evaluation.date && evaluation.weeklyAvailability)),
-    blockScore([evaluation.primaryGoal, evaluation.experienceLevel], Boolean(evaluation.primaryGoal && evaluation.experienceLevel)),
-    blockScore([evaluation.habits], Object.keys(evaluation.habits).length >= 3),
-    blockScore([evaluation.trainingObservations, evaluation.trainerNotes, evaluation.bodyIssues], Boolean(evaluation.trainerNotes || evaluation.bodyIssues.length)),
-    blockScore([mobility], mobility.length >= 2),
-    blockScore([evaluation.measurements], evaluation.measurements.length >= 1),
-    blockScore([physical], physical.length >= 1),
-    blockScore([evaluation.finalStrengths, evaluation.finalPriorities, evaluation.finalLimitations, evaluation.planningNotes, evaluation.finalComment], Boolean(evaluation.finalComment)),
+    Boolean(evaluation.date),
+    (Number(Boolean(evaluation.primaryGoal.trim())) + Number(Boolean(evaluation.experienceLevel.trim()))) / 2,
+    Boolean(evaluation.weeklyAvailability.trim()),
+    Boolean(evaluation.measurements.length || evaluation.testResults.some((item) => item.status !== "NOT_PERFORMED")),
+    Boolean(evaluation.finalPriorities.trim() || evaluation.planningNotes.trim() || evaluation.finalComment.trim()),
   ];
-  return Math.min(100, Math.max(0, Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length * 100)));
+  return Math.round(scores.reduce<number>((sum, score) => sum + Number(score), 0) / EVALUATION_STEPS.length * 100);
 }
 
 export function missingEssentialFields(evaluation: Pick<EvaluationWorkflow,
-  "date" | "primaryGoal" | "experienceLevel" | "weeklyAvailability" | "finalComment" | "measurements" | "testResults"
+  "date" | "primaryGoal" | "experienceLevel" | "weeklyAvailability" | "finalPriorities" | "planningNotes" | "finalComment" | "measurements" | "testResults"
 >) {
   const missing: string[] = [];
   if (!evaluation.date) missing.push("Fecha de evaluación");
   if (!evaluation.primaryGoal.trim()) missing.push("Objetivo principal");
   if (!evaluation.experienceLevel.trim()) missing.push("Nivel o experiencia");
   if (!evaluation.weeklyAvailability.trim()) missing.push("Disponibilidad semanal");
-  if (!evaluation.finalComment.trim()) missing.push("Observación final del entrenador");
+  if (!evaluation.finalPriorities.trim() && !evaluation.planningNotes.trim() && !evaluation.finalComment.trim()) missing.push("Prioridad u observación para la planificación");
   if (!evaluation.measurements.length && !evaluation.testResults.some((item) => item.status !== "NOT_PERFORMED")) missing.push("Al menos una medida corporal o un test realizado");
   return missing;
 }
@@ -131,7 +116,7 @@ export function validateEvaluationDraft(input: EvaluationDraftInput) {
   const parsedDate = new Date(`${input.date}T12:00:00.000Z`);
   if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== input.date) return "Ingresá una fecha de evaluación válida.";
   if (input.date < "1900-01-01" || input.date > new Date().toISOString().slice(0, 10)) return "La fecha de evaluación debe estar entre 1900 y hoy.";
-  if (!Number.isInteger(input.currentStep) || input.currentStep < 1 || input.currentStep > 8) return "El paso actual debe estar entre 1 y 8.";
+  if (!Number.isInteger(input.currentStep) || input.currentStep < 1 || input.currentStep > EVALUATION_STEPS.length) return "El paso actual debe estar entre 1 y 5.";
   const ageSnapshot = input.generalData.ageSnapshot;
   if (ageSnapshot !== null && ageSnapshot !== undefined && (!Number.isInteger(ageSnapshot) || Number(ageSnapshot) < 0 || Number(ageSnapshot) > 120)) return "La edad debe ser un número entero entre 0 y 120.";
   for (const measurement of input.measurements) {

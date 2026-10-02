@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { calculateAgeAtDate, calculateEvaluationCompletion, validateEvaluationDraft } from "@/lib/evaluation-workflow";
+import { EVALUATION_FLOW_VERSION, calculateAgeAtDate, calculateEvaluationCompletion, evaluationWizardStep, validateEvaluationDraft } from "@/lib/evaluation-workflow";
 import type { EvaluationDraftInput, EvaluationWorkflow } from "@/types/evaluation-workflow";
 import { normalizeEvaluation, resolveEvaluationPlanningFields } from "@/lib/evaluation-read-model";
 import type { NormalizedEvaluation } from "@/types/evaluation-read-model";
@@ -51,7 +51,7 @@ export function serializeWorkflowEvaluation(record: EvaluationRecordWithDetails)
     version: record.version,
     status: record.status,
     date: record.date.toISOString().slice(0, 10),
-    currentStep: record.currentStep,
+    currentStep: evaluationWizardStep(record.currentStep, savedGeneralData),
     completionPercentage: record.completionPercentage,
     trainerName: record.trainerName,
     primaryGoal: planning.primaryGoal,
@@ -123,6 +123,7 @@ const measuredGeneralDataKeys = new Set([
 
 export function duplicateEvaluationData(record: EvaluationRecordWithDetails, input: { date: string; version: number; creationKey: string; ageSnapshot: number | null }): Prisma.PhysicalEvaluationCreateInput {
   const generalData = Object.fromEntries(Object.entries(object(record.generalData)).filter(([key]) => !measuredGeneralDataKeys.has(key)));
+  generalData.evaluationFlowVersion = EVALUATION_FLOW_VERSION;
   if (input.ageSnapshot !== null) generalData.ageSnapshot = input.ageSnapshot;
   return {
     student: { connect: { id: record.studentId } },
@@ -130,7 +131,7 @@ export function duplicateEvaluationData(record: EvaluationRecordWithDetails, inp
     version: input.version,
     status: "IN_PROGRESS" as const,
     currentStep: 1,
-    completionPercentage: 6,
+    completionPercentage: 20,
     creationKey: input.creationKey,
     trainerName: record.trainerName,
     primaryGoal: record.primaryGoal,
@@ -191,7 +192,7 @@ export function workflowUpdateData(input: EvaluationDraftInput) {
       secondaryGoals: input.secondaryGoals as Prisma.InputJsonValue,
       experienceLevel: input.experienceLevel.trim(),
       weeklyAvailability: input.weeklyAvailability.trim(),
-      generalData: input.generalData as Prisma.InputJsonValue,
+      generalData: { ...input.generalData, evaluationFlowVersion: EVALUATION_FLOW_VERSION } as Prisma.InputJsonValue,
       habits: input.habits as Prisma.InputJsonValue,
       trainingObservations: input.trainingObservations as Prisma.InputJsonValue,
       trainerNotes: input.trainerNotes.trim(),

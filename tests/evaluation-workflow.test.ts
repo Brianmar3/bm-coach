@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  BODY_ZONES, calculateAgeAtDate, calculateEvaluationCompletion, emptyBodyIssue, emptyTest,
-  missingEssentialFields, validateEvaluationDraft, validateMeasurement,
+  BODY_ZONES, EVALUATION_STEPS, calculateAgeAtDate, calculateEvaluationCompletion, emptyBodyIssue, emptyTest,
+  evaluationWizardStep, missingEssentialFields, validateEvaluationDraft, validateMeasurement,
 } from "../lib/evaluation-workflow.ts";
 import type { EvaluationWorkflow } from "../types/evaluation-workflow.ts";
 
@@ -49,10 +49,13 @@ test("el snapshot histórico de edad se valida y sigue siendo opcional", () => {
 test("la finalización enumera exactamente los campos esenciales faltantes", () => {
   assert.deepEqual(missingEssentialFields(evaluation({ date: "" })), [
     "Fecha de evaluación", "Objetivo principal", "Nivel o experiencia", "Disponibilidad semanal",
-    "Observación final del entrenador", "Al menos una medida corporal o un test realizado",
+    "Prioridad u observación para la planificación", "Al menos una medida corporal o un test realizado",
   ]);
   const ready = evaluation({ primaryGoal: "Salud general", experienceLevel: "Principiante", weeklyAvailability: "2 días", finalComment: "Base registrada", measurements: [{ measurementType: "WEIGHT", side: null, value: 70, unit: "kg", notes: "" }] });
   assert.deepEqual(missingEssentialFields(ready), []);
+  assert.deepEqual(missingEssentialFields({ ...ready, finalComment: "", finalPriorities: "Trabajar fuerza" }), []);
+  assert.deepEqual(missingEssentialFields({ ...ready, finalComment: "", planningNotes: "Progresar gradualmente" }), []);
+  assert.equal(calculateEvaluationCompletion({ ...ready, finalComment: "", finalPriorities: "Trabajar fuerza" }), 100);
 });
 
 test("las medidas validan valor, rango, unidad y lados independientes", () => {
@@ -81,10 +84,35 @@ test("tests conservan estado, resultados, lados, dolor y observaciones", () => {
   assert.equal(emptyTest("STEP_TEST", "PHYSICAL").status, "NOT_PERFORMED");
 });
 
+test("el flujo tiene cinco pasos y reubica borradores históricos sin modificar sus datos", () => {
+  assert.deepEqual([...EVALUATION_STEPS], ["Perfil y objetivo", "Contexto", "Medidas corporales", "Tests físicos", "Resumen final"]);
+  assert.deepEqual(Array.from({ length: 8 }, (_, index) => evaluationWizardStep(index + 1, {})), [1, 1, 2, 2, 4, 3, 4, 5]);
+  assert.equal(evaluationWizardStep(4, { evaluationFlowVersion: 5 }), 4);
+  const persistence = readFileSync("lib/evaluation-persistence.ts", "utf8");
+  assert.match(persistence, /evaluationWizardStep\(record\.currentStep, savedGeneralData\)/);
+  assert.match(persistence, /evaluationFlowVersion: EVALUATION_FLOW_VERSION/);
+  assert.match(persistence, /bodyIssues: \{ deleteMany: \{\}, create: input\.bodyIssues/);
+  assert.match(persistence, /testResults: \{ deleteMany: \{\}, create: input\.testResults/);
+});
+
+test("la nueva interfaz mantiene los datos viejos sin volver a pedirlos", () => {
+  const component = readFileSync("componentes/student-evaluations.tsx", "utf8");
+  const context = component.slice(component.indexOf("function HabitsStep"), component.indexOf("function MeasurementsStep"));
+  const summary = component.slice(component.indexOf("function SummaryStep"), component.indexOf("function Step"));
+  assert.match(context, /Molestias, lesiones o limitaciones a considerar/);
+  assert.doesNotMatch(context, /Agua aproximada|Mapa corporal simple|function ObservationsStep/);
+  assert.match(component, /testGroups\.filter/);
+  assert.doesNotMatch(component, /value\.currentStep === 6|value\.currentStep === 7|value\.currentStep === 8/);
+  assert.match(summary, /Prioridades para trabajar/);
+  assert.match(summary, /Observaciones para la planificación/);
+  assert.doesNotMatch(summary, /Label text="Fortalezas observadas"|Label text="Limitaciones observadas"/);
+  assert.match(summary, /Datos conservados de esta evaluación/);
+});
+
 test("el borrador valida paso, medidas y zonas sin exigir campos opcionales", () => {
   const valid = evaluation();
   assert.equal(validateEvaluationDraft(valid), null);
-  assert.match(validateEvaluationDraft({ ...valid, currentStep: 9 }) ?? "", /entre 1 y 8/);
+  assert.match(validateEvaluationDraft({ ...valid, currentStep: 6 }) ?? "", /entre 1 y 5/);
   assert.match(validateEvaluationDraft({ ...valid, bodyIssues: [emptyBodyIssue("Zona inventada")] }) ?? "", /zona corporal/);
 });
 
@@ -106,7 +134,7 @@ test("Paso 1 calcula una edad de solo lectura y no repite el peso", () => {
   assert.doesNotMatch(generalStep, /Observaciones generales del entrenador/);
   assert.doesNotMatch(generalStep, /setObject\([^\n]*birthDate|update\(\{\s*birthDate/);
   const createRoute = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/route.ts", "utf8");
-  assert.match(createRoute, /generalData: ageSnapshot === null \? \{\} : \{ ageSnapshot \}/);
+  assert.match(createRoute, /generalData: ageSnapshot === null \? \{ evaluationFlowVersion: EVALUATION_FLOW_VERSION \} : \{ ageSnapshot, evaluationFlowVersion: EVALUATION_FLOW_VERSION \}/);
 });
 
 test("el perfil permite editar la misma fecha de nacimiento usada por la evaluación", () => {
