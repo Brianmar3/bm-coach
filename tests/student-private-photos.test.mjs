@@ -104,13 +104,18 @@ test('invalid identifiers and unknown resource kinds never read storage', async 
   assert.equal((await h.request('profile', '../a')).status, 404);
   assert.equal((await h.request('other', 'a')).status, 404); assert.equal(h.reads.length, 0);
 });
-test('serialized URLs hide public/private sources, change on replacement, keep bundled avatars', () => {
+test('serialized URLs hide private sources, preserve character presets and reject old objects', () => {
   const source = students.a.data.profileImageUrl;
   const path = policy.studentProfilePhoto('a', source);
   assert.match(path, /^\/api\/portal\/media\/profile\/a\?v=\d+$/);
   assert.notEqual(path, policy.studentProfilePhoto('a', source.replace('photo.jpg', 'new.jpg')));
   assert.equal(policy.studentProfilePhoto('b', source), '');
-  assert.equal(policy.studentProfilePhoto('a', '/avatars/bm-shield-v3.webp'), '/avatars/bm-shield-v3.webp');
+  assert.equal(policy.studentProfilePhoto('a', '/avatars/bm-athlete-man-v3.webp'), '/avatars/bm-athlete-man-v3.webp');
+  assert.equal(policy.studentProfilePhoto('a', '/avatars/bm-kettlebell-v3.webp'), '');
+  assert.equal(policy.studentProfilePhoto('a', source, false, 'bm-avatar-01'), '/avatars/bm-avatar-01.webp');
+  assert.equal(policy.studentProfilePhoto('a', source, false, 'unknown'), path);
+  assert.equal(policy.studentProfilePhoto('a', '', false, 'unknown'), '');
+  assert.equal(policy.publicStudent('a', { ...students.a.data, avatarPresetId: 'bm-avatar-02' }).profileImageUrl, '/avatars/bm-avatar-02.webp');
   assert.doesNotMatch(JSON.stringify(policy.publicStudent('a', students.a.data)), /blob\.vercel-storage/);
 });
 test('SSRF and wrong owner paths rejected; historical public sources accepted only by owner prefix', () => {
@@ -118,12 +123,12 @@ test('SSRF and wrong owner paths rejected; historical public sources accepted on
   assert.equal(policy.ownedStudentBlob(students.a.data.profileImageUrl.replace('.private.', '.public.'), 'a', 'profile').access, 'public');
 });
 
-function uploadHarness({ failUpload = false, persistCount = 1 } = {}) {
+function uploadHarness({ failUpload = false, persistCount = 1, studentData = students.a.data, originAllowed = true } = {}) {
   const writes = [], removed = [];
   const route = moduleAt('app/api/portal/profile-photo/route.ts', {
     '@/lib/student-media': policy,
     '@/lib/profile-avatars': avatars,
-    '@/lib/portal-auth': { validRequestOrigin: () => true, getPortalSession: async () => ({ studentId: 'a', credential: { student: { ...students.a, updatedAt: new Date(0) } } }) },
+    '@/lib/portal-auth': { validRequestOrigin: () => originAllowed, getPortalSession: async () => ({ studentId: 'a', credential: { student: { ...students.a, data: studentData, updatedAt: new Date(0) } } }) },
     '@/lib/prisma': { prisma: { workspace: { findUnique: async () => ({ status: 'ACTIVE' }) }, studentRecord: { updateMany: async args => { writes.push(args); return { count: persistCount }; } } } },
     '@/lib/student-media-storage': { studentPhotoToken: () => 'test-only', removeStudentPhoto: async (...args) => removed.push(args), uploadStudentPhoto: async () => { if (failUpload) throw Error('storage failed'); return { url: students.a.data.profileImageUrl.replace('photo.jpg', 'new.jpg') }; } },
   });
@@ -131,7 +136,10 @@ function uploadHarness({ failUpload = false, persistCount = 1 } = {}) {
     const form = new FormData(); form.set('photo', new File([new Uint8Array([255, 216, 255])], 'photo.jpg', { type: 'image/jpeg' }));
     return route.POST(new Request('https://example.test/api/portal/profile-photo', { method: 'POST', body: form }));
   }
-  return { writes, removed, upload };
+  async function select(input) {
+    return route.PUT(new Request('https://example.test/api/portal/profile-photo', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }));
+  }
+  return { writes, removed, upload, select };
 }
 test('profile upload persists private source but returns authenticated route only', async () => {
   const h = uploadHarness(); const response = await h.upload();
@@ -140,6 +148,13 @@ test('profile upload persists private source but returns authenticated route onl
   assert.equal(h.writes[0].where.workspaceId, 'wa'); assert.ok(h.writes[0].where.updatedAt);
   assert.equal(h.removed[0][0], students.a.data.profileImageUrl);
 });
+test('uploading own photo after choosing an avatar makes the photo effective again', async () => {
+  const h = uploadHarness({ studentData: { ...students.a.data, avatarPresetId: 'bm-avatar-03' } });
+  const response = await h.upload();
+  assert.equal(response.status, 200);
+  assert.equal(h.writes[0].data.data.avatarPresetId, '');
+  assert.match((await response.json()).photoUrl, /^\/api\/portal\/media\/profile\/a/);
+});
 test('failed upload preserves old reference and never removes it', async () => {
   const h = uploadHarness({ failUpload: true }); assert.equal((await h.upload()).status, 500);
   assert.equal(h.writes.length, 0); assert.equal(h.removed.length, 0);
@@ -147,6 +162,34 @@ test('failed upload preserves old reference and never removes it', async () => {
 test('concurrent update cleans new orphan only, not previous photo', async () => {
   const h = uploadHarness({ persistCount: 0 }); assert.equal((await h.upload()).status, 500);
   assert.equal(h.removed.length, 1); assert.match(h.removed[0][0], /new\.jpg$/);
+});
+test('avatar selection validates IDs, preserves the private photo and scopes update to session owner/workspace', async () => {
+  const h = uploadHarness();
+  assert.equal((await h.select({ avatarId: 'kettlebell-01' })).status, 400);
+  assert.equal((await h.select({ avatarId: 'https://evil.test/a.png' })).status, 400);
+  assert.equal(h.writes.length, 0);
+  const response = await h.select({ avatarId: 'bm-avatar-01', studentId: 'b', workspaceId: 'wb' });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).photoUrl, '/avatars/bm-avatar-01.webp');
+  assert.deepEqual(h.writes[0].where, { id: 'a', workspaceId: 'wa', updatedAt: new Date(0) });
+  assert.equal(h.writes[0].data.data.profileImageUrl, students.a.data.profileImageUrl);
+  assert.equal(h.writes[0].data.data.avatarPresetId, 'bm-avatar-01');
+  assert.equal(h.removed.length, 0);
+});
+test('existing character ID stays valid and own previous photo can be restored', async () => {
+  const h = uploadHarness({ studentData: { ...students.a.data, avatarPresetId: 'bm-avatar-01' } });
+  assert.equal((await h.select({ avatarId: 'athlete-man-01' })).status, 200);
+  assert.equal((await h.select({ source: 'PHOTO' })).status, 200);
+  assert.equal(h.writes[1].data.data.avatarPresetId, '');
+  assert.equal(h.writes[1].data.data.profileImageUrl, students.a.data.profileImageUrl);
+  assert.equal(h.removed.length, 0);
+});
+test('restore refuses absent or foreign photo and invalid origin cannot write', async () => {
+  const missing = uploadHarness({ studentData: { ...students.a.data, profileImageUrl: '' } });
+  assert.equal((await missing.select({ source: 'PHOTO' })).status, 404);
+  const foreign = uploadHarness({ studentData: { ...students.a.data, profileImageUrl: students.b.data.profileImageUrl } });
+  assert.equal((await foreign.select({ source: 'PHOTO' })).status, 404);
+  assert.equal((await uploadHarness({ originAllowed: false }).select({ avatarId: 'bm-avatar-01' })).status, 403);
 });
 test('storage upload explicitly requires private access and dedicated token', async () => {
   let options;

@@ -79,7 +79,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     responsiblePhone: typeof stored.responsiblePhone === "string" ? stored.responsiblePhone : "",
     responsibleRelation: typeof stored.responsibleRelation === "string" ? stored.responsibleRelation : "",
     flexibleSchedule: typeof stored.flexibleSchedule === "string" ? stored.flexibleSchedule : "",
-    profileImageUrl: studentProfilePhoto(record.id, stored.profileImageUrl),
+    profileImageUrl: studentProfilePhoto(record.id, stored.profileImageUrl, false, stored.avatarPresetId),
     id: record.id,
     scheduleId: record.primaryScheduleId ?? "",
     scheduleLabel: record.primarySchedule ? weeklyScheduleLabel(record.primarySchedule) : "Sin horario principal",

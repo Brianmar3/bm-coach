@@ -20,5 +20,5 @@ export default async function StudentPortalLayout({ children }: { children: Reac
     establishAchievementBaseline(session.studentId),
     loadWorkspaceBranding(session.credential.student.workspaceId),
   ]);
-  return <PortalShell branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={studentProfilePhoto(session.studentId, student.profileImageUrl)} serviceType={session.credential.student.serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
+  return <PortalShell branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={studentProfilePhoto(session.studentId, student.profileImageUrl, false, student.avatarPresetId)} serviceType={session.credential.student.serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
 }

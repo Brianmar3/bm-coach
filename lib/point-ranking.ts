@@ -46,7 +46,7 @@ export async function loadPointRanking(period: PointRankingPeriod, workspaceId: 
     return {
       studentId: record.id,
       studentName: studentName(record.data),
-      profileImageUrl: studentProfilePhoto(record.id, data.profileImageUrl, true),
+      profileImageUrl: studentProfilePhoto(record.id, data.profileImageUrl, true, data.avatarPresetId),
       total: totalByStudent.get(record.id) ?? 0,
       historicalTotal,
       level: historicalTotal >= 500 ? "Hito" : historicalTotal >= 250 ? "Progreso" : historicalTotal >= 100 ? "Constancia" : "Inicio",

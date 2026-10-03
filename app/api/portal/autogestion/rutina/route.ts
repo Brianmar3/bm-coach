@@ -24,7 +24,7 @@ export async function GET() {
   const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
   return Response.json({
     exerciseMediaEnabled: media,
-    profile: { ...student, id: studentId, scheduleLabels: [], flexibleSchedule: "", profileImageUrl: studentProfilePhoto(studentId, student.profileImageUrl), height: Number(student.height) || 0, weight: Number(student.weight) || 0, experienceLevel: student.experienceLevel ?? "", trainingExperience: student.trainingExperience ?? "", hasLimitations: student.hasLimitations === true, limitations: student.limitations ?? "", onboardingUpdatedAt: student.onboardingUpdatedAt ?? "" },
+    profile: { ...student, id: studentId, scheduleLabels: [], flexibleSchedule: "", profileImageUrl: studentProfilePhoto(studentId, student.profileImageUrl, false, student.avatarPresetId), height: Number(student.height) || 0, weight: Number(student.weight) || 0, experienceLevel: student.experienceLevel ?? "", trainingExperience: student.trainingExperience ?? "", hasLimitations: student.hasLimitations === true, limitations: student.limitations ?? "", onboardingUpdatedAt: student.onboardingUpdatedAt ?? "" },
     routine: privateRoutine,
     workoutSessions: serializePortalWorkoutSessions(sessions),
   });

@@ -45,6 +45,7 @@ export type Student = {
   scheduleLabels?: string[];
   flexibleSchedule?: string;
   profileImageUrl?: string;
+  avatarPresetId?: string;
   experienceLevel?: string;
   trainingExperience?: string;
   hasLimitations?: boolean;

@@ -37,7 +37,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/store/[
       ? await prisma.coachSettingsRecord.findMany({ where: { workspaceId }, orderBy: { updatedAt: "desc" } })
       : collection === "bm-coach-payments"
         ? await prisma.paymentRecord.findMany({ where: { workspaceId }, orderBy: { updatedAt: "desc" } })
-        : await prisma.eventRecord.findMany({ where: { workspaceId }, orderBy: { updatedAt: "desc" } });
+        : await prisma.eventRecord.findMany({ where: { workspaceId, NOT: { id: { startsWith: "account-deletion-audit-" } } }, orderBy: { updatedAt: "desc" } });
   if (collection === "bm-coach-settings") {
     const brandingPlan = await loadWorkspaceBrandingPlan(workspaceId);
     return Response.json(records.map((record) => ({ id: record.id, ...record.data as object, ...resolveWorkspaceBranding(record.data as { accentColor?: unknown; logoMode?: unknown; customLogoUrl?: unknown }, brandingPlan), brandingPlan })));
@@ -53,7 +53,8 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
   if (!repository) return Response.json({ error: "Colección no disponible." }, { status: 404 });
   const { workspaceId } = await requireTrainerWorkspace();
   const body = await request.json() as { items?: Array<{ id: string }> };
-  if (!Array.isArray(body.items) || body.items.some((item) => !item.id)) return Response.json({ error: "Datos inválidos." }, { status: 400 });
+  if (!Array.isArray(body.items) || body.items.some((item) => typeof item?.id !== "string" || !item.id)) return Response.json({ error: "Datos inválidos." }, { status: 400 });
+  if (collection === "bm-coach-events" && body.items.some((item) => item.id.startsWith("account-deletion-audit-"))) return Response.json({ error: "Identificador reservado." }, { status: 400 });
   if (collection === "bm-coach-settings") return saveCoachSettings(body.items, workspaceId);
   if (collection === "bm-coach-students") {
     const items = body.items;
@@ -64,9 +65,9 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
         if (reserved) return false;
         await assertTrainerCanReplaceStudents(workspaceId, items.map((data) => ({ data })), transaction);
         const existingPhotos = await transaction.studentRecord.findMany({ where: { workspaceId }, select: { id: true, data: true } });
-        const photos = new Map(existingPhotos.map(record => [record.id, (record.data as { profileImageUrl?: string }).profileImageUrl ?? ""]));
+        const photos = new Map(existingPhotos.map(record => [record.id, record.data as { profileImageUrl?: string; avatarPresetId?: string }]));
         await transaction.studentRecord.deleteMany({ where: { workspaceId, AND: [coachedStudentsWhere] } });
-        if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: { ...item, profileImageUrl: photos.get(item.id) ?? "" } as Prisma.InputJsonValue })) });
+        if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: { ...item, profileImageUrl: photos.get(item.id)?.profileImageUrl ?? "", avatarPresetId: photos.get(item.id)?.avatarPresetId ?? "" } as Prisma.InputJsonValue })) });
         return true;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return Response.json(saved ? { ok: true } : { error: "Una cuenta autogestionada no puede reemplazarse desde alumnos." }, { status: saved ? 200 : 409 });
@@ -79,7 +80,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
     await prisma.paymentRecord.deleteMany({ where: { workspaceId } });
     if (body.items.length) await prisma.paymentRecord.createMany({ data: body.items.map((item) => ({ workspaceId, id: item.id, data: item as Prisma.InputJsonValue })) });
   } else {
-    await prisma.eventRecord.deleteMany({ where: { workspaceId } });
+    await prisma.eventRecord.deleteMany({ where: { workspaceId, NOT: { id: { startsWith: "account-deletion-audit-" } } } });
     if (body.items.length) await prisma.eventRecord.createMany({ data: body.items.map((item) => ({ workspaceId, id: item.id, data: item as Prisma.InputJsonValue })) });
   }
   return Response.json({ ok: true });

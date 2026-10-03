@@ -21,6 +21,8 @@ export type PortalProfile = {
   scheduleLabels: string[];
   flexibleSchedule: string;
   profileImageUrl: string;
+  avatarPresetId?: string;
+  hasProfilePhoto?: boolean;
   height: number;
   weight: number;
   experienceLevel: string;

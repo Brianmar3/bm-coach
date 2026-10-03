@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { removeStudentPhoto, studentPhotoToken, uploadStudentPhoto } from "@/lib/student-media-storage";
-import { studentProfilePhoto } from "@/lib/student-media";
+import { ownedStudentBlob, studentProfilePhoto } from "@/lib/student-media";
 import type { Student } from "@/types/gestion";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
@@ -119,10 +119,15 @@ export async function POST(request: Request) {
     uploadedUrl = blob.url;
     const saved = await prisma.studentRecord.updateMany({
       where: { id: auth.session.studentId, workspaceId: auth.session.credential.student.workspaceId, updatedAt: auth.session.credential.student.updatedAt },
-      data: { data: { ...student, profileImageUrl: blob.url } },
+      data: { data: { ...student, profileImageUrl: blob.url, avatarPresetId: "" } },
     });
     if (saved.count !== 1) throw new Error("STUDENT_PHOTO_CONCURRENT_UPDATE");
-    await removeOwnedBlob(student.profileImageUrl ?? "", auth.session.studentId);
+    try {
+      await removeOwnedBlob(student.profileImageUrl ?? "", auth.session.studentId);
+    } catch {
+      // La foto nueva ya quedó guardada; una limpieza fallida no debe invalidarla.
+      console.error("STUDENT_PREVIOUS_PHOTO_CLEANUP_FAILED");
+    }
     return json({
       success: true,
       photoUrl: studentProfilePhoto(auth.session.studentId, blob.url),
@@ -148,7 +153,20 @@ export async function PUT(request: Request) {
   try {
     const input = (await request.json().catch(() => null)) as {
       avatarId?: unknown;
+      source?: unknown;
     } | null;
+    const student = auth.session.credential.student.data as unknown as Student;
+    if (input?.source === "PHOTO") {
+      if (!ownedStudentBlob(student.profileImageUrl, auth.session.studentId, "profile"))
+        return json({ success: false, error: "No hay una foto propia guardada para restaurar." }, 404);
+      const saved = await prisma.studentRecord.updateMany({
+        where: { id: auth.session.studentId, workspaceId: auth.session.credential.student.workspaceId, updatedAt: auth.session.credential.student.updatedAt },
+        data: { data: { ...student, avatarPresetId: "" } },
+      });
+      if (saved.count !== 1) return json({ success: false, error: "El perfil cambió. Actualizá antes de reintentar." }, 409);
+      const photoUrl = studentProfilePhoto(auth.session.studentId, student.profileImageUrl);
+      return json({ success: true, photoUrl, url: photoUrl, message: "Foto propia restaurada." });
+    }
     const avatar =
       typeof input?.avatarId === "string"
         ? profileAvatarById(input.avatarId)
@@ -158,13 +176,11 @@ export async function PUT(request: Request) {
         { success: false, error: "El avatar seleccionado no es válido." },
         400,
       );
-    const student = auth.session.credential.student.data as unknown as Student;
     const saved = await prisma.studentRecord.updateMany({
       where: { id: auth.session.studentId, workspaceId: auth.session.credential.student.workspaceId, updatedAt: auth.session.credential.student.updatedAt },
-      data: { data: { ...student, profileImageUrl: avatar.src } },
+      data: { data: { ...student, avatarPresetId: avatar.id } },
     });
     if (saved.count !== 1) return json({ success: false, error: "El perfil cambió. Actualizá antes de reintentar." }, 409);
-    await removeOwnedBlob(student.profileImageUrl ?? "", auth.session.studentId);
     return json({
       success: true,
       photoUrl: avatar.src,
@@ -187,7 +203,7 @@ export async function DELETE(request: Request) {
     const student = auth.session.credential.student.data as unknown as Student;
     const saved = await prisma.studentRecord.updateMany({
       where: { id: auth.session.studentId, workspaceId: auth.session.credential.student.workspaceId, updatedAt: auth.session.credential.student.updatedAt },
-      data: { data: { ...student, profileImageUrl: "" } },
+      data: { data: { ...student, profileImageUrl: "", avatarPresetId: "" } },
     });
     if (saved.count !== 1) return json({ success: false, error: "El perfil cambió. Actualizá antes de reintentar." }, 409);
     await removeOwnedBlob(student.profileImageUrl ?? "", auth.session.studentId);

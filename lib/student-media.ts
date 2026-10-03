@@ -1,3 +1,5 @@
+import { profileAvatarById, profileAvatarBySrc } from "./profile-avatars.ts";
+
 export type StudentMediaKind = "profile" | "ranking" | "progress";
 export type MediaStudent = { id: string; workspaceId: string; selfService: boolean };
 export type MediaActor =
@@ -29,9 +31,14 @@ export function studentMediaPath(kind: StudentMediaKind, id: string) {
   return `/api/portal/media/${kind}/${encodeURIComponent(id)}`;
 }
 
-export function studentProfilePhoto(id: string, source: unknown, ranking = false) {
+export function studentProfilePhoto(id: string, source: unknown, ranking = false, avatarPresetId?: unknown) {
+  if (typeof avatarPresetId === "string") {
+    const preset = profileAvatarById(avatarPresetId);
+    if (preset) return preset.src;
+  }
   if (typeof source !== "string" || !source) return "";
-  if (/^\/avatars\/[\w-]+\.(webp|png)$/.test(source)) return source;
+  const legacyPreset = profileAvatarBySrc(source);
+  if (legacyPreset) return legacyPreset.src;
   if (!ownedStudentBlob(source, id, "profile")) return "";
   // Non-secret render revision: changing a photo changes src without exposing its Blob URL.
   let revision = 2166136261;
@@ -39,8 +46,8 @@ export function studentProfilePhoto(id: string, source: unknown, ranking = false
   return `${studentMediaPath(ranking ? "ranking" : "profile", id)}?v=${revision >>> 0}`;
 }
 
-export function publicStudent<T extends { profileImageUrl?: unknown }>(id: string, data: T) {
-  return { ...data, profileImageUrl: studentProfilePhoto(id, data.profileImageUrl) };
+export function publicStudent<T extends { profileImageUrl?: unknown; avatarPresetId?: unknown }>(id: string, data: T) {
+  return { ...data, profileImageUrl: studentProfilePhoto(id, data.profileImageUrl, false, data.avatarPresetId) };
 }
 
 export const STUDENT_MEDIA_HEADERS = { "Cache-Control": "private, no-store", Vary: "Cookie", "X-Content-Type-Options": "nosniff" };

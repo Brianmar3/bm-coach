@@ -144,7 +144,7 @@ export async function GET(request: Request) {
       return {
         studentId: id,
         studentName: student ? name(student.data) : latestSession?.studentName ?? "Alumno",
-        profileImageUrl: studentProfilePhoto(id, studentData?.profileImageUrl),
+        profileImageUrl: studentProfilePhoto(id, studentData?.profileImageUrl, false, studentData?.avatarPresetId),
         activeRoutine: assignment ? {
           id: assignment.routine.id,
           name: assignment.routine.name,
