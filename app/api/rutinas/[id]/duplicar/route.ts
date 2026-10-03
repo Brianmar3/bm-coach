@@ -85,6 +85,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
     }));
     const input: RoutineInput = {
       name: body.name?.trim() || cleanRoutineCopyName(source.name),
+      trainerNotificationsEnabled: source.trainerNotificationsEnabled,
       kind: targetKind,
       description: source.description,
       objective: source.objective,
@@ -122,6 +123,7 @@ export async function POST(request: Request, context: RouteContext<"/api/rutinas
           workspaceId,
           scope: "WORKSPACE",
           name: input.name,
+          trainerNotificationsEnabled: input.trainerNotificationsEnabled,
           kind: input.kind === "template" ? "TEMPLATE" : "ASSIGNED",
           description: input.description,
           objective: input.objective,

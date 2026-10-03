@@ -1,7 +1,59 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { buildWorkoutCompletionNotification, isWorkoutTrainerNotificationEligible, workoutCompletionEventKey } from "../lib/workout-completion-notification.ts";
+import { buildWorkoutCompletionNotification, isWorkoutTrainerNotificationEligible, shouldNotifyTrainerOfWorkout, workoutCompletionEventKey } from "../lib/workout-completion-notification.ts";
+import { routineData, routineFingerprint, routineVersionSnapshot, validateRoutine, type RoutineInput } from "../lib/rutinas.ts";
+
+const routineInput = (trainerNotificationsEnabled?: boolean): RoutineInput => ({
+  name: "Plan", kind: "assigned", description: "", objective: "Fuerza", level: "principiante", status: "activa",
+  startDate: "", durationWeeks: null, priorityMuscles: [], location: "", equipment: [], tags: [], studentIds: [], days: [],
+  ...(trainerNotificationsEnabled === undefined ? {} : { trainerNotificationsEnabled }),
+});
+
+test("rutinas nuevas y existentes conservan avisos activos por defecto", () => {
+  assert.equal(routineData(routineInput()).trainerNotificationsEnabled, true);
+  assert.equal(routineVersionSnapshot(routineInput()).trainerNotificationsEnabled, true);
+  const schema = readFileSync("prisma/schema.prisma", "utf8");
+  const migration = readFileSync("prisma/migrations/20261003120000_training_routine_trainer_notifications/migration.sql", "utf8");
+  assert.match(schema, /trainerNotificationsEnabled\s+Boolean\s+@default\(true\)/);
+  assert.match(migration, /"trainerNotificationsEnabled" BOOLEAN NOT NULL DEFAULT true/);
+});
+
+test("desactivar y reactivar la preferencia cambia la versión persistida", () => {
+  assert.equal(routineData(routineInput(false)).trainerNotificationsEnabled, false);
+  assert.equal(routineData(routineInput(true)).trainerNotificationsEnabled, true);
+  assert.notEqual(routineFingerprint(routineInput(false)), routineFingerprint(routineInput(true)));
+  assert.equal(validateRoutine({ ...routineInput(), trainerNotificationsEnabled: "false" as unknown as boolean }), "Seleccioná una preferencia de notificaciones válida.");
+  const editor = readFileSync("app/rutinas/page.tsx", "utf8");
+  const update = readFileSync("app/api/rutinas/[id]/route.ts", "utf8");
+  assert.match(editor, /Notificaciones de esta rutina/);
+  assert.match(editor, /trainerNotificationsEnabled: event\.target\.checked/);
+  assert.match(update, /input\.trainerNotificationsEnabled \?\? existing\.trainerNotificationsEnabled/);
+  assert.match(update, /trainerNotificationsEnabled: snapshot\.trainerNotificationsEnabled \?\? routine\.trainerNotificationsEnabled/);
+});
+
+test("solo un entrenamiento completado y habilitado puede avisar al entrenador", () => {
+  const input = { completed: true, selfService: false, serviceType: "PERSONALIZED" as const, trainerNotificationsEnabled: true };
+  assert.equal(shouldNotifyTrainerOfWorkout(input), true);
+  assert.equal(shouldNotifyTrainerOfWorkout({ ...input, trainerNotificationsEnabled: false }), false);
+  assert.equal(shouldNotifyTrainerOfWorkout({ ...input, completed: false }), false);
+  assert.equal(shouldNotifyTrainerOfWorkout({ ...input, selfService: true }), false);
+  assert.equal(shouldNotifyTrainerOfWorkout({ ...input, serviceType: "CLASSES" }), false);
+  const route = readFileSync("app/api/portal/entrenamientos/route.ts", "utf8");
+  assert.match(route, /trainerNotificationsEnabled: assignment\.routine\.trainerNotificationsEnabled/);
+  assert.match(route, /if \(shouldNotifyTrainerOfWorkout\([\s\S]*await createWorkoutCompletedTrainerNotification/);
+  assert.match(route, /assignment\?\.routine\.workspaceId !== session\.credential\.student\.workspaceId/);
+});
+
+test("asistencia y otros avisos no dependen del switch; Web Push y FCM comparten el mismo envío", () => {
+  const attendance = readFileSync("app/api/portal/clases/route.ts", "utf8");
+  const notifications = readFileSync("lib/trainer-notifications.ts", "utf8");
+  assert.match(attendance, /createAttendanceTrainerNotification/);
+  assert.doesNotMatch(attendance, /trainerNotificationsEnabled/);
+  assert.match(notifications, /webpush\.sendNotification/);
+  assert.match(notifications, /sendTrainerNativePush\(workspaceId, brandedPayload\)/);
+  assert.doesNotMatch(notifications, /trainerNotificationsEnabled/);
+});
 
 test("PERSONALIZED registra entrenamiento y resulta elegible", () => {
   assert.equal(isWorkoutTrainerNotificationEligible("PERSONALIZED"), true);
@@ -52,7 +104,8 @@ test("la integración guarda primero, deduplica en DB y desacopla fallos Push", 
 
 test("sin dispositivos la notificación interna se conserva", () => {
   const notifications = readFileSync("lib/trainer-notifications.ts", "utf8");
-  assert.match(notifications, /subscriptions\.length === 0[\s\S]*pushError: "No hay dispositivos activos\."/);
+  assert.match(notifications, /subscriptions\.length === 0[\s\S]*errors\.push\("No hay dispositivos activos\."\)/);
+  assert.match(notifications, /pushError: delivered[\s\S]*errors\.join/);
   assert.doesNotMatch(notifications, /subscriptions\.length === 0[\s\S]*trainerNotification\.delete/);
 });
 

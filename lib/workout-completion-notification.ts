@@ -14,6 +14,15 @@ export function isWorkoutTrainerNotificationEligible(serviceType: StudentService
   return serviceType === "PERSONALIZED" || serviceType === "MIXED";
 }
 
+export function shouldNotifyTrainerOfWorkout(input: {
+  completed: boolean;
+  selfService: boolean;
+  serviceType: StudentServiceType;
+  trainerNotificationsEnabled: boolean;
+}) {
+  return input.completed && !input.selfService && input.trainerNotificationsEnabled && isWorkoutTrainerNotificationEligible(input.serviceType);
+}
+
 export function workoutCompletionEventKey(sessionId: string) {
   return `workout-completed:${sessionId}`;
 }

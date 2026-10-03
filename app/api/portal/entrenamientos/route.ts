@@ -12,7 +12,7 @@ import { validateWorkoutSessionInput } from "@/lib/workout-session-validation";
 import { getWeekKey, getWorkoutWeekRange, weeklySessionLockKey } from "@/lib/workout-week";
 import { after } from "next/server";
 import { createWorkoutCompletedTrainerNotification, dispatchTrainerPush } from "@/lib/trainer-notifications";
-import { isWorkoutTrainerNotificationEligible } from "@/lib/workout-completion-notification";
+import { shouldNotifyTrainerOfWorkout } from "@/lib/workout-completion-notification";
 import { isSelfService } from "@/lib/self-service";
 
 export const runtime = "nodejs";
@@ -275,7 +275,12 @@ export async function POST(request: Request) {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     saveStage = "post-save";
     const student = session.credential.student.data as unknown as Student;
-    if (input.status === "finalizado" && !isSelfService(student) && isWorkoutTrainerNotificationEligible(session.credential.student.serviceType)) {
+    if (shouldNotifyTrainerOfWorkout({
+      completed: input.status === "finalizado",
+      selfService: isSelfService(student),
+      serviceType: session.credential.student.serviceType,
+      trainerNotificationsEnabled: assignment.routine.trainerNotificationsEnabled,
+    })) {
       const studentName = [student.firstName, student.lastName].filter(Boolean).join(" ").trim();
       const result = await createWorkoutCompletedTrainerNotification({
         studentId: session.studentId,

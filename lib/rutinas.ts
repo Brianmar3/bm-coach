@@ -19,6 +19,7 @@ export type RoutineDayInput = {
 export type RoutineInput = {
   name: string;
   kind: TrainingRoutineKind;
+  trainerNotificationsEnabled?: boolean;
   description: string;
   objective: string;
   level: TrainingRoutineLevel;
@@ -136,6 +137,7 @@ export function routineValidationIssues(input: RoutineInput): RoutineValidationI
   const issues: RoutineValidationIssue[] = [];
   const add = (key: string, message: string, dayNumber?: number, context?: string) => issues.push({ key, message, dayNumber, summary: context ? `${context}: ${message}` : message });
   if (!kinds.includes(input.kind)) add("routine.kind", "Seleccioná un tipo de rutina válido.");
+  if (input.trainerNotificationsEnabled !== undefined && typeof input.trainerNotificationsEnabled !== "boolean") add("routine.trainerNotificationsEnabled", "Seleccioná una preferencia de notificaciones válida.");
   if (!input.name?.trim() || input.name.trim().length > 120) add("routine.name", "Ingresá un nombre de rutina de hasta 120 caracteres.");
   if (!input.objective?.trim() || input.objective.trim().length > 100) add("routine.objective", "Seleccioná un objetivo válido.");
   if (!levels.includes(input.level)) add("routine.level", "Seleccioná un nivel válido.");
@@ -229,6 +231,7 @@ export function blockData(input: BlockInput) {
 export function routineData(input: RoutineInput) {
   return {
     name: input.name.trim(),
+    trainerNotificationsEnabled: input.trainerNotificationsEnabled ?? true,
     kind: kindToDatabase[input.kind],
     description: input.description.trim(),
     objective: input.objective.trim(),
@@ -270,6 +273,7 @@ export async function createRoutineDays(transaction: Prisma.TransactionClient, r
 export function routineVersionSnapshot(input: RoutineInput) {
   return {
     name: input.name.trim(),
+    trainerNotificationsEnabled: input.trainerNotificationsEnabled ?? true,
     kind: input.kind,
     description: input.description.trim(),
     objective: input.objective.trim(),
@@ -370,6 +374,7 @@ export function serializeRoutine(record: RoutineWithRelations): TrainingRoutine 
   return {
     id: record.id,
     name: record.name,
+    trainerNotificationsEnabled: record.trainerNotificationsEnabled,
     kind: kindFromDatabase[record.kind],
     description: record.description,
     objective: record.objective,

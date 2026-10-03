@@ -1233,6 +1233,7 @@ enum TrainingExerciseTargetType {
 model TrainingRoutine {
   id              String                      @id @default(cuid())
   workspaceId     String
+  trainerNotificationsEnabled Boolean         @default(true)
   scope           WorkspaceContentScope       @default(WORKSPACE)
   name            String
   objective       String

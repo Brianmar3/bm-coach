@@ -345,6 +345,7 @@ export type TrainingRoutineDay = {
 export type TrainingRoutine = {
   id: string;
   name: string;
+  trainerNotificationsEnabled?: boolean;
   objective: string;
   level: TrainingRoutineLevel;
   status: TrainingRoutineStatus;

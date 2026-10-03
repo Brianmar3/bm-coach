@@ -20,6 +20,7 @@ export type ClassBaseDayDraft = {
 
 export type ClassBaseRoutineDraft = {
   name: string;
+  trainerNotificationsEnabled?: boolean;
   kind: TrainingRoutineKind;
   description: string;
   objective: string;
@@ -127,6 +128,7 @@ export function classTemplateToClassDraft(
   const name = `Copia de ${source.name}`;
   return {
     name,
+    trainerNotificationsEnabled: source.trainerNotificationsEnabled ?? true,
     kind: "template",
     description: source.description,
     objective: source.objective,
@@ -150,6 +152,7 @@ export function classTemplateToRoutineDraft(
   assertReusable(source);
   return {
     name: source.name,
+    trainerNotificationsEnabled: source.trainerNotificationsEnabled ?? true,
     kind: "assigned",
     description: source.description,
     objective: source.objective,

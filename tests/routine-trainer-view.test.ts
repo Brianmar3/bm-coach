@@ -146,7 +146,7 @@ test("una rutina activa no muestra Guardar como Activa", () => {
 
 test("la actualización fuerza el estado ACTIVA en cliente y servidor", () => {
   assert.match(submitFlow, /updatingActiveRoutine \? "activa"/);
-  assert.match(api, /existing\.status === "ACTIVA" \? \{ \.\.\.input, status: "activa" as const \} : input/);
+  assert.match(api, /existing\.status === "ACTIVA"[\s\S]*status: "activa" as const/);
   assert.match(api, /routineData\(updateInput\)/);
 });
 

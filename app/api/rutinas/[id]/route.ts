@@ -19,10 +19,11 @@ function changeSummary(previous: RoutineInput, next: RoutineInput) {
   if (previous.objective !== next.objective) changes.push("objetivo");
   if (previous.level !== next.level) changes.push("nivel");
   if (previous.status !== next.status) changes.push("estado");
+  if (previous.trainerNotificationsEnabled !== next.trainerNotificationsEnabled) changes.push("notificaciones");
   if (previous.startDate !== next.startDate || previous.durationWeeks !== next.durationWeeks) changes.push("planificación");
   if ([...previous.priorityMuscles].sort().join("|") !== [...next.priorityMuscles].sort().join("|")) changes.push("músculos prioritarios");
   if ([...previous.studentIds].sort().join("|") !== [...next.studentIds].sort().join("|")) changes.push("asignaciones");
-  if (routineFingerprint({ ...previous, name: next.name, objective: next.objective, level: next.level, status: next.status, studentIds: next.studentIds }) !== routineFingerprint(next)) changes.push("días o ejercicios");
+  if (routineFingerprint({ ...previous, name: next.name, objective: next.objective, level: next.level, status: next.status, studentIds: next.studentIds, trainerNotificationsEnabled: next.trainerNotificationsEnabled }) !== routineFingerprint(next)) changes.push("días o ejercicios");
   return changes.length ? `Cambios en ${changes.join(", ")}` : "Rutina actualizada";
 }
 
@@ -79,10 +80,13 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         },
       });
       if (!existing) throw new Prisma.PrismaClientKnownRequestError("Rutina no encontrada", { code: "P2025", clientVersion: Prisma.prismaVersion.client });
-      const updateInput = existing.status === "ACTIVA" ? { ...input, status: "activa" as const } : input;
+      const updateInput = existing.status === "ACTIVA"
+        ? { ...input, trainerNotificationsEnabled: input.trainerNotificationsEnabled ?? existing.trainerNotificationsEnabled, status: "activa" as const }
+        : { ...input, trainerNotificationsEnabled: input.trainerNotificationsEnabled ?? existing.trainerNotificationsEnabled };
       if ((existing.kind === "TEMPLATE" ? "template" : "assigned") !== updateInput.kind) throw new Error("ROUTINE_KIND_IMMUTABLE");
       const currentInput: RoutineInput = {
         name: existing.name,
+        trainerNotificationsEnabled: existing.trainerNotificationsEnabled,
         kind: existing.kind === "TEMPLATE" ? "template" : "assigned",
         description: existing.description,
         objective: existing.objective,
@@ -303,7 +307,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
     if (input.action === "restoreVersion") {
       if (!input.versionId?.trim()) return Response.json({ error: "La versión seleccionada no es válida." }, { status: 400 });
       const version = await prisma.trainingRoutineVersion.findFirst({ where: { id: input.versionId, routineId: id }, select: { snapshot: true } });
-      const routine = await prisma.trainingRoutine.findUnique({ where: { id }, select: { status: true } });
+      const routine = await prisma.trainingRoutine.findUnique({ where: { id }, select: { status: true, trainerNotificationsEnabled: true } });
       if (!version || !routine) return Response.json({ error: "Rutina o versión no encontrada." }, { status: 404 });
       const snapshot = version.snapshot as unknown as Partial<RoutineInput>;
       if (!snapshot.name || !snapshot.objective || !snapshot.level || !Array.isArray(snapshot.days) || !Array.isArray(snapshot.studentIds)) {
@@ -311,6 +315,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/rutina
       }
       const restoredInput: RoutineInput = {
         name: snapshot.name,
+        trainerNotificationsEnabled: snapshot.trainerNotificationsEnabled ?? routine.trainerNotificationsEnabled,
         kind: snapshot.kind ?? "assigned",
         description: snapshot.description ?? "",
         objective: snapshot.objective,
