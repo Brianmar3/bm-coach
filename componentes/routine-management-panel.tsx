@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { RoutineStatusSection } from "@/lib/routine-list-organization";
+import { routineActionMenuPosition } from "@/lib/routine-action-menu-position";
 import type { TrainingRoutine } from "@/types/gestion";
 
 type Mode = "rutinas" | "plantillas" | "asignaciones";
@@ -97,19 +99,75 @@ export function RoutineManagementPanel({ routines, mode, routineSection, ready, 
 function RoutineRow({ routine, mode, selected, menuOpen, busy, duplicating, select, toggleMenu, requestDelete, actions }: { routine: TrainingRoutine; mode: Mode; selected: boolean; menuOpen: boolean; busy: boolean; duplicating: boolean; select: () => void; toggleMenu: () => void; requestDelete: () => void; actions: Actions }) {
   const summary = routine.managementSummary;
   return <article onClick={select} className={`relative transition hover:bg-white/[.025] ${selected ? "bg-yellow-400/[.045] shadow-[inset_3px_0_0_#facc15]" : ""}`}>
-    <div className="hidden min-h-[78px] grid-cols-[minmax(140px,1.35fr)_minmax(110px,.9fr)_minmax(85px,.7fr)_70px_80px_90px_75px_112px] items-center gap-3 px-4 py-3 lg:grid"><Name primary={mode === "asignaciones" ? studentNames(routine) : routine.name} secondary={mode === "asignaciones" ? routine.name : `ID: ${routine.id.slice(-10).toUpperCase()}`} /><span className="truncate text-xs text-zinc-300">{mode === "asignaciones" ? routine.name : studentNames(routine)}</span><span className="truncate text-xs text-zinc-400">{routine.objective || "Sin definir"}</span><StatusBadge routine={routine} /><span className="text-xs text-zinc-300">{routine.days.length} días<br/><span className="text-zinc-500">{exerciseCount(routine)} ejercicios</span></span><span className="text-xs text-zinc-300">{showDate(summary?.latestSessionDate ?? "")}<br/><span className="text-zinc-500">{relativeDate(summary?.latestSessionDate ?? "")}</span></span><Progress routine={routine} /><VisibleActions routine={routine} mode={mode} menuOpen={menuOpen} busy={busy} duplicating={duplicating} toggleMenu={toggleMenu} requestDelete={requestDelete} actions={actions} /></div>
-    <div className="p-4 lg:hidden"><div className="flex items-start justify-between gap-3"><Name primary={mode === "asignaciones" ? studentNames(routine) : routine.name} secondary={mode === "asignaciones" ? routine.name : studentNames(routine)} /><StatusBadge routine={routine} /></div><p className="mt-3 text-xs text-zinc-400">{routine.objective} · {routine.days.length} días · {exerciseCount(routine)} ejercicios</p><div className="mt-3 flex items-end justify-between gap-3"><div><p className="text-[10px] text-zinc-500">Última sesión</p><p className="mt-1 text-xs text-zinc-300">{relativeDate(summary?.latestSessionDate ?? "")}</p></div><Progress routine={routine} /></div><div className="mt-4"><VisibleActions routine={routine} mode={mode} menuOpen={menuOpen} busy={busy} duplicating={duplicating} toggleMenu={toggleMenu} requestDelete={requestDelete} actions={actions} /></div></div>
+    <div className="hidden min-h-[78px] grid-cols-[minmax(140px,1.35fr)_minmax(110px,.9fr)_minmax(85px,.7fr)_70px_80px_90px_75px_112px] items-center gap-3 px-4 py-3 lg:grid"><Name primary={mode === "asignaciones" ? studentNames(routine) : routine.name} secondary={mode === "asignaciones" ? routine.name : `ID: ${routine.id.slice(-10).toUpperCase()}`} /><span className="truncate text-xs text-zinc-300">{mode === "asignaciones" ? routine.name : studentNames(routine)}</span><span className="truncate text-xs text-zinc-400">{routine.objective || "Sin definir"}</span><StatusBadge routine={routine} /><span className="text-xs text-zinc-300">{routine.days.length} días<br/><span className="text-zinc-500">{exerciseCount(routine)} ejercicios</span></span><span className="text-xs text-zinc-300">{showDate(summary?.latestSessionDate ?? "")}<br/><span className="text-zinc-500">{relativeDate(summary?.latestSessionDate ?? "")}</span></span><Progress routine={routine} /><VisibleActions variant="desktop" routine={routine} mode={mode} menuOpen={menuOpen} busy={busy} duplicating={duplicating} toggleMenu={toggleMenu} requestDelete={requestDelete} actions={actions} /></div>
+    <div className="p-4 lg:hidden"><div className="flex items-start justify-between gap-3"><Name primary={mode === "asignaciones" ? studentNames(routine) : routine.name} secondary={mode === "asignaciones" ? routine.name : studentNames(routine)} /><StatusBadge routine={routine} /></div><p className="mt-3 text-xs text-zinc-400">{routine.objective} · {routine.days.length} días · {exerciseCount(routine)} ejercicios</p><div className="mt-3 flex items-end justify-between gap-3"><div><p className="text-[10px] text-zinc-500">Última sesión</p><p className="mt-1 text-xs text-zinc-300">{relativeDate(summary?.latestSessionDate ?? "")}</p></div><Progress routine={routine} /></div><div className="mt-4"><VisibleActions variant="mobile" routine={routine} mode={mode} menuOpen={menuOpen} busy={busy} duplicating={duplicating} toggleMenu={toggleMenu} requestDelete={requestDelete} actions={actions} /></div></div>
   </article>;
 }
 
 function Name({ primary, secondary }: { primary: string; secondary: string }) { return <div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full border border-yellow-400/20 bg-yellow-400/[.06] text-sm text-yellow-300">↔</span><span className="min-w-0"><strong className="block truncate text-sm text-zinc-100">{primary}</strong><span className="mt-1 block truncate text-[10px] text-zinc-500">{secondary}</span></span></div>; }
 
-function VisibleActions({ routine, mode, menuOpen, busy, duplicating, toggleMenu, requestDelete, actions }: { routine: TrainingRoutine; mode: Mode; menuOpen: boolean; busy: boolean; duplicating: boolean; toggleMenu: () => void; requestDelete: () => void; actions: Actions }) {
+function VisibleActions({ variant, routine, mode, menuOpen, busy, duplicating, toggleMenu, requestDelete, actions }: { variant: "desktop" | "mobile"; routine: TrainingRoutine; mode: Mode; menuOpen: boolean; busy: boolean; duplicating: boolean; toggleMenu: () => void; requestDelete: () => void; actions: Actions }) {
   const isDraft = mode !== "plantillas" && routine.status === "borrador";
   const reusableCompleteClass = mode === "plantillas" && routine.days.length === 1;
   const primaryLabel = mode === "plantillas" ? reusableCompleteClass ? "Usar como base" : "Usar plantilla" : isDraft ? "Continuar editando" : "Abrir plan";
   const primaryAction = mode === "plantillas" ? reusableCompleteClass ? () => actions.useAsBase(routine) : () => actions.useTemplate(routine) : isDraft ? () => actions.edit(routine) : () => actions.openPlan(routine);
-  return <div className="relative flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}><button type="button" onClick={primaryAction} className="min-h-9 rounded-lg border border-yellow-400/30 px-3 text-xs font-bold text-zinc-100">{primaryLabel}</button>{routine.kind === "assigned" && <button type="button" onClick={() => actions.openTracking(routine)} aria-label="Abrir seguimiento" className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-yellow-300">↗</button>}<button type="button" onClick={toggleMenu} aria-label="Más acciones" aria-expanded={menuOpen} className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-300">⋮</button>{menuOpen && <div className="absolute right-0 top-11 z-30 w-52 overflow-hidden rounded-xl border border-zinc-700 bg-[#171717] p-1 text-left text-xs shadow-2xl"><MenuItem label="Editar" disabled={routine.status === "archivada"} action={() => actions.edit(routine)} />{!reusableCompleteClass && <MenuItem label={duplicating ? "Duplicando…" : "Duplicar"} disabled={duplicating} action={() => actions.duplicate(routine)} />}{routine.kind === "assigned" && <><MenuItem label="Usar como plantilla" action={() => actions.saveAsTemplate(routine)} />{routine.status !== "archivada" && <MenuItem label="Asignar alumnos" action={() => actions.manageAssignments(routine)} />}</>}<MenuItem label="Historial de versiones" action={() => actions.history(routine)} />{routine.status === "archivada" ? <MenuItem label="Restaurar" disabled={busy} action={() => actions.restore(routine)} /> : <MenuItem label="Archivar" disabled={busy} action={() => actions.archive(routine)} />}<div className="my-1 border-t border-zinc-800"/><MenuItem label="Eliminar rutina" danger disabled={busy} action={requestDelete} /></div>}</div>;
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<ReturnType<typeof routineActionMenuPosition> | null>(null);
+  const menuId = `routine-actions-${routine.id}-${variant}`;
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !triggerRef.current || !menuRef.current) return;
+    const anchor = triggerRef.current.getBoundingClientRect();
+    if (!anchor.width || !anchor.height) { setPosition(null); return; }
+    const menu = menuRef.current;
+    setPosition(routineActionMenuPosition(anchor, { width: menu.getBoundingClientRect().width, height: menu.scrollHeight + 2 }, { width: window.innerWidth, height: window.innerHeight }));
+  }, [menuOpen, mode, routine.kind, routine.status]);
+
+  useEffect(() => {
+    if (!menuOpen || !position) return;
+    const outside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && (triggerRef.current?.contains(target) || menuRef.current?.contains(target))) return;
+      toggleMenu();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      toggleMenu();
+      triggerRef.current?.focus();
+    };
+    const scroll = (event: Event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      toggleMenu();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", toggleMenu);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("resize", toggleMenu);
+    };
+  }, [menuOpen, position, toggleMenu]);
+
+  const closeAndRun = (action: () => void) => () => { toggleMenu(); action(); };
+  return <div className="relative flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+    <button type="button" onClick={primaryAction} className="min-h-9 rounded-lg border border-yellow-400/30 px-3 text-xs font-bold text-zinc-100">{primaryLabel}</button>
+    {routine.kind === "assigned" && <button type="button" onClick={() => actions.openTracking(routine)} aria-label="Abrir seguimiento" className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-yellow-300">↗</button>}
+    <button ref={triggerRef} type="button" onClick={() => { setPosition(null); toggleMenu(); }} aria-label="Más acciones" aria-expanded={menuOpen} aria-controls={menuId} className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-300">⋮</button>
+    {menuOpen && createPortal(<div ref={menuRef} id={menuId} style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? 208, maxHeight: position?.maxHeight ?? "calc(100dvh - 16px)", visibility: position ? "visible" : "hidden" }} className="fixed z-[70] w-52 overflow-y-auto overscroll-contain rounded-xl border border-zinc-700 bg-[#171717] p-1 text-left text-xs shadow-2xl">
+      <MenuItem label="Editar" disabled={routine.status === "archivada"} action={closeAndRun(() => actions.edit(routine))} />
+      {!reusableCompleteClass && <MenuItem label={duplicating ? "Duplicando…" : "Duplicar"} disabled={duplicating} action={closeAndRun(() => actions.duplicate(routine))} />}
+      {routine.kind === "assigned" && <><MenuItem label="Usar como plantilla" action={closeAndRun(() => actions.saveAsTemplate(routine))} />{routine.status !== "archivada" && <MenuItem label="Asignar alumnos" action={closeAndRun(() => actions.manageAssignments(routine))} />}</>}
+      <MenuItem label="Historial de versiones" action={closeAndRun(() => actions.history(routine))} />
+      {routine.status === "archivada" ? <MenuItem label="Restaurar" disabled={busy} action={closeAndRun(() => actions.restore(routine))} /> : <MenuItem label="Archivar" disabled={busy} action={closeAndRun(() => actions.archive(routine))} />}
+      <div className="my-1 border-t border-zinc-800" />
+      <MenuItem label="Eliminar rutina" danger disabled={busy} action={closeAndRun(requestDelete)} />
+    </div>, document.body)}
+  </div>;
 }
 
 function MenuItem({ label, action, disabled = false, danger = false }: { label: string; action: () => void; disabled?: boolean; danger?: boolean }) { return <button type="button" disabled={disabled} onClick={action} className={`min-h-10 w-full rounded-lg px-3 text-left font-semibold disabled:opacity-40 ${danger ? "text-red-300 hover:bg-red-400/10" : "text-zinc-300 hover:bg-zinc-800"}`}>{label}</button>; }
