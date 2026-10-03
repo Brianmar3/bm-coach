@@ -10,6 +10,7 @@ export const routineDuplicateAuditSelect = {
   updatedAt: true,
   assignments: { select: { studentId: true, active: true, student: { select: { data: true } } } },
   workoutSessions: { select: { date: true }, orderBy: { date: "desc" }, take: 1 },
+  versions: { select: { version: true, summary: true, snapshot: true }, orderBy: { version: "asc" }, take: 1 },
   days: {
     orderBy: { dayNumber: "asc" },
     select: {
@@ -73,6 +74,7 @@ export function duplicateAuditSource(record: AuditRecord): DuplicateRoutineAudit
     lastSessionAt: record.workoutSessions[0]?.date ?? null,
     assignmentCount: record._count.assignments,
     versionCount: record._count.versions,
+    initialVersion: record.versions[0] ?? null,
     exerciseLogCount: exercises.reduce((total, exercise) => total + exercise._count.workoutLogs, 0),
     blockLogCount: blocks.reduce((total, block) => total + block._count.workoutLogs, 0),
     followUpCount: exercises.reduce((total, exercise) => total + exercise._count.followUpComments, 0),

@@ -43,6 +43,7 @@ export type DuplicateRoutineAuditSource = {
   lastSessionAt: Date | null;
   assignmentCount: number;
   versionCount: number;
+  initialVersion: { version: number; summary: string; snapshot: unknown } | null;
   exerciseLogCount: number;
   blockLogCount: number;
   followUpCount: number;
@@ -121,12 +122,22 @@ export function routineStructureFingerprint(routine: Pick<DuplicateRoutineAuditS
   });
 }
 
+function hasOnlyCreationVersion(source: DuplicateRoutineAuditSource) {
+  if (source.versionCount !== 1 || !source.initialVersion) return false;
+  const { version, summary, snapshot } = source.initialVersion;
+  if (version !== 1 || !["Versión inicial", "Copia independiente creada"].includes(summary)) return false;
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return false;
+  const studentIds = (snapshot as Record<string, unknown>).studentIds;
+  return Array.isArray(studentIds) && studentIds.length === 0;
+}
+
 export function routineDeletionRisk(source: DuplicateRoutineAuditSource) {
   const reasons: string[] = [];
   if (source.status === "ACTIVA") reasons.push("La rutina está activa.");
   if (source.assignmentCount > 0) reasons.push(`Tiene ${source.assignmentCount} asignación${source.assignmentCount === 1 ? "" : "es"} de alumno.`);
   if (source.sessionCount > 0) reasons.push(`Tiene ${source.sessionCount} sesión${source.sessionCount === 1 ? "" : "es"} registrada${source.sessionCount === 1 ? "" : "s"}.`);
-  if (source.versionCount > 0) reasons.push(`Tiene ${source.versionCount} versión${source.versionCount === 1 ? "" : "es"} histórica${source.versionCount === 1 ? "" : "s"}.`);
+  if (source.versionCount > 1) reasons.push("Tiene historial de versiones.");
+  else if (source.versionCount === 1 && !hasOnlyCreationVersion(source)) reasons.push("Su única versión no es una versión inicial sin alumnos.");
   if (source.exerciseLogCount > 0) reasons.push("Tiene progreso de ejercicios asociado.");
   if (source.blockLogCount > 0) reasons.push("Tiene progreso de bloques asociado.");
   if (source.followUpCount > 0) reasons.push("Tiene comentarios de seguimiento asociados.");
@@ -173,7 +184,7 @@ export function findPossibleRoutineDuplicates(sources: DuplicateRoutineAuditSour
           exerciseLogCount: source.exerciseLogCount,
           blockLogCount: source.blockLogCount,
           followUpCount: source.followUpCount,
-          hasHistory: source.sessionCount + source.versionCount + source.exerciseLogCount + source.blockLogCount + source.followUpCount > 0,
+          hasHistory: source.sessionCount + source.exerciseLogCount + source.blockLogCount + source.followUpCount > 0 || (source.versionCount > 0 && !hasOnlyCreationVersion(source)),
           safeToDelete: riskReasons.length === 0,
           riskReasons,
         };
