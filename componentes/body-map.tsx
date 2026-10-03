@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { BodyMapFigure, type BodyMapView } from "./body-map-figure";
 
 export type WeeklyItem = { muscleGroup: string; series: number; percentage: number };
 
@@ -18,10 +19,11 @@ export function mapMuscleToZone(muscle: string) {
   if (key.includes("aduct") || key.includes("aductores")) return "adductors";
   if (key.includes("gemel") || key.includes("pantorr")) return "calves";
   if (key.includes("pech") || key.includes("pecho")) return "chest";
-  if (key.includes("espald") || key.includes("esp")) return "back";
+  if (key.includes("espald") || key.includes("dorsal") || key.includes("lumb")) return "back";
   if (key.includes("hombro") || key.includes("hombros")) return "shoulders";
   if (key.includes("biceps") || key.includes("biceps")) return "biceps";
   if (key.includes("triceps") || key.includes("tricep")) return "triceps";
+  if (key.includes("antebra") || key.includes("braquiorradial")) return "forearms";
   if (key.includes("core") || key.includes("abdomen") || key.includes("abdom")) return "core";
   return "other";
 }
@@ -46,6 +48,7 @@ export default function BodyMapModal({
 }) {
   const modalRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<BodyMapView>("front");
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -74,7 +77,7 @@ export default function BodyMapModal({
   const maxSeries = Math.max(0, ...Object.values(mapped));
   const totalSeries = weekly.reduce((s, i) => s + i.series, 0);
 
-  const upperZones = ["chest", "back", "shoulders", "biceps", "triceps", "core"];
+  const upperZones = ["chest", "back", "shoulders", "biceps", "triceps", "forearms", "core"];
   const lowerZones = ["glutes", "quad", "hamstring", "adductors", "calves"];
 
   const upperSeries = Object.entries(mapped).filter(([k]) => upperZones.includes(k)).reduce((s, [,v]) => s+v,0);
@@ -84,6 +87,7 @@ export default function BodyMapModal({
   const lowerPct = totalSeries ? Math.round((lowerSeries / totalSeries) * 100) : 0;
 
   const zoneColor = (zone: string) => intensityColor(mapped[zone] || 0, maxSeries);
+  const zoneSeries = (zone: string) => mapped[zone] || 0;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
@@ -103,7 +107,7 @@ export default function BodyMapModal({
         </button>
 
         <div className="overflow-y-auto flex-1 px-4 py-4 sm:px-6 sm:py-5">
-          <h3 id="modal-title" className="text-lg sm:text-xl font-bold text-amber-300">Mapa corporal semanal</h3>
+          <h3 id="modal-title" className="pr-14 text-lg sm:text-xl font-bold text-amber-300">Mapa corporal semanal</h3>
 
           <div className="mt-3 sm:mt-4 grid grid-cols-2 gap-4 sm:flex sm:gap-6 sm:items-center">
             <div className="text-sm text-zinc-300">
@@ -114,105 +118,18 @@ export default function BodyMapModal({
               <div className="text-xs text-zinc-500 uppercase tracking-wide">Tren inferior</div>
               <div className="text-xl sm:text-2xl font-bold text-zinc-100">{lowerPct}%</div>
             </div>
-            {totalSeries > 0 && (
-              <div className="col-span-2 sm:col-span-1 text-xs text-zinc-500">
-                Máx. referencia: <span className="text-amber-400 font-semibold">{maxSeries}</span> series
-              </div>
-            )}
+            <div className="col-span-2 sm:col-span-1 text-xs text-zinc-500">
+              Máx. referencia: <span className="text-amber-400 font-semibold">{maxSeries}</span> series
+            </div>
           </div>
 
-          <div className="mt-5 sm:mt-6 grid grid-cols-1 gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Vista Frontal</h4>
-              <svg viewBox="0 0 240 500" className="w-full max-w-xs h-auto aspect-[3/5]" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa corporal frontal">
-                <defs>
-                  <linearGradient id="frontGrad" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#1a1a1a" />
-                    <stop offset="100%" stopColor="#0d0d0d" />
-                  </linearGradient>
-                </defs>
-
-                {/* Head */}
-                <circle cx="120" cy="35" r="20" fill="#1a1a1a" stroke="#d4af37" strokeWidth="0.5" />
-
-                {/* Shoulders - upper body frame */}
-                <ellipse cx="75" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
-                <ellipse cx="165" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Chest */}
-                <path d="M 90 65 Q 120 55 150 65 L 150 110 Q 120 115 90 110 Z" fill={zoneColor("chest")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Biceps Left */}
-                <rect x="50" y="70" width="20" height="60" rx="10" fill={zoneColor("biceps")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Triceps Left (back area) */}
-                <ellipse cx="120" cy="95" rx="8" ry="20" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1"/>
-
-                {/* Biceps Right */}
-                <rect x="170" y="70" width="20" height="60" rx="10" fill={zoneColor("biceps")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Triceps Right (back area) */}
-                <ellipse cx="120" cy="95" rx="8" ry="20" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1"/>
-
-                {/* Core/Abdomen */}
-                <path d="M 95 115 L 145 115 L 145 165 Q 120 175 95 165 Z" fill={zoneColor("core")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Quads Left */}
-                <path d="M 80 165 Q 75 200 80 260 L 100 270 Q 100 210 95 165 Z" fill={zoneColor("quad")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Quads Right */}
-                <path d="M 160 165 Q 165 200 160 260 L 140 270 Q 140 210 145 165 Z" fill={zoneColor("quad")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Adductors Left (inner) */}
-                <ellipse cx="85" cy="210" rx="8" ry="35" fill={zoneColor("adductors")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Adductors Right (inner) */}
-                <ellipse cx="155" cy="210" rx="8" ry="35" fill={zoneColor("adductors")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Calves Left */}
-                <path d="M 80 270 Q 75 310 85 360 L 100 360 Q 95 310 100 270 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Calves Right */}
-                <path d="M 160 270 Q 165 310 155 360 L 140 360 Q 145 310 140 270 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
-              </svg>
-            </div>
-
-            <div className="flex flex-col items-center gap-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Vista Posterior</h4>
-              <svg viewBox="0 0 240 500" className="w-full max-w-xs h-auto aspect-[3/5]" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa corporal posterior">
-                <defs>
-                  <linearGradient id="backGrad" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#151515" />
-                    <stop offset="100%" stopColor="#0a0a0a" />
-                  </linearGradient>
-                </defs>
-
-                {/* Head */}
-                <circle cx="120" cy="35" r="20" fill="#151515" stroke="#d4af37" strokeWidth="0.5" />
-
-                {/* Shoulders - upper back */}
-                <ellipse cx="75" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
-                <ellipse cx="165" cy="60" rx="18" ry="24" fill={zoneColor("shoulders")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Upper Back */}
-                <path d="M 95 65 Q 120 55 145 65 L 145 115 Q 120 120 95 115 Z" fill={zoneColor("back")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Lower Back (upper glutes region) */}
-                <ellipse cx="120" cy="145" rx="35" ry="25" fill={zoneColor("back")} stroke="#8b7621" strokeWidth="1"/>
-
-                {/* Glutes */}
-                <ellipse cx="120" cy="180" rx="40" ry="32" fill={zoneColor("glutes")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Hamstrings Left */}
-                <path d="M 85 210 Q 78 250 82 310 L 100 320 Q 100 260 100 210 Z" fill={zoneColor("hamstring")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Hamstrings Right */}
-                <path d="M 155 210 Q 162 250 158 310 L 140 320 Q 140 260 140 210 Z" fill={zoneColor("hamstring")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Calves Left */}
-                <path d="M 82 320 Q 75 350 80 410 L 95 410 Q 95 360 100 320 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Calves Right */}
-                <path d="M 158 320 Q 165 350 160 410 L 145 410 Q 145 360 140 320 Z" fill={zoneColor("calves")} stroke="#8b7621" strokeWidth="1.5"/>
-
-                {/* Triceps Left arm (extended view) */}
-                <rect x="50" y="70" width="18" height="65" rx="9" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1.5"/>
-                {/* Triceps Right arm */}
-                <rect x="172" y="70" width="18" height="65" rx="9" fill={zoneColor("triceps")} stroke="#8b7621" strokeWidth="1.5"/>
-              </svg>
+          <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl border border-amber-400/15 bg-black/40 p-1" role="tablist" aria-label="Vista del mapa corporal">
+            <button type="button" role="tab" aria-selected={view === "front"} onClick={() => setView("front")} className={"min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors " + (view === "front" ? "bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/35" : "text-zinc-400 hover:text-zinc-100")}>Vista anterior</button>
+            <button type="button" role="tab" aria-selected={view === "back"} onClick={() => setView("back")} className={"min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors " + (view === "back" ? "bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/35" : "text-zinc-400 hover:text-zinc-100")}>Vista posterior</button>
+          </div>
+          <div className="mt-3 flex min-h-[320px] items-center justify-center rounded-2xl border border-amber-400/10 bg-[radial-gradient(ellipse_at_50%_40%,rgba(131,101,39,0.12),transparent_65%)]">
+            <div className="h-[min(55dvh,500px)] min-h-[320px] w-full max-w-[340px]">
+              <BodyMapFigure view={view} zoneColor={zoneColor} zoneSeries={zoneSeries} />
             </div>
           </div>
 
@@ -237,6 +154,11 @@ export default function BodyMapModal({
               </div>
             </div>
           </div>
+          <section className="mt-5 border-t border-amber-400/10 pt-4" aria-labelledby="body-map-distribution-title">
+            <h4 id="body-map-distribution-title" className="text-xs font-bold uppercase tracking-[.14em] text-amber-300">Distribución semanal</h4>
+            <p className="mt-1 text-xs text-zinc-500">Series configuradas por grupo muscular.</p>
+            {weekly.length ? <div className="mt-3 grid gap-x-5 gap-y-3 sm:grid-cols-2">{weekly.map((item) => <div key={item.muscleGroup} className="min-w-0"><div className="flex items-center justify-between gap-2 text-xs"><span className="truncate text-zinc-200">{item.muscleGroup}</span><span className="shrink-0 text-zinc-400">{item.series} · {Math.round(item.percentage)}%</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${item.percentage}%` }} /></div></div>)}</div> : <p className="mt-3 text-sm text-zinc-500">No hay series configuradas.</p>}
+          </section>
         </div>
       </div>
     </div>

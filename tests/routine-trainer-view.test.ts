@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
+import { renderToStaticMarkup } from "react-dom/server";
+import React from "react";
+import ts from "typescript";
 import { searchStudents } from "../lib/student-search.ts";
 import { isActivePainReport, routineTrainingLocation } from "../lib/routine-follow-up-filters.ts";
 import { routineArrowDirection, routineControlNeedsScroll } from "../lib/routine-keyboard-navigation.ts";
@@ -30,6 +35,46 @@ test("la selección admite varios alumnos con búsqueda, conteo y limpieza", () 
   assert.match(page, /max-h-64 min-w-0 overflow-y-auto/);
 });
 const table = readFileSync(new URL("../componentes/routine-table-view.tsx", import.meta.url), "utf8");
+const bodyMap = readFileSync(new URL("../componentes/body-map.tsx", import.meta.url), "utf8");
+const figure = readFileSync(new URL("../componentes/body-map-figure.tsx", import.meta.url), "utf8");
+const nativeRequire = createRequire(import.meta.url);
+
+function loadBodyMapModule(source: string, isModal = false) {
+  const loaded = { exports: {} };
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
+  runInNewContext(code, {
+    module: loaded, exports: loaded.exports,
+    require: (name: string) => isModal && name === "./body-map-figure" ? { BodyMapFigure: () => null } : nativeRequire(name),
+    console,
+  });
+  return loaded.exports as Record<string, unknown>;
+}
+
+test("el mapa conserva ambas vistas vectoriales y regiones dinámicas independientes", () => {
+  const BodyMapFigure = loadBodyMapModule(figure).BodyMapFigure as React.ComponentType<{ view: "front" | "back"; zoneColor: (zone: string) => string; zoneSeries: (zone: string) => number }>;
+  const props = { zoneColor: (zone: string) => zone === "quad" || zone === "glutes" ? "#f6e58d" : "#3a3a3a", zoneSeries: (zone: string) => zone === "quad" || zone === "glutes" ? 4 : 0 };
+  const front = renderToStaticMarkup(React.createElement(BodyMapFigure, { ...props, view: "front" }));
+  const back = renderToStaticMarkup(React.createElement(BodyMapFigure, { ...props, view: "back" }));
+  for (const zone of ["chest", "shoulders", "biceps", "forearms", "core", "quad", "adductors", "calves"]) assert.match(front, new RegExp(`data-zone="${zone}"`));
+  for (const zone of ["back", "shoulders", "triceps", "forearms", "glutes", "hamstring", "calves"]) assert.match(back, new RegExp(`data-zone="${zone}"`));
+  assert.match(front, /data-zone="quad"[^>]*fill="#f6e58d"/);
+  assert.match(back, /data-zone="glutes"[^>]*fill="#f6e58d"/);
+  assert.doesNotMatch(front + back, /<circle|<rect/);
+  assert.match(bodyMap, /Vista anterior/);
+  assert.match(bodyMap, /Vista posterior/);
+  assert.match(bodyMap, /Distribución semanal/);
+  assert.match(bodyMap, /weekly\.map/);
+});
+
+test("se conserva la escala de intensidad y se reconocen alias musculares existentes", () => {
+  const bodyMapExports = loadBodyMapModule(bodyMap, true);
+  const intensityColor = bodyMapExports.intensityColor as (series: number, max: number) => string;
+  const mapMuscleToZone = bodyMapExports.mapMuscleToZone as (muscle: string) => string;
+  assert.deepEqual([intensityColor(0, 19), intensityColor(4, 19), intensityColor(10, 19), intensityColor(19, 19)], ["#3a3a3a", "#f6e58d", "#d4af37", "#ff9f1c"]);
+  for (const [muscle, zone] of [["Pecho", "chest"], ["Dorsales", "back"], ["Espalda", "back"], ["Hombros", "shoulders"], ["Bíceps", "biceps"], ["Tríceps", "triceps"], ["Core", "core"], ["Cuádriceps", "quad"], ["Aductores", "adductors"], ["Glúteos", "glutes"], ["Isquios", "hamstring"], ["Gemelos", "calves"], ["Antebrazos", "forearms"], ["Lumbar", "back"]]) assert.equal(mapMuscleToZone(muscle), zone);
+  assert.match(bodyMap, /upperSeries \/ totalSeries/);
+  assert.match(bodyMap, /lowerSeries \/ totalSeries/);
+});
 const api = readFileSync(new URL("../app/api/rutinas/[id]/route.ts", import.meta.url), "utf8");
 const routinesLib = readFileSync(new URL("../lib/rutinas.ts", import.meta.url), "utf8");
 const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8");
