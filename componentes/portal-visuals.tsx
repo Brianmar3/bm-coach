@@ -33,16 +33,19 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
             {actions}
             <Link
               href={profileHref}
-              className="group flex min-h-11 min-w-11 items-center gap-2 rounded-full p-1 transition hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 sm:pr-3"
+              className="group flex min-h-11 min-w-11 items-center gap-2 rounded-2xl px-1 py-0.5 transition hover:bg-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300 sm:pr-3"
               aria-label={`Abrir perfil de ${studentName}`}
             >
-              <StudentPhoto
-                src={profileImageUrl || DEFAULT_PROFILE_AVATAR.src}
-                alt=""
-                width={36}
-                height={36}
-                className="h-9 w-9 shrink-0 rounded-full border border-yellow-400/25 object-cover"
-              />
+              <span className="flex shrink-0 flex-col items-center gap-0.5">
+                <StudentPhoto
+                  src={profileImageUrl || DEFAULT_PROFILE_AVATAR.src}
+                  alt=""
+                  width={34}
+                  height={34}
+                  className="h-[34px] w-[34px] rounded-full border border-yellow-400/25 object-cover"
+                />
+                <span className="text-[9px] font-medium leading-none text-zinc-400 group-hover:text-yellow-300">Perfil</span>
+              </span>
               <span className="hidden min-w-0 md:block">
                 <span className="block max-w-40 truncate text-xs font-semibold text-zinc-200">
                   {studentName}
@@ -57,7 +60,7 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
   {children}</header>;
 }
 export const PORTAL_MOBILE_NAV_CLASS = "fixed bottom-[calc(env(safe-area-inset-bottom)+var(--portal-bottom-nav-offset))] left-5 right-5 z-40 mx-auto grid h-[var(--portal-bottom-nav-height)] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden";
-export const PORTAL_STAT_CARD_CLASS = "portal-home-stat portal-home-interactive group relative min-h-[7.75rem] min-w-0 overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:p-4";
+export const PORTAL_STAT_CARD_CLASS = "portal-home-stat portal-home-interactive group relative flex min-h-[6.75rem] min-w-0 flex-col overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] p-3 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:p-3.5";
 export function PortalNavigationLink({ title, href, Icon, active }: { title: string; href: string; Icon: ComponentType<BmIconProps>; active: boolean }) {
   return <Link
               href={href}
