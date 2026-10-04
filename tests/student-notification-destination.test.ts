@@ -58,7 +58,7 @@ test("la API, la campana y Push consumen el destino seguro común", () => {
   const push = readFileSync(new URL("../lib/push-notifications.ts", import.meta.url), "utf8");
   assert.match(api, /destination: getNotificationDestination\(notification\)/);
   assert.match(bell, /notification\.destination \?\? "\/portal"/);
-  assert.match(bell, /setOpen\(false\)/);
+  assert.match(bell, /setOpenedOnPath\(null\)/);
   assert.match(bell, /router\.push\(destination\)/);
   assert.match(push, /url: getNotificationDestination\(message\)/);
 });

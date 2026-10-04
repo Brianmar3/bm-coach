@@ -103,7 +103,7 @@ test("la UI compartida confirma, se oculta vacía y actualiza lista y badge sól
   assert.match(center, /Borrar todas las notificaciones/);
   assert.match(center, /Se eliminarán todas tus notificaciones\./);
   assert.match(center, /role="alertdialog"/);
-  assert.match(center, /useEscapeLayer\(confirmingDelete, closeDeleteConfirmation/);
+  assert.match(center, /useEscapeLayer\(visibleDeleteConfirmation, closeDeleteConfirmation/);
   assert.match(center, /if \(!response\.ok\) throw new Error/);
   assert.match(center, /setNotifications\(\[\]\);\s*setUnreadCount\(0\);/);
   assert.match(center, /No se pudieron borrar las notificaciones\. Intentá nuevamente\./);

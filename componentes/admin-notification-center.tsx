@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { openNotificationSafely } from "@/lib/trainer-notification-destination";
+import { actionMenuPosition } from "@/lib/action-menu-position";
 
 type HeaderNotification = {
   id: string;
@@ -37,21 +38,26 @@ function formatNotificationDate(value: string) {
 
 function NotificationCenter({ audience }: { audience: Audience }) {
   const router = useRouter();
+  const pathname = usePathname();
   const endpoint =
     audience === "trainer"
       ? "/api/admin/notifications"
       : "/api/portal/notifications";
   const panelRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const confirmationRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const openingRef = useRef({ opening: false });
-  const [open, setOpen] = useState(false);
+  const [openedOnPath, setOpenedOnPath] = useState<string | null>(null);
+  const open = openedOnPath === pathname;
+  const [position, setPosition] = useState<ReturnType<typeof actionMenuPosition> | null>(null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const visibleDeleteConfirmation = open && confirmingDelete;
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
@@ -81,28 +87,26 @@ function NotificationCenter({ audience }: { audience: Audience }) {
   const close = useCallback(() => {
     setConfirmingDelete(false);
     setDeleteError("");
-    setOpen(false);
+    setOpenedOnPath(null);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
-  }, [setOpen]);
+  }, [setConfirmingDelete, setDeleteError, setOpenedOnPath]);
 
   const closeDeleteConfirmation = useCallback(() => {
     if (deleting) return;
     setConfirmingDelete(false);
     setDeleteError("");
     window.requestAnimationFrame(() => deleteTriggerRef.current?.focus());
-  }, [deleting]);
+  }, [deleting, setConfirmingDelete, setDeleteError]);
 
   useEscapeLayer(open, close, { priority: 70, triggerRef });
-  useEscapeLayer(confirmingDelete, closeDeleteConfirmation, { priority: 80, triggerRef: deleteTriggerRef });
+  useEscapeLayer(visibleDeleteConfirmation, closeDeleteConfirmation, { priority: 80, triggerRef: deleteTriggerRef });
 
   useEffect(() => {
-    if (confirmingDelete) window.requestAnimationFrame(() => cancelDeleteRef.current?.focus());
-  }, [confirmingDelete]);
+    if (visibleDeleteConfirmation) window.requestAnimationFrame(() => cancelDeleteRef.current?.focus());
+  }, [visibleDeleteConfirmation]);
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (
@@ -115,10 +119,51 @@ function NotificationCenter({ audience }: { audience: Audience }) {
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
       document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [close, open]);
+
+  useEffect(() => {
+    if (!visibleDeleteConfirmation) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [visibleDeleteConfirmation]);
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    const panel = panelRef.current;
+    const list = listRef.current;
+    if (!trigger || !panel || !list) return;
+    const anchor = trigger.getBoundingClientRect();
+    if (!anchor.width || !anchor.height) return;
+    const header = panel.firstElementChild as HTMLElement | null;
+    const desiredHeight = Math.min((header?.offsetHeight ?? 0) + list.scrollHeight + 2, 560, window.innerHeight * 0.68);
+    setPosition(actionMenuPosition(
+      anchor,
+      { width: Math.min(400, window.innerWidth - 24), height: desiredHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+    ));
+  }, [setPosition]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+  }, [open, loading, notifications.length, unreadCount, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && panelRef.current?.contains(event.target)) return;
+      updatePosition();
+    };
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open, updatePosition]);
 
   async function markRead(id: string) {
     const response = await fetch(endpoint, {
@@ -181,7 +226,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
       openingRef.current,
       markRead,
       (destination) => {
-        setOpen(false);
+        setOpenedOnPath(null);
         if (audience === "trainer" && destination.startsWith("/alumnos?")) {
           window.location.assign(destination);
           return;
@@ -197,15 +242,11 @@ function NotificationCenter({ audience }: { audience: Audience }) {
       ? createPortal(
           <>
             <div
-              className="fixed inset-0 z-[90] bg-black/65 backdrop-blur-[2px] sm:bg-black/30"
-              aria-hidden="true"
-            />
-            <div
               ref={panelRef}
               role="dialog"
-              aria-modal="true"
               aria-label="Centro de notificaciones"
-              className="fixed inset-x-2 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-[100] flex max-h-[calc(100dvh-env(safe-area-inset-top)-5.5rem)] flex-col overflow-hidden rounded-3xl border border-yellow-400/20 bg-zinc-950 shadow-[0_24px_80px_rgba(0,0,0,.75)] sm:inset-x-auto sm:bottom-auto sm:right-4 sm:top-[calc(env(safe-area-inset-top)+5rem)] sm:max-h-[min(72dvh,38rem)] sm:w-[25rem] sm:rounded-2xl"
+              style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? "min(25rem, calc(100vw - 24px))", maxHeight: position?.maxHeight ?? "68dvh", visibility: position ? "visible" : "hidden" }}
+              className="fixed z-[90] flex flex-col overflow-hidden rounded-2xl border border-yellow-400/20 bg-zinc-950 shadow-[0_24px_80px_rgba(0,0,0,.75)]"
             >
               <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
                 <div className="min-w-0">
@@ -251,7 +292,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                 </div>
               </div>
 
-              <div className="min-h-0 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+              <div ref={listRef} className="min-h-0 overflow-y-auto overscroll-contain">
                 {loading ? (
                   <p className="p-5 text-sm text-zinc-500">
                     Cargando notificaciones…
@@ -316,7 +357,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                 )}
               </div>
             </div>
-            {confirmingDelete && (
+            {visibleDeleteConfirmation && (
               <div
                 className="fixed inset-0 z-[110] flex items-end bg-black/75 p-0 sm:items-center sm:justify-center sm:p-4"
                 onPointerDown={(event) => {
@@ -371,7 +412,9 @@ function NotificationCenter({ audience }: { audience: Audience }) {
         ref={triggerRef}
         type="button"
         onClick={() => {
-          setOpen((current) => !current);
+          setPosition(null);
+          setConfirmingDelete(false);
+          setOpenedOnPath((current) => current === pathname ? null : pathname);
           if (!open) void loadNotifications();
         }}
         className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-zinc-300 transition hover:border-yellow-400/30 hover:bg-yellow-400/10 hover:text-yellow-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300"
