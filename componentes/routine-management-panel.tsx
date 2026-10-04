@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { RoutineStatusSection } from "@/lib/routine-list-organization";
-import { routineActionMenuPosition } from "@/lib/routine-action-menu-position";
+import { actionMenuPosition } from "@/lib/action-menu-position";
 import type { TrainingRoutine } from "@/types/gestion";
 
 type Mode = "rutinas" | "plantillas" | "asignaciones";
@@ -113,7 +113,7 @@ function VisibleActions({ variant, routine, mode, menuOpen, busy, duplicating, t
   const primaryAction = mode === "plantillas" ? reusableCompleteClass ? () => actions.useAsBase(routine) : () => actions.useTemplate(routine) : isDraft ? () => actions.edit(routine) : () => actions.openPlan(routine);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<ReturnType<typeof routineActionMenuPosition> | null>(null);
+  const [position, setPosition] = useState<ReturnType<typeof actionMenuPosition> | null>(null);
   const menuId = `routine-actions-${routine.id}-${variant}`;
 
   useLayoutEffect(() => {
@@ -121,7 +121,7 @@ function VisibleActions({ variant, routine, mode, menuOpen, busy, duplicating, t
     const anchor = triggerRef.current.getBoundingClientRect();
     if (!anchor.width || !anchor.height) { setPosition(null); return; }
     const menu = menuRef.current;
-    setPosition(routineActionMenuPosition(anchor, { width: menu.getBoundingClientRect().width, height: menu.scrollHeight + 2 }, { width: window.innerWidth, height: window.innerHeight }));
+    setPosition(actionMenuPosition(anchor, { width: menu.getBoundingClientRect().width, height: menu.scrollHeight + 2 }, { width: window.innerWidth, height: window.innerHeight }));
   }, [menuOpen, mode, routine.kind, routine.status]);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
@@ -9,6 +9,7 @@ import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { useEnterFieldNavigation, useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
 import { apiRequest } from "@/lib/client-api";
+import { actionMenuPosition } from "@/lib/action-menu-position";
 import type { Payment, PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
 
 type AccountFilter = "TODOS" | PaymentStudentAccount["status"] | "PAGADOS_MES";
@@ -312,54 +313,68 @@ function AccountRow({ account, expanded, saving, toggle, begin, paidToday, histo
 
 function AccountActions({ account, saving, canMessage, begin, paidToday, history }: { account: PaymentStudentAccount; saving: boolean; canMessage: boolean; begin: () => void; paidToday: () => void; history: () => void }) {
   const [open, setOpen] = useState(false);
-  const [mobile, setMobile] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [position, setPosition] = useState<ReturnType<typeof actionMenuPosition> | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = `payment-actions-${account.studentId}`;
   function close(restoreFocus = true) {
     setOpen(false);
     if (restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus());
   }
   function show() {
-    const isMobile = window.innerWidth < 640;
-    setMobile(isMobile);
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect && !isMobile) {
-      const width = 224;
-      const estimatedHeight = canMessage ? 238 : 194;
-      const left = Math.min(Math.max(12, rect.right - width), window.innerWidth - width - 12);
-      const top = window.innerHeight - rect.bottom >= estimatedHeight + 12
-        ? rect.bottom + 8
-        : Math.max(12, rect.top - estimatedHeight - 8);
-      setPosition({ top, left });
-    }
+    setPosition(null);
     setOpen(true);
   }
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current || !menuRef.current) return;
+    const anchor = triggerRef.current.getBoundingClientRect();
+    const menu = menuRef.current;
+    setPosition(actionMenuPosition(anchor, { width: menu.getBoundingClientRect().width, height: menu.scrollHeight + 2 }, { width: window.innerWidth, height: window.innerHeight }));
+  }, [open, canMessage]);
   useEffect(() => {
-    if (!open) return;
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
+    if (!open || !position) return;
+    const outside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && (triggerRef.current?.contains(target) || menuRef.current?.contains(target))) return;
+      setOpen(false);
     };
-    window.addEventListener("keydown", handleKey);
-    requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>("button, a")?.focus());
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open]);
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      close();
+    };
+    const scroll = (event: Event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", scroll);
+    const focusFrame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>("button, a")?.focus());
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("resize", scroll);
+    };
+  }, [open, position]);
   const run = (action: () => void) => {
     close(false);
     action();
   };
   return <>
-    <button ref={triggerRef} type="button" aria-label={`Acciones de ${account.student}`} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : show()} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-700/80 bg-black/25 text-xl text-zinc-400 transition hover:border-yellow-400/30 hover:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>
-    {open && createPortal(<div className="fixed inset-0 z-[100]" onPointerDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-      <div ref={menuRef} role="menu" aria-label={`Acciones de ${account.student}`} style={mobile ? { left: 12, right: 12, bottom: "calc(env(safe-area-inset-bottom) + 12px)" } : { top: position.top, left: position.left }} className="fixed h-auto max-h-[calc(100dvh-24px)] w-56 overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-sm text-white shadow-2xl max-sm:w-auto max-sm:rounded-t-2xl">
+    <button ref={triggerRef} type="button" aria-label={`Acciones de ${account.student}`} aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} onClick={() => open ? close() : show()} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-700/80 bg-black/25 text-xl text-zinc-400 transition hover:border-yellow-400/30 hover:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>
+    {open && createPortal(
+      <div ref={menuRef} id={menuId} role="menu" aria-label={`Acciones de ${account.student}`} style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? 224, maxHeight: position?.maxHeight ?? "calc(100dvh - 16px)", visibility: position ? "visible" : "hidden" }} className="fixed z-[100] w-56 overflow-y-auto overscroll-contain rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-sm text-white shadow-2xl">
         <p className="hidden px-3 py-2 text-xs font-semibold text-zinc-500 max-sm:block">{account.student}</p>
         <button role="menuitem" onClick={() => run(begin)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Agregar pago</button>
         <button role="menuitem" onClick={() => run(paidToday)} disabled={saving || account.monthlyFee <= 0} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800 disabled:opacity-40">Pagó hoy</button>
         <button role="menuitem" onClick={() => run(history)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Ver historial</button>
         <Link role="menuitem" onClick={() => close(false)} href={`/alumnos?buscar=${encodeURIComponent(account.student)}`} className="block rounded-lg px-3 py-3 hover:bg-zinc-800">Editar configuración de pago</Link>
         {canMessage && <a role="menuitem" onClick={() => close(false)} href={whatsappUrl(account)} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-3 text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</a>}
-      </div>
-    </div>, document.body)}
+      </div>, document.body)}
   </>;
 }
 

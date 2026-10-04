@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { actionMenuPosition } from "../lib/action-menu-position.ts";
 import "./payment-notifications.test.ts";
 
 const source = readFileSync(new URL("../app/pagos/page.tsx", import.meta.url), "utf8");
@@ -36,6 +37,45 @@ test("las cuentas usan cards escaneables sin eliminar sus acciones", () => {
   assert.match(source, /statusAccent\[account\.status\]/);
   assert.match(source, /Acciones de \$\{account\.student\}/);
   for (const action of ["Agregar pago", "Pagó hoy", "Ver historial", "Editar configuración de pago"]) assert.match(source, new RegExp(action));
+});
+
+test("el menú de Pagos abre hacia abajo o arriba según el espacio disponible", () => {
+  const size = { width: 224, height: 270 };
+  const viewport = { width: 390, height: 800 };
+  const below = actionMenuPosition({ top: 100, bottom: 144, right: 360 }, size, viewport);
+  const above = actionMenuPosition({ top: 700, bottom: 744, right: 360 }, size, viewport);
+  assert.equal(below.placement, "below");
+  assert.equal(above.placement, "above");
+  assert.equal(below.top, 152);
+  assert.equal(above.top, 422);
+});
+
+test("el menú de Pagos respeta los bordes y limita la altura en móviles bajos", () => {
+  for (const [anchor, viewport] of [
+    [{ top: 200, bottom: 244, right: 38 }, { width: 320, height: 360 }],
+    [{ top: 70, bottom: 114, right: 308 }, { width: 320, height: 360 }],
+  ] as const) {
+    const menu = actionMenuPosition(anchor, { width: 224, height: 350 }, viewport);
+    assert.ok(menu.left >= 8);
+    assert.ok(menu.left + menu.width <= viewport.width - 8);
+    assert.ok(menu.top >= 8);
+    assert.ok(menu.top + menu.maxHeight <= viewport.height - 8);
+    assert.ok(menu.maxHeight < 350);
+  }
+});
+
+test("Pagos reutiliza el popover de Rutinas y conserva cierre y acciones", () => {
+  assert.match(source, /import \{ actionMenuPosition \} from "@\/lib\/action-menu-position"/);
+  assert.match(source, /createPortal\(/);
+  assert.match(source, /className="fixed z-\[100\] w-56 overflow-y-auto overscroll-contain/);
+  assert.match(source, /getBoundingClientRect\(\)/);
+  assert.match(source, /document\.addEventListener\("pointerdown", outside\)/);
+  assert.match(source, /event\.key !== "Escape"/);
+  assert.match(source, /window\.addEventListener\("scroll", scroll, true\)/);
+  assert.match(source, /const run = \(action: \(\) => void\) => \{/);
+  assert.match(source, /close\(false\);\s+action\(\);/);
+  for (const action of ["Agregar pago", "Pagó hoy", "Ver historial", "Editar configuración de pago", "Abrir WhatsApp"]) assert.match(source, new RegExp(action));
+  assert.doesNotMatch(source, /max-sm:w-auto|max-sm:rounded-t-2xl/);
 });
 
 test("formularios, historial y operaciones existentes permanecen conectados", () => {
