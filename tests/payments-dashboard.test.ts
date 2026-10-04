@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { actionMenuPosition } from "../lib/action-menu-position.ts";
+import { paymentWhatsappUrl } from "../lib/payment-whatsapp.ts";
 import "./payment-notifications.test.ts";
 
 const source = readFileSync(new URL("../app/pagos/page.tsx", import.meta.url), "utf8");
@@ -84,4 +85,23 @@ test("formularios, historial y operaciones existentes permanecen conectados", ()
   assert.match(source, /method: form\.paymentId \? "PUT" : "POST"/);
   assert.match(source, /method: "PATCH"/);
   assert.match(source, /fetch\("\/api\/pagos"/);
+});
+
+test("Pagos reutiliza la normalización argentina para el enlace de WhatsApp", () => {
+  const message = "Hola, tu cuota está vencida.";
+  const storedPhone = "(03404) 15-596699";
+  for (const phone of [storedPhone, "+54 9 3404 596699", "+54 3404 596699", "3404-596699"]) {
+    assert.equal(paymentWhatsappUrl(phone, message), `https://wa.me/5493404596699?text=${encodeURIComponent(message)}`);
+  }
+  assert.equal(storedPhone, "(03404) 15-596699");
+});
+
+test("Pagos no genera enlaces para teléfonos vacíos o inválidos", () => {
+  for (const phone of ["", "344593518", "+34 4593518", "sin teléfono"]) {
+    assert.equal(paymentWhatsappUrl(phone, "Hola"), null);
+  }
+  assert.match(source, /window\.alert\("No hay un número de WhatsApp válido para este alumno\."\)/);
+  assert.match(source, /href=\{whatsappHref\}/);
+  assert.match(source, /const canMessage = Boolean\(account\.phone\)/);
+  assert.doesNotMatch(source, /account\.phone\.replace\(\/\\D\/g/);
 });

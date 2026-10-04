@@ -10,6 +10,7 @@ import { useEnterFieldNavigation, useEscapeLayer } from "@/componentes/use-train
 import { addMonthsToDateKey } from "@/lib/payment-dates";
 import { apiRequest } from "@/lib/client-api";
 import { actionMenuPosition } from "@/lib/action-menu-position";
+import { paymentWhatsappUrl } from "@/lib/payment-whatsapp";
 import type { Payment, PaymentDashboard, PaymentStudentAccount } from "@/types/gestion";
 
 type AccountFilter = "TODOS" | PaymentStudentAccount["status"] | "PAGADOS_MES";
@@ -68,9 +69,8 @@ function monthLabel(value: string) {
   return result.charAt(0).toUpperCase() + result.slice(1);
 }
 function whatsappUrl(account: PaymentStudentAccount) {
-  const phone = account.phone.replace(/\D/g, "");
   const greeting = `Hola ${account.student}, te recordamos que tu cuota de ${money(account.monthlyFee)} ${account.status === "VENCIDA" ? "está vencida" : `vence el ${showDate(account.nextDueDate)}`}.`;
-  return `https://wa.me/${phone}?text=${encodeURIComponent(greeting)}`;
+  return paymentWhatsappUrl(account.phone, greeting);
 }
 async function responseError(response: Response, fallback: string) {
   try { return ((await response.json()) as { error?: string }).error ?? fallback; } catch { return fallback; }
@@ -325,6 +325,7 @@ function AccountActions({ account, saving, canMessage, begin, paidToday, history
     setPosition(null);
     setOpen(true);
   }
+  const whatsappHref = canMessage ? whatsappUrl(account) : null;
   useLayoutEffect(() => {
     if (!open || !triggerRef.current || !menuRef.current) return;
     const anchor = triggerRef.current.getBoundingClientRect();
@@ -373,7 +374,9 @@ function AccountActions({ account, saving, canMessage, begin, paidToday, history
         <button role="menuitem" onClick={() => run(paidToday)} disabled={saving || account.monthlyFee <= 0} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800 disabled:opacity-40">Pagó hoy</button>
         <button role="menuitem" onClick={() => run(history)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Ver historial</button>
         <Link role="menuitem" onClick={() => close(false)} href={`/alumnos?buscar=${encodeURIComponent(account.student)}`} className="block rounded-lg px-3 py-3 hover:bg-zinc-800">Editar configuración de pago</Link>
-        {canMessage && <a role="menuitem" onClick={() => close(false)} href={whatsappUrl(account)} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-3 text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</a>}
+        {canMessage && (whatsappHref
+          ? <a role="menuitem" onClick={() => close(false)} href={whatsappHref} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-3 text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</a>
+          : <button role="menuitem" onClick={() => window.alert("No hay un número de WhatsApp válido para este alumno.")} className="block w-full rounded-lg px-3 py-3 text-left text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</button>)}
       </div>, document.body)}
   </>;
 }
