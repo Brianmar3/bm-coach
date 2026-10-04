@@ -23,10 +23,11 @@ export type PortalProfile = {
   profileImageUrl: string;
   avatarPresetId?: string;
   hasProfilePhoto?: boolean;
-  height: number;
-  weight: number;
+  height: number | null;
+  weight: number | null;
   experienceLevel: string;
   trainingExperience: string;
+  trainingCurrently: boolean | null;
   hasLimitations: boolean;
   limitations: string;
   onboardingUpdatedAt: string;

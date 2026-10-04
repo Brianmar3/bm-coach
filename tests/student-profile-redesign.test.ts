@@ -16,7 +16,7 @@ test("profile keeps real avatar route and exposes anchored settings", () => {
 test("student profile update is self-scoped and allowlisted", () => {
   assert.match(route, /getPortalSession/);
   assert.match(route, /session\.studentId/);
-  assert.match(route, /new Set\(\["phone", "email", "birthDate", "goal"\]\)/);
+  assert.match(route, /new Set\(\["phone", "email", "birthDate", "goal", "height", "weight", "experienceLevel", "trainingExperience", "trainingCurrently", "hasLimitations", "limitations"\]\)/);
   assert.doesNotMatch(route, /serviceType.*value|status.*value|plan.*value/);
 });
 

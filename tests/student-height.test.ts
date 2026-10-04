@@ -12,4 +12,6 @@ test("convierte altura almacenada en metros a centímetros sin migrar datos", ()
 test("convierte la entrada de centímetros a metros y calcula IMC", () => {
   assert.equal(centimetersToStoredHeight(166), 1.66);
   assert.equal(bmiFromCentimeters(74.7, 166), "27.1");
+  assert.equal(bmiFromCentimeters(0, 166), "—");
+  assert.equal(bmiFromCentimeters(74.7, 0), "—");
 });

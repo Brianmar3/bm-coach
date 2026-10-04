@@ -6,9 +6,11 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import * as selfService from "../lib/self-service.ts";
 import { SELF_SERVICE_SIGNUP_ENABLED } from "../lib/self-service-signup.ts";
-import { onboardingValidation } from "../lib/student-onboarding.ts";
+import * as onboarding from "../lib/student-onboarding.ts";
+import { resolvePortalStudentIdentity } from "../lib/portal-student-identity.ts";
 
 const nativeRequire = createRequire(import.meta.url);
+const { onboardingValidation } = onboarding;
 function load(file: string, mocks: Record<string, unknown>) {
   const loaded = { exports: {} };
   const code = ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -115,7 +117,8 @@ test("sesión SELF_SERVICE requiere permiso explícito; alumnos actuales conserv
     "server-only": {}, "next/headers": { cookies: async () => ({ get: () => ({ value: "token" }) }) }, "next/navigation": { redirect: () => {} },
     "@/lib/self-service": selfService,
     "@/lib/session-persistence": { authSessionExpiresAt: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), clearAuthCookieOptions: () => ({ maxAge: 0 }), persistentAuthCookieOptions: () => ({ maxAge: 30 * 24 * 60 * 60 }) },
-    "@/lib/prisma": { prisma: { studentPortalSession: { findUnique: async () => ({ expiresAt: new Date(Date.now() + 60000), credential: { active: true, student: { data } } }) } } },
+    "@/lib/prisma": { prisma: { studentPortalSession: { findUnique: async () => ({ studentId: "own", expiresAt: new Date(Date.now() + 60000), credential: { active: true, student: { id: "own", workspaceId: "workspace-own", data } } }) } } },
+    "@/lib/portal-student-identity": { resolvePortalStudentIdentity },
   });
   assert.equal(await auth.getPortalSession(), null);
   assert.ok(await auth.getPortalSession({ allowSelfService: true }));
@@ -138,7 +141,7 @@ test("onboarding usa ID de sesión y conserva clasificación aunque se envíen p
     "@/lib/prisma": { prisma: { studentRecord: { findUnique: async () => ({ data: { accountType: "SELF_SERVICE", trainerId: null, monthlyFee: 0 } }), update: async (value: unknown) => { update = value; } } } },
     "@/lib/portal-auth": { validRequestOrigin: () => true, getPortalSession: async () => ({ studentId: "own-id", credential: { mustChangePassword: false } }) },
     "@/lib/self-service": selfService,
-    "@/lib/student-onboarding": load("lib/student-onboarding.ts", {}),
+    "@/lib/student-onboarding": onboarding,
   });
   const data = { ...preferences, birthDate: "2000-01-01", height: 175, weight: 70, goal: "Mantenerme activo", experienceLevel: "Principiante", trainingExperience: "Nunca entrené", hasLimitations: false, accountType: "COACHED", trainerId: "admin", monthlyFee: 999, studentId: "other" };
   const response = await route.PATCH(new Request("http://localhost/api/portal/onboarding", { method: "PATCH", body: JSON.stringify({ step: 4, complete: true, data }) }));

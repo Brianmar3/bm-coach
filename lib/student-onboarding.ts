@@ -1,5 +1,6 @@
 import type { Student } from "@/types/gestion";
 import type { SelfServicePreferences } from "./self-service";
+import { storedHeightToCentimeters } from "./height.ts";
 
 export const ONBOARDING_GOALS = ["Ganar masa muscular", "Bajar grasa", "Mejorar salud", "Ganar fuerza", "Mejorar rendimiento", "Otro"] as const;
 export const EXPERIENCE_LEVELS = ["Principiante", "Intermedio", "Avanzado"] as const;
@@ -7,11 +8,12 @@ export const TRAINING_EXPERIENCE = ["Nunca entrené", "Menos de 6 meses", "6 a 1
 
 export type StudentOnboardingData = Partial<SelfServicePreferences> & {
   birthDate: string;
-  height: number;
-  weight: number;
+  height: number | null;
+  weight: number | null;
   goal: string;
   experienceLevel: string;
   trainingExperience: string;
+  trainingCurrently: boolean | null;
   hasLimitations: boolean;
   limitations: string;
   onboardingCompleted: boolean;
@@ -21,11 +23,12 @@ export type StudentOnboardingData = Partial<SelfServicePreferences> & {
 export function onboardingData(student: Student): StudentOnboardingData {
   return {
     birthDate: student.birthDate ?? "",
-    height: Number(student.height) || 0,
-    weight: Number(student.weight) || 0,
+    height: storedHeightToCentimeters(student.height) || null,
+    weight: Number(student.weight) > 0 ? Number(student.weight) : null,
     goal: student.goal ?? "",
     experienceLevel: student.experienceLevel ?? "",
     trainingExperience: student.trainingExperience ?? "",
+    trainingCurrently: typeof student.trainingCurrently === "boolean" ? student.trainingCurrently : null,
     hasLimitations: student.hasLimitations === true,
     limitations: student.limitations ?? "",
     onboardingCompleted: student.onboardingCompleted === true,
@@ -37,20 +40,24 @@ export function onboardingIsComplete(student: Student) {
   return onboardingData(student).onboardingCompleted;
 }
 
+export function onboardingMeasurementValidation(value: Pick<StudentOnboardingData, "height" | "weight">) {
+  if (value.height !== null && (!Number.isFinite(value.height) || value.height < 80 || value.height > 250)) return "Ingresá una altura válida.";
+  if (value.weight !== null && (!Number.isFinite(value.weight) || value.weight < 25 || value.weight > 350)) return "Ingresá un peso válido.";
+  return "";
+}
+
 export function onboardingValidation(value: StudentOnboardingData, step: 1 | 2 | 3 | 4) {
   if (step === 1 || step === 4) {
     const birth = new Date(`${value.birthDate}T00:00:00Z`);
     if (!value.birthDate) return "Seleccioná tu fecha de nacimiento.";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value.birthDate) || !Number.isFinite(birth.getTime()) || birth.toISOString().slice(0, 10) !== value.birthDate || value.birthDate >= new Date().toISOString().slice(0, 10)) return "Ingresá una fecha de nacimiento válida.";
-    if (!Number.isFinite(value.height) || value.height <= 0) return "Ingresá tu altura.";
-    if (value.height < 80 || value.height > 250) return "Ingresá una altura válida.";
-    if (!Number.isFinite(value.weight) || value.weight <= 0) return "Ingresá tu peso actual.";
-    if (value.weight < 25 || value.weight > 350) return "Ingresá un peso válido.";
+    const measurementsError = onboardingMeasurementValidation(value);
+    if (measurementsError) return measurementsError;
   }
   if ((step === 2 || step === 4) && !ONBOARDING_GOALS.includes(value.goal as (typeof ONBOARDING_GOALS)[number])) return "Elegí tu objetivo principal.";
   if (step === 3 || step === 4) {
     if (!EXPERIENCE_LEVELS.includes(value.experienceLevel as (typeof EXPERIENCE_LEVELS)[number])) return "Elegí tu nivel de experiencia.";
-    if (!TRAINING_EXPERIENCE.includes(value.trainingExperience as (typeof TRAINING_EXPERIENCE)[number])) return "Indicá hace cuánto entrenás.";
+    if (!TRAINING_EXPERIENCE.includes(value.trainingExperience as (typeof TRAINING_EXPERIENCE)[number])) return "Indicá tu experiencia entrenando.";
     if (value.hasLimitations && value.limitations.trim().length < 3) return "Describí brevemente la molestia o limitación.";
   }
   return "";

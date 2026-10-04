@@ -48,6 +48,7 @@ export type Student = {
   avatarPresetId?: string;
   experienceLevel?: string;
   trainingExperience?: string;
+  trainingCurrently?: boolean | null;
   hasLimitations?: boolean;
   limitations?: string;
   onboardingCompleted?: boolean;

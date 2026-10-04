@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
-import { onboardingData, onboardingValidation, type StudentOnboardingData } from "@/lib/student-onboarding";
+import { onboardingData, onboardingMeasurementValidation, onboardingValidation, type StudentOnboardingData } from "@/lib/student-onboarding";
 import type { Student } from "@/types/gestion";
 import { isSelfService, SELF_SERVICE_GOALS, selfServicePreferences, selfServicePreferencesError } from "@/lib/self-service";
 
@@ -17,20 +17,27 @@ export async function PATCH(request: Request) {
   const stored = record.data as Prisma.JsonObject;
   const selfService = isSelfService(stored);
   const current = onboardingData(stored as unknown as Student);
+  for (const field of ["height", "weight"] as const) {
+    if (body.data[field] !== undefined && body.data[field] !== null && typeof body.data[field] !== "number") return Response.json({ error: "Revisá la altura y el peso ingresados." }, { status: 400 });
+  }
+  if (body.data.trainingCurrently !== undefined && body.data.trainingCurrently !== null && typeof body.data.trainingCurrently !== "boolean") return Response.json({ error: "Revisá si entrenás actualmente." }, { status: 400 });
   const merged: StudentOnboardingData = {
     ...current,
     birthDate: typeof body.data.birthDate === "string" ? body.data.birthDate : current.birthDate,
-    height: typeof body.data.height === "number" ? body.data.height : current.height,
-    weight: typeof body.data.weight === "number" ? body.data.weight : current.weight,
+    height: body.data.height === null || typeof body.data.height === "number" ? body.data.height : current.height,
+    weight: body.data.weight === null || typeof body.data.weight === "number" ? body.data.weight : current.weight,
     goal: typeof body.data.goal === "string" ? body.data.goal.trim().slice(0, 80) : current.goal,
     experienceLevel: typeof body.data.experienceLevel === "string" ? body.data.experienceLevel : current.experienceLevel,
     trainingExperience: typeof body.data.trainingExperience === "string" ? body.data.trainingExperience : current.trainingExperience,
+    trainingCurrently: typeof body.data.trainingCurrently === "boolean" ? body.data.trainingCurrently : current.trainingCurrently,
     hasLimitations: typeof body.data.hasLimitations === "boolean" ? body.data.hasLimitations : current.hasLimitations,
     limitations: typeof body.data.limitations === "string" ? body.data.limitations.trim().slice(0, 500) : current.limitations,
     onboardingCompleted: body.complete === true,
     onboardingUpdatedAt: new Date().toISOString(),
   };
   if (!merged.hasLimitations) merged.limitations = "";
+  const measurementsError = onboardingMeasurementValidation(merged);
+  if (measurementsError) return Response.json({ error: measurementsError }, { status: 400 });
   if (selfService) Object.assign(merged, selfServicePreferences({ ...stored, ...body.data }));
   const step = body.step as 1 | 2 | 3 | 4;
   const validationData = selfService && merged.goal === "Mantenerme activo" ? { ...merged, goal: "Otro" } : merged;
