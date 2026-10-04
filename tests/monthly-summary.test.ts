@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createAdminSessionValue, verifyAdminSessionValue } from "../lib/admin-auth.ts";
-import { attendancePercentage, closedMonthlySnapshot, hasHistoricalMembershipCoverage, membershipConfigurationChanged, obligationStatus } from "../lib/monthly-calculations.ts";
+import { attendancePercentage, closedMonthlySnapshot, hasHistoricalMembershipCoverage, membershipConfigurationChanged, obligationStatus, uniqueActiveToInactiveStudents, uniqueMonthlyStatusStudents } from "../lib/monthly-calculations.ts";
 import { monthlyGeneralCsv, monthlySummaryCsv } from "../lib/monthly-csv.ts";
 import { currentArgentinaMonth, monthDatabaseBounds, monthLabel, shiftMonth } from "../lib/monthly-period.ts";
 import { activityEvidenceLabels, emptyActivityEvidence, missingObligationCause, reconcileMonthlyFinances, registeredTodaySummary, weeklyCollections, type TraceablePayment } from "../lib/monthly-traceability.ts";
@@ -66,6 +67,59 @@ test("baja y reactivación se detectan como cambios históricos", () => {
   assert.equal(membershipConfigurationChanged(active, inactive), true);
   assert.equal(membershipConfigurationChanged(inactive, active), true);
   assert.equal(membershipConfigurationChanged(active, { ...active, status: "suspendido" }), true);
+});
+
+test("altas y bajas del mes cuentan personas únicas, no eventos repetidos", () => {
+  const events = [
+    { studentId: "a", type: "ENROLLMENT" },
+    { studentId: "a", type: "DEACTIVATION" },
+    { studentId: "a", type: "REACTIVATION" },
+    { studentId: "a", type: "DEACTIVATION" },
+    { studentId: "b", type: "DEACTIVATION" },
+    { studentId: "c", type: "SUSPENSION" },
+  ];
+  assert.equal(uniqueMonthlyStatusStudents(events, "ENROLLMENT"), 1);
+  assert.equal(uniqueMonthlyStatusStudents(events, "DEACTIVATION"), 2);
+  assert.equal(events.length, 6);
+});
+
+test("Bajas sólo cuenta activo a inactivo, no suspensión a inactivo ni eventos sin antecedente", () => {
+  const history = [
+    { studentId: "a", type: "ENROLLMENT", eventDate: "2026-08-01" },
+    { studentId: "b", type: "ENROLLMENT", eventDate: "2026-08-01" },
+    { studentId: "b", type: "SUSPENSION", eventDate: "2026-08-15" },
+    { studentId: "a", type: "DEACTIVATION", eventDate: "2026-09-02" },
+    { studentId: "b", type: "DEACTIVATION", eventDate: "2026-09-03" },
+    { studentId: "c", type: "DEACTIVATION", eventDate: "2026-09-04" },
+    { studentId: "a", type: "REACTIVATION", eventDate: "2026-09-05" },
+    { studentId: "a", type: "DEACTIVATION", eventDate: "2026-09-06" },
+  ];
+  assert.equal(uniqueActiveToInactiveStudents(history, "2026-09-01", "2026-10-01"), null);
+  assert.equal(uniqueActiveToInactiveStudents(history, "2026-08-01", "2026-09-01"), 0);
+  assert.equal(uniqueActiveToInactiveStudents(history.filter((event) => event.studentId !== "c"), "2026-09-01", "2026-10-01"), 1);
+});
+
+test("Resumen mensual mantiene cinco KPI y deja los datos extensos en segundo plano", () => {
+  const page = readFileSync(new URL("../app/resumen-mensual/page.tsx", import.meta.url), "utf8");
+  const model = readFileSync(new URL("../lib/monthly-summary.ts", import.meta.url), "utf8");
+  for (const label of ["Total cobrado", "Alumnos con actividad", "Altas del mes", "Bajas del mes", "Asistencia promedio"]) assert.match(page, new RegExp(label));
+  assert.doesNotMatch(page, /<Metric label="Ingreso esperado"|<Metric label="Saldo pendiente"|<Metric label="Porcentaje de cobranza"/);
+  assert.match(page, /<details className="group min-w-0.*Asistencia promedio/);
+  assert.match(page, /<WeeklyCollections weeks=/);
+  assert.match(page, /<DataReview data=/);
+  assert.match(page, /<summary className="cursor-pointer text-sm font-bold text-amber-200">⚠/);
+  assert.match(page, /<h2 className="px-4 pt-4 font-bold">Detalle por alumno<\/h2>/);
+  assert.match(page, /<th className="w-1\/4 p-3">Alumno<\/th><th className="p-3">Cobrado<\/th><th className="p-3">Asistencia<\/th><th className="p-3">Plan<\/th><th className="p-3">Estado<\/th>/);
+  assert.match(page, /<DetailCard key=\{row.studentId\}/);
+  assert.match(page, /<StudentDetail row=\{selectedRow\}/);
+  assert.match(page, /format=detail-csv/);
+  assert.match(page, /format=general-csv/);
+  assert.match(page, /window\.print\(\)/);
+  assert.match(page, /action\("generate"\)/);
+  assert.match(page, /action\("refresh"\)/);
+  assert.match(page, /action\("close"\)/);
+  assert.match(model, /student: \{ workspaceId \}/);
+  assert.match(model, /uniqueActiveToInactiveStudents\(/);
 });
 
 test("el cierre clona y conserva los valores del borrador", () => {

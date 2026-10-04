@@ -3,7 +3,7 @@ import { coachedStudentsWhere } from "@/lib/coached-students";
 
 import { Prisma, type MonthlyObligationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { attendancePercentage, closedMonthlySnapshot, hasHistoricalMembershipCoverage, obligationStatus } from "@/lib/monthly-calculations";
+import { attendancePercentage, closedMonthlySnapshot, hasHistoricalMembershipCoverage, obligationStatus, uniqueActiveToInactiveStudents, uniqueMonthlyStatusStudents } from "@/lib/monthly-calculations";
 import { activityEvidenceLabels, emptyActivityEvidence, missingObligationCause, reconcileMonthlyFinances, registeredTodaySummary, weeklyCollections, type TraceablePayment } from "@/lib/monthly-traceability";
 import { argentinaDateKey, argentinaDateTimeBoundary, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { dueDateForPeriod, monthDatabaseBounds, monthKey, monthLabel, type MonthSelection } from "@/lib/monthly-period";
@@ -100,7 +100,7 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
   const tomorrowKey = tomorrow.toISOString().slice(0, 10);
   const paymentSelection = { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true, method: true, status: true, createdAt: true } as const;
 
-  const [students, payments, todayPayments, obligations, attendances, evaluations, workouts, events, memberships] = await Promise.all([
+  const [students, payments, todayPayments, obligations, attendances, evaluations, workouts, statusHistory, memberships] = await Promise.all([
     prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true, serviceType: true } }),
     prisma.studentPayment.findMany({
       where: { student: { workspaceId }, billingPeriod: bounds.startDate },
@@ -126,14 +126,17 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
       select: { studentId: true, status: true },
     }),
     prisma.studentStatusEvent.findMany({
-      where: { student: { workspaceId }, eventDate: { gte: bounds.startDate, lt: bounds.endDate } },
-      select: { studentId: true, type: true, eventDate: true },
+      where: { student: { workspaceId }, eventDate: { lt: bounds.endDate } },
+      select: { id: true, studentId: true, type: true, eventDate: true, createdAt: true },
+      orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     }),
     prisma.studentMembershipHistory.findMany({
       where: { student: { workspaceId }, startDate: { lt: bounds.endDate }, OR: [{ endDate: null }, { endDate: { gt: bounds.startDate } }] },
       orderBy: [{ studentId: "asc" }, { startDate: "desc" }],
     }),
   ]);
+
+  const events = statusHistory.filter((item) => item.eventDate >= bounds.startDate);
 
   const studentById = new Map(students.map((student) => [student.id, student]));
   const studentNames = new Map(students.map((student) => [student.id, studentName(student.data)]));
@@ -283,7 +286,11 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
     };
   }).sort((left, right) => left.studentName.localeCompare(right.studentName, "es"));
 
-  const deactivationCount = historicalCoverage ? events.filter((item) => item.type === "DEACTIVATION").length : null;
+  const deactivationCount = historicalCoverage ? uniqueActiveToInactiveStudents(
+    statusHistory.map((item) => ({ studentId: item.studentId, type: item.type, eventDate: databaseDateKey(item.eventDate) })),
+    bounds.start,
+    bounds.endExclusive,
+  ) : null;
   const liveObligationStatuses = obligations.map((item) => obligationStatus(
     Number(item.expectedAmount),
     validPaidByStudent.get(item.studentId) ?? 0,
@@ -311,7 +318,7 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
       pendingTotal,
       collectionPercentage,
       studentsWithActivity: activityIds.size,
-      enrollments: events.filter((item) => item.type === "ENROLLMENT").length,
+      enrollments: uniqueMonthlyStatusStudents(events, "ENROLLMENT"),
       deactivations: deactivationCount,
       attendancePercentage: attendanceRate,
     },

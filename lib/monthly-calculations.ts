@@ -13,6 +13,26 @@ export function attendancePercentage(present: number, absent: number, justified:
   return total ? Math.round((present / total) * 1000) / 10 : null;
 }
 
+export function uniqueMonthlyStatusStudents(events: ReadonlyArray<{ studentId: string; type: string }>, type: "ENROLLMENT" | "DEACTIVATION") {
+  return new Set(events.filter((event) => event.type === type).map((event) => event.studentId)).size;
+}
+
+export function uniqueActiveToInactiveStudents(events: ReadonlyArray<{ studentId: string; type: string; eventDate: string }>, monthStart: string, monthEnd: string) {
+  const status = new Map<string, "active" | "suspended" | "inactive">();
+  const deactivated = new Set<string>();
+  let unknownPriorStatus = false;
+  for (const event of events) {
+    const previous = status.get(event.studentId);
+    if (event.type === "DEACTIVATION") {
+      if (previous === "active" && event.eventDate >= monthStart && event.eventDate < monthEnd) deactivated.add(event.studentId);
+      if (!previous && event.eventDate >= monthStart && event.eventDate < monthEnd) unknownPriorStatus = true;
+      status.set(event.studentId, "inactive");
+    } else if (event.type === "SUSPENSION") status.set(event.studentId, "suspended");
+    else if (event.type === "ENROLLMENT" || event.type === "REACTIVATION") status.set(event.studentId, "active");
+  }
+  return unknownPriorStatus ? null : deactivated.size;
+}
+
 export function membershipConfigurationChanged(
   current: { plan: string; monthlyFee: number; serviceType: string; status: string },
   next: { plan: string; monthlyFee: number; serviceType: string; status: string },
