@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { routineSeriesMetrics } from "@/lib/routine-metrics";
 import BodyMapModal from "./body-map";
 import type { TrainingExercise, TrainingRoutine, TrainingRoutineBlock } from "@/types/gestion";
@@ -9,6 +9,7 @@ type RoutineTableViewProps = {
   routine: TrainingRoutine;
   close: () => void;
   actions?: ReactNode;
+  modalOpen?: boolean;
 };
 
 const showDate = (value: string) =>
@@ -44,14 +45,59 @@ export function RoutineTableView({
   routine,
   close,
   actions,
+  modalOpen = false,
 }: RoutineTableViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(close);
   const firstDay = routine.days[0]?.id ?? "";
   const [openDayId, setOpenDayId] = useState(firstDay);
   const [mapOpen, setMapOpen] = useState(false);
   const metrics = useMemo(() => routineSeriesMetrics(routine), [routine]);
 
+  useEffect(() => {
+    closeRef.current = close;
+  }, [close]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = "hidden";
+    scrollRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus({ preventScroll: true });
+    };
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (modalOpen || mapOpen || event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+      const container = scrollRef.current;
+      if (!container) return;
+      const page = Math.max(120, Math.floor(container.clientHeight * 0.85));
+      const step = event.key === "ArrowDown" ? 80 : event.key === "ArrowUp" ? -80 : event.key === "PageDown" ? page : event.key === "PageUp" ? -page : null;
+      if (step !== null) {
+        event.preventDefault();
+        container.scrollBy({ top: step, behavior: "instant" });
+      } else if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        container.scrollTo({ top: event.key === "Home" ? 0 : container.scrollHeight, behavior: "instant" });
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mapOpen, modalOpen]);
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-2 backdrop-blur-sm sm:p-5">
+    <div ref={scrollRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Vista de rutina: ${routine.name}`} className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/85 p-2 backdrop-blur-sm sm:p-5">
       <section className="mx-auto my-2 w-full max-w-6xl overflow-hidden rounded-3xl border border-yellow-400/15 bg-[#101010] text-white shadow-2xl sm:my-6">
         <header className="border-b border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0a0a0a] p-4 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
