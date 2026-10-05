@@ -39,6 +39,26 @@ const bodyMap = readFileSync(new URL("../componentes/body-map.tsx", import.meta.
 const figure = readFileSync(new URL("../componentes/body-map-figure.tsx", import.meta.url), "utf8");
 const nativeRequire = createRequire(import.meta.url);
 
+test("el detalle usa Volver con Escape y cede primero a los modales superiores", () => {
+  assert.match(table, /if \(modalOpen \|\| mapOpen \|\| event\.defaultPrevented\) return/);
+  assert.match(table, /event\.key === "Escape"/);
+  assert.match(table, /closeRef\.current\(\)/);
+  assert.match(table, /window\.removeEventListener\("keydown", onKeyDown\)/);
+  assert.match(page, /modalOpen=\{Boolean\(assignmentTarget/);
+  assert.match(bodyMap, /if \(e\.key === "Escape"\) onClose\(\)/);
+});
+
+test("el teclado desplaza el detalle, bloquea el fondo y respeta los campos editables", () => {
+  for (const key of ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"]) assert.match(table, new RegExp(key));
+  assert.match(table, /container\.scrollBy/);
+  assert.match(table, /container\.scrollTo/);
+  assert.match(table, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(table, /document\.body\.style\.overflow = previousOverflow/);
+  assert.match(table, /scrollRef\.current\?\.focus/);
+  assert.match(table, /input, textarea, select, \[contenteditable\]/);
+  assert.match(table, /overscroll-contain/);
+});
+
 function loadBodyMapModule(source: string, isModal = false) {
   const loaded = { exports: {} };
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;

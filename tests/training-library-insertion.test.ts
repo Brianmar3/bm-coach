@@ -86,7 +86,8 @@ test("el selector abre en Todos, reutiliza filtros, permite previsualizar y no i
 });
 
 test("la inserción ocurre en el día actual, al final, sin guardar la rutina", () => {
-  assert.equal((page.match(/librarySnapshotToEditableBlock\(block\.content, day\.blocks\.length \+ 1\)/g) ?? []).length, 2);
+  assert.match(page, /librarySnapshotToEditableBlock\(block\.content, day\.blocks\.length \+ 1\)/);
+  assert.match(page, /librarySnapshotToEditableBlock\(source\.content, currentDay\.blocks\.length \+ 1\)/);
   const insertion = page.slice(page.indexOf("function BlockAdder"), page.indexOf("function ClassTemplateEditor"));
   assert.match(insertion, /addFromLibrary\(block\)/);
   assert.doesNotMatch(insertion, /\/api\/rutinas|submit\(/);
