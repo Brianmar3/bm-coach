@@ -134,3 +134,17 @@ export function workspaceBrandingVariables(value: unknown) {
     "--bm-accent-contrast": relativeLuminance(accent) > 0.43 ? "#09090B" : "#FFFFFF",
   };
 }
+
+/** Dark onboarding surfaces need readable accents even for very dark workspace colors. */
+export function workspaceOnboardingVariables(value: unknown) {
+  const variables = workspaceBrandingVariables(value);
+  const accent = variables["--bm-accent"];
+  let readable = accent;
+  for (let amount = 0.05; relativeLuminance(readable) < 0.28 && amount <= 1; amount += 0.05) {
+    readable = mix(accent, 255, amount);
+  }
+  const contrast = relativeLuminance(accent) > 0.179 ? "#09090B" : "#FFFFFF";
+  const highlight = mix(accent, 255, 0.06);
+  const buttonHighlight = contrast === "#FFFFFF" && relativeLuminance(highlight) > 0.183 ? accent : highlight;
+  return { ...variables, "--ob-readable": readable, "--ob-contrast": contrast, "--ob-button-highlight": buttonHighlight };
+}

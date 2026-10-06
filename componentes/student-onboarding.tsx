@@ -5,12 +5,12 @@ import { useState, type ComponentType, type CSSProperties } from "react";
 import {
   BmBackIcon, BmBarbellIcon, BmCalendarIcon, BmCheckIcon, BmEditIcon, BmFlameIcon,
   BmHealthIcon, BmInfoIcon, BmMeasurementsIcon, BmMoreIcon, BmProfileIcon,
-  BmProgressIcon, BmRankingIcon, BmTargetIcon, BmWeightIcon, type BmIconProps,
+  BmProgressIcon, BmRankingIcon, BmWeightIcon, type BmIconProps,
 } from "@/componentes/icons";
 import { EXPERIENCE_LEVELS, ONBOARDING_GOALS, TRAINING_EXPERIENCE, onboardingValidation, type StudentOnboardingData } from "@/lib/student-onboarding";
 import { SELF_SERVICE_GOALS, selfServicePreferences, selfServicePreferencesError } from "@/lib/self-service";
 import { SelfServicePreferencesFields } from "@/componentes/self-service-preferences";
-import { DEFAULT_WORKSPACE_BRANDING, workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
+import { DEFAULT_WORKSPACE_BRANDING, workspaceOnboardingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
 
 const goalIcons: Record<(typeof ONBOARDING_GOALS)[number], ComponentType<BmIconProps>> = {
   "Ganar masa muscular": BmBarbellIcon,
@@ -20,6 +20,14 @@ const goalIcons: Record<(typeof ONBOARDING_GOALS)[number], ComponentType<BmIconP
   "Mejorar rendimiento": BmRankingIcon,
   Otro: BmMoreIcon,
 };
+
+function OnboardingTargetIcon() {
+  return <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5.5" />
+    <circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none" />
+  </svg>;
+}
 
 type PhysicalField = "birthDate" | "height" | "weight";
 
@@ -55,10 +63,10 @@ export function StudentOnboarding({ initial, selfService = false, branding = DEF
     finally { setSaving(false); }
   }
 
-  return <main className="workspace-brand onboarding-shell" style={workspaceBrandingVariables(branding.accentColor) as CSSProperties}><div className="onboarding-aurora" /><div className="onboarding-phone">
+  return <main className="workspace-brand onboarding-shell" style={workspaceOnboardingVariables(branding.accentColor) as CSSProperties}><div className="onboarding-aurora" /><div className="onboarding-phone">
     {step === 0 ? <section className="onboarding-welcome onboarding-enter">
       <div className="onboarding-welcome-copy"><h1>Completá tu <strong>perfil</strong></h1><p>Son unos datos rápidos para<br />personalizar mejor tu seguimiento.</p></div>
-      <div className="onboarding-orbit" aria-label="Perfil, salud y progreso"><span /><span /><span /><div><BmTargetIcon size={38} /></div><i className="onboarding-orbit-icon onboarding-orbit-icon-profile"><BmProfileIcon size={22} /></i><i className="onboarding-orbit-icon onboarding-orbit-icon-health"><BmHealthIcon size={22} /></i><i className="onboarding-orbit-icon onboarding-orbit-icon-progress"><BmProgressIcon size={22} /></i></div>
+      <div className="onboarding-orbit" aria-label="Perfil, salud y progreso"><span /><span /><span /><div><OnboardingTargetIcon /></div><i className="onboarding-orbit-icon onboarding-orbit-icon-profile"><BmProfileIcon size={22} /></i><i className="onboarding-orbit-icon onboarding-orbit-icon-health"><BmHealthIcon size={22} /></i><i className="onboarding-orbit-icon onboarding-orbit-icon-progress"><BmProgressIcon size={22} /></i></div>
       <div className="w-full"><button type="button" onClick={() => setStep(1)} className="onboarding-primary">Empezar <span>→</span></button><small className="mt-3 block">Un mejor entrenamiento<br />comienza conociéndote.</small></div>
     </section> : <section className={step === 4 ? "onboarding-confirm onboarding-enter" : "onboarding-form onboarding-enter"}>
       {step < 4 && <><header><button type="button" className="onboarding-back" onClick={() => setStep((step - 1) as 0 | 1 | 2)} aria-label="Volver"><BmBackIcon size={24} /></button><span>{step} de 4</span><i aria-hidden="true" /></header><div className="onboarding-progress" aria-label={`Paso ${step} de 4`}>{[1, 2, 3, 4].map((item) => <i key={item} className={item <= step ? "active" : ""} />)}</div></>}
@@ -67,7 +75,7 @@ export function StudentOnboarding({ initial, selfService = false, branding = DEF
         <Field id="onboarding-height" Icon={BmMeasurementsIcon} label="Altura (opcional)" error={physicalFieldError === "height" ? error : ""}><input id="onboarding-height" type="number" inputMode="numeric" min="80" max="250" placeholder="Ej. 178" value={form.height ?? ""} aria-invalid={physicalFieldError === "height"} aria-describedby={physicalFieldError === "height" ? "onboarding-height-error" : undefined} onChange={(event) => { setForm({ ...form, height: event.target.value === "" ? null : Number(event.target.value) }); if (physicalFieldError === "height") setError(""); }} /><b>cm</b></Field>
         <Field id="onboarding-weight" Icon={BmWeightIcon} label="Peso actual (opcional)" error={physicalFieldError === "weight" ? error : ""}><input id="onboarding-weight" type="number" inputMode="decimal" min="25" max="350" step="0.1" placeholder="Ej. 70" value={form.weight ?? ""} aria-invalid={physicalFieldError === "weight"} aria-describedby={physicalFieldError === "weight" ? "onboarding-weight-error" : undefined} onChange={(event) => { setForm({ ...form, weight: event.target.value === "" ? null : Number(event.target.value) }); if (physicalFieldError === "weight") setError(""); }} /><b>kg</b></Field>
       </div></div>}
-      {step === 2 && <div className="onboarding-content"><h1>Objetivo principal</h1><p>¿Qué querés lograr con nosotros?</p><div className="onboarding-goals">{(selfService ? SELF_SERVICE_GOALS : ONBOARDING_GOALS).map((goal) => { const Icon = goal === "Mantenerme activo" ? BmHealthIcon : goalIcons[goal]; const selected = form.goal === goal; return <button type="button" key={goal} aria-pressed={selected} onClick={() => setForm({ ...form, goal })}>{selected && <BmCheckIcon className="onboarding-card-check" />}<Icon size={28} className="text-yellow-400" /><span>{goal}</span></button>; })}</div></div>}
+      {step === 2 && <div className="onboarding-content"><h1>Objetivo principal</h1><p>¿Qué querés lograr con nosotros?</p><div className="onboarding-goals">{(selfService ? SELF_SERVICE_GOALS : ONBOARDING_GOALS).map((goal) => { const Icon = goal === "Mantenerme activo" ? BmHealthIcon : goalIcons[goal]; const selected = form.goal === goal; return <button type="button" key={goal} aria-pressed={selected} onClick={() => setForm({ ...form, goal })}>{selected && <BmCheckIcon className="onboarding-card-check" />}<Icon size={28} className="onboarding-accent-icon" /><span>{goal}</span></button>; })}</div></div>}
       {step === 3 && <div className="onboarding-content"><h1>Experiencia y salud</h1><p>Esto nos ayuda a armar un mejor plan.</p>
         <fieldset><legend>¿Entrenás actualmente?</legend><div className="onboarding-toggle"><button type="button" aria-pressed={form.trainingCurrently === true} onClick={() => setForm({ ...form, trainingCurrently: true })}>Sí {form.trainingCurrently === true && <BmCheckIcon size={17} />}</button><button type="button" aria-pressed={form.trainingCurrently === false} onClick={() => setForm({ ...form, trainingCurrently: false })}>No {form.trainingCurrently === false && <BmCheckIcon size={17} />}</button></div></fieldset>
         <fieldset><legend>Nivel de experiencia</legend><div className="onboarding-levels onboarding-levels-inline">{EXPERIENCE_LEVELS.map((level) => <button type="button" key={level} aria-pressed={form.experienceLevel === level} onClick={() => setForm({ ...form, experienceLevel: level })}><span>{level}</span></button>)}</div></fieldset>
