@@ -40,18 +40,30 @@ async function readRecords(page) {
       let page = await context.newPage(); const errors = []; page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${origin}/portal/offline`);
       await page.getByText("Programa original", { exact: true }).waitFor();
-      await page.getByText("Sincronizado", { exact: true }).waitFor();
+      await page.getByRole("status").waitFor({ state: "hidden" });
+      assert.equal(await page.getByText("Sincronizado", { exact: true }).count(), 0);
+      assert.equal(await page.getByText("Abrir rutina guardada", { exact: true }).count(), 0);
       await context.setOffline(true);
       await page.close(); page = await context.newPage(); page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${origin}/portal/login`);
       await page.getByText("Modo sin conexión", { exact: true }).waitFor();
+      assert.ok((await page.getByRole("status").boundingBox()).height <= 52);
+      await page.goto(`${origin}/portal`);
+      await page.getByRole("heading", { name: "Tu entrenamiento está listo", exact: true }).waitFor();
+      await page.getByRole("link", { name: "Empezar rutina", exact: true }).click();
+      await page.waitForURL("**/portal/rutina");
+      await page.getByText("Modo sin conexión", { exact: true }).waitFor();
       await page.getByLabel("Reps de la serie 1", { exact: true }).fill("12");
-      await page.waitForFunction(() => document.body.textContent.includes("pendiente(s) de sincronización"));
+      await page.waitForFunction(() => new Promise((resolve) => { const request = indexedDB.open("bm-training-offline-v1", 1); request.onsuccess = () => { const db = request.result; const tx = db.transaction("records"); const get = tx.objectStore("records").getAll(); get.onsuccess = () => resolve(get.result.some((r) => r.pending)); tx.oncomplete = () => db.close(); }; }));
       assert.equal((await readRecords(page))[0].payload.exercises[0].sets[0].repetitions, 12);
       await page.close(); page = await context.newPage();
       await page.goto(`${origin}/portal/rutina`);
       await page.getByLabel("Reps de la serie 1", { exact: true }).waitFor();
       assert.equal(await page.getByLabel("Reps de la serie 1", { exact: true }).inputValue(), "12");
+      // Explicit fallback route lets the queue scenarios run independently of
+      // authenticated server pages, which this synthetic test does not log into.
+      await page.goto(`${origin}/portal/offline`);
+      await page.getByLabel("Reps de la serie 1", { exact: true }).waitFor();
       // A changed trainer program must not replace an in-progress original session.
       snapshot = { ...snapshot, data: { ...snapshot.data, routine: { ...snapshot.data.routine, name: "Programa modificado" } } };
       await context.setOffline(false);
@@ -59,7 +71,7 @@ async function readRecords(page) {
       assert.equal((await readRecords(page))[0].pending, true);
       rejectSave = false;
       await page.getByRole("button", { name: "Reintentar sincronización" }).click();
-      await page.getByText("Sincronizado", { exact: true }).waitFor();
+      await page.getByRole("status").waitFor({ state: "hidden" });
       assert.equal(persisted.size, 1); assert.equal((await readRecords(page))[0].pending, false);
       await page.getByText("Programa original", { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
@@ -77,7 +89,7 @@ async function readRecords(page) {
       await context.setOffline(false);
       // Use the offline route directly after the original completion redirect.
       await page.goto(`${origin}/portal/offline`);
-      await page.getByText("Sincronizado", { exact: true }).waitFor();
+      await page.getByRole("status").waitFor({ state: "hidden" });
       await page.getByText("Programa modificado", { exact: true }).waitFor();
       assert.equal(persisted.size, 1);
       assert.equal([...persisted.values()][0].status, "finalizado");
@@ -100,6 +112,21 @@ async function readRecords(page) {
       console.log(`${serviceType}: reopen offline, edits persisted, retry, no duplicates, pinned program, logout, mobile OK`);
       await context.close();
     }
+    const restored = await browser.newContext({ viewport: { width: 393, height: 851 } });
+    const restoredSnapshot = fixture("PERSONALIZED");
+    await restored.route("**/api/portal/**", (route) => route.fulfill({ json: new URL(route.request().url()).pathname === "/api/portal/offline" ? restoredSnapshot : { offlineIdentity: { studentId: restoredSnapshot.studentId, workspaceId: restoredSnapshot.workspaceId, sessionId: restoredSnapshot.sessionId } } }));
+    let restoredPage = await restored.newPage();
+    await restoredPage.goto(`${origin}/portal/offline`);
+    await restoredPage.getByText("Programa original", { exact: true }).waitFor();
+    await restored.setOffline(true);
+    await restoredPage.close(); restoredPage = await restored.newPage();
+    await restoredPage.goto(`${origin}/portal/rutina`);
+    await restoredPage.getByText("Modo sin conexión", { exact: true }).waitFor();
+    await restored.route("**/portal/rutina", (route) => route.fulfill({ contentType: "text/html", body: "<!doctype html><html><body>Portal online habitual</body></html>" }));
+    await restored.setOffline(false);
+    await restoredPage.getByText("Portal online habitual", { exact: true }).waitFor();
+    console.log("Reconnection without pending records restores the habitual online route automatically");
+    await restored.close();
     const empty = await browser.newContext(); let page = await empty.newPage(); await page.goto(`${origin}/portal/offline`);
     await page.getByText("Todavía no hay una rutina disponible sin conexión en este dispositivo.", { exact: false }).waitFor();
     await page.evaluate(() => navigator.serviceWorker.ready);
@@ -114,9 +141,9 @@ async function readRecords(page) {
       const saved = fixture("PERSONALIZED");
       await persistent.route("**/api/portal/**", (route) => route.fulfill({ json: new URL(route.request().url()).pathname === "/api/portal/offline" ? saved : { offlineIdentity: { studentId: saved.studentId, workspaceId: saved.workspaceId, sessionId: saved.sessionId } } }));
       let coldPage = await persistent.newPage(); await coldPage.goto(`${origin}/portal/offline`);
-      await coldPage.getByText("Sincronizado", { exact: true }).waitFor();
+      await coldPage.getByText("Programa original", { exact: true }).waitFor(); await coldPage.getByRole("status").waitFor({ state: "hidden" });
       await persistent.setOffline(true); await coldPage.getByLabel("Kg de la serie 1", { exact: true }).fill("27.5");
-      await coldPage.waitForFunction(() => document.body.textContent.includes("pendiente(s) de sincronización"));
+      await coldPage.waitForFunction(() => new Promise((resolve) => { const request = indexedDB.open("bm-training-offline-v1", 1); request.onsuccess = () => { const db = request.result; const tx = db.transaction("records"); const get = tx.objectStore("records").getAll(); get.onsuccess = () => resolve(get.result.some((r) => r.pending)); tx.oncomplete = () => db.close(); }; }));
       await persistent.close();
       persistent = await chromium.launchPersistentContext(profile, { channel: "msedge", headless: true, viewport: { width: 393, height: 851 } });
       await persistent.setOffline(true); coldPage = await persistent.newPage(); await coldPage.goto(`${origin}/portal/login`);

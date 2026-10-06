@@ -122,7 +122,13 @@ export function PortalShell({
   };
 
   return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider>
-    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties}>
+    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties} onClickCapture={(event) => {
+      if (navigator.onLine || serviceType === "CLASSES" || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element).closest("a");
+      if (!link) return;
+      const url = new URL(link.href);
+      if (url.origin === window.location.origin && ["/portal", "/portal/rutina"].includes(url.pathname)) { event.preventDefault(); event.stopPropagation(); window.location.assign(url.href); }
+    }}>
       <AchievementCelebration />
       <NativePushOnboarding audience="student" />
       <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>

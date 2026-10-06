@@ -8,7 +8,15 @@ El service worker anterior sólo gestionaba notificaciones. Capacitor abre la we
 
 Ahora el service worker prepara `/portal/offline` y sus recursos estáticos. Es una pantalla pública sin datos del alumno renderizados en el servidor. Ante una navegación del portal que falla por falta de red, sirve esa pantalla. No cachea APIs, páginas autenticadas, pagos ni historial. Conserva los manejadores de notificaciones.
 
-La pantalla reutiliza `WorkoutView`, resumen final y temporizadores actuales. Respeta Apariencia y branding del workspace. Permite navegar días/bloques/ejercicios, cargar series/resultados, guardar borradores y finalizar sesiones. Muestra conexión, pendientes y sincronización. Sin rutina descargada muestra un mensaje claro.
+La pantalla reutiliza `WorkoutView`, resumen final y temporizadores actuales. Respeta Apariencia y branding del workspace. Permite navegar días/bloques/ejercicios, cargar series/resultados, guardar borradores y finalizar sesiones. Sin rutina descargada muestra un mensaje claro.
+
+## Ajuste de presentación offline
+
+Online sin pendientes no hay tarjeta, mensaje «Sincronizado» ni enlace «Abrir rutina guardada». Offline muestra sólo «Modo sin conexión»; online con pendientes muestra un estado discreto que desaparece al confirmar la cola. Los errores conservan el reintento existente.
+
+Inicio/Rutina mantienen sus URLs: la sección ya abierta utiliza automáticamente la copia, sin redirigir a una pantalla alternativa. La reapertura mediante el shell público conserva los componentes visuales de cabecera, navegación y rutina. Inicio reutiliza la tarjeta habitual del plan; si ya estaba cargado, conserva su composición completa. En una reapertura offline sólo hay datos de rutina: no se inventan perfil, pagos, clases ni estadísticas no guardadas. Al reconectar y terminar la sincronización, el shell vuelve a cargar la ruta habitual online.
+
+La prueba de navegador ahora verifica también la ausencia de estado online, aviso compacto, Inicio/Rutina offline y restauración automática de la ruta online. Validación de este ajuste: 47 focales, 824 pruebas de `npm test`, build aprobado y lint sin errores (34 advertencias previas). No cambia IndexedDB, cola, comprobantes, service worker ni APIs.
 
 ## Persistencia y aislamiento
 

@@ -1,5 +1,5 @@
 "use client";
-import { hasOfflineTraining, hydrateOfflineTraining, offlineWorkoutData, offlineWorkoutDraft, refreshOfflineTraining, saveOfflineWorkout, stageOfflineWorkout, logoutOfflineTraining } from "@/lib/offline-training-client";
+import { hasOfflineTraining, hydrateOfflineTraining, offlineWorkoutData, offlineWorkoutDraft, refreshOfflineTraining, saveOfflineWorkout, stageOfflineWorkout, logoutOfflineTraining, subscribeOfflineTraining } from "@/lib/offline-training-client";
 import type { OfflineWorkoutData } from "@/lib/offline-training-types";
 import { PortalHeroFrame, PortalRoutineFrame, PORTAL_STAT_CARD_CLASS } from "@/componentes/portal-visuals";
 import { AppearanceSelector } from "@/componentes/appearance-selector";
@@ -81,6 +81,16 @@ const billingPeriod = (value: string) => value
   : "";
 
 export function PortalSection({ section, dataEndpoint = "/api/portal/data", selfService = false }: { section: Section; dataEndpoint?: string; selfService?: boolean }) {
+  const [cachedWorkout, setCachedWorkout] = useState<OfflineWorkoutData | null>(null);
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    if (selfService) return;
+    const update = () => { setOffline(!navigator.onLine); setCachedWorkout(offlineWorkoutData()); };
+    const unsubscribe = subscribeOfflineTraining(update);
+    void hydrateOfflineTraining().then(update).catch(() => {});
+    window.addEventListener("offline", update); window.addEventListener("online", update);
+    return () => { unsubscribe(); window.removeEventListener("offline", update); window.removeEventListener("online", update); };
+  }, [selfService]);
   const [data, setData] = useState<PortalData | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [changeRequired, setChangeRequired] = useState(false);
   const dataSection = section === "historial" ? "rutina" : section === "avatar" ? "perfil" : section;
   const inFlightRefresh = useRef<Promise<void> | null>(null);
@@ -100,7 +110,7 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
         return body;
       })
       .then(async (body) => { if (body) { if (!selfService && (section === "rutina" || section === "entrenamiento")) await refreshOfflineTraining(); hasLoadedData.current = true; setError(""); setData((previous) => mergePortalRefresh(previous, body, argentinaDateKey())); } })
-      .catch(async (loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError" && !hasLoadedData.current) { const cached = await hydrateOfflineTraining().catch(() => null); if (cached && offlineWorkoutData() && !navigator.onLine) window.location.assign("/portal/offline"); else setError(!navigator.onLine ? "Todavía no hay una rutina disponible sin conexión. Abrí la app con internet para guardarla." : loadError.message); } })
+      .catch(async (loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError" && !hasLoadedData.current) { if (!selfService) await hydrateOfflineTraining().catch(() => null); setError(!navigator.onLine ? "Todavía no hay una rutina disponible sin conexión. Abrí la app con internet para guardarla." : loadError.message); } })
       .finally(() => {
         if (activeController.current === controller) { inFlightRefresh.current = null; activeController.current = null; }
         if (!controller.signal.aborted) setLoading(false);
@@ -124,17 +134,24 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
     };
     window.addEventListener("bm:portal-data-refresh", refresh);
     window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     navigator.serviceWorker?.addEventListener("message", onServiceWorkerMessage);
     const poll = section === "inicio" ? window.setInterval(refreshWhenVisible, 8000) : null;
     return () => {
       window.removeEventListener("bm:portal-data-refresh", refresh);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       navigator.serviceWorker?.removeEventListener("message", onServiceWorkerMessage);
       if (poll !== null) window.clearInterval(poll);
     };
   }, [refreshPortalData, section]);
+  if (offline && cachedWorkout && (!data || cachedWorkout.profile.id === data.profile.id)) {
+    if (section === "rutina" || section === "entrenamiento") return <WorkoutView data={cachedWorkout} />;
+    if (section === "inicio") return data ? <PortalOverview data={{ ...data, ...cachedWorkout, profile: data.profile }} /> : <OfflineRoutineHome data={cachedWorkout} />;
+  }
+  if (offline && ["inicio", "rutina", "entrenamiento"].includes(section)) return <Notice><p>Todavía no hay una rutina disponible sin conexión en este dispositivo. Abrí la app con internet para guardarla.</p></Notice>;
   if (loading) return <PortalLoading />;
   if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); void refreshPortalData(true); }} />;
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setError(""); void refreshPortalData(true); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
@@ -216,7 +233,11 @@ function PortalEventAnnouncement({ events, studentId }: { events: PortalData["ev
 
 type PersonalizedHomePlan = ReturnType<typeof personalizedHomePlan>;
 
-function personalizedHomePlan(data: PortalData) {
+export function OfflineRoutineHome({ data }: { data: OfflineWorkoutData }) {
+  return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4"><RoutineHomeCard plan={personalizedHomePlan(data)} /></div>;
+}
+
+function personalizedHomePlan(data: OfflineWorkoutData) {
   const routine = data.routine;
   const trainingDays = routine?.days.filter((day) => day.blocks.length > 0) ?? [];
   const weekKey = getWeekKey();
