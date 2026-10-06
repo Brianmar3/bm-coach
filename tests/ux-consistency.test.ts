@@ -27,7 +27,7 @@ test("la tipografía y los campos reutilizados conservan legibilidad móvil", ()
   assert.match(moduleShell, /text-base/);
   assert.match(moduleShell, /sm:text-sm/);
   assert.match(moduleShell, /min-h-11/);
-  assert.match(moduleShell, /placeholder:text-zinc-500/);
+  assert.match(moduleShell, /placeholder:text-\[var\(--foreground-muted\)\]/);
 });
 
 test("la navegación móvil respeta safe area y deja espacio al contenido", () => {
@@ -71,7 +71,8 @@ test("el shell SSR muestra el logo completo oficial sobre el fondo oscuro", () =
   assert.match(splash, /\bunoptimized\b/);
   assert.doesNotMatch(splash, /\bpriority\b/);
   assert.doesNotMatch(splash, /bm-app-splash-ring|bm-splash-ring-base/);
-  assert.match(rootLayout, /backgroundColor: "#0B0B0C"/);
+  assert.match(rootLayout, /data-theme="dark"/);
+  assert.match(rootLayout, /<head><script/);
   assert.match(globals, /--background: #0b0b0c/);
   assert.match(globals, /\.bm-app-splash \{[\s\S]*?background: transparent;/);
   assert.match(splash, /h-\[100dvh\]/);

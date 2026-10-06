@@ -121,7 +121,7 @@ export function PortalShell({
   };
 
   return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider>
-    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[#070707] text-white`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties}>
+    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties}>
       <AchievementCelebration />
       <NativePushOnboarding audience="student" />
       <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>

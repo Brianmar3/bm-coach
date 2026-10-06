@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AppFrame } from "@/componentes/app-frame";
 import { BmTrainingSplash } from "@/componentes/bm-training-splash";
 import { PwaServiceWorkerRegistration } from "@/componentes/pwa-service-worker-registration";
+import { AppearanceRuntime } from "@/componentes/appearance-runtime";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,8 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="h-full" style={{ backgroundColor: "#0B0B0C" }}>
-      <body className="min-h-full text-white" style={{ backgroundColor: "#0B0B0C" }}>
+    <html lang="es" className="h-full" data-theme="dark" data-appearance="dark" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: `try{var p=localStorage.getItem("bm-appearance-v1");p=p==="light"||p==="system"?p:"dark";var d=p==="system"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):p;document.documentElement.dataset.appearance=p;document.documentElement.dataset.theme=d;document.documentElement.style.colorScheme=d}catch(e){document.documentElement.dataset.theme="dark"}` }} /></head>
+      <body className="min-h-full">
+        <AppearanceRuntime />
         <PwaServiceWorkerRegistration />
         <BmTrainingSplash />
         <div id="bm-app-root">

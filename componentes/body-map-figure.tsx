@@ -32,7 +32,7 @@ function Pair({ zone, d, zoneColor, zoneSeries }: { zone: Zone; d: string; zoneC
 }
 
 function Frame({ view, children }: { view: BodyMapView; children: ReactNode }) {
-  return <svg viewBox="0 0 320 620" preserveAspectRatio="xMidYMid meet" role="img" aria-label={view === "front" ? "Mapa corporal, vista anterior" : "Mapa corporal, vista posterior"} className="h-full w-full drop-shadow-[0_0_18px_rgba(188,141,43,0.13)]">
+  return <svg viewBox="0 0 320 620" preserveAspectRatio="xMidYMid meet" role="img" aria-label={view === "front" ? "Mapa corporal, vista anterior" : "Mapa corporal, vista posterior"} className="body-map-figure h-full w-full drop-shadow-[0_0_18px_rgba(188,141,43,0.13)]">
     <defs>
       <linearGradient id="bodyFrame" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#272727" /><stop offset="0.55" stopColor="#171717" /><stop offset="1" stopColor="#111111" /></linearGradient>
       <linearGradient id="bodyOutline" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#d1a64c" /><stop offset="1" stopColor="#775b29" /></linearGradient>

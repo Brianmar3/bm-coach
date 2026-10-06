@@ -12,14 +12,14 @@ import { NativePushOnboarding } from "@/componentes/native-push-onboarding";
 
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const standalone = pathname === "/privacidad" || pathname.startsWith("/portal") || pathname === "/admin/login" || pathname === "/master" || pathname.startsWith("/platform") || pathname.startsWith("/trainer/invite/") || pathname.startsWith("/trainer/reset-password/") || pathname === "/trainer/onboarding" || pathname.startsWith("/join/student/");
+  const standalone = pathname === "/privacidad" || pathname === "/eliminar-cuenta" || pathname.startsWith("/portal") || pathname === "/admin/login" || pathname === "/master" || pathname.startsWith("/platform") || pathname.startsWith("/trainer/invite/") || pathname.startsWith("/trainer/reset-password/") || pathname === "/trainer/onboarding" || pathname.startsWith("/join/student/");
   const classesModule = pathname === "/clases" || pathname === "/asistencias";
   const viewportStickyPage = pathname === "/resumen-mensual";
   return (
     <>
       <BmBootReady />
       {standalone ? children : (
-        <WorkspaceBrandingProvider><div className={`admin-panel min-h-full max-w-full bg-black text-white ${viewportStickyPage ? "admin-panel--viewport-sticky" : "overflow-x-clip"}`}>
+        <WorkspaceBrandingProvider><div className={`admin-panel min-h-full max-w-full bg-[var(--background)] text-[var(--foreground)] ${viewportStickyPage ? "admin-panel--viewport-sticky" : "overflow-x-clip"}`}>
           <AdminTopbar />
           <Sidebar />
           <TrainerCommandPalette />

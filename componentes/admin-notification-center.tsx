@@ -246,7 +246,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
               role="dialog"
               aria-label="Centro de notificaciones"
               style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? "min(25rem, calc(100vw - 24px))", maxHeight: position?.maxHeight ?? "68dvh", visibility: position ? "visible" : "hidden" }}
-              className="fixed z-[90] flex flex-col overflow-hidden rounded-2xl border border-yellow-400/20 bg-zinc-950 shadow-[0_24px_80px_rgba(0,0,0,.75)]"
+              className="fixed z-[90] flex flex-col overflow-hidden rounded-2xl border border-yellow-400/20 bg-zinc-950 shadow-[0_24px_80px_rgba(0,0,0,.75)] theme-popover"
             >
               <div className="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
                 <div className="min-w-0">

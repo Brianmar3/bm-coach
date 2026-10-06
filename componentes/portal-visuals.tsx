@@ -11,7 +11,7 @@ export function PortalProfileAvatar({ src, name }: { src?: string; name: string 
 }
 
 export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perfil", studentName, profileImageUrl = "", branding = DEFAULT_WORKSPACE_BRANDING, actions, children }: { homeHref?: string; profileHref?: string; studentName: string; profileImageUrl?: string; branding?: WorkspaceBranding; actions?: ReactNode; children?: ReactNode }) {
-  return <header className="sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
+  return <header className="portal-header sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
           <Link
             href={homeHref}
@@ -59,7 +59,7 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
         </div>
   {children}</header>;
 }
-export const PORTAL_MOBILE_NAV_CLASS = "fixed bottom-[calc(env(safe-area-inset-bottom)+var(--portal-bottom-nav-offset))] left-5 right-5 z-40 mx-auto grid h-[var(--portal-bottom-nav-height)] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden";
+export const PORTAL_MOBILE_NAV_CLASS = "portal-mobile-nav fixed bottom-[calc(env(safe-area-inset-bottom)+var(--portal-bottom-nav-offset))] left-5 right-5 z-40 mx-auto grid h-[var(--portal-bottom-nav-height)] max-w-[30rem] rounded-[30px] border border-white/[.09] bg-black/85 p-1.5 shadow-[0_18px_45px_rgba(0,0,0,.68),inset_0_1px_0_rgba(255,255,255,.03)] backdrop-blur-xl md:hidden";
 export const PORTAL_STAT_CARD_CLASS = "portal-home-stat portal-home-interactive group relative flex min-h-[6.75rem] min-w-0 flex-col overflow-hidden rounded-[18px] border border-yellow-400/30 bg-[linear-gradient(145deg,#151515,#090909)] p-3 shadow-[0_12px_28px_rgba(0,0,0,.25)] transition hover:border-yellow-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:p-3.5";
 export function PortalNavigationLink({ title, href, Icon, active }: { title: string; href: string; Icon: ComponentType<BmIconProps>; active: boolean }) {
   return <Link
@@ -92,8 +92,8 @@ export function PortalHeroFrame({ children }: { children: ReactNode }) {
   return <header className="portal-home-enter portal-home-hero relative overflow-hidden rounded-[26px] border border-yellow-400/25 bg-[radial-gradient(circle_at_86%_12%,rgba(250,204,21,.055),transparent_30%),linear-gradient(145deg,#171717,#090909_72%)] px-5 py-4 shadow-[0_18px_45px_rgba(0,0,0,.34)] min-[390px]:px-6 sm:p-8">{children}</header>;
 }
 export function PortalRoutineFrame({ children }: { children: ReactNode }) {
-  return <section className="relative overflow-hidden rounded-[22px] border border-yellow-400/25 bg-[radial-gradient(circle_at_88%_18%,rgba(250,204,21,.065),transparent_34%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_16px_36px_rgba(0,0,0,.3)] sm:p-5">{children}</section>;
+  return <section className="portal-routine-frame relative overflow-hidden rounded-[22px] border border-yellow-400/25 bg-[radial-gradient(circle_at_88%_18%,rgba(250,204,21,.065),transparent_34%),linear-gradient(145deg,#151515,#090909)] p-4 shadow-[0_16px_36px_rgba(0,0,0,.3)] sm:p-5">{children}</section>;
 }
 export function PortalProfileFrame({ children }: { children: ReactNode }) {
-  return <section className="relative rounded-[28px] border border-yellow-400/25 bg-[radial-gradient(circle_at_12%_12%,rgba(250,204,21,.08),transparent_30%),linear-gradient(145deg,#151515,#090909)] p-5 shadow-[0_18px_44px_rgba(0,0,0,.34)] sm:p-7">{children}</section>;
+  return <section className="portal-profile-frame relative rounded-[28px] border border-yellow-400/25 bg-[radial-gradient(circle_at_12%_12%,rgba(250,204,21,.08),transparent_30%),linear-gradient(145deg,#151515,#090909)] p-5 shadow-[0_18px_44px_rgba(0,0,0,.34)] sm:p-7">{children}</section>;
 }

@@ -1,5 +1,6 @@
 "use client";
 import { PortalHeroFrame, PortalRoutineFrame, PORTAL_STAT_CARD_CLASS } from "@/componentes/portal-visuals";
+import { AppearanceSelector } from "@/componentes/appearance-selector";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
@@ -146,7 +147,7 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
   if (section === "puntos-historial") return <PointsHistoryPageView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
   if (section === "avatar") return <StudentAvatarPage profile={data.profile} />;
-  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><div id="notificaciones" className="scroll-mt-24"><PushNotificationsCard /></div><div id="seguridad" className="scroll-mt-24"><ExpandablePasswordCard /></div><section id="privacidad" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Privacidad</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">Tus datos se muestran únicamente dentro de tu cuenta. Los cambios administrativos de plan, servicio y estado los gestiona tu entrenador.</p></section><section id="preferencias" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Preferencias</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">BM Training respeta las preferencias de movimiento y accesibilidad configuradas en tu dispositivo.</p></section><PortalLogoutCard /></PageHeader>;
+  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><section id="apariencia" className="mb-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="mb-4 font-semibold text-yellow-300">Apariencia</h2><AppearanceSelector /></section><div id="notificaciones" className="scroll-mt-24"><PushNotificationsCard /></div><div id="seguridad" className="scroll-mt-24"><ExpandablePasswordCard /></div><section id="privacidad" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Privacidad</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">Tus datos se muestran únicamente dentro de tu cuenta. Los cambios administrativos de plan, servicio y estado los gestiona tu entrenador.</p></section><section id="preferencias" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-yellow-300">Preferencias</h2><p className="mt-1 text-sm leading-relaxed text-zinc-500">BM Training respeta las preferencias de movimiento y accesibilidad configuradas en tu dispositivo.</p></section><PortalLogoutCard /></PageHeader>;
   return <PortalOverview data={data} />;
 }
 

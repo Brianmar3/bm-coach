@@ -58,14 +58,14 @@ export function Sidebar() {
         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8"><path d="M5 7h14M5 12h14M5 17h14" strokeLinecap="round" /></svg>
       </button>
 
-      <aside className="fixed bottom-0 left-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 hidden w-64 border-r border-yellow-400/10 bg-[linear-gradient(180deg,#0c0c0f_0%,#050505_100%)] px-4 py-5 lg:block">
+      <aside className="trainer-sidebar fixed bottom-0 left-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 hidden w-64 border-r border-yellow-400/10 bg-[linear-gradient(180deg,#0c0c0f_0%,#050505_100%)] px-4 py-5 lg:block">
         <p className="px-3 text-[10px] font-bold uppercase tracking-[.22em] text-zinc-600">Gestión diaria</p>
         {nav}
       </aside>
 
       {open && (
         <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm lg:hidden" onPointerDown={() => setOpen(false)}>
-          <aside role="dialog" aria-modal="true" aria-label="Menú de navegación" className="h-full w-[min(19rem,88vw)] overflow-y-auto border-r border-yellow-400/15 bg-[linear-gradient(180deg,#111114_0%,#050505_100%)] p-5 shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
+          <aside role="dialog" aria-modal="true" aria-label="Menú de navegación" className="trainer-sidebar h-full w-[min(19rem,88vw)] overflow-y-auto border-r border-yellow-400/15 bg-[linear-gradient(180deg,#111114_0%,#050505_100%)] p-5 shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <WorkspaceBrandLogo branding={branding} className="h-10 w-10 rounded-xl" compactDefault officialBmMark />

@@ -51,17 +51,15 @@ export default function BodyMapModal({
   const [view, setView] = useState<BodyMapView>("front");
 
   useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
-    if (open) {
-      document.body.style.overflow = "hidden";
-      document.addEventListener("keydown", onKey);
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
@@ -96,7 +94,7 @@ export default function BodyMapModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4 sm:px-6 sm:py-10" ref={modalRef} onClick={handleBackdropClick} role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div className="absolute inset-0 bg-black/70" aria-hidden />
-      <div className="relative w-full max-w-2xl max-h-[90dvh] overflow-hidden rounded-3xl bg-gradient-to-b from-[#0f0f0f] to-[#050505] shadow-2xl border border-zinc-800/50 flex flex-col" ref={contentRef}>
+      <div className="body-map-dialog relative w-full max-w-2xl max-h-[90dvh] overflow-hidden rounded-3xl bg-gradient-to-b from-[#0f0f0f] to-[#050505] shadow-2xl border border-zinc-800/50 flex flex-col" ref={contentRef}>
         <button
           onClick={onClose}
           className="absolute top-3 right-3 sm:top-4 sm:right-4 z-50 flex items-center justify-center w-11 h-11 rounded-lg bg-black/60 border border-zinc-700/50 hover:border-amber-400/60 transition-colors text-zinc-300 hover:text-amber-300 font-bold text-lg"

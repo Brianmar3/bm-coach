@@ -67,10 +67,47 @@
 
 :root {
   --background: #0b0b0c;
+  --surface: #151517;
+  --surface-elevated: #1c1c1f;
+  --surface-soft: #101012;
   --foreground: #ffffff;
+  --foreground-muted: #a1a1aa;
+  --border: #3f3f46;
+  --border-soft: #27272a;
+  --brand: #d4a72c;
+  --brand-hover: #b88f22;
+  --brand-text: #e4b735;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #38bdf8;
+  --overlay: rgba(0, 0, 0, .75);
+  --input-bg: #0b0b0d;
+  --input-border: #3f3f46;
+  --nav-bg: #09090b;
   --portal-bottom-nav-height: 4.75rem;
   --portal-bottom-nav-offset: 0.75rem;
   --portal-bottom-nav-clearance: 1.5rem;
+}
+
+html[data-theme="light"] {
+  --background: #f5f4f0;
+  --surface: #fffefa;
+  --surface-elevated: #ffffff;
+  --surface-soft: #f0efeb;
+  --foreground: #1e2025;
+  --foreground-muted: #62666e;
+  --border: #c8c7c2;
+  --border-soft: #e1dfd8;
+  --brand-text: #80610e;
+  --success: #087a57;
+  --warning: #966000;
+  --danger: #bc343a;
+  --info: #1469aa;
+  --overlay: rgba(20, 20, 22, .58);
+  --input-bg: #ffffff;
+  --input-border: #c8c7c2;
+  --nav-bg: #fffefa;
 }
 
 /* El branding se limita al workspace activo. Master y Plataforma quedan fuera. */
@@ -104,13 +141,8 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0b0c;
-    --foreground: #ededed;
-  }
-}
-
+html { background: var(--background); color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
 body {
   background: var(--background);
   color: var(--foreground);
@@ -924,3 +956,67 @@ html[data-bm-app-ready="true"] #bm-app-root {
     transition: none;
   }
 }
+
+/* La preferencia es del dispositivo; estas superficies no alteran el branding del workspace. */
+.appearance-choice { border-color: var(--border-soft); background: var(--surface-soft); color: var(--foreground); }
+.appearance-choice:has(input:checked) { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 11%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 28%, transparent); }
+.appearance-choice:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+html[data-theme="light"] .admin-panel,
+html[data-theme="light"] .workspace-brand:not(.onboarding-shell) { background-color: var(--background); color: var(--foreground); }
+html[data-theme="light"] .admin-page { color: var(--foreground); }
+html[data-theme="light"] .admin-topbar,
+html[data-theme="light"] .portal-header { background: color-mix(in srgb, var(--nav-bg) 94%, transparent); box-shadow: 0 10px 30px rgba(30, 29, 22, .09); }
+html[data-theme="light"] .workspace-brand { --brand-text: color-mix(in srgb, var(--bm-accent) 66%, #171717); --color-yellow-300: var(--brand-text); --color-yellow-400: var(--bm-accent); --color-yellow-500: var(--bm-accent-hover); }
+html[data-theme="light"] .workspace-brand .bg-yellow-400,
+html[data-theme="light"] .workspace-brand .bm-accent-button { background-color: var(--bm-accent); color: #15130b; }
+
+/* Compatibilidad para pantallas existentes: sólo neutrales estructurales, nunca overlays ni assets. */
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-black"],[class~="bg-zinc-950"],[class~="bg-zinc-950/95"],[class~="bg-zinc-950/80"],[class~="bg-zinc-950/70"],[class~="bg-zinc-950/60"],[class~="bg-zinc-950/55"],[class~="bg-zinc-950/50"],[class~="bg-zinc-950/45"]):not(.onboarding-shell *) { background-color: var(--surface-soft); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-zinc-900"],[class~="bg-zinc-900/95"],[class~="bg-zinc-900/90"],[class~="bg-zinc-900/80"],[class~="bg-zinc-900/75"],[class~="bg-zinc-900/70"],[class~="bg-zinc-900/60"],[class~="bg-zinc-800"],[class~="bg-zinc-800/70"]):not(.onboarding-shell *) { background-color: var(--surface); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="border-zinc-800"],[class~="border-zinc-700"],[class~="border-zinc-600"]):not(.onboarding-shell *) { border-color: var(--border-soft); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="text-white"],[class~="text-zinc-50"],[class~="text-zinc-100"],[class~="text-zinc-200"],[class~="text-zinc-300"]):not(.onboarding-shell *):not([class~="bg-yellow-400"]):not([class~="bm-accent-button"]) { color: var(--foreground); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="text-zinc-400"],[class~="text-zinc-500"],[class~="text-zinc-600"]):not(.onboarding-shell *) { color: var(--foreground-muted); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="text-yellow-300"],[class~="text-yellow-400"],[class~="text-amber-300"],[class~="text-amber-400"]):not(.onboarding-shell *) { color: var(--brand-text); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="text-emerald-200"],[class~="text-emerald-300"],[class~="text-emerald-400"],[class~="text-green-300"],[class~="text-green-400"]):not(.onboarding-shell *) { color: var(--success); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="text-red-200"],[class~="text-red-300"],[class~="text-red-400"]):not(.onboarding-shell *) { color: var(--danger); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="text-sky-300"],[class~="text-sky-400"],[class~="text-blue-300"]):not(.onboarding-shell *) { color: var(--info); }
+
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),select,textarea):not(.onboarding-shell *) { color-scheme: light; }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),select,textarea)[class*="bg-black"],
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),select,textarea)[class*="bg-zinc-950"] { background-color: var(--input-bg); border-color: var(--input-border); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where(input,textarea)::placeholder { color: #85878d; }
+
+/* Fondos compuestos que sirven de superficie (no los gradientes de progreso). */
+html[data-theme="light"] .workspace-brand[class*="bg-[#070707]"],
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class*="bg-[#121212]"],[class*="bg-[#101010]"],[class*="bg-[#0b0b0c]"]):not(.onboarding-shell *) { background: var(--surface-elevated); color: var(--foreground); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class*="bg-[linear-gradient(145deg,#15"],[class*="bg-[linear-gradient(145deg,#17"],[class*="bg-[radial-gradient(circle_at_"]):not(.onboarding-shell *) { background: linear-gradient(145deg, var(--surface-elevated), var(--surface-soft)); }
+html[data-theme="light"] .portal-home-stat { background: linear-gradient(145deg, var(--surface-elevated), var(--surface-soft)); box-shadow: 0 10px 28px rgba(30, 29, 22, .08); }
+html[data-theme="light"] .portal-home-hero,
+html[data-theme="light"] .portal-routine-frame,
+html[data-theme="light"] .portal-profile-frame { background: linear-gradient(145deg, var(--surface-elevated), var(--surface-soft)); box-shadow: 0 14px 34px rgba(30, 29, 22, .08); }
+html[data-theme="light"] .portal-routine-step:not(.is-complete) { background: var(--surface-soft); color: var(--foreground); }
+html[data-theme="light"] .portal-routine-step.is-complete { background: #ddf4ea; color: #087a57; }
+html[data-theme="light"] [role="dialog"]:not(.onboarding-shell):not([class*="bg-black/"]) { color: var(--foreground); }
+html[data-theme="light"] .portal-mobile-nav { background: color-mix(in srgb, var(--surface-elevated) 93%, transparent); box-shadow: 0 16px 40px rgba(30, 29, 22, .15); }
+html[data-theme="light"] .trainer-sidebar { background: linear-gradient(180deg, #fffefa, #eeece5); box-shadow: 4px 0 22px rgba(30, 29, 22, .06); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-black/20"],[class~="bg-black/25"],[class~="bg-black/30"],[class~="bg-black/35"],[class~="bg-black/40"],[class~="bg-black/45"],[class~="bg-black/55"]):not([class~="fixed"]):not(.onboarding-shell *) { background-color: color-mix(in srgb, var(--surface-soft) 88%, transparent); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="border-white/5"],[class~="border-white/10"],[class~="border-white/15"],[class~="border-white/20"]):not(.onboarding-shell *) { border-color: var(--border-soft); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class*="bg-[#111]"],[class*="bg-[#121212]"],[class*="bg-[#151517]"],[class*="bg-[#1B1B1E]"],[class*="bg-[#171717]"],[class*="bg-[#18181a]"],[class*="bg-[#0b0b0b]"]):not(.onboarding-shell *) { background: var(--surface-elevated); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-red-400/10"],[class~="bg-red-500/10"]):not(.onboarding-shell *) { background-color: #fff0ef; }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-emerald-400/10"],[class~="bg-emerald-500/10"]):not(.onboarding-shell *) { background-color: #e5f7ee; }
+html[data-theme="light"] .body-map-dialog { background: linear-gradient(160deg, var(--surface-elevated), var(--surface-soft)); border-color: var(--border-soft); box-shadow: 0 20px 60px rgba(20, 20, 22, .18); }
+html[data-theme="light"] .body-map-figure #bodyFrame stop:first-child { stop-color: #dad8d0; }
+html[data-theme="light"] .body-map-figure #bodyFrame stop:nth-child(2) { stop-color: #c7c4ba; }
+html[data-theme="light"] .body-map-figure #bodyFrame stop:last-child { stop-color: #b6b2a7; }
+html[data-theme="light"] .portal-ranking-summary { background: linear-gradient(105deg, #f6ecca, var(--surface-elevated) 42%, #f5eedb); }
+html[data-theme="light"] .portal-ranking-enter-item { background: var(--surface-elevated); border-color: var(--border-soft); box-shadow: 0 8px 25px rgba(30, 29, 22, .06); }
+html[data-theme="light"] .portal-ranking-enter-item:has([class*="bg-[#261b03]"]) { background: linear-gradient(110deg, #fff9e9, var(--surface-elevated)); border-color: var(--brand); }
+html[data-theme="light"] .theme-popover { background: var(--surface-elevated); color: var(--foreground); border-color: var(--border); box-shadow: 0 20px 55px rgba(20, 20, 22, .18); }
+html[data-theme="light"] .theme-popover :where([class~="text-white"],[class~="text-zinc-100"],[class~="text-zinc-200"],[class~="text-zinc-300"]) { color: var(--foreground); }
+html[data-theme="light"] .theme-popover :where([class~="text-zinc-400"],[class~="text-zinc-500"]) { color: var(--foreground-muted); }
+html[data-theme="light"] .theme-popover :where([class~="bg-zinc-950"],[class~="bg-zinc-900"],[class~="bg-zinc-800"]) { background: var(--surface-soft); }
+html[data-theme="light"] .theme-popover :where([class~="text-yellow-300"],[class~="text-amber-300"]) { color: var(--brand-text); }
+html[data-theme="light"] .theme-popover :where([class~="text-red-300"],[class~="text-red-200"]) { color: var(--danger); }
+html[data-theme="light"] .theme-popover :where([class~="text-emerald-300"]) { color: var(--success); }
+html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-zinc-900/65"],[class~="bg-zinc-900/50"],[class~="bg-zinc-900/40"],[class~="bg-zinc-800/80"],[class~="bg-zinc-800/60"]):not(.onboarding-shell *) { background-color: var(--surface); }
