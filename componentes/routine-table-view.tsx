@@ -99,7 +99,7 @@ export function RoutineTableView({
   return (
     <div ref={scrollRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Vista de rutina: ${routine.name}`} className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/85 p-2 backdrop-blur-sm sm:p-5">
       <section className="mx-auto my-2 w-full max-w-6xl overflow-hidden rounded-3xl border border-yellow-400/15 bg-[#101010] text-white shadow-2xl sm:my-6">
-        <header className="border-b border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0a0a0a] p-4 sm:p-6">
+        <header className="border-b border-zinc-800 bm-routine-heading bg-gradient-to-br from-zinc-900 to-[#0a0a0a] p-4 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">
@@ -292,7 +292,7 @@ export function RoutineTableView({
               </article>
             );
           })}
-          <section aria-label="Métricas y distribución de la rutina" className="rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-yellow-400/[.055] to-zinc-950 p-4 sm:p-5">
+          <section aria-label="Métricas y distribución de la rutina" className="rounded-2xl border border-yellow-400/15 bm-routine-metrics bg-gradient-to-br from-yellow-400/[.055] to-zinc-950 p-4 sm:p-5">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               <RoutineMetric label="Series de fuerza" value={metrics.totalSeries} />
               <RoutineMetric label="Días" value={metrics.totalDays} />

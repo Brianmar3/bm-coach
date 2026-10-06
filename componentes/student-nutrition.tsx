@@ -234,7 +234,7 @@ export function StudentNutrition() {
         {data?.summary.daysRegistered ? <p className="mt-2 text-[11px] text-zinc-500">{data.summary.daysRegistered} días registrados{data.summary.strongestHabit ? ` · Mejor: ${data.summary.strongestHabit}` : ""}{data.summary.habitToImprove ? ` · Próximo foco: ${data.summary.habitToImprove}` : ""}</p> : <p className="mt-2 text-[11px] text-zinc-500">Tu resumen semanal aparecerá después del primer registro.</p>}
           <div className="mt-3 grid grid-cols-5 gap-px overflow-hidden rounded-xl bg-white/[.08]">
             {NUTRITION_HABITS.map(({ key, label }) => (
-              <label key={key} className={`relative flex min-h-[6.75rem] cursor-pointer flex-col items-center justify-between gap-1 bg-[#0d0d0d] px-1.5 py-2.5 text-center transition focus-within:ring-2 focus-within:ring-inset focus-within:ring-yellow-300 ${habits[key] ? "text-yellow-200" : "text-zinc-300"}`}>
+              <label key={key} className={`relative flex min-h-[6.75rem] cursor-pointer flex-col items-center justify-between gap-1 bm-habit-surface px-1.5 py-2.5 text-center transition focus-within:ring-2 focus-within:ring-inset focus-within:ring-yellow-300 ${habits[key] ? "text-yellow-200" : "text-zinc-300"}`}>
                 <input type="checkbox" checked={habits[key]} onChange={(event) => setHabits((current) => ({ ...current, [key]: event.target.checked }))} className="peer sr-only" />
                 <span className={`grid size-9 place-items-center rounded-full border ${habits[key] ? "border-yellow-400/35 bg-yellow-400/[.07] text-yellow-300" : "border-zinc-700 text-zinc-500"}`}><HabitIcon habit={key} /></span>
                 <span className="text-[9px] font-medium leading-3 sm:text-[11px] sm:leading-4">{label}</span>

@@ -36,7 +36,7 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,rgba(24,24,27,.96),rgba(8,8,10,.98))] shadow-[0_18px_45px_rgba(0,0,0,.22)] ${className}`}>{children}</section>;
+  return <section className={`bm-evaluation-card rounded-2xl border border-white/[.08] shadow-[0_18px_45px_rgba(0,0,0,.22)] ${className}`}>{children}</section>;
 }
 
 function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "gold" | "green" | "amber" }) {
