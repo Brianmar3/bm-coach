@@ -133,7 +133,7 @@ test("busca el siguiente incompleto, saltea completos y termina sin abrir otro",
 
 test("el avance espera la persistencia, contrae, abre y desplaza sin temporizadores arbitrarios", () => {
   const completion = source.slice(source.indexOf("async function updateSetCompletion"), source.indexOf("function updateBlockResult"));
-  assert.match(completion, /await apiRequest/);
+  assert.match(completion, /await requestWorkout/);
   assert.match(completion, /setOpenExerciseId\(nextExerciseId\)/);
   assert.match(completion, /requestAnimationFrame/);
   assert.match(completion, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
@@ -146,7 +146,7 @@ test("el avance espera la persistencia, contrae, abre y desplaza sin temporizado
 test("contraer no elimina el borrador ni cambia el guardado existente", () => {
   assert.match(source, /updateSet\(exerciseIndex, setIndex/);
   assert.match(source, /localStorage\.setItem/);
-  assert.match(source, /apiRequest<.*>\("\/api\/portal\/entrenamientos"/);
+  assert.match(source, /requestWorkout<.*>\("\/api\/portal\/entrenamientos"/);
 });
 
 test("la tabla compacta conserva Kg, Reps, esfuerzo, valores y checkbox accesible", () => {
@@ -219,7 +219,7 @@ test("el historial vacío muestra un único mensaje", () => {
 test("la pantalla de Rutina termina en Ver mi progreso y el historial vive en su ruta dedicada", () => {
   const routineStart = source.indexOf('if (section === "rutina")');
   const routineRender = source.slice(routineStart, source.indexOf(";", routineStart) + 1);
-  assert.match(routineRender, /return <WorkoutView data=\{data\} selfService=\{selfService\} \/>/);
+  assert.match(routineRender, /return <WorkoutView data=\{!selfService && hasOfflineTraining\(data.profile.id\)/);
   assert.doesNotMatch(routineRender, /WorkoutHistoryView|historial-entrenamientos/);
   assert.match(source, /if \(section === "historial"\) return <WorkoutHistoryView data=\{data\} \/>/);
   assert.match(source, /Ver mi progreso/);

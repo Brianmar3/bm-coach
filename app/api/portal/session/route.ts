@@ -8,5 +8,5 @@ export async function GET() {
   const session = await getPortalSession({ allowSelfService: true });
   if (!session) return Response.json({ authenticated: false }, { status: 401 });
   const student = session.credential.student.data as unknown as Student;
-  return Response.json({ authenticated: true, mustChangePassword: session.credential.mustChangePassword, student: { id: session.studentId, firstName: student.firstName, lastName: student.lastName, accountType: student.accountType ?? "COACHED" } });
+  return Response.json({ authenticated: true, mustChangePassword: session.credential.mustChangePassword, offlineIdentity: { studentId: session.studentId, workspaceId: session.credential.student.workspaceId, sessionId: session.id }, student: { id: session.studentId, firstName: student.firstName, lastName: student.lastName, accountType: student.accountType ?? "COACHED" } }, { headers: { "Cache-Control": "private, no-store" } });
 }

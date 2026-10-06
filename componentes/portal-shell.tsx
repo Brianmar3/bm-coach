@@ -21,6 +21,7 @@ import { RestTimerIndicator, RestTimerProvider } from "@/componentes/rest-timer-
 import { workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/workspace-branding";
 import { WorkspaceBrandingValueProvider } from "@/componentes/workspace-branding-provider";
 import { NativePushOnboarding } from "@/componentes/native-push-onboarding";
+import { OfflineTrainingBridge } from "@/componentes/offline-training";
 
 type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
@@ -149,6 +150,7 @@ export function PortalShell({
       </PortalHeader>
 
       <main key={pathname} className="portal-route-enter mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12">
+        {(serviceType === "PERSONALIZED" || serviceType === "MIXED") && <OfflineTrainingBridge />}
         {children}
       </main>
 

@@ -14,6 +14,7 @@ import { after } from "next/server";
 import { createWorkoutCompletedTrainerNotification, dispatchTrainerPush } from "@/lib/trainer-notifications";
 import { shouldNotifyTrainerOfWorkout } from "@/lib/workout-completion-notification";
 import { isSelfService } from "@/lib/self-service";
+import { verifyOfflineProgram, offlineWorkoutServerId } from "@/lib/offline-training-proof";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,13 +54,18 @@ const workoutSessionSelect = {
 
 export async function POST(request: Request) {
   let parsedInput: PortalWorkoutSession | null = null;
+  let parsedOfflineId: string | null = null;
   let saveStage = "request";
   try {
     if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
     const session = await getPortalSession({ allowSelfService: true });
     if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
     if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal." }, { status: 403 });
-    const raw = await request.json() as PortalWorkoutSession;
+    const raw = await request.json() as PortalWorkoutSession & { offline?: { clientSessionId: string; proof: string } };
+    const offlineProof = raw.offline ? verifyOfflineProgram(raw.offline.proof, { studentId: session.studentId, workspaceId: session.credential.student.workspaceId ?? "", sessionId: session.id }) : null;
+    if (raw.offline && (!offlineProof || !["PERSONALIZED", "MIXED"].includes(session.credential.student.serviceType))) return Response.json({ error: "La copia offline no pertenece a esta cuenta o no es válida." }, { status: 403 });
+    const offlineId = offlineProof && raw.offline ? offlineWorkoutServerId(offlineProof, raw.offline.clientSessionId) : null;
+    parsedOfflineId = offlineId;
     parsedInput = raw;
     // Normalizar payload para evitar errores por campos undefined en bloques nuevos (defensiva).
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -96,15 +102,18 @@ export async function POST(request: Request) {
       return Response.json({ error: validationError, ...(process.env.NODE_ENV === "development" ? { invalidField: validationError } : {}) }, { status: 400 });
     }
     const weekRange = getWorkoutWeekRange(input.date);
-    if (weekRange.weekKey !== getWeekKey()) return Response.json({ error: "Esta sesión pertenece a una semana anterior y quedó preservada en el historial." }, { status: 409 });
+    if (!offlineProof && weekRange.weekKey !== getWeekKey()) return Response.json({ error: "Esta sesión pertenece a una semana anterior y quedó preservada en el historial." }, { status: 409 });
+    // Receipt proves the downloaded program; current authentication is checked above.
+    // Late delivery after reauthentication is allowed, future dates are not.
+    if (offlineProof && (new Date(`${input.date}T12:00:00Z`).getTime() < Date.parse(offlineProof.issuedAt) - 7 * 86400000 || input.date > argentinaDateKey())) return Response.json({ error: "La fecha está fuera del período de la copia offline." }, { status: 400 });
 
-    let existingSession = input.id
+    let existingSession = (input.id ?? offlineId)
       ? await prisma.workoutSession.findFirst({
-        where: { id: input.id, studentId: session.studentId },
+        where: { id: input.id ?? offlineId!, studentId: session.studentId },
         select: workoutSessionSelect,
       })
       : null;
-    if (!input.id) {
+    if (!input.id && !existingSession) {
       existingSession = await prisma.workoutSession.findFirst({
         where: { studentId: session.studentId, routineId: input.routineId, dayId: input.dayId, status: "IN_PROGRESS", date: { gte: weekRange.startDate, lt: weekRange.endExclusiveDate } },
         orderBy: [{ date: "desc" }, { createdAt: "desc" }],
@@ -119,10 +128,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "El entrenamiento ya no existe o no te pertenece." }, { status: 404 });
     }
     if (existingSession?.status === "COMPLETED") {
-      if (!input.id && input.status === "finalizado") return Response.json({ id: existingSession.id, status: "finalizado", reused: true });
+      if ((!offlineProof && !input.id || offlineProof && (existingSession.id === offlineId || existingSession.id === input.id)) && input.status === "finalizado") return Response.json({ id: existingSession.id, status: "finalizado", reused: true });
       return Response.json({ error: "Una sesión finalizada no puede modificarse ni reabrirse." }, { status: 409 });
     }
-    if (existingSession && (existingSession.routineId !== input.routineId || existingSession.dayId !== input.dayId)) {
+    if (offlineProof && existingSession && (existingSession.routineId === null || existingSession.dayId === null) && existingSession.id !== offlineId && !offlineProof.sessionIds?.includes(existingSession.id)) return Response.json({ error: "La sesión histórica no corresponde a esta copia offline." }, { status: 403 });
+    if (existingSession && ((existingSession.routineId !== input.routineId && !(offlineProof && existingSession.routineId === null)) || (existingSession.dayId !== input.dayId && !(offlineProof && existingSession.dayId === null)))) {
       return Response.json({ error: "No se puede cambiar la rutina o el día de una sesión existente." }, { status: 400 });
     }
     if (input.id && existingSession && databaseDateKey(existingSession.date) !== input.date) {
@@ -130,10 +140,12 @@ export async function POST(request: Request) {
     }
     const resolvedSessionId = existingSession?.id ?? null;
 
-    const assignment = await prisma.trainingRoutineAssignment.findUnique({
+    const liveAssignment = await prisma.trainingRoutineAssignment.findUnique({
       where: { routineId_studentId: { routineId: input.routineId, studentId: session.studentId } },
       include: { routine: { include: { days: { include: { exercises: true, blocks: { include: { exercises: true } } } } } } },
     });
+    const assignment = offlineProof ? offlineProof.assignment as NonNullable<typeof liveAssignment> : liveAssignment;
+    if (offlineProof && (assignment?.studentId !== session.studentId || assignment?.routineId !== input.routineId)) return Response.json({ error: "La rutina no coincide con la copia offline." }, { status: 403 });
     if (assignment?.routine.workspaceId !== session.credential.student.workspaceId) {
       return Response.json({ error: "La rutina no pertenece a tu espacio de trabajo." }, { status: 403 });
     }
@@ -177,6 +189,7 @@ export async function POST(request: Request) {
       ?? existingSession?.routineDayEstimatedMinutesSnapshot
       ?? day.estimatedMinutes;
 
+    const liveDay = liveAssignment?.routine.days.find((item) => item.id === input.dayId);
     const programmedExercises = new Map(day.exercises.map((exercise) => [exercise.id, exercise]));
     const exerciseCreates: Prisma.WorkoutExerciseLogUncheckedCreateWithoutSessionInput[] = [];
     for (const exercise of input.exercises) {
@@ -187,7 +200,7 @@ export async function POST(request: Request) {
       const exerciseReferenceId = previousSnapshot?.exerciseReferenceId ?? previousSnapshot?.exerciseId ?? exercise.exerciseId;
       if (!exerciseName || !exerciseReferenceId) return Response.json({ error: "No se pudo construir el snapshot histórico de un ejercicio." }, { status: 400 });
       exerciseCreates.push({
-        exerciseId: exercise.exerciseId,
+        exerciseId: offlineProof && !liveDay?.exercises.some((item) => item.id === exercise.exerciseId) ? null : exercise.exerciseId,
         exerciseReferenceId,
         observation: exercise.observation.trim(),
         snapshotVersion: previousSnapshot ? previousSnapshot.snapshotVersion : 1,
@@ -212,7 +225,7 @@ export async function POST(request: Request) {
       if (!programmed) return Response.json({ error: "Uno de los bloques no pertenece al día seleccionado." }, { status: 400 });
       const previousSnapshot = existingSession?.blocks.find((item) => item.blockId === block.blockId);
       blockCreates.push({
-        blockId: block.blockId,
+        blockId: offlineProof && !liveDay?.blocks.some((item) => item.id === block.blockId) ? null : block.blockId,
         blockReferenceId: previousSnapshot?.blockReferenceId ?? block.blockId,
         snapshotVersion: previousSnapshot?.snapshotVersion ?? 1,
         blockName: previousSnapshot?.blockName ?? programmed.name,
@@ -246,8 +259,8 @@ export async function POST(request: Request) {
       }
       const data = {
         studentId: session.studentId,
-        routineId: input.routineId,
-        dayId: input.dayId,
+        routineId: offlineProof && !liveAssignment ? null : input.routineId,
+        dayId: offlineProof && !liveDay ? null : input.dayId,
         routineNameSnapshot,
         routineDayNumberSnapshot,
         routineDayNameSnapshot,
@@ -271,7 +284,7 @@ export async function POST(request: Request) {
       };
       return resolvedSessionId
         ? transaction.workoutSession.update({ where: { id: resolvedSessionId }, data })
-        : transaction.workoutSession.create({ data });
+        : transaction.workoutSession.create({ data: { ...data, ...(offlineId ? { id: offlineId } : {}) } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     saveStage = "post-save";
     const student = session.credential.student.data as unknown as Student;
@@ -315,8 +328,8 @@ export async function POST(request: Request) {
     if (error instanceof Error && error.message === "COMPLETED_SESSION") return Response.json({ error: "Una sesión finalizada no puede modificarse ni reabrirse." }, { status: 409 });
     if (error instanceof Error && error.message.startsWith("WEEKLY_SESSION:")) {
       const [, status, id] = error.message.split(":");
-      if (status === "COMPLETED" && parsedInput?.status === "finalizado") return Response.json({ id, status: "finalizado", reused: true });
-      if (status === "IN_PROGRESS" && parsedInput?.status === "en_progreso") return Response.json({ id, status: "en_progreso", reused: true });
+      if (status === "COMPLETED" && parsedInput?.status === "finalizado" && (!parsedOfflineId || id === parsedOfflineId || id === parsedInput.id)) return Response.json({ id, status: "finalizado", reused: true });
+      if (!parsedOfflineId && status === "IN_PROGRESS" && parsedInput?.status === "en_progreso") return Response.json({ id, status: "en_progreso", reused: true });
       return Response.json({ error: status === "COMPLETED" ? "Este día ya fue finalizado durante la semana actual." : "La sesión se creó al mismo tiempo. Reintentá para continuarla sin duplicar datos." }, { status: 409 });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "La sesión cambió mientras la guardabas. Recargá Mi rutina antes de volver a intentar." }, { status: 409 });

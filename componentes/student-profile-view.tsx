@@ -1,4 +1,5 @@
 "use client";
+import { logoutOfflineTraining } from "@/lib/offline-training-client";
 import { PortalProfileFrame, PortalProfileAvatar } from "@/componentes/portal-visuals";
 
 
@@ -95,7 +96,7 @@ export function StudentProfileView({ profile: initialProfile }: { profile: Porta
 
 function SettingsMenu({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
-  async function logout() { setBusy(true); try { await fetch("/api/portal/logout", { method: "POST" }); } finally { window.location.assign("/portal/login"); } }
+  async function logout() { setBusy(true); try { if (await logoutOfflineTraining()) window.location.assign("/portal/login"); } finally { setBusy(false); } }
   const links: ReadonlyArray<readonly [string, string, SettingsIconName]> = [["Seguridad", "/portal/perfil/seguridad", "security"], ["Privacidad", "/portal/perfil/privacidad", "privacy"], ["Preferencias", "/portal/perfil/preferencias", "preferences"], ["Ayuda", "/portal/perfil/ayuda", "help"]];
   return <div role="dialog" aria-label="Ajustes de cuenta" className="fixed inset-x-4 top-[max(5.5rem,env(safe-area-inset-top))] z-[80] max-h-[calc(100dvh-7rem)] overflow-auto rounded-[24px] border border-yellow-400/55 bg-[#111] p-4 shadow-[0_24px_80px_rgba(0,0,0,.8),0_0_24px_rgba(250,204,21,.1)] sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+1rem)] sm:w-80">
     <div className="flex items-start justify-between"><div><h2 className="text-xl font-bold">Ajustes</h2><p className="text-sm text-zinc-500">Cuenta y ajustes</p></div><button type="button" onClick={onClose} aria-label="Cerrar ajustes" className="grid size-10 place-items-center rounded-xl text-zinc-400"><BmCloseIcon size={20} /></button></div>

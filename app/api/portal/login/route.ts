@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const username = normalizeUsername(body.username ?? "");
     const password = body.password ?? "";
     if (!username || !password || password.length > 128) return Response.json({ error: "Ingresá usuario y contraseña." }, { status: 400 });
-    const credential = await prisma.studentPortalCredential.findUnique({ where: { username } });
+    const credential = await prisma.studentPortalCredential.findUnique({ where: { username }, include: { student: { select: { workspaceId: true } } } });
     if (!credential) { await consumePasswordVerificationTime(password); return Response.json({ error: "Usuario o contraseña incorrectos." }, { status: 401 }); }
     if (!credential.active) { await consumePasswordVerificationTime(password); return Response.json({ error: "El acceso está desactivado. Contactá a tu entrenador." }, { status: 403 }); }
     if (credential.lockedUntil && credential.lockedUntil > new Date()) return Response.json({ error: "Demasiados intentos. Probá nuevamente en 15 minutos." }, { status: 429 });
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     cookieStore.set(PORTAL_COOKIE, session.token, portalCookieOptions(session.expiresAt));
     cookieStore.set(LAST_PORTAL_COOKIE, "student", portalExperienceCookieOptions());
-    return Response.json({ ok: true, mustChangePassword: credential.mustChangePassword });
+    return Response.json({ ok: true, mustChangePassword: credential.mustChangePassword, offlineIdentity: { studentId: credential.studentId, workspaceId: credential.student.workspaceId } });
   } catch (error) {
     console.error("Error al iniciar sesión en el portal", error);
     return Response.json({ error: "No se pudo iniciar sesión." }, { status: 500 });

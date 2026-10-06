@@ -1,4 +1,6 @@
 "use client";
+import { hasOfflineTraining, hydrateOfflineTraining, offlineWorkoutData, offlineWorkoutDraft, refreshOfflineTraining, saveOfflineWorkout, stageOfflineWorkout, logoutOfflineTraining } from "@/lib/offline-training-client";
+import type { OfflineWorkoutData } from "@/lib/offline-training-types";
 import { PortalHeroFrame, PortalRoutineFrame, PORTAL_STAT_CARD_CLASS } from "@/componentes/portal-visuals";
 import { AppearanceSelector } from "@/componentes/appearance-selector";
 
@@ -92,20 +94,20 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
     const request = fetch(`${dataEndpoint}?section=${dataSection}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as PortalData & { error?: string; code?: string };
-        if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida."); }
+        if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida. Los registros offline siguen guardados."); }
         if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; }
         if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información.");
         return body;
       })
-      .then((body) => { if (body) { hasLoadedData.current = true; setError(""); setData((previous) => mergePortalRefresh(previous, body, argentinaDateKey())); } })
-      .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError" && !hasLoadedData.current) setError(loadError.message); })
+      .then(async (body) => { if (body) { if (!selfService && (section === "rutina" || section === "entrenamiento")) await refreshOfflineTraining(); hasLoadedData.current = true; setError(""); setData((previous) => mergePortalRefresh(previous, body, argentinaDateKey())); } })
+      .catch(async (loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError" && !hasLoadedData.current) { const cached = await hydrateOfflineTraining().catch(() => null); if (cached && offlineWorkoutData() && !navigator.onLine) window.location.assign("/portal/offline"); else setError(!navigator.onLine ? "Todavía no hay una rutina disponible sin conexión. Abrí la app con internet para guardarla." : loadError.message); } })
       .finally(() => {
         if (activeController.current === controller) { inFlightRefresh.current = null; activeController.current = null; }
         if (!controller.signal.aborted) setLoading(false);
       });
     inFlightRefresh.current = request;
     return request;
-  }, [dataEndpoint, dataSection]);
+  }, [dataEndpoint, dataSection, section, selfService]);
   useEffect(() => {
     activeController.current?.abort(); inFlightRefresh.current = null; hasLoadedData.current = false;
     const resetTimeout = window.setTimeout(() => {
@@ -137,9 +139,9 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
   if (changeRequired) return <ChangePasswordCard forced onSuccess={() => { setChangeRequired(false); void refreshPortalData(true); }} />;
   if (error) return <Notice tone="error"><p>{error}</p><button onClick={() => { setError(""); void refreshPortalData(true); }} className="mt-3 rounded-lg bg-red-300 px-3 py-2 font-bold text-zinc-950">Reintentar</button></Notice>;
   if (!data) return null;
-  if (section === "rutina") return <WorkoutView data={data} selfService={selfService} />;
+  if (section === "rutina") return <WorkoutView data={!selfService && hasOfflineTraining(data.profile.id) ? offlineWorkoutData() ?? data : data} selfService={selfService} />;
   if (section === "historial") return <WorkoutHistoryView data={data} />;
-  if (section === "entrenamiento") return <WorkoutView data={data} selfService={selfService} />;
+  if (section === "entrenamiento") return <WorkoutView data={!selfService && hasOfflineTraining(data.profile.id) ? offlineWorkoutData() ?? data : data} selfService={selfService} />;
   if (section === "comentarios") return <CommentsView data={data} />;
   if (section === "evaluaciones") return <ComparativeEvaluationsView data={data} />;
   if (section === "pagos") return <PaymentsView data={data} />;
@@ -614,7 +616,11 @@ function PortalSchedules({ data }: { data: PortalData }) {
   </section>;
 }
 
-function WorkoutView({ data, selfService = false }: { data: PortalData; selfService?: boolean }) {
+export function WorkoutView({ data, selfService = false }: { data: OfflineWorkoutData; selfService?: boolean }) {
+  const requestWorkout = useCallback(async <T,>(input: RequestInfo | URL, init: RequestInit | undefined, options: { fallback: string; scope: "portal" }): Promise<T> => {
+    if (!selfService && hasOfflineTraining(data.profile.id) && typeof init?.body === "string") return await saveOfflineWorkout(JSON.parse(init.body) as PortalWorkoutSession) as T;
+    return apiRequest<T>(input, init, options);
+  }, [data.profile.id, selfService]);
   const routine = data.routine;
   const weekKey = getWeekKey();
   const trainingDays = useMemo(() => routine?.days.filter((day) => day.blocks.length) ?? [], [routine]);
@@ -660,6 +666,10 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
   const storageKey = useCallback((dayId: string) => {
     return routine ? workoutDraftStorageKey(data.profile.id, routine.id, dayId, weekKey) : "";
   }, [data.profile.id, routine, weekKey]);
+  const persistDraft = useCallback((value: PortalWorkoutSession) => {
+    if (!selfService && hasOfflineTraining(data.profile.id)) void stageOfflineWorkout(value).catch((error: Error) => setError(error.message));
+    else window.localStorage.setItem(storageKey(value.dayId), JSON.stringify(value));
+  }, [data.profile.id, selfService, storageKey]);
 
   function freshDraft(dayId: string): PortalWorkoutSession | null {
     const day = trainingDays.find((item) => item.id === dayId);
@@ -668,7 +678,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
     const databaseSession = findCurrentWeekSession(data.workoutSessions, { routineId: routine.id, dayId, weekKey });
     if (databaseSession) return databaseSession;
     const currentStorageKey = storageKey(dayId);
-    const saved = typeof window === "undefined" ? null : window.localStorage.getItem(currentStorageKey);
+    const saved = offlineWorkoutDraft(routine.id, dayId, weekKey) ?? (typeof window === "undefined" ? null : window.localStorage.getItem(currentStorageKey));
     if (typeof window !== "undefined") window.localStorage.removeItem(legacyWorkoutDraftStorageKey(data.profile.id, dayId));
     if (saved) {
       try {
@@ -695,7 +705,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
       setDraft(next);
       setOpenExerciseId(initialOpenExerciseId(next?.exercises ?? []));
       const saved = window.localStorage.getItem(storageKey(selectedDayId));
-      setStarted(next?.status === "en_progreso" && Boolean(next.id || saved));
+      setStarted(next?.status === "en_progreso" && Boolean(next.id || saved || offlineWorkoutDraft(routine?.id ?? "", selectedDayId, weekKey)));
     }, 0);
     return () => window.clearTimeout(timer);
     // freshDraft reads the current server payload; this initialization only runs while draft is empty.
@@ -708,7 +718,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
     setSelectedDayId(dayId);
     setDraft(next);
     setOpenExerciseId(initialOpenExerciseId(next?.exercises ?? []));
-    setStarted(next?.status === "en_progreso" && Boolean(next.id || window.localStorage.getItem(storageKey(dayId))));
+    setStarted(next?.status === "en_progreso" && Boolean(next.id || offlineWorkoutDraft(routine?.id ?? "", dayId, weekKey) || window.localStorage.getItem(storageKey(dayId))));
     setMessage("");
     setError("");
     setFinalOpen(false);
@@ -731,7 +741,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
     sets[setIndex] = { ...sets[setIndex], ...changes };
     const next = beginWith({ ...draft, exercises: exercises.map((item, index) => index === exerciseIndex ? { ...exercise, sets } : item) });
     setDraft(next);
-    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
+    persistDraft(next);
   }
 
   async function updateSetCompletion(exerciseIndex: number, setIndex: number, completed: boolean) {
@@ -750,13 +760,13 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
     autosaveAbortRef.current?.abort();
     autosaveSignature.current = signature;
     setDraft(next);
-    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
+    persistDraft(next);
     setError("");
     try {
-      const body = await apiRequest<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) }, { fallback: "No se pudo guardar el entrenamiento.", scope: "portal" });
+      const body = await requestWorkout<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) }, { fallback: "No se pudo guardar el entrenamiento.", scope: "portal" });
       const saved = { ...next, id: body.id ?? next.id };
       autosaveSignature.current = JSON.stringify(saved);
-      window.localStorage.setItem(storageKey(saved.dayId), JSON.stringify(saved));
+      persistDraft(saved);
       setDraft((current) => current?.dayId === saved.dayId ? { ...current, id: saved.id } : current);
       if (shouldAdvance) {
         const nextExerciseId = nextIncompleteExerciseId(saved.exercises, exercise.exerciseId);
@@ -775,7 +785,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
     if (!draft || sessionFinalizingRef.current) return;
     const next = beginWith({ ...draft, blocks: (draft.blocks ?? []).map((block) => block.blockId === blockId ? { ...block, result: { ...block.result, ...changes } } : block) });
     setDraft(next);
-    window.localStorage.setItem(storageKey(next.dayId), JSON.stringify(next));
+    persistDraft(next);
   }
 
   async function completeBlockResult(blockId: string, changes: Partial<NonNullable<PortalWorkoutSession["blocks"]>[number]["result"]>) {
@@ -787,10 +797,10 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
     autosaveSignature.current = signature;
     setError("");
     try {
-      const body = await apiRequest<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) }, { fallback: "No se pudo guardar el entrenamiento.", scope: "portal" });
+      const body = await requestWorkout<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...next, status: "en_progreso" }) }, { fallback: "No se pudo guardar el entrenamiento.", scope: "portal" });
       const saved = { ...next, id: body.id ?? next.id };
       autosaveSignature.current = JSON.stringify(saved);
-      window.localStorage.setItem(storageKey(saved.dayId), JSON.stringify(saved));
+      persistDraft(saved);
       setDraft((current) => current?.dayId === next.dayId ? saved : current);
     } catch (value) {
       autosaveSignature.current = "";
@@ -802,7 +812,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
 
   useEffect(() => {
     if (sessionFinalizingRef.current || !started || !draft || draft.status === "finalizado") return;
-    window.localStorage.setItem(storageKey(draft.dayId), JSON.stringify(draft));
+    persistDraft(draft);
     const signature = JSON.stringify(draft);
     if (signature === autosaveSignature.current) return;
     const controller = new AbortController();
@@ -810,7 +820,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
     const timer = window.setTimeout(async () => {
       if (sessionFinalizingRef.current) return;
       try {
-        const body = await apiRequest<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }), signal: controller.signal }, { fallback: "No se pudo guardar automáticamente.", scope: "portal" });
+        const body = await requestWorkout<{ id?: string }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...draft, status: "en_progreso" }), signal: controller.signal }, { fallback: "No se pudo guardar automáticamente.", scope: "portal" });
         autosaveSignature.current = signature;
         if (!draft.id && body.id) setDraft((current) => current?.dayId === draft.dayId ? { ...current, id: body.id } : current);
       } catch (value) {
@@ -819,7 +829,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
       }
     }, 900);
     return () => { window.clearTimeout(timer); controller.abort(); if (autosaveAbortRef.current === controller) autosaveAbortRef.current = null; };
-  }, [data.profile.id, draft, started, storageKey]);
+  }, [data.profile.id, draft, started, storageKey, persistDraft, requestWorkout]);
   async function save(finalize = false) {
     if (!draft || saveLockRef.current) return;
     saveLockRef.current = true;
@@ -836,7 +846,7 @@ function WorkoutView({ data, selfService = false }: { data: PortalData; selfServ
         ? [`Zona: ${painLocation.trim() || "sin especificar"}`, painIntensity ? `Intensidad: ${painIntensity}/10` : "", draft.painDetails.trim()].filter(Boolean).join(" · ")
         : draft.painDetails;
       const payload = { ...draft, durationMinutes: duration, generalFeeling: finalize ? sensation as PortalWorkoutSession["generalFeeling"] : draft.generalFeeling, finalComment, painDetails, status: finalize ? "finalizado" as const : "en_progreso" as const };
-      const body = await apiRequest<{ id?: string; achievements?: PortalAchievement[]; newAchievements?: CelebrationAchievement[] }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }, { fallback: "No se pudo guardar.", scope: "portal" });
+      const body = await requestWorkout<{ id?: string; achievements?: PortalAchievement[]; newAchievements?: CelebrationAchievement[] }>("/api/portal/entrenamientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }, { fallback: "No se pudo guardar.", scope: "portal" });
       announceNewAchievements(body.newAchievements);
       const updated = { ...payload, id: body.id };
       if (finalize) {
@@ -1097,9 +1107,9 @@ function PortalLogoutCard() {
   async function logout() {
     setBusy(true);
     try {
-      await fetch("/api/portal/logout", { method: "POST" });
+      if (await logoutOfflineTraining()) window.location.assign("/portal/login");
     } finally {
-      window.location.assign("/portal/login");
+      setBusy(false);
     }
   }
   return (

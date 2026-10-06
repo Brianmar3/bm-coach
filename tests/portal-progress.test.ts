@@ -77,5 +77,6 @@ test("visitar progreso no limpia el borrador local del entrenamiento", () => {
   const view = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
   const access = view.slice(view.indexOf('href="/portal/progreso"'), view.indexOf('href="/portal/progreso"') + 900);
   assert.doesNotMatch(access, /localStorage\.removeItem|setDraft\(null\)/);
-  assert.match(view, /localStorage\.setItem\(storageKey\(draft\.dayId\), JSON\.stringify\(draft\)\)/);
+  assert.match(view, /persistDraft\(draft\)/);
+  assert.match(view, /stageOfflineWorkout\(value\)/);
 });

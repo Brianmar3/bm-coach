@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { PasswordField } from "@/componentes/password-field";
 import { safeInternalPath } from "@/lib/client-api";
 import { SELF_SERVICE_SIGNUP_ENABLED } from "@/lib/self-service-signup";
+import { reconcileOfflineLogin, finishOfflineLogout } from "@/lib/offline-training-client";
 
 type LoginErrors = { username?: string; password?: string };
 
@@ -33,12 +34,14 @@ export function PortalLoginForm() {
     setLoading(true);
     setError("");
     try {
+      await finishOfflineLogout();
       const response = await fetch("/api/portal/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
-      const body = await response.json() as { error?: string };
+      const body = await response.json() as { error?: string; offlineIdentity?: { studentId: string; workspaceId: string | null } };
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) { setFieldErrors({ password: "Los datos ingresados no son correctos." }); passwordRef.current?.focus(); }
         throw new Error(response.status === 429 ? (body.error ?? "Esperá unos minutos antes de volver a intentar.") : "No pudimos iniciar sesión. Revisá los datos e intentá nuevamente.");
       }
+      await reconcileOfflineLogin(body.offlineIdentity).catch(() => {});
       const next = safeInternalPath(new URLSearchParams(window.location.search).get("next"), "/portal");
       router.replace(next);
       router.refresh();

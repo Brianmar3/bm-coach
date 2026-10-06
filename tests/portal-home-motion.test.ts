@@ -50,7 +50,7 @@ test("la Home refresca en primer plano sin superponer solicitudes", () => {
 });
 
 test("el service worker avisa a las ventanas abiertas cuando llega un push", () => {
-  assert.match(serviceWorker, /push-v8-live-home/);
+  assert.match(serviceWorker, /push-v10-offline-v1/);
   assert.match(serviceWorker, /includeUncontrolled: true/);
   assert.match(serviceWorker, /BM_PORTAL_DATA_CHANGED/);
   assert.match(serviceWorker, /BM_ACHIEVEMENT_AVAILABLE/);
@@ -102,11 +102,12 @@ test("la Home premium conserva ornamentos acotados y usa la manzana oficial", ()
 
 test("la Home premium mantiene una densidad compacta en mobile", () => {
   assert.match(home, /space-y-4/);
-  assert.match(home, /min-h-\[8rem\]/);
+  assert.match(home, /min-h-\[7\.5rem\]/);
+  assert.match(home, /min-h-\[7rem\]/);
   assert.doesNotMatch(home, /min-h-\[10rem\]/);
   assert.doesNotMatch(home, /sm:min-h-40/);
-  assert.match(home, /size-\[92px\]/);
-  assert.match(home, /min-\[390px\]:size-24/);
+  assert.match(home, /size-\[82px\]/);
+  assert.match(home, /min-\[390px\]:size-\[86px\]/);
   assert.match(classes, /mt-3 space-y-2/);
   assert.match(classes, /min-h-11 shrink-0/);
 });
