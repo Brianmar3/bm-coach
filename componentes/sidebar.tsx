@@ -61,10 +61,10 @@ export function Sidebar() {
         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8"><path d="M5 7h14M5 12h14M5 17h14" strokeLinecap="round" /></svg>
       </button>
 
-      <aside className="trainer-sidebar fixed bottom-0 left-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 hidden w-64 border-r border-yellow-400/10 bg-[linear-gradient(180deg,#0c0c0f_0%,#050505_100%)] px-4 py-5 lg:block">
-        <p className="px-3 text-[10px] font-bold uppercase tracking-[.22em] text-zinc-600">Gestión diaria</p>
-        {nav}
-        {logoutButton}
+      <aside className="trainer-sidebar fixed bottom-0 left-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 hidden w-64 flex-col overflow-hidden border-r border-yellow-400/10 bg-[linear-gradient(180deg,#0c0c0f_0%,#050505_100%)] px-4 py-5 lg:flex">
+        <p className="shrink-0 px-3 text-[10px] font-bold uppercase tracking-[.22em] text-zinc-600">Gestión diaria</p>
+        <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
+        <div className="shrink-0">{logoutButton}</div>
       </aside>
 
       {open && (
