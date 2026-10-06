@@ -22,6 +22,8 @@ import { workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/worksp
 import { WorkspaceBrandingValueProvider } from "@/componentes/workspace-branding-provider";
 import { NativePushOnboarding } from "@/componentes/native-push-onboarding";
 import { OfflineTrainingBridge } from "@/componentes/offline-training";
+import { hydrateOfflineTraining, offlineTrainingState, subscribeOfflineTraining } from "@/lib/offline-training-client";
+import { saveOfflineIdentity } from "@/lib/offline-identity";
 
 type PortalLink = readonly [title: string, href: string, icon: ComponentType<BmIconProps>];
 
@@ -35,6 +37,7 @@ const allLinks: PortalLink[] = [
 
 export function PortalShell({
   studentName,
+  studentId,
   profileImageUrl,
   serviceType,
   hasRoutine,
@@ -42,6 +45,7 @@ export function PortalShell({
   children,
 }: {
   studentName: string;
+  studentId?: string;
   profileImageUrl: string;
   serviceType: StudentServiceType;
   hasRoutine: boolean;
@@ -52,6 +56,17 @@ export function PortalShell({
   const [currentBranding, setCurrentBranding] = useState(branding);
   const [currentProfileImageUrl, setCurrentProfileImageUrl] =
     useState(profileImageUrl);
+  useEffect(() => {
+    if (!studentId || !["PERSONALIZED", "MIXED"].includes(serviceType)) return;
+    const save = () => {
+      const snapshot = offlineTrainingState().snapshot;
+      if (snapshot?.studentId === studentId) void saveOfflineIdentity(snapshot.scope, studentId, currentProfileImageUrl, currentBranding).catch(() => {});
+    };
+    const unsubscribe = subscribeOfflineTraining(save);
+    void hydrateOfflineTraining().then(save).catch(() => {});
+    window.addEventListener("online", save);
+    return () => { unsubscribe(); window.removeEventListener("online", save); };
+  }, [studentId, serviceType, currentProfileImageUrl, currentBranding]);
   useEffect(() => {
     let controller: AbortController | null = null;
     let stopped = false;

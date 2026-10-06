@@ -8,6 +8,7 @@ import { WorkspaceBrandingValueProvider } from "@/componentes/workspace-branding
 import { PortalHeader, PortalNavigationLink, PORTAL_MOBILE_NAV_CLASS } from "@/componentes/portal-visuals";
 import { BmHomeIcon, BmRoutineIcon } from "@/componentes/icons";
 import { OfflineRoutineHome } from "@/componentes/portal-section";
+import { readOfflineIdentity, type OfflineIdentityImages } from "@/lib/offline-identity";
 
 export function OfflineTrainingBridge() {
   const [state, setState] = useState<ReturnType<typeof offlineTrainingState> | null>(null);
@@ -27,7 +28,7 @@ export function OfflineTrainingBridge() {
   }, []);
   if (!state?.snapshot || (online && !state.pending)) return null;
   return <aside role="status" className="mx-auto mb-2 flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-[var(--foreground-muted)]">
-    <span>{!online ? "Modo sin conexión" : "Pendiente de sincronización"}</span>
+    <span className="inline-flex items-center gap-1.5">{!online && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m3 3 18 18M2 8a16 16 0 0 1 3-2M9 4a16 16 0 0 1 13 4M5 12a11 11 0 0 1 4-2M14 10a11 11 0 0 1 5 2M8 16a6 6 0 0 1 5-1" /><circle cx="12" cy="20" r="1" /></svg>}{!online ? "Modo sin conexión" : "Pendiente de sincronización"}</span>
     {!online && state.error.includes("guardar") && <span>{state.error}</span>}
     {online && state.pending > 0 && state.error && <><span>{state.error}</span><button type="button" onClick={() => void refreshOfflineTraining()} className="min-h-11 font-semibold text-[var(--brand-text)]">Reintentar sincronización</button></>}
   </aside>;
@@ -39,6 +40,13 @@ export function OfflineTrainingPage() {
   const [loaded, setLoaded] = useState(false);
   const [home, setHome] = useState(false);
   const restorePortal = useRef(false);
+  const [identity, setIdentity] = useState<{ scope: string; images: OfflineIdentityImages }>();
+  useEffect(() => {
+    if (!snapshot) return;
+    let stopped = false;
+    void readOfflineIdentity(snapshot.scope).then((images) => { if (!stopped) setIdentity({ scope: snapshot.scope, images }); }).catch(() => {});
+    return () => { stopped = true; };
+  }, [snapshot]);
   useEffect(() => {
     const update = () => {
       const state = offlineTrainingState();
@@ -64,7 +72,7 @@ export function OfflineTrainingPage() {
     const url = new URL(link.href);
     if (url.origin === window.location.origin && ["/portal", "/portal/rutina"].includes(url.pathname)) { event.preventDefault(); event.stopPropagation(); window.location.assign(url.href); }
   }}>
-    <PortalHeader branding={snapshot.branding} studentName="" actions={<button type="button" onClick={() => { void logoutOfflineTraining().then((closed) => { if (closed) window.location.assign("/portal/login"); }); }} className="min-h-11 px-3 text-xs">Cerrar sesión</button>}>
+    <PortalHeader branding={snapshot.branding} profileImageUrl={identity?.scope === snapshot.scope ? identity.images.avatar : undefined} cachedLogo={identity?.scope === snapshot.scope ? identity.images.logo : undefined} studentName="" actions={<button type="button" onClick={() => { void logoutOfflineTraining().then((closed) => { if (closed) window.location.assign("/portal/login"); }); }} className="min-h-11 px-3 text-xs">Cerrar sesión</button>}>
       <nav aria-label="Navegación del portal" className="mx-auto hidden max-w-6xl gap-5 px-5 pb-2 md:flex"><a href="/portal" className="py-2">Inicio</a><a href="/portal/rutina" className="py-2">Rutina</a></nav>
     </PortalHeader>
     <main className="mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12"><OfflineTrainingBridge />{home ? <OfflineRoutineHome data={data} /> : <WorkoutView data={data} />}</main>

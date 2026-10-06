@@ -50,7 +50,7 @@ test("la Home refresca en primer plano sin superponer solicitudes", () => {
 });
 
 test("el service worker avisa a las ventanas abiertas cuando llega un push", () => {
-  assert.match(serviceWorker, /push-v10-offline-v1/);
+  assert.match(serviceWorker, /push-v10-offline-v2/);
   assert.match(serviceWorker, /includeUncontrolled: true/);
   assert.match(serviceWorker, /BM_PORTAL_DATA_CHANGED/);
   assert.match(serviceWorker, /BM_ACHIEVEMENT_AVAILABLE/);

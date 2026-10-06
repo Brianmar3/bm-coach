@@ -5,6 +5,7 @@ import { syncOfflineQueue } from "./offline-training-sync";
 import type { PortalWorkoutSession } from "@/types/portal";
 import { validateWorkoutSessionInput } from "./workout-session-validation";
 import { getWeekKey } from "./workout-week";
+import { clearOfflineIdentity } from "./offline-identity";
 
 let snapshot: OfflineTrainingSnapshot | undefined;
 let records: OfflineWorkoutRecord[] = [];
@@ -57,6 +58,7 @@ export function forgetOfflineTrainingMemory() { generation++; snapshot = undefin
 export async function clearOfflineTraining() {
   forgetOfflineTrainingMemory();
   await writes.catch(() => {}); await offlineStore.clear();
+  await clearOfflineIdentity();
   // The small legacy drafts and timers must not survive account changes either.
   for (const key of Object.keys(localStorage)) if (/^(bm.*workout|bm.*timer|bm.*rest)/i.test(key)) localStorage.removeItem(key);
   if (typeof BroadcastChannel !== "undefined") { const channel = new BroadcastChannel("bm-offline-training"); channel.postMessage("logout"); channel.close(); }

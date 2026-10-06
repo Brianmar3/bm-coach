@@ -4,6 +4,18 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
+const ts = createRequire(path.join(process.cwd(), "package.json"))("typescript");
+const identityCode = ts.transpileModule(readFileSync("lib/offline-identity.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+async function cacheIdentity(page, snapshot, avatar) {
+  await page.evaluate(async ({ code, scope, studentId, branding, avatar }) => {
+    const exported = {}; new Function("exports", code)(exported);
+    await exported.saveOfflineIdentity(scope, studentId, avatar, branding);
+  }, { code: identityCode, scope: snapshot.scope, studentId: snapshot.studentId, branding: snapshot.branding, avatar });
+}
+async function assertHeaderImages(page) {
+  await page.waitForFunction(() => [...document.querySelectorAll("header.portal-header img")].every((img) => img.complete && img.naturalWidth > 0));
+}
 const runtime = process.env.BM_TEST_NODE_MODULES;
 if (!runtime) throw new Error("Set BM_TEST_NODE_MODULES to the bundled Node packages directory.");
 const { chromium } = createRequire(path.join(runtime, "playwright", "package.json"))("playwright");
@@ -26,6 +38,8 @@ async function readRecords(page) {
       const context = await browser.newContext({ viewport: { width: 393, height: 851 }, serviceWorkers: "allow" });
       if (serviceType === "MIXED") await context.addInitScript(() => localStorage.setItem("bm-appearance-v1", "light"));
       let snapshot = fixture(serviceType); let rejectSave = true; const persisted = new Map(); let account = "student-a";
+      if (serviceType === "MIXED") snapshot.branding = { ...snapshot.branding, logoMode: "CUSTOM", customLogoUrl: "https://private.blob.vercel-storage.com/test-logo.png" };
+      await context.route("**/api/workspace/logo/image?**", (route) => route.fulfill({ contentType: "image/webp", body: readFileSync("public/avatars/bm-shield-v3.webp") }));
       await context.route("**/api/portal/**", async (route) => {
         const url = new URL(route.request().url());
         if (url.pathname === "/api/portal/session") return route.fulfill({ json: { offlineIdentity: { studentId: account, workspaceId: "workspace-a", sessionId: "session-a" } } });
@@ -40,14 +54,24 @@ async function readRecords(page) {
       let page = await context.newPage(); const errors = []; page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${origin}/portal/offline`);
       await page.getByText("Programa original", { exact: true }).waitFor();
-      await page.getByRole("status").waitFor({ state: "hidden" });
+      await page.locator('aside[role="status"]').waitFor({ state: "hidden" });
+      await assertHeaderImages(page);
+      await cacheIdentity(page, snapshot, "/avatars/bm-athlete-man-v3.webp");
+      await cacheIdentity(page, snapshot, "/avatars/bm-athlete-woman-v3.webp");
+      await page.reload();
+      await page.getByText("Programa original", { exact: true }).waitFor();
+      await page.waitForFunction(() => document.querySelector("header.portal-header img[data-identity-avatar]")?.src.startsWith("data:"));
+      assert.equal(await page.locator("header.portal-header img[data-identity-avatar]").getAttribute("src"), `data:image/webp;base64,${readFileSync("public/avatars/bm-athlete-woman-v3.webp").toString("base64")}`);
+      await assertHeaderImages(page);
       assert.equal(await page.getByText("Sincronizado", { exact: true }).count(), 0);
       assert.equal(await page.getByText("Abrir rutina guardada", { exact: true }).count(), 0);
       await context.setOffline(true);
       await page.close(); page = await context.newPage(); page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(`${origin}/portal/login`);
       await page.getByText("Modo sin conexión", { exact: true }).waitFor();
-      assert.ok((await page.getByRole("status").boundingBox()).height <= 52);
+      await assertHeaderImages(page);
+      assert.ok((await page.locator("header.portal-header img[data-identity-avatar]").getAttribute("src")).startsWith("data:"));
+      assert.ok((await page.locator('aside[role="status"]').boundingBox()).height <= 52);
       await page.goto(`${origin}/portal`);
       await page.getByRole("heading", { name: "Tu entrenamiento está listo", exact: true }).waitFor();
       await page.getByRole("link", { name: "Empezar rutina", exact: true }).click();
@@ -71,7 +95,7 @@ async function readRecords(page) {
       assert.equal((await readRecords(page))[0].pending, true);
       rejectSave = false;
       await page.getByRole("button", { name: "Reintentar sincronización" }).click();
-      await page.getByRole("status").waitFor({ state: "hidden" });
+      await page.locator('aside[role="status"]').waitFor({ state: "hidden" });
       assert.equal(persisted.size, 1); assert.equal((await readRecords(page))[0].pending, false);
       await page.getByText("Programa original", { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
@@ -89,7 +113,7 @@ async function readRecords(page) {
       await context.setOffline(false);
       // Use the offline route directly after the original completion redirect.
       await page.goto(`${origin}/portal/offline`);
-      await page.getByRole("status").waitFor({ state: "hidden" });
+      await page.locator('aside[role="status"]').waitFor({ state: "hidden" });
       await page.getByText("Programa modificado", { exact: true }).waitFor();
       assert.equal(persisted.size, 1);
       assert.equal([...persisted.values()][0].status, "finalizado");
@@ -127,6 +151,22 @@ async function readRecords(page) {
     await restoredPage.getByText("Portal online habitual", { exact: true }).waitFor();
     console.log("Reconnection without pending records restores the habitual online route automatically");
     await restored.close();
+    const noImages = await browser.newContext({ viewport: { width: 393, height: 851 } });
+    const noImagesSnapshot = fixture("PERSONALIZED");
+    await noImages.route("**/api/portal/**", (route) => route.fulfill({ json: new URL(route.request().url()).pathname === "/api/portal/offline" ? noImagesSnapshot : { offlineIdentity: { studentId: noImagesSnapshot.studentId, workspaceId: noImagesSnapshot.workspaceId, sessionId: noImagesSnapshot.sessionId } } }));
+    let fallbackPage = await noImages.newPage(); await fallbackPage.goto(`${origin}/portal/offline`);
+    await fallbackPage.getByText("Programa original", { exact: true }).waitFor();
+    await fallbackPage.evaluate(async () => {
+      await caches.delete("bm-private-identity-v1");
+      const cache = await caches.open("bm-public-offline-v1");
+      for (const request of await cache.keys()) if (!new URL(request.url).pathname.startsWith("/_next/static/") && new URL(request.url).pathname !== "/portal/offline") await cache.delete(request);
+    });
+    await noImages.setOffline(true); await fallbackPage.close(); fallbackPage = await noImages.newPage();
+    await fallbackPage.goto(`${origin}/portal/rutina`);
+    await fallbackPage.getByText("Modo sin conexión", { exact: true }).waitFor();
+    await fallbackPage.waitForFunction(() => document.querySelector("header.portal-header") && [...document.querySelectorAll("header.portal-header img")].every((img) => img.complete && img.naturalWidth > 0));
+    console.log("No identity images cached: clean BM/profile fallbacks, no broken images");
+    await noImages.close();
     const empty = await browser.newContext(); let page = await empty.newPage(); await page.goto(`${origin}/portal/offline`);
     await page.getByText("Todavía no hay una rutina disponible sin conexión en este dispositivo.", { exact: false }).waitFor();
     await page.evaluate(() => navigator.serviceWorker.ready);
@@ -141,13 +181,16 @@ async function readRecords(page) {
       const saved = fixture("PERSONALIZED");
       await persistent.route("**/api/portal/**", (route) => route.fulfill({ json: new URL(route.request().url()).pathname === "/api/portal/offline" ? saved : { offlineIdentity: { studentId: saved.studentId, workspaceId: saved.workspaceId, sessionId: saved.sessionId } } }));
       let coldPage = await persistent.newPage(); await coldPage.goto(`${origin}/portal/offline`);
-      await coldPage.getByText("Programa original", { exact: true }).waitFor(); await coldPage.getByRole("status").waitFor({ state: "hidden" });
+      await coldPage.getByText("Programa original", { exact: true }).waitFor(); await coldPage.locator('aside[role="status"]').waitFor({ state: "hidden" });
+      await cacheIdentity(coldPage, saved, "/avatars/bm-athlete-woman-v3.webp");
       await persistent.setOffline(true); await coldPage.getByLabel("Kg de la serie 1", { exact: true }).fill("27.5");
       await coldPage.waitForFunction(() => new Promise((resolve) => { const request = indexedDB.open("bm-training-offline-v1", 1); request.onsuccess = () => { const db = request.result; const tx = db.transaction("records"); const get = tx.objectStore("records").getAll(); get.onsuccess = () => resolve(get.result.some((r) => r.pending)); tx.oncomplete = () => db.close(); }; }));
       await persistent.close();
       persistent = await chromium.launchPersistentContext(profile, { channel: "msedge", headless: true, viewport: { width: 393, height: 851 } });
       await persistent.setOffline(true); coldPage = await persistent.newPage(); await coldPage.goto(`${origin}/portal/login`);
       await coldPage.getByText("Modo sin conexión", { exact: true }).waitFor();
+      await assertHeaderImages(coldPage);
+      assert.ok((await coldPage.locator("header.portal-header img[data-identity-avatar]").getAttribute("src")).startsWith("data:"));
       assert.equal(await coldPage.getByLabel("Kg de la serie 1", { exact: true }).inputValue(), "27.5");
       console.log("Cold browser restart offline: shell, IndexedDB and pending edits recovered OK");
     } finally {

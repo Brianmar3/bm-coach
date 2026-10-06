@@ -10,7 +10,7 @@ export function PortalProfileAvatar({ src, name }: { src?: string; name: string 
   return <div className="size-28 shrink-0 overflow-hidden rounded-full border border-yellow-300/65 bg-black shadow-[0_0_28px_rgba(250,204,21,.14)] sm:size-40"><StudentPhoto src={src || DEFAULT_PROFILE_AVATAR.src} alt={`Avatar de ${name}`} className="h-full w-full object-cover" /></div>;
 }
 
-export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perfil", studentName, profileImageUrl = "", branding = DEFAULT_WORKSPACE_BRANDING, actions, children }: { homeHref?: string; profileHref?: string; studentName: string; profileImageUrl?: string; branding?: WorkspaceBranding; actions?: ReactNode; children?: ReactNode }) {
+export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perfil", studentName, profileImageUrl = "", cachedLogo, branding = DEFAULT_WORKSPACE_BRANDING, actions, children }: { homeHref?: string; profileHref?: string; studentName: string; profileImageUrl?: string; cachedLogo?: string; branding?: WorkspaceBranding; actions?: ReactNode; children?: ReactNode }) {
   return <header className="portal-header sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
           <Link
@@ -18,7 +18,7 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
             className="flex min-w-0 items-center gap-2 sm:gap-3"
             aria-label={`Ir al inicio de ${branding.displayName}`}
           >
-            <WorkspaceBrandLogo branding={branding} className="h-9 w-9 rounded-xl sm:h-11 sm:w-11" compactDefault officialBmMark />
+            <WorkspaceBrandLogo branding={branding} cachedSrc={cachedLogo} className="h-9 w-9 rounded-xl sm:h-11 sm:w-11" compactDefault officialBmMark />
             <span className="min-w-0">
               <span className="block max-w-[9rem] truncate text-xs font-black tracking-[.08em] text-white min-[390px]:max-w-[11rem] min-[390px]:text-sm sm:max-w-[16rem] sm:text-base sm:tracking-[.12em]" title={branding.displayName}>
                 {branding.displayName}
@@ -38,6 +38,7 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
             >
               <span className="flex shrink-0 flex-col items-center gap-0.5">
                 <StudentPhoto
+                  data-identity-avatar="true"
                   src={profileImageUrl || DEFAULT_PROFILE_AVATAR.src}
                   alt=""
                   width={34}

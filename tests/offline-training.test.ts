@@ -4,12 +4,55 @@ import { nextOfflineRecord, offlineScope, offlineRecordKey, type OfflineTraining
 import { syncOfflineQueue } from "../lib/offline-training-sync.ts";
 import { signOfflineProgram, verifyOfflineProgram, offlineWorkoutServerId } from "../lib/offline-training-proof.ts";
 import type { PortalWorkoutSession } from "../types/portal.ts";
+import { IDENTITY_CACHE, clearOfflineIdentity, identitySources, readOfflineIdentity, saveOfflineIdentity } from "../lib/offline-identity.ts";
 
 const identity = { studentId: "student-a", workspaceId: "workspace-a", sessionId: "session-a" };
 const scope = offlineScope(identity.studentId, identity.workspaceId, identity.sessionId);
 const snapshot = { ...identity, scope, proof: "signed-original", version: 1 } as OfflineTrainingSnapshot;
 const payload: PortalWorkoutSession = { routineId: "routine-a", routineName: "Original", dayId: "day-a", dayNumber: 1, date: "2026-10-06", startTime: "06:30", durationMinutes: null, finalComment: "", hasPain: false, painDetails: "", status: "en_progreso", exercises: [] };
 const uuid = "ef6b00d3-9fab-4e54-bc0a-6c91a97c895b";
+test("identity cache isolates accounts, updates only valid images and clears in-flight downloads on logout", async () => {
+  const original = new Map(["location", "navigator", "caches", "fetch", "createImageBitmap"].map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  const entries = new Map<string, Response>();
+  let image = "first image";
+  let status = 200;
+  const replace = (name: string, value: unknown) => Object.defineProperty(globalThis, name, { configurable: true, value });
+  try {
+    replace("location", { origin: "https://bm.test" });
+    replace("navigator", { onLine: true });
+    replace("caches", { open: async (name: string) => { assert.equal(name, IDENTITY_CACHE); return { match: async (url: string) => entries.get(url)?.clone(), put: async (url: string, response: Response) => { entries.set(url, response.clone()); } }; }, delete: async () => { entries.clear(); return true; } });
+    replace("createImageBitmap", async () => ({ close() {} }));
+    replace("fetch", async () => new Response(image, { status, headers: { "Content-Type": "image/png" } }));
+    const brand = { logoMode: "CUSTOM" as const, customLogoUrl: "https://private.blob.vercel-storage.com/workspace-logo.png" };
+    assert.equal(identitySources("student-a", "https://external.test/image.png", brand).avatar, "/avatars/bm-shield-v3.webp");
+    assert.equal(identitySources("student-a", "/api/portal/media/profile/student-b", brand).avatar, "/avatars/bm-shield-v3.webp");
+    await saveOfflineIdentity(scope, "student-a", "/api/portal/media/profile/student-a?v=1", brand);
+    const first = await readOfflineIdentity(scope);
+    assert.ok(first.avatar?.startsWith("data:image/png;base64,")); assert.ok(first.logo);
+    assert.deepEqual(await readOfflineIdentity("another-workspace-or-student"), {});
+    image = "updated image";
+    await saveOfflineIdentity(scope, "student-a", "/api/portal/media/profile/student-a?v=2", { ...brand, customLogoUrl: "https://private.blob.vercel-storage.com/new.png" });
+    const next = await readOfflineIdentity(scope);
+    assert.notEqual(next.avatar, first.avatar); assert.notEqual(next.logo, first.logo);
+    status = 401;
+    await saveOfflineIdentity(scope, "student-a", "/api/portal/media/profile/student-a?v=3", brand);
+    assert.equal((await readOfflineIdentity(scope)).avatar, next.avatar);
+    assert.equal((await readOfflineIdentity(scope)).logo, next.logo);
+    await saveOfflineIdentity(scope, "student-a", "", { logoMode: "DEFAULT", customLogoUrl: "" });
+    assert.equal((await readOfflineIdentity(scope)).logo, undefined);
+    let release: (() => void) | undefined;
+    let started: (() => void) | undefined;
+    const downloading = new Promise<void>((resolve) => { started = resolve; });
+    replace("fetch", async () => { started?.(); await new Promise<void>((resolve) => { release = resolve; }); return new Response(image, { headers: { "Content-Type": "image/png" } }); });
+    const saving = saveOfflineIdentity(scope, "student-a", "/api/portal/media/profile/student-a?v=4", { logoMode: "DEFAULT", customLogoUrl: "" });
+    await downloading;
+    const clearing = clearOfflineIdentity(); release?.();
+    await Promise.all([saving, clearing]);
+    assert.deepEqual(await readOfflineIdentity(scope), {});
+  } finally {
+    for (const [name, descriptor] of original) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else Reflect.deleteProperty(globalThis, name); }
+  }
+});
 function memory(initial: OfflineWorkoutRecord[]) {
   const map = new Map(initial.map((record) => [record.key, record]));
   return { map, records: async () => [...map.values()], updateRecord: async (key: string, update: (value: OfflineWorkoutRecord | undefined) => OfflineWorkoutRecord | undefined) => { const next = update(map.get(key)); if (next) map.set(key, next); } };

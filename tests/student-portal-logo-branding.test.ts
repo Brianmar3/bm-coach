@@ -36,6 +36,15 @@ test("CUSTOM y cambios posteriores llegan al header sin refresh y quedan aislado
   assert.doesNotMatch(shell, /location\.reload|router\.refresh/);
 });
 
+test("el acceso al perfil muestra su etiqueta debajo del avatar sin alterar notificaciones", () => {
+  const header = read("componentes/portal-visuals.tsx");
+  const shell = read("componentes/portal-shell.tsx");
+  assert.match(header, /href=\{profileHref\}/);
+  assert.match(header, /<StudentPhoto[^]*<span className="text-\[9px\][^]*>Perfil<\/span>/);
+  assert.match(header, /\{actions\}/);
+  assert.match(shell, /actions=\{<StudentNotificationCenter \/>\}/);
+});
+
 test("el renderer cubre CUSTOM, ACCENT, WHITE y fallback DEFAULT BM", () => {
   const logo = read("componentes/workspace-brand-logo.tsx");
   assert.match(logo, /branding\.logoMode === "CUSTOM" && branding\.customLogoUrl/);

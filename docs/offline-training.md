@@ -20,6 +20,23 @@ La prueba de navegador ahora verifica también la ausencia de estado online, avi
 
 ## Persistencia y aislamiento
 
+### Imágenes de identidad offline
+
+Se guardan sólo estos recursos, sin ampliar el cache a otras imágenes de la app:
+
+- `bm-public-offline-v1` (Cache Storage existente del service worker): `/bm-training-logo(2).png`, `/bm-training-mark.png` y `/avatars/bm-shield-v3.webp`. Se preparan con el shell público y se actualizan al descargarse online.
+- `bm-private-identity-v1` (Cache Storage): una entrada por scope original de alumno/workspace/sesión con el avatar elegido o foto propia y el logo personalizado, si existe. Las imágenes se descargan desde los endpoints autenticados existentes (o desde el preset local seleccionado); sólo se aceptan imágenes decodificables de hasta 5 MB cada una. La entrada contiene copias data URL y referencias de actualización, sin cookies ni tokens.
+
+La cabecera autenticada prepara la copia tras guardar la rutina. Cambiar el avatar o branding actualiza sus recursos, conservando la última imagen válida ante errores. La cabecera offline lee únicamente el scope de su rutina. Logout/cambio de cuenta elimina la copia privada y evita que descargas anteriores la vuelvan a crear. IndexedDB de entrenamientos, cola, comprobantes, APIs y navegación permanecen intactos.
+
+Sin copia privada usa el escudo/avatar local y el logo BM. Si tampoco existen los recursos públicos descargados, muestra el icono neutro de perfil y un monograma BM; nunca deja una imagen rota. «Modo sin conexión» agrega un icono pequeño sin aumentar el aviso.
+
+Validación del ajuste: 20 tests focales, `npm test` con 825 pruebas aprobadas, lint sin errores (34 advertencias previas), build aprobado. Prueba móvil Chromium/Edge de cambio de avatar, branding personalizado, reapertura offline, reinicio completo del navegador, fallbacks sin imágenes, aislamiento y limpieza. Personalizado/Oscuro y Mixto/Claro. No se verificó un Android/WebView físico.
+
+No requiere nuevo AAB para la configuración actual que carga la web remota: requiere publicar la web y abrirla online para preparar el nuevo service worker y las imágenes. No cambia archivos nativos ni resuelve por sí solo un fallo del bootstrap nativo antes de que actúe el service worker.
+
+Archivos de este ajuste: `app/portal/(student)/layout.tsx`, `componentes/portal-shell.tsx`, `componentes/portal-visuals.tsx`, `componentes/offline-training.tsx`, `componentes/student-photo.tsx`, `componentes/workspace-brand-logo.tsx`, `lib/offline-identity.ts` (nuevo), `lib/offline-training-client.ts` (sólo limpieza de identidad), `public/sw.js`, `tests/offline-training.test.ts`, `tests/portal-home-motion.test.ts`, `scripts/smoke-offline-training.mjs` y este documento.
+
 IndexedDB `bm-training-offline-v1` guarda una copia activa en `state` y la cola en `records`. La copia incluye branding, identificación mínima, días, bloques, ejercicios, series, repeticiones, descansos, instrucciones y hasta ocho sesiones propias de referencia. Excluye alumnos asignados/históricos y resúmenes de gestión. La cola contiene payload, timestamps originales, ID estable, revisión, comprobante firmado y confirmación/error del servidor.
 
 Las claves incluyen workspace, alumno y sesión original, además de rutina/día/semana para cada registro. No contiene contraseñas, cookies, tokens de autenticación ni información de otros alumnos. El comprobante HMAC certifica la programación descargada: no permite iniciar sesión ni guardar sin una cuenta actualmente autenticada del mismo alumno/workspace. Usa la clave segura existente `BM_COACH_ADMIN_TOKEN` con un dominio propio.
