@@ -7,6 +7,8 @@ import { useRef, useState } from "react";
 import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 import { DEFAULT_PROFILE_AVATAR, PROFILE_AVATARS, profileAvatarById, profileAvatarBySrc } from "@/lib/profile-avatars";
 import type { PortalProfile } from "@/types/portal";
+import { BmCheckIcon } from "@/componentes/icons";
+import styles from "./student-avatar-page.module.css";
 
 type AvatarResponse = {
   success?: boolean;
@@ -141,50 +143,50 @@ export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-5 overflow-x-clip">
+    <div className={`${styles.page} mx-auto w-full max-w-3xl space-y-4 overflow-x-clip`}>
       <Link
         href="/portal/perfil"
-        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-zinc-800 px-4 text-sm font-bold text-zinc-300 transition hover:border-yellow-400/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"
+        className={`${styles.back} inline-flex items-center gap-2 rounded-xl border text-sm font-bold transition hover:text-[var(--brand-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bm-accent)]`}
       >
         <span aria-hidden="true">←</span> Volver
       </Link>
 
       <header>
-        <p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">
+        <p className="text-[10px] font-black uppercase tracking-[.2em] text-[var(--brand-text)]">
           {branding.displayName}
         </p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-white">
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--foreground)]">
           Elegí tu avatar
         </h1>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="mt-2 text-sm text-[var(--foreground-muted)]">
           Elegí el que mejor te represente.
         </p>
       </header>
 
       <section aria-labelledby="current-avatar-title">
-        <h2 id="current-avatar-title" className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">
+        <h2 id="current-avatar-title" className="text-[10px] font-black uppercase tracking-[.18em] text-[var(--brand-text)]">
           Avatar actual
         </h2>
-        <div className="mt-2 flex items-center gap-4 rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_14px_34px_rgba(0,0,0,.24)]">
+        <div className={`${styles.current} mt-2 flex items-center gap-4 rounded-2xl border p-4`}>
           <img
             src={previewImage}
             alt=""
-            className="size-20 shrink-0 rounded-full border border-yellow-400/30 bg-black object-cover"
+            className="size-20 shrink-0 rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] object-cover"
           />
           <div className="min-w-0">
-            <p className="truncate text-lg font-black text-yellow-200">
+            <p className="truncate text-lg font-black text-[var(--brand-text)]">
               {selectedAvatar?.label ?? (currentImage ? "Foto propia" : DEFAULT_PROFILE_AVATAR.label)}
             </p>
-            <p className="mt-1 text-sm text-zinc-500">{selectedAvatar ? "Avatar BM" : "Imagen de perfil"}</p>
+            <p className="mt-1 text-sm text-[var(--foreground-muted)]">{selectedAvatar ? "Avatar BM" : "Imagen de perfil"}</p>
             {avatarChoice !== savedAvatarId && (
-              <p className="mt-2 text-xs font-semibold text-yellow-400">Cambio sin guardar</p>
+              <p className="mt-2 text-xs font-semibold text-[var(--brand-text)]">Cambio sin guardar</p>
             )}
           </div>
         </div>
       </section>
 
       <section aria-labelledby="avatar-gallery-title">
-          <h2 id="avatar-gallery-title" className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Avatares BM</h2>
+          <h2 id="avatar-gallery-title" className="text-[10px] font-black uppercase tracking-[.18em] text-[var(--brand-text)]">Avatares BM</h2>
           <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5" role="group" aria-label="Avatares disponibles">
             {PROFILE_AVATARS.map((avatar) => {
               const selected = avatarChoice === avatar.id;
@@ -200,14 +202,11 @@ export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
                   }}
                   aria-label={`Elegir avatar ${avatar.label}`}
                   aria-pressed={selected}
-                  className={`min-w-0 rounded-2xl border p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 ${
-                    selected
-                      ? "border-yellow-300 bg-yellow-400/10 shadow-[0_0_18px_rgba(250,204,21,.1)]"
-                      : "border-zinc-800 bg-black hover:border-yellow-400/35"
-                  }`}
+                  className={`${styles.choice} min-w-0 rounded-2xl border p-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bm-accent)]`}
                 >
                   <img src={avatar.src} alt="" loading="lazy" decoding="async" className="mx-auto aspect-square w-full rounded-full object-cover" />
-                  <span className="mt-2 block truncate text-[10px] font-semibold text-zinc-300 sm:text-xs">
+                  {selected && <span className={styles.check} aria-hidden="true"><BmCheckIcon size={12} /></span>}
+                  <span className="mt-2 block truncate text-[10px] font-semibold text-[var(--foreground)] sm:text-xs">
                     {avatar.label}
                   </span>
                 </button>
@@ -216,26 +215,26 @@ export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
           </div>
       </section>
 
-      <section className="rounded-2xl border border-white/[.07] bg-zinc-900/80 p-4">
-        {error && <p role="alert" className="mb-3 rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
-        {message && <p role="status" className="mb-3 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-300">{message}</p>}
+      <section className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-4">
+        {error && <p role="alert" className="mb-3 rounded-xl bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] p-3 text-sm text-[var(--danger)]">{error}</p>}
+        {message && <p role="status" className="mb-3 rounded-xl bg-[color-mix(in_srgb,var(--success)_10%,transparent)] p-3 text-sm text-[var(--success)]">{message}</p>}
         <button
           type="button"
           onClick={saveAvatar}
           disabled={saving || !avatarChoice || avatarChoice === savedAvatarId}
-          className="min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-200 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-12 w-full rounded-xl bg-[var(--bm-accent)] px-4 font-black text-[var(--bm-accent-contrast)] transition hover:bg-[var(--bm-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bm-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Guardando…" : !avatarChoice ? "Elegí un avatar" : avatarChoice === savedAvatarId ? "Avatar guardado" : "Guardar avatar"}
         </button>
-        <div className="mt-4 border-t border-white/10 pt-4">
-          <p className="text-sm font-semibold text-zinc-200">Tu foto propia</p>
-          <p className="mt-1 text-xs text-zinc-500">Podés usar una foto JPG, PNG o WebP de hasta 3 MB. Elegir un avatar no borra tu foto guardada.</p>
+        <div className="mt-4 border-t border-[var(--border-soft)] pt-4">
+          <p className="text-sm font-semibold text-[var(--foreground)]">Tu foto propia</p>
+          <p className="mt-1 text-xs text-[var(--foreground-muted)]">Podés usar una foto JPG, PNG o WebP de hasta 3 MB. Elegir un avatar no borra tu foto guardada.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <label className={`inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-zinc-700 px-4 text-sm font-semibold text-zinc-200 hover:border-yellow-400/40 ${saving ? "pointer-events-none opacity-50" : ""}`}>
+            <label className={`inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-[var(--foreground)] hover:border-[var(--bm-accent)] ${saving ? "pointer-events-none opacity-50" : ""}`}>
               Subir foto propia
               <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadPhoto(file); event.target.value = ""; }} />
             </label>
-            {hasPhoto && savedAvatarId && <button type="button" disabled={saving} onClick={restorePhoto} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-semibold text-zinc-200 transition hover:border-yellow-400/40 disabled:opacity-50">Volver a mi foto anterior</button>}
+            {hasPhoto && savedAvatarId && <button type="button" disabled={saving} onClick={restorePhoto} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--bm-accent)] disabled:opacity-50">Volver a mi foto anterior</button>}
           </div>
         </div>
       </section>
