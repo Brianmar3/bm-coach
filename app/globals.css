@@ -853,9 +853,49 @@ html[data-bm-app-ready="true"] #bm-app-root {
 
 /* Portal alumno: recorrido premium de la rutina, sin alterar su lógica. */
 .portal-routine-screen {
-  --routine-gold: #facc15;
-  overflow-x: clip;
+  --routine-accent: var(--bm-accent, var(--brand));
+  --color-yellow-200: var(--brand-text);
+  min-width: 0;
+  /* Extra breathing room supplements the shared shell's navigation + safe-area padding. */
+  padding-bottom: var(--portal-bottom-nav-clearance);
 }
+
+html:not([data-theme="light"]) .portal-routine-screen { --brand-text: color-mix(in srgb, var(--routine-accent) 70%, var(--foreground)); --color-yellow-300: var(--brand-text); }
+
+.portal-routine-day { min-width: 6.75rem; background: var(--surface-soft); border-color: var(--border-soft); color: var(--foreground); }
+.portal-routine-day[aria-pressed="true"] { background: var(--bm-accent-soft); border-color: var(--routine-accent); color: var(--brand-text); box-shadow: inset 0 0 0 1px var(--routine-accent); }
+.portal-routine-hero,
+.portal-routine-warmup { background: linear-gradient(120deg, var(--bm-accent-soft), transparent 38%), var(--surface-soft); border-color: color-mix(in srgb, var(--routine-accent) 35%, var(--border-soft)); box-shadow: 0 8px 22px color-mix(in srgb, var(--foreground) 8%, transparent); }
+.portal-routine-exercise,
+.portal-routine-block { background: var(--surface); }
+.portal-routine-screen .text-zinc-500 { color: var(--foreground-muted); }
+.portal-routine-sets { background: var(--surface-soft); border-color: var(--border-soft); }
+.portal-routine-sets > div { border-color: var(--border-soft); }
+.portal-routine-track { background: var(--border-soft); }
+.portal-routine-track > :first-child { background: var(--routine-accent); }
+.portal-routine-set-complete { background: color-mix(in srgb, var(--routine-accent) 9%, transparent); }
+.portal-routine-sets input[type="number"] { background: var(--input-bg); border-color: var(--input-border); color: var(--foreground); font-size: .875rem; }
+.portal-routine-sets input[type="checkbox"] { accent-color: var(--routine-accent); }
+.portal-routine-sets label { min-height: 2.75rem; display: grid; align-items: center; }
+.portal-routine-history summary::after { content: "⌄"; margin-left: auto; color: var(--brand-text); }
+.portal-routine-history[open] summary::after { content: "⌃"; }
+.portal-routine-screen .portal-routine-exercise-heading { padding-bottom: .5rem; }
+.portal-routine-exercise-name { padding-right: 0; }
+.portal-routine-screen [data-exercise-rest-timer] { position: static; justify-content: flex-end; padding: 0 .75rem .5rem; }
+.portal-routine-screen [data-exercise-rest-timer] button { background: var(--surface-soft); }
+.portal-routine-screen [data-timer-status="finished"] button:first-child { box-shadow: 0 0 16px var(--bm-accent-soft); }
+.portal-routine-screen :is(article, input, details, button) { scroll-margin-bottom: calc(var(--portal-bottom-nav-height) + var(--portal-bottom-nav-offset) + var(--portal-bottom-nav-clearance) + env(safe-area-inset-bottom)); }
+
+html[data-theme="light"] .portal-routine-warmup,
+html[data-theme="light"] .portal-routine-hero { background: var(--surface); }
+html[data-theme="light"] .portal-routine-screen :is(.portal-routine-exercise, .portal-routine-block) { box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground) 5%, transparent); }
+
+@media (max-width: 370px) {
+  .portal-routine-block-heading { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); }
+  .portal-routine-block-heading > span:last-child { grid-column: 2; width: fit-content; }
+}
+
+@media (min-width: 768px) { .portal-routine-screen { padding-bottom: 0; } }
 
 .portal-routine-hero::after {
   position: absolute;
@@ -864,13 +904,12 @@ html[data-bm-app-ready="true"] #bm-app-root {
   width: 72%;
   height: 1px;
   content: "";
-  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.9), transparent);
-  box-shadow: 0 0 18px rgba(250, 204, 21, 0.45);
+  background: linear-gradient(90deg, transparent, var(--routine-accent), transparent);
 }
 
 .portal-routine-progress-ring {
-  background: conic-gradient(var(--routine-gold) var(--routine-progress), #27272a 0deg);
-  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.08);
+  background: conic-gradient(var(--routine-accent) var(--routine-progress), var(--border-soft) 0deg);
+  box-shadow: inset 0 0 0 1px var(--bm-accent-soft);
   transition: background 360ms ease-out;
 }
 
@@ -880,17 +919,6 @@ html[data-bm-app-ready="true"] #bm-app-root {
   gap: 0.85rem;
 }
 
-.portal-routine-timeline::before {
-  position: absolute;
-  top: 1.9rem;
-  bottom: 1.9rem;
-  left: 1.25rem;
-  width: 1px;
-  content: "";
-  background: linear-gradient(rgba(250, 204, 21, 0.15), rgba(250, 204, 21, 0.7), rgba(250, 204, 21, 0.15));
-  box-shadow: 0 0 10px rgba(250, 204, 21, 0.22);
-}
-
 .portal-routine-timeline-row {
   position: relative;
   z-index: 1;
@@ -898,32 +926,6 @@ html[data-bm-app-ready="true"] #bm-app-root {
   align-items: center;
   gap: 0.75rem;
   min-width: 0;
-}
-
-.portal-routine-step {
-  display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex: 0 0 2.5rem;
-  place-items: center;
-  border: 1px solid rgba(250, 204, 21, 0.55);
-  border-radius: 9999px;
-  background: #111;
-  color: #fde047;
-  font-size: 0.95rem;
-  font-weight: 900;
-  box-shadow: 0 0 14px rgba(250, 204, 21, 0.1);
-}
-
-.portal-routine-step.is-current {
-  border-color: #fde047;
-  box-shadow: 0 0 20px rgba(250, 204, 21, 0.28);
-}
-
-.portal-routine-step.is-complete {
-  border-color: rgba(52, 211, 153, 0.6);
-  background: rgba(6, 78, 59, 0.55);
-  color: #6ee7b7;
 }
 
 .portal-routine-enter {
@@ -937,17 +939,6 @@ html[data-bm-app-ready="true"] #bm-app-root {
 @keyframes portal-routine-enter {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@media (max-width: 380px) {
-  .portal-routine-timeline-row { gap: 0.55rem; }
-  .portal-routine-timeline::before { left: 1rem; }
-  .portal-routine-step {
-    width: 2rem;
-    height: 2rem;
-    flex-basis: 2rem;
-    font-size: 0.8rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -997,8 +988,7 @@ html[data-theme="light"] .portal-home-stat { background: linear-gradient(145deg,
 html[data-theme="light"] .portal-home-hero,
 html[data-theme="light"] .portal-routine-frame,
 html[data-theme="light"] .portal-profile-frame { background: linear-gradient(145deg, var(--surface-elevated), var(--surface-soft)); box-shadow: 0 14px 34px rgba(30, 29, 22, .08); }
-html[data-theme="light"] .portal-routine-step:not(.is-complete) { background: var(--surface-soft); color: var(--foreground); }
-html[data-theme="light"] .portal-routine-step.is-complete { background: #ddf4ea; color: #087a57; }
+html[data-theme="light"] .portal-routine-day:not([aria-pressed="true"]) { background: var(--surface-soft); color: var(--foreground); }
 html[data-theme="light"] [role="dialog"]:not(.onboarding-shell):not([class*="bg-black/"]) { color: var(--foreground); }
 html[data-theme="light"] .portal-mobile-nav { background: color-mix(in srgb, var(--surface-elevated) 93%, transparent); box-shadow: 0 16px 40px rgba(30, 29, 22, .15); }
 html[data-theme="light"] .trainer-sidebar { background: linear-gradient(180deg, #fffefa, #eeece5); box-shadow: 4px 0 22px rgba(30, 29, 22, .06); }
