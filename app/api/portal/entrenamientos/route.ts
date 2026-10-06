@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
-import { databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import type { PortalWorkoutSession } from "@/types/portal";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
@@ -337,3 +337,4 @@ export async function POST(request: Request) {
     return Response.json({ error: "No se pudo guardar el entrenamiento." }, { status: 500 });
   }
 }
+
