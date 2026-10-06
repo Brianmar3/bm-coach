@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { WeeklyAttendanceHistory } from "@/componentes/weekly-attendance-history";
 import { toggledAttendanceStatus } from "@/lib/attendance-state";
+import { automaticAttendanceSchedule, attendanceScheduleSelection } from "@/lib/attendance-schedule-selection";
 import { nextRosterIndex, rosterStatusForKey } from "@/lib/trainer-keyboard-interactions";
 import { apiRequest } from "@/lib/client-api";
 import type { AttendanceGeneralSummary, AttendanceRoster, AttendanceRosterStudent, AttendanceStatus, Student, WeeklyClassDay, WeeklyClassSchedule } from "@/types/gestion";
@@ -41,7 +42,7 @@ function AttendancePageContent() {
   const [date, setDate] = useState(searchParams.get("date") || todayKey());
   const [schedules, setSchedules] = useState<WeeklyClassSchedule[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [scheduleId, setScheduleId] = useState(entryScheduleId);
+  const [scheduleId, setScheduleId] = useState<string | null>(entryScheduleId || null);
   const [roster, setRoster] = useState<AttendanceRosterStudent[]>([]);
   const [summary, setSummary] = useState<AttendanceGeneralSummary | null>(null);
   const [lowActivityStudents, setLowActivityStudents] = useState<DashboardLowActivityStudent[]>([]);
@@ -83,7 +84,8 @@ function AttendancePageContent() {
     const day = dateDay(date);
     return schedules.filter((schedule) => schedule.dayOfWeek === day).sort((left, right) => left.startTime.localeCompare(right.startTime));
   }, [date, schedules]);
-  const effectiveScheduleId = calendarMode ? entryScheduleId : dateSchedules.some((schedule) => schedule.id === scheduleId) ? scheduleId : dateSchedules.find((schedule) => schedule.active)?.id ?? dateSchedules[0]?.id ?? "";
+  const automaticScheduleId = useMemo(() => automaticAttendanceSchedule(dateSchedules, date), [dateSchedules, date]);
+  const effectiveScheduleId = attendanceScheduleSelection(scheduleId, automaticScheduleId);
   const selectedSchedule = schedules.find((schedule) => schedule.id === effectiveScheduleId) ?? null;
 
   useEffect(() => {
@@ -206,7 +208,7 @@ function AttendancePageContent() {
     setAddingStudent(false);
     setSaved(false);
   }
-  function changeDate(value: string) { setDate(value); setError(""); setSaved(false); setLoadingRoster(true); }
+  function changeDate(value: string) { if (value === date) return; setDate(value); setScheduleId(null); setError(""); setSaved(false); setLoadingRoster(true); }
   function changeSchedule(value: string) { setScheduleId(value); setError(""); setSaved(false); setLoadingRoster(true); }
   function handleRosterKey(index: number, event: ReactKeyboardEvent<HTMLElement>) {
     if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || savingLock.current) return;

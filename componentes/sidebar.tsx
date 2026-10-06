@@ -33,6 +33,13 @@ export function Sidebar() {
     router.refresh();
   }
 
+  const logoutButton = (
+      <button type="button" onClick={logout} className="mt-6 flex min-h-11 w-full items-center gap-3 rounded-xl border border-transparent px-3.5 py-2.5 text-left text-sm font-medium text-zinc-500 transition hover:border-red-400/20 hover:bg-red-400/[.06] hover:text-red-300">
+        <NavIcon name="logout" />
+        Cerrar sesión
+      </button>
+  );
+
   const nav = (
     <nav className="mt-5 space-y-1.5" aria-label="Navegación principal del entrenador">
       {links.map(([label, href, icon]) => {
@@ -45,10 +52,6 @@ export function Sidebar() {
           </Link>
         );
       })}
-      <button type="button" onClick={logout} className="mt-6 flex min-h-11 w-full items-center gap-3 rounded-xl border border-transparent px-3.5 py-2.5 text-left text-sm font-medium text-zinc-500 transition hover:border-red-400/20 hover:bg-red-400/[.06] hover:text-red-300">
-        <NavIcon name="logout" />
-        Cerrar sesión
-      </button>
     </nav>
   );
 
@@ -61,19 +64,21 @@ export function Sidebar() {
       <aside className="trainer-sidebar fixed bottom-0 left-0 top-[calc(env(safe-area-inset-top)+4.5rem)] z-30 hidden w-64 border-r border-yellow-400/10 bg-[linear-gradient(180deg,#0c0c0f_0%,#050505_100%)] px-4 py-5 lg:block">
         <p className="px-3 text-[10px] font-bold uppercase tracking-[.22em] text-zinc-600">Gestión diaria</p>
         {nav}
+        {logoutButton}
       </aside>
 
       {open && (
         <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm lg:hidden" onPointerDown={() => setOpen(false)}>
-          <aside role="dialog" aria-modal="true" aria-label="Menú de navegación" className="trainer-sidebar h-full w-[min(19rem,88vw)] overflow-y-auto border-r border-yellow-400/15 bg-[linear-gradient(180deg,#111114_0%,#050505_100%)] p-5 shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between gap-3">
+          <aside role="dialog" aria-modal="true" aria-label="Menú de navegación" className="trainer-sidebar flex h-full w-[min(19rem,88vw)] flex-col overflow-hidden border-r border-yellow-400/15 bg-[linear-gradient(180deg,#111114_0%,#050505_100%)] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl" onPointerDown={(event) => event.stopPropagation()}>
+            <div className="flex shrink-0 items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <WorkspaceBrandLogo branding={branding} className="h-10 w-10 rounded-xl" compactDefault officialBmMark />
                 <div className="min-w-0"><p className="max-w-40 truncate text-sm font-black tracking-wider text-white" title={branding.displayName}>{branding.displayName}</p><p className="text-[9px] text-zinc-500">Panel del entrenador</p></div>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-800" aria-label="Cerrar menú">×</button>
             </div>
-            {nav}
+            <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
+            <div className="shrink-0 border-t border-[var(--border)]">{logoutButton}</div>
           </aside>
         </div>
       )}
