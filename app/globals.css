@@ -1116,3 +1116,52 @@ html[data-theme="light"] .trainer-points-ranking {
   color: var(--foreground);
 }
 html[data-theme="light"] .trainer-points-ranking > div:first-child > div:first-child > p:first-child { color: var(--foreground); }
+
+/* Trainer contrast refinements: keep all original dark treatments. */
+html[data-theme="light"] .admin-panel .trainer-table-heading {
+  background: var(--surface-soft);
+  color: var(--foreground-muted);
+}
+
+html[data-theme="light"] .admin-panel :is(.trainer-panel-filters, .trainer-month-filters) {
+  background: var(--surface);
+  border-color: var(--border-soft);
+  box-shadow: none;
+}
+
+html[data-theme="light"] .admin-panel .trainer-panel-filters > label:not(:focus-within) {
+  background: var(--input-bg);
+  border-color: var(--input-border);
+  box-shadow: none;
+}
+
+html[data-theme="light"] .admin-panel :is(.trainer-panel-filters, .trainer-month-filters) :is(input, select):not(:focus-visible) {
+  box-shadow: none;
+}
+
+html[data-theme="light"] .admin-panel .trainer-neutral-status {
+  background: var(--surface-soft);
+  color: var(--foreground-muted);
+}
+
+html[data-theme="light"] .admin-panel .trainer-data-review {
+  background: color-mix(in srgb, var(--warning) 6%, var(--surface-elevated));
+  border-color: color-mix(in srgb, var(--warning) 25%, var(--border-soft));
+}
+
+html[data-theme="light"] .admin-panel .trainer-data-review :is(summary, [class*="text-amber-"]) {
+  color: var(--warning);
+}
+
+html[data-theme="light"] .admin-panel .trainer-data-review > :is(p, ul)[class] {
+  color: var(--foreground-muted);
+}
+
+html[data-theme="light"] .admin-panel .trainer-data-review summary span {
+  color: var(--brand-text);
+}
+
+html[data-theme="light"] .admin-panel .trainer-data-review :is(details, article)[class] {
+  background: var(--surface);
+  border-color: var(--border-soft);
+}

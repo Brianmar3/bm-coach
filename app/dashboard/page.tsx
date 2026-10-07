@@ -16,7 +16,7 @@ const accountStyle: Record<PaymentAccountStatus, { label: string; className: str
   VENCE_PRONTO: { label: "Vence pronto", className: "bg-orange-400/15 text-orange-300" },
   AL_DIA: { label: "Al día", className: "bg-emerald-400/15 text-emerald-300" },
   SIN_PAGOS: { label: "Sin pagos", className: "bg-yellow-400/10 text-yellow-200" },
-  SIN_CONFIGURAR: { label: "Sin configurar", className: "bg-zinc-700 text-zinc-300" },
+  SIN_CONFIGURAR: { label: "Sin configurar", className: "trainer-neutral-status bg-zinc-700 text-zinc-300" },
 };
 
 function money(value: number) {
