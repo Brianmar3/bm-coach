@@ -1106,3 +1106,13 @@ html[data-theme="light"] .trainer-follow-up-header {
   background: color-mix(in srgb, var(--surface-elevated) 95%, transparent);
   border-color: var(--border-soft);
 }
+
+/* Scoped contrast and surface corrections; original dark treatments remain intact. */
+html[data-theme="light"] .nutrition-personalization-title { color: var(--brand-text); }
+html[data-theme="light"] .trainer-points-ranking {
+  background: linear-gradient(145deg, var(--surface-elevated), var(--surface));
+  border-color: var(--border-soft);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--foreground);
+}
+html[data-theme="light"] .trainer-points-ranking > div:first-child > div:first-child > p:first-child { color: var(--foreground); }

@@ -116,7 +116,7 @@ export function PointsRanking() {
   }
 
   return (
-    <section id={RANKING_SECTION_ID} tabIndex={-1} className="scroll-mt-[calc(env(safe-area-inset-top)+6rem)] rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_14px_35px_rgba(0,0,0,.22)] focus:outline-none sm:p-5">
+    <section id={RANKING_SECTION_ID} tabIndex={-1} className="trainer-points-ranking scroll-mt-[calc(env(safe-area-inset-top)+6rem)] rounded-2xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4 shadow-[0_14px_35px_rgba(0,0,0,.22)] focus:outline-none sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.16em] text-yellow-400">Ranking por puntos</p>

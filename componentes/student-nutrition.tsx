@@ -201,7 +201,7 @@ export function StudentNutrition() {
       {!data?.profile.personalizationEnabled && (
         <section className="rounded-2xl border border-yellow-400/15 bg-yellow-400/[.025] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
           <div>
-            <h2 className="font-bold text-yellow-100">Activá la personalización inteligente</h2>
+            <h2 className="nutrition-personalization-title font-bold text-yellow-100">Activá la personalización inteligente</h2>
             <p className="mt-1 text-xs leading-5 text-zinc-400">Adaptá la guía a tu objetivo, hábitos y preferencias.</p>
           </div>
           <button type="button" onClick={enablePersonalization} disabled={consenting} className="mt-3 min-h-11 shrink-0 rounded-xl border border-yellow-400/30 bg-yellow-400/[.05] px-4 text-xs font-black text-yellow-200 disabled:opacity-50 sm:mt-0">
