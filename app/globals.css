@@ -879,11 +879,6 @@ html:not([data-theme="light"]) .portal-routine-screen { --brand-text: color-mix(
 .portal-routine-sets label { min-height: 2.75rem; display: grid; align-items: center; }
 .portal-routine-history summary::after { content: "⌄"; margin-left: auto; color: var(--brand-text); }
 .portal-routine-history[open] summary::after { content: "⌃"; }
-.portal-routine-screen .portal-routine-exercise-heading { padding-bottom: .5rem; }
-.portal-routine-exercise-name { padding-right: 0; }
-.portal-routine-screen [data-exercise-rest-timer] { position: static; justify-content: flex-end; padding: 0 .75rem .5rem; }
-.portal-routine-screen [data-exercise-rest-timer] button { background: var(--surface-soft); }
-.portal-routine-screen [data-timer-status="finished"] button:first-child { box-shadow: 0 0 16px var(--bm-accent-soft); }
 .portal-routine-screen :is(article, input, details, button) { scroll-margin-bottom: calc(var(--portal-bottom-nav-height) + var(--portal-bottom-nav-offset) + var(--portal-bottom-nav-clearance) + env(safe-area-inset-bottom)); }
 
 html[data-theme="light"] .portal-routine-warmup,

@@ -4,7 +4,7 @@ export const BLOCK_TIMER_AUDIO: Record<BlockTimerSound, string> = {
   work: "/audio/workout-start.mp4",
   rest: "/audio/rest-start.m4a",
   finish: "/audio/workout-finish.m4a",
-  restFinish: "/audio/rest-finish.wav",
+  restFinish: "/audio/rest-finish-triple.wav",
 };
 
 export function phaseTransitionSound(previousStep: string, currentStep: string, resting: boolean): BlockTimerSound | null {

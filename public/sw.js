@@ -2,6 +2,7 @@ self.__BM_TRAINING_SW_VERSION__ = "push-v10-offline-v2";
 const OFFLINE_CACHE = "bm-public-offline-v1";
 const OFFLINE_SHELL = "/portal/offline";
 const IDENTITY_PUBLIC_ASSETS = ["/bm-training-logo(2).png", "/bm-training-mark.png", "/avatars/bm-shield-v3.webp"];
+const OFFLINE_TIMER_ASSETS = ["/audio/rest-finish-triple.wav"];
 
 async function prepareOfflineShell() {
   const cache = await caches.open(OFFLINE_CACHE);
@@ -11,6 +12,7 @@ async function prepareOfflineShell() {
   const html = await response.clone().text();
   const assets = [...html.matchAll(/(?:src|href)="([^" ]+)"/g)].map((match) => new URL(match[1].replaceAll("&amp;", "&"), self.location.origin)).filter((url) => url.origin === self.location.origin && url.pathname.startsWith("/_next/static/"));
   assets.push(...IDENTITY_PUBLIC_ASSETS.map((path) => new URL(path, self.location.origin)));
+  assets.push(...OFFLINE_TIMER_ASSETS.map((path) => new URL(path, self.location.origin)));
   await Promise.all(assets.map(async (url) => {
     const asset = await fetch(url.href, { cache: "reload", credentials: "omit" });
     if (!asset.ok) throw new Error("Offline asset unavailable");
@@ -37,7 +39,7 @@ self.addEventListener("fetch", (event) => {
         return await cache.match(request) ?? Response.error();
       }
     })());
-  } else if (url.pathname.startsWith("/_next/static/")) {
+  } else if (url.pathname.startsWith("/_next/static/") || OFFLINE_TIMER_ASSETS.includes(url.pathname)) {
     event.respondWith(caches.open(OFFLINE_CACHE).then(async (cache) => {
       const stored = await cache.match(request);
       if (stored) return stored;

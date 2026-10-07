@@ -133,7 +133,7 @@ test("los sonidos usan los tres archivos de audio finales", () => {
     work: "/audio/workout-start.mp4",
     rest: "/audio/rest-start.m4a",
     finish: "/audio/workout-finish.m4a",
-    restFinish: "/audio/rest-finish.wav",
+    restFinish: "/audio/rest-finish-triple.wav",
   });
   assert.match(timerComponent, /feedback\("work"\)/);
   assert.match(timerComponent, /feedback\("finish"\)/);

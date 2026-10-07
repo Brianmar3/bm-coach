@@ -62,15 +62,32 @@ try {
   await warmup.click(); await page.getByRole('dialog',{name:'Entrada en calor'}).waitFor(); await page.getByRole('button',{name:'Cerrar entrada en calor'}).click();
   await page.locator('.portal-routine-block-heading').click(); await page.getByRole('heading',{name:'Plancha frontal',exact:true}).waitFor(); await page.locator('.portal-routine-block-heading').click();
   assert.equal(await page.locator('[data-exercise-rest-timer]').count(),1);
+  const geometry=await page.locator('[data-exercise-rest-timer]').evaluate(e=>{const r=e.getBoundingClientRect(),h=e.parentElement.getBoundingClientRect();return {position:getComputedStyle(e).position,top:r.top-h.top,right:h.right-r.right,height:r.height}});
+  assert.equal(geometry.position,'absolute'); assert.equal(geometry.top,10); assert.equal(geometry.right,40); assert.equal(geometry.height,44);
+  assert.equal(await page.locator('.portal-routine-exercise').nth(1).locator('[data-exercise-rest-timer]').count(),0);
+  await page.locator('.portal-routine-exercise').first().getByRole('button',{name:/Sentadillas con barra/}).click(); assert.equal(await page.locator('[data-exercise-rest-timer]').count(),0);
+  await page.locator('.portal-routine-exercise').first().getByRole('button',{name:/Sentadillas con barra/}).click();
+
   await page.getByRole('button',{name:/Iniciar descanso/}).click(); assert.equal(await page.locator('[data-exercise-rest-timer]').getAttribute('data-timer-status'),'running');
-  await page.getByRole('button',{name:'Reiniciar descanso'}).click();
+  if(theme==='light' && accent==='#D4A72C' && width===390){
+   await page.waitForTimeout(100);
+   await page.evaluate(()=>{window.__restBellPlays=0;const original=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(){if(this.src.includes('rest-finish-triple.wav') && !this.muted)window.__restBellPlays++;return original.call(this)}});
+   await page.clock.install(); await page.clock.fastForward(120000);
+   await page.waitForFunction(()=>window.__restBellPlays===1); assert.equal(await page.locator('[data-exercise-rest-timer]').getAttribute('data-timer-status'),'finished');
+   await page.clock.fastForward(5000);assert.equal(await page.evaluate(()=>window.__restBellPlays),1,'One final event, one playback containing three bells');
+   await page.clock.resume();
+  }
+
+  await page.getByRole('button',{name:'Reiniciar descanso'}).last().click();
   const rows=page.locator('.portal-routine-sets > div'); assert.equal(await rows.count(),5); assert.ok((await rows.nth(1).boundingBox()).height<=46);
   await page.getByLabel('Kg de la serie 1',{exact:true}).fill('50'); await page.getByLabel('Serie 1 completada',{exact:true}).check(); await page.locator('.portal-routine-set-complete').waitFor();
   assert.equal(await page.getByLabel('Kg de la serie 1',{exact:true}).isEnabled(),true);
   const history=page.getByText('Historial anterior (1)',{exact:true}); await history.click(); assert.equal(await page.locator('.portal-routine-history').getAttribute('open'),''); await history.click();
-  await page.locator('.portal-routine-exercise-heading').nth(1).click(); await page.getByLabel('Reps de la serie 4',{exact:true}).waitFor();
+  await page.locator('.portal-routine-exercise button[aria-controls]').nth(1).click(); await page.getByLabel('Reps de la serie 4',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Día 2 Pierna 2',exact:true}).click(); await page.getByRole('button',{name:'Día 1 Pierna 1',exact:true}).click();
+  await page.waitForFunction(async()=>!!(await (await caches.open('bm-public-offline-v1')).match('/audio/rest-finish-triple.wav')));
   await context.setOffline(true); await page.reload(); await page.getByText('Modo sin conexión',{exact:true}).waitFor(); await page.getByLabel('Reps de la serie 4',{exact:true}).waitFor();
+  const offlineAudio=await page.evaluate(async()=>{const audio=await fetch('/audio/rest-finish-triple.wav').then(r=>r.arrayBuffer());const ctx=new AudioContext();try{return (await ctx.decodeAudioData(audio)).duration}finally{await ctx.close()}});assert.equal(offlineAudio,2.52);
   await page.getByLabel('Reps de la serie 1',{exact:true}).fill('9'); await page.waitForTimeout(400);
   if(width<768){
    await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));

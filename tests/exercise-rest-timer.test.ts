@@ -67,7 +67,7 @@ test("el descanso usa su campanita y el workout conserva su final actual", () =>
   assert.match(audioHook, /BLOCK_TIMER_AUDIO/);
   const sounds = readFileSync(new URL("../lib/block-timer-sounds.ts", import.meta.url), "utf8");
   assert.match(sounds, /finish: "\/audio\/workout-finish\.m4a"/);
-  assert.match(sounds, /restFinish: "\/audio\/rest-finish\.wav"/);
+  assert.match(sounds, /restFinish: "\/audio\/rest-finish-triple\.wav"/);
 });
 
 test("toda la rutina comparte un único timer activo", () => {
