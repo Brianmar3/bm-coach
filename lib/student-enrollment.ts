@@ -74,6 +74,8 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     status: stored.lifecycleStatus === "suspendido" ? "suspendido" : stored.status === "inactivo" ? "inactivo" : "activo",
     serviceType: record.serviceType,
     notes: stored.notes ?? "",
+    hasLimitations: stored.hasLimitations === true,
+    limitations: typeof stored.limitations === "string" ? stored.limitations : "",
     studentType: studentTypeValue(stored.studentType),
     responsibleName: typeof stored.responsibleName === "string" ? stored.responsibleName : "",
     responsiblePhone: typeof stored.responsiblePhone === "string" ? stored.responsiblePhone : "",
