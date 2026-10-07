@@ -76,8 +76,8 @@ export function PortalAttendanceView() {
     {error && <p role="alert" className="rounded-2xl border border-red-400/20 bg-red-400/[.07] p-4 text-sm text-red-200">{error}</p>}
     {loading && <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center text-sm text-zinc-500">Cargando asistencias…</div>}
     {!loading && data && <>
-      <section className="grid gap-4 rounded-3xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0a0a0a] p-4 shadow-[0_14px_35px_rgba(0,0,0,.24)] sm:grid-cols-[auto_1fr] sm:items-center sm:p-6">
-        <div className="grid h-28 w-28 place-items-center rounded-full border border-yellow-400/20 bg-[radial-gradient(circle,rgba(250,204,21,.1),transparent_65%)] shadow-[inset_0_0_0_7px_rgba(250,204,21,.04)]"><div className="text-center"><strong className="block text-3xl font-black text-yellow-300">{formatPercentage(data.percentage)}</strong><span className="text-[9px] font-bold uppercase tracking-[.12em] text-zinc-500">Asistencia</span></div></div>
+      <section className="portal-attendance-summary grid gap-4 rounded-3xl border border-yellow-400/15 bg-gradient-to-br from-zinc-900 to-[#0a0a0a] p-4 shadow-[0_14px_35px_rgba(0,0,0,.24)] sm:grid-cols-[auto_1fr] sm:items-center sm:p-6">
+        <div className="portal-attendance-ring grid h-28 w-28 place-items-center rounded-full border border-yellow-400/20 bg-[radial-gradient(circle,rgba(250,204,21,.1),transparent_65%)] shadow-[inset_0_0_0_7px_rgba(250,204,21,.04)]"><div className="text-center"><strong className="block text-3xl font-black text-yellow-300">{formatPercentage(data.percentage)}</strong><span className="text-[9px] font-bold uppercase tracking-[.12em] text-zinc-500">Asistencia</span></div></div>
         <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Asistencia del período</p><h2 className="mt-1 text-xl font-black text-white">{data.period.label}</h2>{data.total > 0 ? <><p className="mt-2 text-sm text-zinc-300">{data.completedDays ?? data.present} de {data.total} realizadas {period === "previous-month" ? "en el período" : "hasta hoy"}</p><p className="mt-1 text-xs text-zinc-500">{data.present} {data.present === 1 ? "registro presente" : "registros presentes"} · {data.absent} {data.absent === 1 ? "falta" : "faltas"} · {data.justified} {data.justified === 1 ? "justificada" : "justificadas"}</p></> : <p className="mt-2 text-sm text-zinc-400">No hay sesiones esperadas {period === "current-month" ? "hasta hoy" : "en este período"}.</p>}</div>
       </section>
 
@@ -106,5 +106,5 @@ export function PortalAttendanceView() {
 }
 
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return <article className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-zinc-500">{label}</p><p className={`mt-2 text-2xl font-black ${tone}`}>{value}</p></article>;
+  return <article className="portal-attendance-metric rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-[#0b0b0b] p-4"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-zinc-500">{label}</p><p className={`mt-2 text-2xl font-black ${tone}`}>{value}</p></article>;
 }

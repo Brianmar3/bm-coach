@@ -82,6 +82,13 @@ try {
   const rows=page.locator('.portal-routine-sets > div'); assert.equal(await rows.count(),5); assert.ok((await rows.nth(1).boundingBox()).height<=46);
   await page.getByLabel('Kg de la serie 1',{exact:true}).fill('50'); await page.getByLabel('Serie 1 completada',{exact:true}).check(); await page.locator('.portal-routine-set-complete').waitFor();
   assert.equal(await page.getByLabel('Kg de la serie 1',{exact:true}).isEnabled(),true);
+  await page.getByRole('button',{name:'Finalizar entrenamiento',exact:true}).click();
+  const finishWarning=page.locator('.portal-finish-warning'); await finishWarning.waitFor();
+  assert.ok((await finishWarning.innerText()).includes('Todavía quedan ejercicios o series sin completar.'));
+  for(const name of ['Continuar entrenando','Guardar para continuar después','Finalizar igualmente']) assert.equal(await finishWarning.getByRole('button',{name,exact:true}).isVisible(),true);
+  if(theme==='light') assert.equal(await finishWarning.locator('p').evaluate(e=>getComputedStyle(e).color),'rgb(150, 96, 0)');
+  await page.getByRole('button',{name:'Cerrar finalización',exact:true}).click();
+  assert.equal(await finishWarning.count(),0);
   const history=page.getByText('Historial anterior (1)',{exact:true}); await history.click(); assert.equal(await page.locator('.portal-routine-history').getAttribute('open'),''); await history.click();
   await page.locator('.portal-routine-exercise button[aria-controls]').nth(1).click(); await page.getByLabel('Reps de la serie 4',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Día 2 Pierna 2',exact:true}).click(); await page.getByRole('button',{name:'Día 1 Pierna 1',exact:true}).click();
