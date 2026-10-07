@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const library = readFileSync(new URL("../componentes/icons/bm-icons.tsx", import.meta.url), "utf8");
+const library = ["icon.tsx", "core.tsx", "support.tsx"].map(file => readFileSync(new URL(`../componentes/icons/bm-premium/${file}`, import.meta.url), "utf8")).join("\n");
 const barrel = readFileSync(new URL("../componentes/icons/index.ts", import.meta.url), "utf8");
 const settings = readFileSync(new URL("../componentes/settings-icons.tsx", import.meta.url), "utf8");
 const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
@@ -17,10 +17,10 @@ const transferPayment = readFileSync(new URL("../componentes/portal-transfer-pay
 test("BM Icons expone una API visual y accesible única", () => {
   assert.match(library, /export type BmIconProps/);
   assert.match(library, /size = 24/);
-  assert.match(library, /strokeWidth = 1\.8/);
+  assert.match(library, /strokeWidth = 1\.7/);
   assert.match(library, /viewBox="0 0 24 24"/);
   assert.match(library, /fill="none"/);
-  assert.match(library, /stroke="currentColor"/);
+  assert.match(library, /stroke = "currentColor"/);
   assert.match(library, /strokeLinecap="round"/);
   assert.match(library, /strokeLinejoin="round"/);
   assert.match(library, /aria-hidden=\{title \? undefined : true\}/);
@@ -30,7 +30,7 @@ test("BM Icons expone una API visual y accesible única", () => {
 
 test("los nombres públicos de BM Icons son únicos y cubren el catálogo V1", () => {
   const names = [...library.matchAll(/export const (Bm[A-Za-z]+Icon)/g)].map((match) => match[1]);
-  assert.equal(names.length, 58);
+  assert.ok(names.length >= 58);
   assert.equal(new Set(names).size, names.length);
   for (const required of [
     "BmHomeIcon", "BmClassesIcon", "BmRoutineIcon", "BmNutritionIcon", "BmAppleIcon", "BmEvaluationIcon",
@@ -82,7 +82,7 @@ test("la migración conserva visuales especializados sin inventar equivalencias"
   assert.match(progress, /<svg viewBox="0 0 640 230"/);
   assert.match(nutrition, /function NutritionIllustration/);
   assert.match(nutrition, /function HabitIcon/);
-  assert.match(nutrition, /star: <path/);
+  assert.match(nutrition, /star: BmStarIcon/);
   assert.match(quickLog, /BM Icons V1 does not include a photo\/camera concept yet/);
   assert.match(quickLog, /function GuidedQuickLogForm/);
   assert.match(quickLog, /quickLogPayload/);

@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { NUTRITION_HABITS } from "@/lib/nutrition";
 import type { NutritionHabitKey } from "@/types/nutrition";
 import type { NutritionDashboardData } from "@/types/nutrition-intelligence";
-import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmShieldCheckIcon } from "@/componentes/icons";
+import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmShieldCheckIcon, BmCommentIcon, BmBookmarkIcon, BmStarIcon, BmCartIcon, BmCookingIcon, BmBookIcon, BmLearningIcon, BmProteinIcon, BmPlantIcon, BmMealPlanIcon, BmHydrationIcon, BmChallengeIcon } from "@/componentes/icons";
 
 const emptyHabits: Record<NutritionHabitKey, boolean> = {
   hydration: false,
@@ -24,31 +24,10 @@ const quickLinks = [
 
 type LineIconName = "calendar" | "shield" | "comment" | "bookmark" | "star" | "cart" | "pot" | "book" | "learn";
 
-function LineIcon({ name, className = "size-5" }: { name: LineIconName; className?: string }) {
-  if (name === "calendar") return <BmCalendarIcon className={className} />;
-  if (name === "shield") return <BmShieldCheckIcon className={className} />;
-  const paths: Record<Exclude<LineIconName, "calendar" | "shield">, ReactNode> = {
-    comment: <path d="M5 5.5h14v10H10l-4 3v-3H5v-10Z" />,
-    bookmark: <path d="M7 4.5h10v15l-5-3-5 3v-15Z" />,
-    star: <path d="m12 3 2.7 5.5 6 .9-4.3 4.2 1 5.9-5.4-2.8-5.4 2.8 1-5.9-4.3-4.2 6-.9L12 3Z" />,
-    cart: <><path d="M3 5h2l2 10h10l2-7H6" /><path d="M9 19h.01M17 19h.01" /></>,
-    pot: <><path d="M5 9h14v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9Zm-2 0h18M9 6h6M8 3c0 1 1 1 1 2m4-2c0 1 1 1 1 2" /></>,
-    book: <><path d="M4 5.5c3-.8 5.7-.2 8 1.5v12c-2.3-1.7-5-2.3-8-1.5v-12Zm16 0c-3-.8-5.7-.2-8 1.5v12c2.3-1.7 5-2.3 8-1.5v-12Z" /></>,
-    learn: <><path d="m3 9 9-5 9 5-9 5-9-5Zm4 2.5V16c2.7 2 7.3 2 10 0v-4.5M20 10v6" /></>,
-  };
-  return <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
-}
-
-function HabitIcon({ habit }: { habit: NutritionHabitKey }) {
-  const paths: Record<NutritionHabitKey, ReactNode> = {
-    hydration: <path d="M12 3S6.5 9.4 6.5 14a5.5 5.5 0 0 0 11 0C17.5 9.4 12 3 12 3Z" />,
-    protein: <><path d="M7 14c1.5-4 3.5-6 6-6 2.8 0 4.5 2 4.5 5.5V19H9a4 4 0 0 1-4-4v-3" /><path d="M10 9V5.5a2 2 0 0 1 4 0V8" /></>,
-    fruitsVegetables: <><path d="M12 20c-4.5-1.5-6.5-5-5-9 4-.5 7 1 8 5" /><path d="M12 20c4-2 5.5-5.5 4.5-9-3.5 0-6 1.5-7 4.5M12 8c0-2 1-3.5 3-4" /></>,
-    mealOrganization: <><path d="M5 8h14l-1 11H6L5 8Zm-1-3h16M9 5V3h6v2" /></>,
-    energy: <path d="m13 2-7 12h5l-1 8 8-13h-5V2Z" />,
-  };
-  return <svg viewBox="0 0 24 24" aria-hidden="true" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[habit]}</svg>;
-}
+const nutritionIcons = { calendar: BmCalendarIcon, shield: BmShieldCheckIcon, comment: BmCommentIcon, bookmark: BmBookmarkIcon, star: BmStarIcon, cart: BmCartIcon, pot: BmCookingIcon, book: BmBookIcon, learn: BmLearningIcon };
+function LineIcon({ name, className = "size-5" }: { name: LineIconName; className?: string }) { const Icon = nutritionIcons[name]; return <Icon className={className} />; }
+const habitIcons = { hydration: BmHydrationIcon, protein: BmProteinIcon, fruitsVegetables: BmPlantIcon, mealOrganization: BmMealPlanIcon, energy: BmChallengeIcon };
+function HabitIcon({ habit }: { habit: NutritionHabitKey }) { const Icon = habitIcons[habit]; return <Icon size={24} />; }
 
 function NutritionIllustration() {
   return <svg viewBox="0 0 180 150" aria-hidden="true" className="absolute -right-2 top-2 hidden h-36 w-44 text-yellow-400 opacity-[.16] sm:block" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="92" cy="75" r="58" /><circle cx="92" cy="75" r="49" strokeDasharray="2 5" /><path d="M46 91h73c-4 21-18 31-36 31S51 112 46 91Zm9-8c8-13 21-18 36-18 12 0 23 4 31 12M74 67c-8-10-8-20-4-27 10 3 17 12 17 23m8 2c0-13 7-23 17-27 3 9 0 20-10 28m27-20h22v66h-19m-4-56h31m-27-10v-8h22v8" /></svg>;

@@ -73,7 +73,8 @@ export function PortalNavigationLink({ title, href, Icon, active }: { title: str
               }`}
             >
               <Icon
-                size={20}
+                active={active}
+                size={22}
                 className={`transition-[color,filter,transform] duration-200 ${
                   active
                     ? "portal-nav-active-icon scale-105 text-yellow-300"

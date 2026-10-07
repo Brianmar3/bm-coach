@@ -13,7 +13,7 @@ import { StudentQuickPanels } from "@/componentes/student-quick-panels";
 import { AdminQuickLogSummary } from "@/componentes/admin-quick-log-summary";
 import { AdminNutritionSummary } from "@/componentes/admin-nutrition-summary";
 import { StudentEvaluations } from "@/componentes/student-evaluations";
-import { BmCalendarIcon, BmEditIcon, BmEyeIcon, BmMailIcon, BmPaymentIcon, BmPhoneIcon, BmSearchIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
+import { BmProfileIcon, BmClassesIcon, BmMeasurementsIcon, BmTargetIcon, BmWorkoutIcon, BmCalendarIcon, BmEditIcon, BmEyeIcon, BmMailIcon, BmPaymentIcon, BmPhoneIcon, BmSearchIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
 import { buildStudentEnrollmentPayload, canonicalPlanName, normalizePlanName, resolveStudentPlan, selectedStudentPlanFormValue, studentPlanFormValue } from "@/lib/coach-plans";
 import { studentMatchesSearch } from "@/lib/student-search";
@@ -273,7 +273,7 @@ function StudentMobileCard({ item, view, edit, remove }: { item: Student; view: 
     const phone = item.studentType === "Kids" ? item.responsiblePhone || item.phone || "Sin teléfono" : item.phone || "Sin teléfono";
     return <article className="min-w-0 overflow-hidden rounded-xl border border-zinc-800 bg-[#111]">
       <div className="p-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-sm font-bold text-zinc-100">{item.firstName} {item.lastName}</h2><div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-zinc-500"><span>{item.studentType}</span><span>IMC {bmi(item.weight, item.height)}</span><span>{age(item.birthDate)} años</span><ServiceBadge value={item.serviceType}/></div></div><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold capitalize ${item.status === "activo" ? "bg-emerald-400/15 text-emerald-300" : "trainer-neutral-status bg-zinc-700 text-zinc-300"}`}>{item.status}</span></div>
-      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-zinc-800/80 pt-3"><MobileDatum icon={<BmCalendarIcon size={14}/>} label="Plan" value={item.plan || "Sin definir"}/><MobileDatum icon={<BmMailIcon size={14}/>} label="Correo" value={item.email || "Sin correo"}/><MobileDatum icon={<BmPaymentIcon size={14}/>} label="Cuota" value={money(item.monthlyFee)}/><MobileDatum icon={<BmTimerIcon size={14}/>} label="Horario" value={item.scheduleLabel ?? "Sin horario principal"}/><MobileDatum icon={<BmPhoneIcon size={14}/>} label="Teléfono" value={phone}/><MobileDatum icon={<BmCalendarIcon size={14}/>} label="Vencimiento" value={showDate(item.dueDate)}/></div></div>
+      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-zinc-800/80 pt-3"><MobileDatum icon={<BmWorkoutIcon size={14}/>} label="Plan" value={item.plan || "Sin definir"}/><MobileDatum icon={<BmMailIcon size={14}/>} label="Correo" value={item.email || "Sin correo"}/><MobileDatum icon={<BmPaymentIcon size={14}/>} label="Cuota" value={money(item.monthlyFee)}/><MobileDatum icon={<BmTimerIcon size={14}/>} label="Horario" value={item.scheduleLabel ?? "Sin horario principal"}/><MobileDatum icon={<BmPhoneIcon size={14}/>} label="Teléfono" value={phone}/><MobileDatum icon={<BmCalendarIcon size={14}/>} label="Vencimiento" value={showDate(item.dueDate)}/></div></div>
       <div className="grid grid-cols-3 border-t border-zinc-800/80"><MobileAction icon={<BmEyeIcon size={15}/>} label="Ver ficha" action={view}/><MobileAction icon={<BmEditIcon size={15}/>} label="Editar" action={edit}/><MobileAction icon={<BmUserIcon size={15}/>} label="Dar de baja" action={remove} danger/></div>
     </article>;
 }
@@ -434,8 +434,9 @@ function StudentDetail({ item, focus, close, edit }: {
         </section>
     </div>;
 }
+const detailIcons = { "Tipo de alumno": BmProfileIcon, Servicio: BmClassesIcon, "Edad / IMC": BmMeasurementsIcon, Objetivo: BmTargetIcon, Cuota: BmPaymentIcon, Contacto: BmPhoneIcon, Responsable: BmUserIcon, Vencimiento: BmCalendarIcon, "Fecha de inicio": BmCalendarIcon, "Horario principal": BmTimerIcon };
 function Detail({ label, value, wide = false }: {
     label: string;
     value: string;
     wide?: boolean;
-}) { return <div className={wide ? "sm:col-span-2" : ""}><dt className="text-zinc-500">{label}</dt><dd className="mt-1">{value}</dd></div>; }
+}) { const Icon = detailIcons[label as keyof typeof detailIcons]; return <div className={wide ? "sm:col-span-2" : ""}><dt className="flex items-center gap-2 text-zinc-500">{Icon && <Icon size={16} className="text-yellow-400" />}{label}</dt><dd className="mt-1">{value}</dd></div>; }
