@@ -1085,3 +1085,13 @@ html[data-theme="light"] .portal-finish-warning {
   border-color: color-mix(in srgb, var(--warning) 35%, var(--border-soft));
 }
 html[data-theme="light"] .portal-finish-warning > p { color: var(--warning); }
+
+/* Only the food-preferences header; dark and other nutrition pages retain their layout. */
+html[data-theme="light"] .portal-nutrition-preferences > header {
+  background: linear-gradient(145deg, var(--surface-elevated), var(--surface));
+  border-color: var(--border-soft);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 7%, transparent);
+  color: var(--foreground);
+}
+html[data-theme="light"] .portal-nutrition-preferences > header > p { color: var(--foreground-muted); }
+html[data-theme="light"] .portal-nutrition-preferences > header > a { color: var(--brand-text); }

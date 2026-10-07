@@ -208,7 +208,7 @@ function PreferencesView() {
 
   if (loading) return <Loading />;
   return (
-    <div className="space-y-4">
+    <div className="portal-nutrition-preferences space-y-4">
       <PageHeader title="Preferencias alimentarias" description="Declaralas una vez y actualizalas cuando cambien. Las alergias y restricciones tienen prioridad absoluta." />
       <Notice error={error} message={message} />
       <section className="rounded-2xl border border-yellow-400/15 bg-zinc-900/80 p-5">

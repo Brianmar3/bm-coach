@@ -39,6 +39,17 @@ function visit(node) {
 }
 visit(ast); assert.ok(warning);
 const { Warning } = compile('componentes/portal-section.tsx', resolve, `export function Warning() { const setFinalOpen=()=>{}, save=()=>{}, setAllowIncomplete=()=>{}; return ${warning}; }`);
+const nutritionSource = readFileSync('componentes/nutrition-workspace.tsx', 'utf8');
+const nutritionAst = ts.createSourceFile('nutrition.tsx', nutritionSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const headerFunction = nutritionAst.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'PageHeader');
+let preferencesHeader;
+function findPreferences(node) {
+  if (ts.isJsxSelfClosingElement(node) && node.tagName.getText(nutritionAst) === 'PageHeader' && node.getText(nutritionAst).includes('title="Preferencias alimentarias"')) preferencesHeader = node.getText(nutritionAst);
+  ts.forEachChild(node, findPreferences);
+}
+findPreferences(nutritionAst); assert.ok(headerFunction && preferencesHeader);
+assert.ok(nutritionSource.includes('portal-nutrition-preferences space-y-4'));
+const { PreferencesHeader } = compile('componentes/nutrition-workspace.tsx', resolve, `import Link from 'next/link'; ${headerFunction.getText(nutritionAst)} export function PreferencesHeader() { return <div className="portal-nutrition-preferences">${preferencesHeader}</div>; }`);
 const log = { id: 'visual', type: 'PROGRESS', metricType: 'carga', exerciseName: 'Bíceps', exerciseKey: 'biceps', date: '2026-08-27', createdAt: '2026-08-27T22:09:00Z', currentValue: 25, previousValue: null, sets: 4, repetitions: 8, unit: 'kg', photos: [], achievements: [{ id: 'first', type: 'FIRST_MARK' }] };
 function render(Component, values) { states = values; stateIndex = 0; return renderToStaticMarkup(React.createElement(Component)); }
 const chunks = '.next/static/chunks';
@@ -55,7 +66,7 @@ try {
       const attendance = render(PortalAttendanceView, [period, data, false, '']);
       const records = render(QuickLogHistory, [[log], false, '', '', '', '', '', '', false, null, 'exercises', expanded ? 'biceps' : '']);
       assert.ok(records.includes('portal-record-group'), records);
-      const content = attendance + records + render(Warning, []);
+      const content = render(PreferencesHeader, []) + attendance + records + render(Warning, []);
       await page.setContent(`<html data-theme="${theme}"><head><style>${css}</style></head><body><div class="workspace-brand" style="${variables}"><main class="mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12">${content}</main><nav class="portal-mobile-nav fixed bottom-[calc(env(safe-area-inset-bottom)+var(--portal-bottom-nav-offset))] left-5 right-5 h-[var(--portal-bottom-nav-height)] md:hidden">Inicio · Rutina · Clases</nav></div></body></html>`);
       await page.emulateMedia({ reducedMotion: 'reduce' });
       // System resolves through the production helper to exactly these same tokens.
@@ -79,6 +90,19 @@ try {
       assert.equal(await page.locator('input[type=date]').count(), 2);
       assert.equal(await page.locator('input[type=date]').first().inputValue(), '');
       assert.ok((await page.locator('.portal-attendance-summary').innerText()).includes(label));
+      const preferences = await page.locator('.portal-nutrition-preferences > header').evaluate(header => {
+        const style = getComputedStyle(header);
+        const variables = getComputedStyle(header.closest('.workspace-brand'));
+        return { background: style.backgroundImage, color: style.color, title: getComputedStyle(header.querySelector('h1')).color, description: getComputedStyle(header.querySelector('p')).color, link: getComputedStyle(header.querySelector('a')).color, accentText: variables.getPropertyValue('--brand-text').trim() };
+      });
+      assert.equal(await page.locator('.portal-nutrition-preferences a').getAttribute('href'), '/portal/nutricion');
+      if (theme === 'light') {
+        assert.ok(preferences.background.includes('255, 255, 255'));
+        assert.equal(preferences.title, 'rgb(30, 32, 37)');
+        assert.equal(preferences.description, 'rgb(98, 102, 110)');
+        const accentText = await page.locator('.portal-nutrition-preferences a').evaluate(link => { const sample = document.createElement('span'); sample.style.color = 'var(--brand-text)'; link.append(sample); const color = getComputedStyle(sample).color; sample.remove(); return color; });
+        assert.equal(preferences.link, accentText);
+      } else assert.ok(preferences.background.includes('0, 0, 0'), 'Original dark header gradient');
       if (theme === 'light') {
         for (const key of ['group', 'summary', 'metric']) assert.ok(result[key].includes('255, 255, 255'), key);
         assert.ok(result.titleContrast >= 4.5 && result.mutedContrast >= 4.5, JSON.stringify(result));
@@ -98,7 +122,7 @@ try {
         await page.screenshot({ path: `.portal-surfaces-${theme}.png` });
       }
     }
-    console.log(`${theme}, ${accent}, ${width}px: all periods, closed/open history, contrast, filters and nav clearance OK`);
+    console.log(`${theme}, ${accent}, ${width}px: nutrition preferences, all periods, closed/open history, contrast, filters and nav clearance OK`);
     await page.close();
   }
 } finally { await browser.close(); }
