@@ -1095,3 +1095,14 @@ html[data-theme="light"] .portal-nutrition-preferences > header {
 }
 html[data-theme="light"] .portal-nutrition-preferences > header > p { color: var(--foreground-muted); }
 html[data-theme="light"] .portal-nutrition-preferences > header > a { color: var(--brand-text); }
+
+/* Follow-up drawer: keep its original dark surfaces and modal backdrop. */
+html[data-theme="light"] .trainer-follow-up-drawer {
+  background: var(--background);
+  border-color: var(--border-soft);
+  color: var(--foreground);
+}
+html[data-theme="light"] .trainer-follow-up-header {
+  background: color-mix(in srgb, var(--surface-elevated) 95%, transparent);
+  border-color: var(--border-soft);
+}
