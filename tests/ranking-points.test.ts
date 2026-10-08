@@ -21,7 +21,7 @@ test("una asistencia y una rutina se puntúan una sola vez con claves estables",
 });
 
 test("usa la fecha efectiva y no createdAt para el período", () => {
-  const [event] = buildValidPointEvents({ quickLogs: [{ id: "log-1", date: "2026-07-31", description: "Registro" }] });
+  const [event] = buildValidPointEvents({ quickLogs: [{ id: "log-1", type: "WORKOUT", durationMinutes: 30, date: "2026-07-31", description: "Registro" }] });
   assert.equal(event.occurredAt.toISOString(), "2026-07-31T12:00:00.000Z");
   assert.equal(effectivePointDate("2026-08-01").toISOString(), "2026-08-01T12:00:00.000Z");
 });
@@ -45,7 +45,7 @@ test("casos Lisi y Román: solo Lisi conserva su asistencia real", () => {
 
 test("el total del desglose coincide con la suma de movimientos", () => {
   const events = buildValidPointEvents({
-    quickLogs: [{ id: "q1", date: "2026-08-01", description: "Registro" }],
+    quickLogs: [{ id: "q1", type: "WORKOUT", durationMinutes: 30, date: "2026-08-01", description: "Registro" }],
     occurrenceAttendances: [{ id: "a1", date: "2026-08-01", description: "Asistencia" }],
   });
   assert.equal(events.reduce((sum, item) => sum + item.points, 0), 8);

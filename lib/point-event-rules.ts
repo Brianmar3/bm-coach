@@ -1,3 +1,5 @@
+import { isPointEligibleQuickLog, type QuickLogPointFacts } from "./quick-log-point-rules.ts";
+
 export const POINT_RULES = {
   ATTENDANCE: 5,
   RECORD: 3,
@@ -41,7 +43,7 @@ type WeeklyMissionInput = RecordInput & {
 export type PointEventInputs = {
   legacyAttendances?: AttendanceInput[];
   occurrenceAttendances?: AttendanceInput[];
-  quickLogs?: RecordInput[];
+  quickLogs?: (RecordInput & QuickLogPointFacts)[];
   completedRoutineSessions?: RecordInput[];
   weeklyMissions?: WeeklyMissionInput[];
   onTimePayments?: RecordInput[];
@@ -76,6 +78,7 @@ export function buildValidPointEvents(input: PointEventInputs): ValidPointEvent[
     });
   }
   for (const item of input.quickLogs ?? []) {
+    if (!isPointEligibleQuickLog(item)) continue;
     events.push({
       eventKey: `record:quick-log:${item.id}`,
       eventType: "RECORD",

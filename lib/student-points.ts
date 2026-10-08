@@ -26,6 +26,7 @@ import { reconcileWeeklyMissionForDate, resolveCurrentWeeklyMission } from "@/li
 import { paymentWasOnTime } from "@/lib/payment-notification-rules";
 import { pointPeriodStart } from "@/lib/point-period";
 import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } from "@/lib/student-service";
+import { reconcileInformativeQuickLogPoints } from "@/lib/quick-log-point-reconciliation";
 
 type PointEvent = ValidPointEvent;
 
@@ -103,6 +104,9 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
           sets: true,
           repetitions: true,
           currentValue: true,
+          previousValue: true,
+          metricType: true,
+          durationMinutes: true,
           unit: true,
           date: true,
           createdAt: true,
@@ -147,6 +151,9 @@ async function desiredPointEvents(studentId: string): Promise<PointEvent[]> {
               ? "nota personal"
               : "progreso personal";
     return {
+      ...log,
+      currentValue: log.currentValue === null ? null : Number(log.currentValue),
+      previousValue: log.previousValue === null ? null : Number(log.previousValue),
       id: log.id,
       date: log.date,
       description: `Registro cargado: ${detail}`,
@@ -305,6 +312,7 @@ export async function syncStudentPoints(
   studentId: string,
   options: { notify?: boolean; cleanupHistoricalMarks?: boolean; attendanceDate?: string } = {},
 ) {
+  await reconcileInformativeQuickLogPoints([studentId]);
   const student = await prisma.studentRecord.findUnique({
     where: { id: studentId },
     select: { serviceType: true },

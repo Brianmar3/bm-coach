@@ -8,6 +8,7 @@ import { pointPeriodStart, type PointRankingPeriod } from "@/lib/point-period";
 import type { Student } from "@/types/gestion";
 import type { StudentRankingEntry } from "@/types/points";
 import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } from "@/lib/student-service";
+import { reconcileInformativeQuickLogPoints } from "@/lib/quick-log-point-reconciliation";
 
 export async function loadPointRanking(period: PointRankingPeriod, workspaceId: string) {
   if (!workspaceId) throw new Error("Workspace requerido para ranking.");
@@ -15,6 +16,7 @@ export async function loadPointRanking(period: PointRankingPeriod, workspaceId: 
   const allStudents = await prisma.studentRecord.findMany({ where: { AND: [coachedStudentsWhere], workspaceId }, select: { id: true, data: true, serviceType: true }, orderBy: { createdAt: "asc" } });
   const students = allStudents.filter((record) => (record.data as unknown as Student).status !== "inactivo" && isCompetitiveGamificationEligible(record.serviceType));
   const studentIds = students.map((student) => student.id);
+  await reconcileInformativeQuickLogPoints(studentIds);
   const [allMovements, membershipPeriods] = await Promise.all([
     prisma.studentPointTransaction.findMany({ where: { active: true, studentId: { in: studentIds } }, select: { id: true, studentId: true, eventType: true, points: true, description: true, occurredAt: true }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }] }),
     prisma.studentMembershipHistory.findMany({ where: { studentId: { in: studentIds } }, select: { studentId: true, startDate: true, endDate: true, serviceType: true } }),
