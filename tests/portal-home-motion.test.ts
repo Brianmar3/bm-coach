@@ -61,7 +61,7 @@ test("los efectos responden a diferencias reales posteriores al montaje", () => 
   assert.match(home, /const previousValue = useRef\(value\)/);
   assert.match(home, /previous\.progress !== mission\.progress/);
   assert.match(home, /next\.total - previous\.total/);
-  assert.match(home, /bm:weekly-mission-celebrated:/);
+  assert.match(home, /useWeeklyMissionCelebration\(data.home.weeklyMission\)/);
   assert.match(homeStyles, /portal-home-objective-advance 650ms/);
   assert.match(homeStyles, /portal-home-points-change 1000ms/);
   assert.match(homeStyles, /portal-home-objective-progress[\s\S]*width 620ms/);

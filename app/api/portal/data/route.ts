@@ -24,6 +24,7 @@ import { loadUnifiedRecordAchievements } from "@/lib/unified-record-achievements
 import { mergePortalAttendanceRecords, type PortalAttendanceRecord } from "@/lib/portal-attendance";
 import { loadPortalAttendance } from "@/lib/portal-attendance-data";
 import { loadCurrentWeeklyMission } from "@/lib/weekly-mission-data";
+import { withWeeklyCelebrationState } from "@/lib/weekly-celebration-state";
 import { exerciseMediaAvailable } from "@/lib/exercise-library-server";
 import { obligationStatus } from "@/lib/monthly-calculations";
 import { normalizeTransferDetails } from "@/lib/transfer-payment";
@@ -97,7 +98,7 @@ async function loadHomeInsights(studentId: string, workspaceId: string, primaryS
   const hasClassParticipation = includeClasses && (Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog));
   const weeklyGoal = includeClasses ? planDays(plan) ?? 0 : 0;
   const hasPreviousMonthData = (previousMonthAttendance?.total ?? 0) > 0;
-  const weeklyMission = await loadCurrentWeeklyMission(studentId, todayKey);
+  const weeklyMission = await withWeeklyCelebrationState(studentId, await loadCurrentWeeklyMission(studentId, todayKey));
   return {
     weeklyWorkoutCount,
     classesAttendedThisMonth: currentMonthAttendance?.completedDays ?? currentMonthAttendance?.present ?? 0,

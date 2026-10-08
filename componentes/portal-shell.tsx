@@ -136,7 +136,7 @@ export function PortalShell({
       : "text-zinc-500 hover:text-zinc-200";
   };
 
-  return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider>
+  return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider><AchievementCelebration key={studentId} isHome={isHome} achievementsHref={serviceType === "PERSONALIZED" ? "/portal/progreso" : "/portal/puntos"}>
     <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties} onClickCapture={(event) => {
       if (navigator.onLine || serviceType === "CLASSES" || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const link = (event.target as Element).closest("a");
@@ -144,7 +144,7 @@ export function PortalShell({
       const url = new URL(link.href);
       if (url.origin === window.location.origin && ["/portal", "/portal/rutina"].includes(url.pathname)) { event.preventDefault(); event.stopPropagation(); window.location.assign(url.href); }
     }}>
-      <AchievementCelebration />
+
       <NativePushOnboarding audience="student" />
       <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<StudentNotificationCenter />}>
         <nav
@@ -194,5 +194,5 @@ export function PortalShell({
         {showNavigationQuickLog && mobileQuickLogIndex === links.length && <QuickNoteButton placement="navigation" />}
       </nav>
     </div>
-  </RestTimerProvider></WorkspaceBrandingValueProvider>;
+  </AchievementCelebration></RestTimerProvider></WorkspaceBrandingValueProvider>;
 }

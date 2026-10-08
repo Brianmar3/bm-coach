@@ -18,7 +18,7 @@ import { StudentProfileView } from "@/componentes/student-profile-view";
 import { StudentAvatarPage } from "@/componentes/student-avatar-page";
 import { PushNotificationsCard } from "@/componentes/push-notifications-card";
 import { hasGroupClasses, hasPersonalizedService, isCompetitiveGamificationEligible } from "@/lib/student-service";
-import { announceNewAchievements, type CelebrationAchievement } from "@/componentes/achievement-celebration";
+import { announceNewAchievements, useWeeklyMissionCelebration, type CelebrationAchievement } from "@/componentes/achievement-celebration";
 import { cleanRoutineDisplayName, completedExerciseCount, exerciseCompletesWithSetChange, initialOpenExerciseId, nextIncompleteExerciseId, usefulDayName } from "@/lib/workout-presentation";
 import { separateWorkoutInstructions } from "@/lib/workout-instructions";
 import { argentinaDateKey } from "@/lib/payment-dates";
@@ -172,6 +172,7 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
 }
 
 function PortalOverview({ data }: { data: PortalData }) {
+  const weeklyCelebrated = useWeeklyMissionCelebration(data.home.weeklyMission);
   const now = new Date();
   const rawTodayLabel = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "numeric", month: "long" }).format(now);
   const todayLabel = `${rawTodayLabel.charAt(0).toLocaleUpperCase("es")}${rawTodayLabel.slice(1)}`;
@@ -192,7 +193,7 @@ function PortalOverview({ data }: { data: PortalData }) {
     </PortalHeroFrame>
     <PortalEventAnnouncement events={data.events} studentId={data.profile.id} />
     <section className="portal-home-enter portal-home-focus relative overflow-hidden rounded-[26px] border border-white/[.1] bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-5 shadow-[0_14px_34px_rgba(0,0,0,.28)] min-[390px]:px-6 sm:px-7 sm:py-6"><span aria-hidden="true" className="portal-home-focus-lines" /><div className="relative z-[1]"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)] sm:text-xs">Enfoque de hoy</p><div className="mt-3 flex items-start gap-3 sm:gap-4"><span aria-hidden="true" className="portal-home-focus-quote text-4xl font-black leading-none text-[var(--brand-text)]/90">“</span><div className="min-w-0 max-w-2xl"><h2 className="break-words text-base font-semibold italic leading-snug text-zinc-100 sm:text-xl">{dailyFocus.title}</h2><p className="mt-1.5 break-words text-xs leading-relaxed text-[var(--foreground-muted)] sm:mt-2 sm:text-sm">{dailyFocus.reflection}</p></div></div></div></section>
-    {groupClassesEnabled && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
+    {groupClassesEnabled && !weeklyCelebrated && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
     <div className="portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
     <HomeQuickStats data={data} />
   </div>;
@@ -269,7 +270,7 @@ function RoutineHomeCard({ plan }: { plan: PersonalizedHomePlan }) {
 function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["home"]["weeklyMission"]> }) {
   const completed = mission.state === "COMPLETED";
   const expired = mission.state === "EXPIRED";
-  const [celebrating, setCelebrating] = useState(false);
+
   const [advancing, setAdvancing] = useState(false);
   const previousMission = useRef({ id: mission.id, state: mission.state, progress: mission.progress, target: mission.target, percentage: mission.percentage });
   const animatedProgress = useHomeAnimatedValue(mission.progress, 620);
@@ -293,24 +294,10 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
     if (!changed) return;
     setAdvancing(true);
     const advanceTimeout = window.setTimeout(() => setAdvancing(false), 650);
-    let celebrationTimeout: number | undefined;
-    if (previous.state !== "COMPLETED" && mission.state === "COMPLETED") {
-      const celebrationKey = `bm:weekly-mission-celebrated:${getWeekKey()}:${mission.id}`;
-      let alreadyCelebrated = false;
-      try { alreadyCelebrated = window.sessionStorage.getItem(celebrationKey) === "1"; } catch { /* Storage can be unavailable in restricted browser modes. */ }
-      if (!alreadyCelebrated) {
-        try { window.sessionStorage.setItem(celebrationKey, "1"); } catch { /* The in-memory transition still remains one-shot for this mount. */ }
-        setCelebrating(true);
-        celebrationTimeout = window.setTimeout(() => setCelebrating(false), 1200);
-      }
-    }
-    return () => {
-      window.clearTimeout(advanceTimeout);
-      if (celebrationTimeout !== undefined) window.clearTimeout(celebrationTimeout);
-    };
+    return () => window.clearTimeout(advanceTimeout);
   }, [mission.id, mission.percentage, mission.progress, mission.state, mission.target]);
 
-  return <section aria-live="polite" className={`bm-surface-featured portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)] ${completed ? "border-emerald-400/25" : "border-yellow-400/35"} ${advancing ? "portal-home-objective-advancing" : ""} ${celebrating ? "portal-home-objective-celebrating" : ""}`}>
+  return <section aria-live="polite" className={`bm-surface-featured portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)] ${completed ? "border-emerald-400/25" : "border-yellow-400/35"} ${advancing ? "portal-home-objective-advancing" : ""}`}>
     <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5">
       <span aria-hidden="true" className={`portal-home-objective-icon grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-[var(--brand-text)]"}`}>{completed ? <BmCheckIcon size={22} className="portal-home-objective-check" /> : <BmTargetIcon size={22} />}</span>
       <div className="min-w-0">
