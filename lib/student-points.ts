@@ -22,7 +22,7 @@ import type {
   StudentPointMovement,
   StudentPointSummary,
 } from "@/types/points";
-import { resolveCurrentWeeklyMission } from "@/lib/weekly-mission-data";
+import { reconcileWeeklyMissionForDate, resolveCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 import { paymentWasOnTime } from "@/lib/payment-notification-rules";
 import { pointPeriodStart } from "@/lib/point-period";
 import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } from "@/lib/student-service";
@@ -303,7 +303,7 @@ async function notifyPointGain(
 
 export async function syncStudentPoints(
   studentId: string,
-  options: { notify?: boolean; cleanupHistoricalMarks?: boolean } = {},
+  options: { notify?: boolean; cleanupHistoricalMarks?: boolean; attendanceDate?: string } = {},
 ) {
   const student = await prisma.studentRecord.findUnique({
     where: { id: studentId },
@@ -324,7 +324,8 @@ export async function syncStudentPoints(
       activityEventCount: 0,
     };
   }
-  await resolveCurrentWeeklyMission(studentId);
+  if (options.attendanceDate) await reconcileWeeklyMissionForDate(studentId, options.attendanceDate);
+  else await resolveCurrentWeeklyMission(studentId);
   const periods = await prisma.studentMembershipHistory.findMany({
     where: { studentId },
     select: { startDate: true, endDate: true, serviceType: true },
@@ -472,8 +473,8 @@ export async function loadStudentPointSummary(
   };
 }
 
-export async function reconcileStudentPointsAfterMutation(studentId: string) {
-  return syncStudentPoints(studentId).catch((error) => {
+export async function reconcileStudentPointsAfterMutation(studentId: string, attendanceDate?: string) {
+  return syncStudentPoints(studentId, { attendanceDate }).catch((error) => {
     console.error("No se pudieron recalcular los puntos del alumno", {
       studentId,
       error,

@@ -44,7 +44,6 @@ async function settleMission(mission: {
   completedAt: Date | null;
   pointsAwardedAt: Date | null;
 }) {
-  if (mission.state !== "ACTIVE") return mission;
   const start = missionDate(mission.weekStart);
   const endExclusive = (() => {
     const end = new Date(mission.weekEnd);
@@ -58,6 +57,11 @@ async function settleMission(mission: {
   const expired = Boolean(currentWeek && start < currentWeek.start);
   const state = completed ? "COMPLETED" as const : expired || effectiveTarget === 0 ? "EXPIRED" as const : "ACTIVE" as const;
   const completionDate = completed ? result.present[effectiveTarget - 1]?.date ?? start : null;
+  const completedAt = completionDate ? new Date(`${completionDate}T12:00:00.000Z`) : null;
+  const pointsAwardedAt = completed ? mission.pointsAwardedAt : null;
+  if (mission.progress === result.progress && mission.state === state
+    && mission.completedAt?.getTime() === completedAt?.getTime()
+    && mission.pointsAwardedAt?.getTime() === pointsAwardedAt?.getTime()) return mission;
   return prisma.studentWeeklyMission.update({
     where: { id: mission.id },
     data: {
@@ -65,7 +69,8 @@ async function settleMission(mission: {
       target: effectiveTarget || mission.target,
       title: weeklyMissionTitle(effectiveTarget || mission.target),
       state,
-      completedAt: completed && !mission.completedAt ? new Date(`${completionDate}T12:00:00.000Z`) : mission.completedAt,
+      completedAt,
+      pointsAwardedAt,
     },
   });
 }
@@ -150,10 +155,22 @@ export async function resolveCurrentWeeklyMission(studentId: string, referenceDa
           where: { id: existing.id },
           data: { target: configuration.target, title: weeklyMissionTitle(configuration.target), scheduledClassKeys: [], rewardPoints: expectedReward },
         });
-    if (normalized.state !== "ACTIVE") return normalized;
     return settleMission(normalized);
   }
   return createCurrentMission(studentId, referenceDate, configuration);
+}
+
+/** Attendance corrections reconcile only their own week, including closed weeks. */
+export async function reconcileWeeklyMissionForDate(studentId: string, referenceDate: string) {
+  const range = weekRange(referenceDate);
+  if (!range) return null;
+  const existing = await prisma.studentWeeklyMission.findUnique({
+    where: { studentId_weekStart: { studentId, weekStart: dateKeyToDatabase(range.start) } },
+  });
+  if (existing) return settleMission(existing);
+  // Historical targets are snapshots: do not invent a missing past mission.
+  if (range.start !== weekRange(argentinaDateKey())?.start) return null;
+  return createCurrentMission(studentId, referenceDate);
 }
 
 export async function loadCurrentWeeklyMission(studentId: string, referenceDate = argentinaDateKey()): Promise<WeeklyMissionView | null> {

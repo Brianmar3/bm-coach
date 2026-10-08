@@ -252,7 +252,7 @@ export async function PUT(request: Request) {
     const pointResults = new Map(
       await Promise.all(parsedRecords.map(async (record) => [
         record.studentId,
-        await reconcileStudentPointsAfterMutation(record.studentId),
+        await reconcileStudentPointsAfterMutation(record.studentId, date.toISOString().slice(0, 10)),
       ] as const)),
     );
     const achievementResults = await Promise.all([...claimedByStudent].map(async ([studentId, claimed]) => {
