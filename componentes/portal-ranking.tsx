@@ -1,7 +1,7 @@
 "use client";
 import { StudentPhoto } from "@/componentes/student-photo";
 
-import Link from "next/link";
+import { PortalPointsBackLink } from "@/componentes/portal-points-back-link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
@@ -109,10 +109,10 @@ function RankingRow({ entry, currentStudentId, delay, reducedMotion }: {
   const surface = isCurrent
     ? "portal-ranking-current border-yellow-400/60 bg-[radial-gradient(circle_at_80%_50%,rgba(250,204,21,.12),transparent_48%),linear-gradient(100deg,rgba(250,204,21,.09),rgba(24,24,27,.8))] shadow-[0_12px_36px_rgba(0,0,0,.3)]"
     : isWinner
-      ? "border-yellow-400/45 bg-[radial-gradient(circle_at_20%_50%,rgba(250,204,21,.16),transparent_44%),rgba(24,24,27,.78)] shadow-[0_0_26px_rgba(250,204,21,.08)]"
+      ? "portal-ranking-winner border-yellow-400/45 bg-[radial-gradient(circle_at_20%_50%,rgba(250,204,21,.16),transparent_44%),rgba(24,24,27,.78)] shadow-[0_0_26px_rgba(250,204,21,.08)]"
       : "border-white/[.08] bg-zinc-900/65";
 
-  return <li value={entry.position} style={style} className={`portal-ranking-enter-item relative grid min-h-[70px] grid-cols-[2.5rem_2.65rem_minmax(0,1fr)_auto] items-center gap-2 overflow-visible rounded-2xl border px-2.5 py-3 sm:min-h-[82px] sm:grid-cols-[3rem_3.2rem_minmax(0,1fr)_auto] sm:gap-3 sm:px-4 ${surface}`}>
+  return <li value={entry.position} style={style} className={`portal-ranking-row portal-ranking-enter-item relative grid min-h-[70px] grid-cols-[2.5rem_2.65rem_minmax(0,1fr)_auto] items-center gap-2 overflow-visible rounded-2xl border px-2.5 py-3 sm:min-h-[82px] sm:grid-cols-[3rem_3.2rem_minmax(0,1fr)_auto] sm:gap-3 sm:px-4 ${surface}`}>
     {isWinner && <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
       <i className="portal-ranking-sparkle left-[8%] top-[18%]" />
       <i className="portal-ranking-sparkle left-[42%] top-[72%] [animation-delay:260ms]" />
@@ -162,9 +162,8 @@ export function PortalRanking() {
   const remainder = entries.slice(FEATURED_RANKING_SIZE).filter((entry) => entry.studentId !== pinnedCurrent?.studentId);
   const currentOnPodium = Boolean(ranking?.currentPosition && ranking.currentPosition <= 3);
 
-  return <div className="mx-auto w-full max-w-3xl overflow-x-clip px-0.5 sm:px-0">
-    <Link href="/portal/puntos" className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/55 px-4 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400/30 hover:text-[var(--brand-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver a Puntos y logros">← Volver</Link>
-    <header className="portal-ranking-enter-item mt-6 [--ranking-delay:40ms]"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Puntos del mes</p><h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight sm:text-4xl">Ranking mensual</h1><p className="mt-2 text-sm leading-relaxed text-zinc-500 sm:text-base">Tu posición y la tabla completa del mes actual.</p></header>
+  return <div className="portal-ranking-page mx-auto w-full max-w-3xl overflow-x-clip px-0.5 sm:px-0">
+    <header className="portal-ranking-header portal-ranking-enter-item flex items-start gap-3 md:block [--ranking-delay:40ms]"><PortalPointsBackLink /><div className="min-w-0 md:mt-6"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Puntos del mes</p><h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight sm:text-4xl">Ranking mensual</h1><p className="mt-2 text-sm leading-relaxed text-zinc-500 sm:text-base">Tu posición y la tabla completa del mes actual.</p></div></header>
 
     {error ? <p role="alert" className="mt-5 rounded-xl border border-red-400/20 bg-red-400/[.06] p-4 text-sm text-red-200">{error}</p> : !ranking ? <RankingSkeleton /> : <>
       <section className="portal-ranking-summary portal-ranking-enter-item relative mt-6 grid min-h-[128px] grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] items-center gap-2 overflow-hidden rounded-3xl border border-yellow-400/65 px-4 py-5 shadow-[0_18px_50px_rgba(0,0,0,.38),0_0_24px_rgba(250,204,21,.08)] [--ranking-delay:110ms] sm:grid-cols-[1fr_74px_1fr] sm:px-8" aria-label="Tu resumen mensual">

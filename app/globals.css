@@ -998,7 +998,7 @@ html[data-theme="light"] .body-map-dialog { background: linear-gradient(160deg, 
 html[data-theme="light"] .body-map-figure #bodyFrame stop:first-child { stop-color: #dad8d0; }
 html[data-theme="light"] .body-map-figure #bodyFrame stop:nth-child(2) { stop-color: #c7c4ba; }
 html[data-theme="light"] .body-map-figure #bodyFrame stop:last-child { stop-color: #b6b2a7; }
-html[data-theme="light"] .portal-ranking-summary { background: linear-gradient(105deg, #f6ecca, var(--surface-elevated) 42%, #f5eedb); }
+html[data-theme="light"] .portal-ranking-summary { background: linear-gradient(105deg, var(--bm-accent-soft), transparent 42%, var(--bm-accent-soft)), var(--surface-elevated); }
 html[data-theme="light"] .portal-ranking-enter-item { background: var(--surface-elevated); border-color: var(--border-soft); box-shadow: 0 8px 25px rgba(30, 29, 22, .06); }
 html[data-theme="light"] .portal-ranking-enter-item.portal-ranking-current { background: linear-gradient(110deg, var(--bm-accent-soft), transparent), var(--surface-elevated); border-color: var(--bm-accent); }
 html[data-theme="light"] .theme-popover { background: var(--surface-elevated); color: var(--foreground); border-color: var(--border); box-shadow: 0 20px 55px rgba(20, 20, 22, .18); }
@@ -1235,3 +1235,80 @@ html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status-neutral { backgr
 html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status[data-bm-status="Pendiente"] { --bm-status-color: var(--warning); }
 html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status[data-bm-status="Vencido"] { --bm-status-color: var(--danger); }
 html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status[data-bm-status="Pagado"] { --bm-status-color: var(--success); }
+
+/* Points flow: explicit light surfaces; all dark treatments remain at call sites. */
+html[data-theme="light"] .workspace-brand .portal-ranking-page { background: var(--background); color: var(--foreground); }
+html[data-theme="light"] .workspace-brand .portal-ranking-summary,
+html[data-theme="light"] .workspace-brand .portal-points-summary {
+  background: linear-gradient(135deg, var(--bm-accent-soft), transparent 65%), var(--surface-elevated);
+  border-color: color-mix(in srgb, var(--bm-accent) 28%, var(--border-soft));
+  box-shadow: var(--bm-card-featured-shadow);
+}
+html[data-theme="light"] .workspace-brand .portal-ranking-page .portal-ranking-row {
+  background: var(--surface-elevated);
+  border-color: var(--border-soft);
+  box-shadow: var(--bm-card-shadow);
+}
+html[data-theme="light"] .workspace-brand .portal-ranking-page .portal-ranking-current {
+  background: linear-gradient(110deg, var(--bm-accent-soft), transparent), var(--surface-elevated);
+  border-color: var(--bm-accent);
+}
+html[data-theme="light"] .workspace-brand .portal-ranking-header { background: transparent; border: 0; box-shadow: none; }
+html[data-theme="light"] .workspace-brand .portal-ranking-page :is(p, h2) { color: var(--foreground-muted); }
+html[data-theme="light"] .workspace-brand .portal-ranking-header > div > p:first-child { color: var(--brand-text); }
+html[data-theme="light"] .workspace-brand .portal-ranking-summary > span:first-child,
+html[data-theme="light"] .workspace-brand .portal-points-sweep { display: none; }
+html[data-theme="light"] .workspace-brand .portal-points-emblem {
+  background: var(--bm-accent-soft);
+  border-color: color-mix(in srgb, var(--bm-accent) 35%, var(--border-soft));
+  color: var(--brand-text);
+  box-shadow: none;
+}
+html[data-theme="light"] .workspace-brand .portal-points-primary {
+  background: var(--bm-accent);
+  color: var(--bm-accent-contrast);
+}
+html[data-theme="light"] .workspace-brand .portal-points-primary:hover { background: var(--bm-accent-hover); }
+html[data-theme="light"] .workspace-brand .portal-points-secondary {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--brand-text);
+}
+html[data-theme="light"] .workspace-brand .portal-achievement-card {
+  background: var(--surface-elevated);
+  border-color: var(--border-soft);
+  box-shadow: var(--bm-card-shadow);
+}
+html[data-theme="light"] .workspace-brand .portal-achievement-card[data-unlocked="true"] {
+  background: linear-gradient(135deg, var(--bm-accent-soft), transparent 65%), var(--surface-elevated);
+  border-color: color-mix(in srgb, var(--bm-accent) 25%, var(--border-soft));
+}
+html[data-theme="light"] .workspace-brand .portal-achievement-card h4 { color: var(--foreground); }
+html[data-theme="light"] .workspace-brand .portal-achievement-icon,
+html[data-theme="light"] .workspace-brand .portal-achievement-badge {
+  background: var(--surface-soft);
+  border-color: var(--border-soft);
+  color: var(--foreground-muted);
+  box-shadow: none;
+}
+html[data-theme="light"] .workspace-brand .portal-achievement-card[data-unlocked="true"] .portal-achievement-icon {
+  background: var(--bm-accent-soft);
+  border-color: color-mix(in srgb, var(--bm-accent) 30%, var(--border-soft));
+  color: var(--brand-text);
+}
+html[data-theme="light"] .workspace-brand .portal-points-track { background: var(--border-soft); }
+html[data-theme="light"] .workspace-brand .portal-points-fill { background: var(--bm-accent); }
+html[data-theme="light"] .workspace-brand .portal-points-back {
+  background: var(--surface-soft);
+  border-color: var(--border-soft);
+  color: var(--foreground);
+}
+html[data-theme="light"] .workspace-brand .portal-ranking-summary svg { filter: drop-shadow(0 0 10px var(--bm-accent-soft)); }
+html[data-theme="light"] .workspace-brand .portal-ranking-summary svg > path:first-of-type { fill: var(--bm-accent-soft); }
+html[data-theme="light"] .workspace-brand .portal-ranking-summary #ranking-shield stop:first-child { stop-color: var(--brand-text); }
+html[data-theme="light"] .workspace-brand .portal-ranking-summary #ranking-shield stop:nth-child(2) { stop-color: var(--bm-accent); }
+html[data-theme="light"] .workspace-brand .portal-ranking-summary #ranking-shield stop:last-child { stop-color: var(--brand-text); }
+
+html[data-theme="light"] .workspace-brand .portal-ranking-page .portal-ranking-winner {
+  border-color: color-mix(in srgb, var(--bm-accent) 30%, var(--border-soft));
+}

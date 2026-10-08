@@ -32,7 +32,7 @@ test("Historial usa una ruta normal, movimientos reales, filtros y BM Icons", ()
 
   assert.equal(existsSync(routeUrl), true);
   assert.match(read("../app/portal/(student)/puntos/historial/page.tsx"), /section="puntos-historial"/);
-  assert.match(history, /href="\/portal\/puntos"/);
+  assert.match(history, /<PortalPointsBackLink \/>/);
   assert.match(history, /points\.recent\.filter/);
   assert.match(history, /movement\.occurredAt/);
   assert.match(history, /Todos/);
@@ -53,7 +53,7 @@ test("Ranking premium conserva su página y vuelve a Puntos y logros", () => {
 
   assert.match(page, /<PortalRanking/);
   assert.match(ranking, /fetch\("\/api\/portal\/ranking"/);
-  assert.match(ranking, /href="\/portal\/puntos"/);
+  assert.match(ranking, /<PortalPointsBackLink \/>/);
   assert.match(ranking, /FEATURED_RANKING_SIZE = 5/);
   assert.match(ranking, /pinnedCurrent/);
 });
