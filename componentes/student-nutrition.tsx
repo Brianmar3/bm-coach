@@ -30,7 +30,7 @@ const habitIcons = { hydration: BmHydrationIcon, protein: BmProteinIcon, fruitsV
 function HabitIcon({ habit }: { habit: NutritionHabitKey }) { const Icon = habitIcons[habit]; return <Icon size={24} />; }
 
 function NutritionIllustration() {
-  return <svg viewBox="0 0 180 150" aria-hidden="true" className="absolute -right-2 top-2 hidden h-36 w-44 text-yellow-400 opacity-[.16] sm:block" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="92" cy="75" r="58" /><circle cx="92" cy="75" r="49" strokeDasharray="2 5" /><path d="M46 91h73c-4 21-18 31-36 31S51 112 46 91Zm9-8c8-13 21-18 36-18 12 0 23 4 31 12M74 67c-8-10-8-20-4-27 10 3 17 12 17 23m8 2c0-13 7-23 17-27 3 9 0 20-10 28m27-20h22v66h-19m-4-56h31m-27-10v-8h22v8" /></svg>;
+  return <svg viewBox="0 0 180 150" aria-hidden="true" className="absolute -right-2 top-2 hidden h-36 w-44 text-[var(--brand-text)] opacity-[.16] sm:block" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="92" cy="75" r="58" /><circle cx="92" cy="75" r="49" strokeDasharray="2 5" /><path d="M46 91h73c-4 21-18 31-36 31S51 112 46 91Zm9-8c8-13 21-18 36-18 12 0 23 4 31 12M74 67c-8-10-8-20-4-27 10 3 17 12 17 23m8 2c0-13 7-23 17-27 3 9 0 20-10 28m27-20h22v66h-19m-4-56h31m-27-10v-8h22v8" /></svg>;
 }
 
 function showDate(value: string) {
@@ -156,22 +156,22 @@ export function StudentNutrition() {
 
   return (
     <div className="mx-auto min-w-0 max-w-5xl space-y-3.5 sm:space-y-4">
-      <header className="relative overflow-hidden rounded-[26px] border border-white/[.11] bg-[radial-gradient(circle_at_86%_20%,rgba(250,204,21,.06),transparent_30%),linear-gradient(135deg,#181818,#090909_72%)] p-5 shadow-[0_18px_48px_rgba(0,0,0,.28)] sm:p-6">
+      <header className="bm-surface bm-card-pad relative overflow-hidden">
         <NutritionIllustration />
         <div className="relative min-w-0 sm:max-w-[68%]">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[.2em] text-yellow-400">
+            <p className="text-[11px] font-bold uppercase tracking-[.2em] text-[var(--brand-text)]">
               Tu guía para hoy{data?.studentName ? `, ${data.studentName}` : ""}
             </p>
-            <h1 className="mt-2 text-3xl font-black tracking-[-.035em] sm:text-4xl">Nutrición</h1>
-            <p className="mt-2 text-sm text-zinc-400 sm:text-base">Tu objetivo: <strong className="text-zinc-100">{data?.objective || "Mejorar hábitos"}</strong></p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Nutrición</h1>
+            <p className="mt-2 text-sm text-[var(--foreground-muted)] sm:text-base">Tu objetivo: <strong className="text-zinc-100">{data?.objective || "Mejorar hábitos"}</strong></p>
           </div>
-          <span className="mt-3 inline-flex rounded-full border border-yellow-400/25 bg-yellow-400/[.045] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-yellow-200">
+          <span className="mt-3 inline-flex rounded-full border border-yellow-400/25 bg-yellow-400/[.045] px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[var(--brand-text)]">
             {data?.contextStatus === "FULL" ? "Personalización completa" : data?.contextStatus === "LIMITED" ? "Personalización limitada" : "Guía base"}
             {data?.contextStatus === "FULL" && <BmCheckIcon size={14} className="ml-2" />}
           </span>
         </div>
-        <div className="relative mt-5 flex items-center justify-between gap-3 border-t border-white/[.09] pt-3.5"><p className="flex min-w-0 items-center gap-2 truncate text-xs text-zinc-400"><span className="shrink-0 text-yellow-400"><LineIcon name="calendar" /></span>{data?.evaluation ? `Evaluación del ${showDate(data.evaluation.date)}` : "Guía basada en tu perfil actual"}</p><Link href="/portal/nutricion/preferencias" className="inline-flex min-h-11 shrink-0 items-center px-1 text-xs font-bold text-yellow-300">Preferencias →</Link></div>
+        <div className="relative mt-5 flex items-center justify-between gap-3 border-t border-white/[.09] pt-3.5"><p className="flex min-w-0 items-center gap-2 truncate text-xs text-[var(--foreground-muted)]"><span className="shrink-0 text-[var(--brand-text)]"><LineIcon name="calendar" /></span>{data?.evaluation ? `Evaluación del ${showDate(data.evaluation.date)}` : "Guía basada en tu perfil actual"}</p><Link href="/portal/nutricion/preferencias" className="inline-flex min-h-11 shrink-0 items-center px-1 text-xs font-bold text-[var(--brand-text)]">Preferencias →</Link></div>
       </header>
 
       {error && <p role="alert" className="rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
@@ -181,9 +181,9 @@ export function StudentNutrition() {
         <section className="rounded-2xl border border-yellow-400/15 bg-yellow-400/[.025] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
           <div>
             <h2 className="nutrition-personalization-title font-bold text-yellow-100">Activá la personalización inteligente</h2>
-            <p className="mt-1 text-xs leading-5 text-zinc-400">Adaptá la guía a tu objetivo, hábitos y preferencias.</p>
+            <p className="mt-1 text-xs leading-5 text-[var(--foreground-muted)]">Adaptá la guía a tu objetivo, hábitos y preferencias.</p>
           </div>
-          <button type="button" onClick={enablePersonalization} disabled={consenting} className="mt-3 min-h-11 shrink-0 rounded-xl border border-yellow-400/30 bg-yellow-400/[.05] px-4 text-xs font-black text-yellow-200 disabled:opacity-50 sm:mt-0">
+          <button type="button" onClick={enablePersonalization} disabled={consenting} className="bm-button bm-button-secondary mt-3 min-h-11 shrink-0 rounded-xl border border-yellow-400/30 bg-yellow-400/[.05] px-4 text-xs font-black text-[var(--brand-text)] disabled:opacity-50 sm:mt-0">
             {consenting ? "Activando…" : "Aceptar y activar"}
           </button>
         </section>
@@ -191,70 +191,70 @@ export function StudentNutrition() {
 
       {data?.evaluationUpdated && (
         <section className="rounded-2xl border border-yellow-400/18 bg-yellow-400/[.025] p-3.5 sm:flex sm:items-center sm:gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-full border border-yellow-400/25 text-yellow-300"><LineIcon name="shield" /></span>
+          <span className="grid size-10 shrink-0 place-items-center rounded-full border border-yellow-400/25 text-[var(--brand-text)]"><LineIcon name="shield" /></span>
           <p className="mt-2 flex-1 text-xs leading-5 text-zinc-300 sm:mt-0 sm:text-sm">Tu evaluación fue actualizada. Podés revisar tu guía; los planes guardados no cambiarán sin tu permiso.</p>
-          <Link href="/portal/nutricion/preferencias#datos-utilizados" className="mt-3 inline-flex min-h-11 shrink-0 items-center rounded-xl border border-yellow-400/30 bg-black/20 px-4 text-xs font-bold text-yellow-200 sm:mt-0">Revisar datos</Link>
+          <Link href="/portal/nutricion/preferencias#datos-utilizados" className="bm-button bm-button-secondary mt-3 inline-flex min-h-11 shrink-0 items-center rounded-xl border border-yellow-400/30 bg-black/20 px-4 text-xs font-bold text-[var(--brand-text)] sm:mt-0">Revisar datos</Link>
         </section>
       )}
 
       <section className="relative overflow-hidden rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#090909)] p-4 sm:p-5">
-        <p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Para hoy</p>
+        <p className="text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Para hoy</p>
         <h2 className="mt-1.5 text-lg font-black">{data?.recommendation.title}</h2>
         <p className="mt-1.5 max-w-3xl text-sm leading-5 text-zinc-300">{data?.recommendation.message}</p>
         {data?.recommendation && (
-          <Link href={data.recommendation.href} className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-yellow-400/30 bg-yellow-400/[.055] px-4 text-xs font-black text-yellow-200">
+          <Link href={data.recommendation.href} className="bm-button bm-button-secondary mt-3 inline-flex min-h-11 items-center rounded-xl border border-yellow-400/30 bg-yellow-400/[.055] px-4 text-xs font-black text-[var(--brand-text)]">
             {data.recommendation.action} →
           </Link>
         )}
       </section>
 
       <section id="habitos" className="scroll-mt-24 rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#0b0b0b)] p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-bold">Hábitos de hoy</h2><p className="mt-0.5 text-xs text-zinc-500">Marcá lo que pudiste sostener</p></div>{data?.summary.daysRegistered ? <div className="shrink-0 text-right"><p className="text-lg font-black text-yellow-300">{data.summary.compliancePercentage}%</p><p className="text-[10px] text-zinc-500">esta semana</p></div> : null}</div>
-        {data?.summary.daysRegistered ? <p className="mt-2 text-[11px] text-zinc-500">{data.summary.daysRegistered} días registrados{data.summary.strongestHabit ? ` · Mejor: ${data.summary.strongestHabit}` : ""}{data.summary.habitToImprove ? ` · Próximo foco: ${data.summary.habitToImprove}` : ""}</p> : <p className="mt-2 text-[11px] text-zinc-500">Tu resumen semanal aparecerá después del primer registro.</p>}
+        <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-bold">Hábitos de hoy</h2><p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Marcá lo que pudiste sostener</p></div>{data?.summary.daysRegistered ? <div className="shrink-0 text-right"><p className="text-lg font-black text-[var(--brand-text)]">{data.summary.compliancePercentage}%</p><p className="text-[11px] text-[var(--foreground-muted)]">esta semana</p></div> : null}</div>
+        {data?.summary.daysRegistered ? <p className="mt-2 text-[11px] text-[var(--foreground-muted)]">{data.summary.daysRegistered} días registrados{data.summary.strongestHabit ? ` · Mejor: ${data.summary.strongestHabit}` : ""}{data.summary.habitToImprove ? ` · Próximo foco: ${data.summary.habitToImprove}` : ""}</p> : <p className="mt-2 text-[11px] text-[var(--foreground-muted)]">Tu resumen semanal aparecerá después del primer registro.</p>}
           <div className="mt-3 grid grid-cols-5 gap-px overflow-hidden rounded-xl bg-white/[.08]">
             {NUTRITION_HABITS.map(({ key, label }) => (
-              <label key={key} className={`relative flex min-h-[6.75rem] cursor-pointer flex-col items-center justify-between gap-1 bm-habit-surface px-1.5 py-2.5 text-center transition focus-within:ring-2 focus-within:ring-inset focus-within:ring-yellow-300 ${habits[key] ? "text-yellow-200" : "text-zinc-300"}`}>
+              <label key={key} className={`relative flex min-h-[6.75rem] cursor-pointer flex-col items-center justify-between gap-1 bm-habit-surface px-1.5 py-2.5 text-center transition focus-within:ring-2 focus-within:ring-inset focus-within:ring-yellow-300 ${habits[key] ? "text-[var(--brand-text)]" : "text-zinc-300"}`}>
                 <input type="checkbox" checked={habits[key]} onChange={(event) => setHabits((current) => ({ ...current, [key]: event.target.checked }))} className="peer sr-only" />
-                <span className={`grid size-9 place-items-center rounded-full border ${habits[key] ? "border-yellow-400/35 bg-yellow-400/[.07] text-yellow-300" : "border-zinc-700 text-zinc-500"}`}><HabitIcon habit={key} /></span>
-                <span className="text-[9px] font-medium leading-3 sm:text-[11px] sm:leading-4">{label}</span>
+                <span className={`grid size-9 place-items-center rounded-full border ${habits[key] ? "border-yellow-400/35 bg-yellow-400/[.07] text-[var(--brand-text)]" : "border-zinc-700 text-[var(--foreground-muted)]"}`}><HabitIcon habit={key} /></span>
+                <span className="text-[11px] font-medium leading-3 sm:text-[11px] sm:leading-4">{label}</span>
                 <span className={`grid size-5 place-items-center rounded-full border ${habits[key] ? "border-emerald-400/45 bg-emerald-400/[.08] text-emerald-300" : "border-zinc-500 text-transparent"}`}><BmCheckIcon size={12} /></span>
               </label>
             ))}
           </div>
-          <details className="mt-3 rounded-xl border border-white/[.09] bg-black/20"><summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-xs font-bold text-zinc-500"><LineIcon name="comment" className="size-4" />Agregar comentario opcional</summary><label className="block border-t border-white/[.08] p-3"><span className="sr-only">Comentario opcional</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={500} rows={2} className="w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-sm outline-none focus:border-yellow-400" placeholder="¿Cómo estuvo tu alimentación hoy?" /></label></details>
-          <button type="button" onClick={saveHabits} disabled={saving} className="mt-3 min-h-11 w-full rounded-xl border border-yellow-400/35 bg-yellow-400/[.04] px-4 text-sm font-black text-yellow-300 transition hover:bg-yellow-400/[.08] disabled:opacity-50">
+          <details className="mt-3 rounded-xl border border-white/[.09] bg-black/20"><summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-xs font-bold text-[var(--foreground-muted)]"><LineIcon name="comment" className="size-4" />Agregar comentario opcional</summary><label className="block border-t border-white/[.08] p-3"><span className="sr-only">Comentario opcional</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={500} rows={2} className="w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-sm outline-none focus:border-yellow-400" placeholder="¿Cómo estuvo tu alimentación hoy?" /></label></details>
+          <button type="button" onClick={saveHabits} disabled={saving} className="bm-button bm-button-secondary mt-3 min-h-11 w-full rounded-xl border border-yellow-400/35 bg-yellow-400/[.04] px-4 text-sm font-black text-[var(--brand-text)] transition hover:bg-yellow-400/[.08] disabled:opacity-50">
             {saving ? "Guardando…" : data?.todayCheckin ? "Actualizar hábitos" : "Guardar hábitos"}
           </button>
       </section>
 
-      <section><p className="mb-2 text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Accesos útiles</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{quickLinks.map(([title, description, href, icon]) => <Link key={href} href={href} className="group grid min-h-[4.5rem] min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#0c0c0c)] px-2.5 py-2 transition hover:border-yellow-400/25 focus-visible:outline-2 focus-visible:outline-yellow-300"><span className="grid size-8 shrink-0 place-items-center text-yellow-400"><LineIcon name={icon} /></span><span className="min-w-0"><span className="block truncate text-xs font-bold sm:text-sm">{title}</span><span className="mt-0.5 block truncate text-[9px] leading-3 text-zinc-500 sm:text-[10px]">{description}</span></span><BmChevronRightIcon size={16} className="text-zinc-600 transition group-hover:text-yellow-300" /></Link>)}</div></section>
+      <section><p className="mb-2 text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Accesos útiles</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{quickLinks.map(([title, description, href, icon]) => <Link key={href} href={href} className="group grid min-h-[4.5rem] min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#0c0c0c)] px-2.5 py-2 transition hover:border-yellow-400/25 focus-visible:outline-2 focus-visible:outline-yellow-300"><span className="grid size-8 shrink-0 place-items-center text-[var(--brand-text)]"><LineIcon name={icon} /></span><span className="min-w-0"><span className="block truncate text-xs font-bold sm:text-sm">{title}</span><span className="mt-0.5 block truncate text-[11px] leading-3 text-[var(--foreground-muted)] sm:text-[11px]">{description}</span></span><BmChevronRightIcon size={16} className="text-[var(--foreground-muted)] transition group-hover:text-[var(--brand-text)]" /></Link>)}</div></section>
 
       <section className="space-y-3">
           <article className="rounded-2xl border border-white/[.1] bg-[linear-gradient(145deg,#171717,#0c0c0c)] p-3.5 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-bold">Recetas recientes</h2>
-              <Link href="/portal/nutricion/recetas" className="text-xs font-bold text-yellow-300">Ver todas</Link>
+              <Link href="/portal/nutricion/recetas" className="text-xs font-bold text-[var(--brand-text)]">Ver todas</Link>
             </div>
             {data?.recentRecipes.length ? (
               <div className="mt-2 space-y-1.5">
                 {data.recentRecipes.slice(0, 3).map((recipe) => (
                   <Link key={recipe.id} href={`/portal/nutricion/recetas/${recipe.id}`} className="flex min-h-11 items-center justify-between gap-3 rounded-xl bg-black/30 px-3 py-2">
                     <span className="min-w-0 truncate text-sm font-bold">{recipe.title}</span>
-                    <span className="shrink-0 text-[10px] text-zinc-500">{recipe.preparationMinutes} min</span>
+                    <span className="shrink-0 text-[11px] text-[var(--foreground-muted)]">{recipe.preparationMinutes} min</span>
                   </Link>
                 ))}
               </div>
-            ) : <div className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-xl border border-dashed border-white/[.1] bg-black/20 px-3"><p className="flex min-w-0 items-center gap-2 truncate text-xs text-zinc-500"><LineIcon name="bookmark" className="size-5 shrink-0" />Todavía no guardaste recetas.</p><Link href="/portal/nutricion/recetas" className="inline-flex min-h-11 shrink-0 items-center text-xs font-bold text-yellow-300">Explorar →</Link></div>}
+            ) : <div className="mt-2 flex min-h-11 items-center justify-between gap-3 rounded-xl border border-dashed border-white/[.1] bg-black/20 px-3"><p className="flex min-w-0 items-center gap-2 truncate text-xs text-[var(--foreground-muted)]"><LineIcon name="bookmark" className="size-5 shrink-0" />Todavía no guardaste recetas.</p><Link href="/portal/nutricion/recetas" className="inline-flex min-h-11 shrink-0 items-center text-xs font-bold text-[var(--brand-text)]">Explorar →</Link></div>}
           </article>
           <article className="flex items-start gap-3 rounded-2xl border border-yellow-400/15 bg-[linear-gradient(145deg,rgba(250,204,21,.045),#0b0b0b_72%)] p-3.5 sm:p-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full border border-yellow-400/25 text-yellow-300"><LineIcon name="star" /></span>
-            <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-yellow-400">Recomendación de tu entrenador</p>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full border border-yellow-400/25 text-[var(--brand-text)]"><LineIcon name="star" /></span>
+            <div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[var(--brand-text)]">Recomendación de tu entrenador</p>
             <p className="mt-1.5 text-sm leading-5 text-zinc-300">{data?.trainerNote?.text ?? "Todavía no hay una recomendación nueva."}</p>
-            {!data?.trainerNote && <p className="mt-0.5 text-xs text-zinc-500">Cuando tu entrenador agregue una, aparecerá acá.</p>}</div>
+            {!data?.trainerNote && <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">Cuando tu entrenador agregue una, aparecerá acá.</p>}</div>
           </article>
       </section>
 
-      <p className="px-1 pb-1 text-[10px] leading-4 text-zinc-600 sm:text-xs sm:leading-5">
+      <p className="px-1 pb-1 text-[11px] leading-4 text-[var(--foreground-muted)] sm:text-xs sm:leading-5">
         Esta orientación acompaña tu entrenamiento y tus evaluaciones. No reemplaza la atención de un nutricionista o profesional de salud.
       </p>
     </div>

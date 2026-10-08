@@ -90,6 +90,10 @@
   --portal-bottom-nav-height: 4.75rem;
   --portal-bottom-nav-offset: 0.75rem;
   --portal-bottom-nav-clearance: 1.5rem;
+  --bm-card-radius: 1rem;
+  --bm-card-featured-radius: 1.25rem;
+  --bm-card-shadow: 0 4px 14px color-mix(in srgb, var(--foreground) 5%, transparent);
+  --bm-card-featured-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 7%, transparent);
 }
 
 html[data-theme="light"] {
@@ -115,6 +119,7 @@ html[data-theme="light"] {
 /* El branding se limita al workspace activo. Master y Plataforma quedan fuera. */
 .workspace-brand {
   --bm-accent: #d4a72c;
+  --brand-text: color-mix(in srgb, var(--bm-accent) 45%, var(--foreground));
   --bm-accent-hover: #b88f22;
   --bm-accent-soft: #d4a72c24;
   --bm-accent-contrast: #09090b;
@@ -630,8 +635,8 @@ html[data-bm-app-ready="true"] #bm-app-root {
 
 /* Sistema visual del panel del entrenador. El alcance evita modificar el portal. */
 .admin-panel {
-  --admin-gold: #facc15;
-  --admin-border: rgba(250, 204, 21, 0.12);
+  --admin-gold: var(--bm-accent, var(--brand));
+  --admin-border: var(--border-soft);
   --admin-surface: rgba(24, 24, 27, 0.86);
   --admin-surface-deep: rgba(9, 9, 11, 0.88);
   background:
@@ -689,9 +694,6 @@ html[data-bm-app-ready="true"] #bm-app-root {
   border-color: rgba(161, 161, 170, 0.24);
 }
 
-.admin-panel :is(section, article, form)[class*="rounded-2xl"][class*="border"] {
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
-}
 
 .admin-panel :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="color"]) {
   color-scheme: dark;
@@ -957,7 +959,7 @@ html[data-theme="light"] .admin-topbar,
 html[data-theme="light"] .portal-header { background: color-mix(in srgb, var(--nav-bg) 94%, transparent); box-shadow: 0 10px 30px rgba(30, 29, 22, .09); }
 html[data-theme="light"] .workspace-brand { --brand-text: color-mix(in srgb, var(--bm-accent) 52%, #171717); --color-yellow-200: var(--brand-text); --color-yellow-300: var(--brand-text); --color-yellow-400: var(--bm-accent); --color-yellow-500: var(--bm-accent-hover); }
 html[data-theme="light"] .workspace-brand .bg-yellow-400,
-html[data-theme="light"] .workspace-brand .bm-accent-button { background-color: var(--bm-accent); color: #15130b; }
+html[data-theme="light"] .workspace-brand .bm-accent-button { background-color: var(--bm-accent); color: var(--bm-accent-contrast); }
 
 /* Compatibilidad para pantallas existentes: sólo neutrales estructurales, nunca overlays ni assets. */
 html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-black"],[class~="bg-zinc-950"],[class~="bg-zinc-950/95"],[class~="bg-zinc-950/80"],[class~="bg-zinc-950/70"],[class~="bg-zinc-950/60"],[class~="bg-zinc-950/55"],[class~="bg-zinc-950/50"],[class~="bg-zinc-950/45"]):not(.onboarding-shell *) { background-color: var(--surface-soft); }
@@ -998,7 +1000,7 @@ html[data-theme="light"] .body-map-figure #bodyFrame stop:nth-child(2) { stop-co
 html[data-theme="light"] .body-map-figure #bodyFrame stop:last-child { stop-color: #b6b2a7; }
 html[data-theme="light"] .portal-ranking-summary { background: linear-gradient(105deg, #f6ecca, var(--surface-elevated) 42%, #f5eedb); }
 html[data-theme="light"] .portal-ranking-enter-item { background: var(--surface-elevated); border-color: var(--border-soft); box-shadow: 0 8px 25px rgba(30, 29, 22, .06); }
-html[data-theme="light"] .portal-ranking-enter-item:has([class*="bg-[#261b03]"]) { background: linear-gradient(110deg, #fff9e9, var(--surface-elevated)); border-color: var(--brand); }
+html[data-theme="light"] .portal-ranking-enter-item.portal-ranking-current { background: linear-gradient(110deg, var(--bm-accent-soft), transparent), var(--surface-elevated); border-color: var(--bm-accent); }
 html[data-theme="light"] .theme-popover { background: var(--surface-elevated); color: var(--foreground); border-color: var(--border); box-shadow: 0 20px 55px rgba(20, 20, 22, .18); }
 html[data-theme="light"] .theme-popover :where([class~="text-white"],[class~="text-zinc-100"],[class~="text-zinc-200"],[class~="text-zinc-300"]) { color: var(--foreground); }
 html[data-theme="light"] .theme-popover :where([class~="text-zinc-400"],[class~="text-zinc-500"]) { color: var(--foreground-muted); }
@@ -1042,8 +1044,8 @@ html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-z
 .bm-habit-surface { background-color: #0d0d0d; }
 .bm-metric-input { background-color: #0B0B0C; }
 .bm-evaluation-value { color: #F5F5F5; }
-.bm-evaluation-secondary { color: #A3A3A8; }
-.bm-evaluation-muted { color: #6F6F75; }
+.bm-evaluation-secondary { color: var(--foreground-muted); }
+.bm-evaluation-muted { color: var(--foreground-muted); }
 
 html[data-theme="light"] .admin-panel {
   --admin-gold: var(--bm-accent, var(--brand));
@@ -1165,3 +1167,71 @@ html[data-theme="light"] .admin-panel .trainer-data-review :is(details, article)
   background: var(--surface);
   border-color: var(--border-soft);
 }
+
+/* Shared visual treatments. Opt-in classes keep layout and behavior at call sites. */
+html[data-theme] :is(.workspace-brand, .admin-panel) :is(.bm-surface, .bm-surface-featured) {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--bm-card-radius);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: var(--bm-card-shadow);
+}
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-surface-featured {
+  border-color: color-mix(in srgb, var(--bm-accent) 28%, var(--border-soft));
+  border-radius: var(--bm-card-featured-radius);
+  background: linear-gradient(135deg, var(--bm-accent-soft), transparent 65%), var(--surface);
+  box-shadow: var(--bm-card-featured-shadow);
+}
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-card-pad { padding: 1rem; }
+@media (min-width: 640px) {
+  html[data-theme] :is(.workspace-brand, .admin-panel) .bm-card-pad { padding: 1.25rem; }
+}
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-button {
+  min-height: 2.75rem;
+  border-radius: .75rem;
+  font-weight: 600;
+  font-size: .875rem;
+}
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-button-primary {
+  background: var(--bm-accent);
+  color: var(--bm-accent-contrast);
+  border-color: transparent;
+}
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-button-primary:hover:not(:disabled) { background: var(--bm-accent-hover); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-button-secondary {
+  background: var(--surface-soft);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-button-secondary:hover:not(:disabled) { border-color: var(--bm-accent); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-button:disabled { opacity: .5; cursor: not-allowed; }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-button:focus-visible { outline: 2px solid var(--brand-text); outline-offset: 2px; }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status {
+  --bm-status-color: var(--foreground-muted);
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  border: 1px solid color-mix(in srgb, var(--bm-status-color) 25%, var(--border-soft));
+  border-radius: 999px;
+  padding: .25rem .625rem;
+  background: color-mix(in srgb, var(--bm-status-color) 8%, var(--surface));
+  color: var(--bm-status-color);
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: normal;
+  text-transform: none;
+}
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status-success { --bm-status-color: var(--success); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status-warning { --bm-status-color: var(--warning); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status-danger { --bm-status-color: var(--danger); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status-accent { --bm-status-color: var(--brand-text); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status-neutral { background: var(--surface-soft); }
+/* Neutral frames retain the accent in actions, progress and selected states. */
+.admin-page-header::after, .admin-welcome::before, .admin-welcome::after { display: none; }
+.admin-panel { background: var(--background); }
+.admin-page { background: transparent; }
+
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status[data-bm-status="Pendiente"] { --bm-status-color: var(--warning); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status[data-bm-status="Vencido"] { --bm-status-color: var(--danger); }
+html[data-theme] :is(.workspace-brand, .admin-panel) .bm-status[data-bm-status="Pagado"] { --bm-status-color: var(--success); }

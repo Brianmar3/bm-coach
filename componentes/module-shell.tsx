@@ -19,7 +19,7 @@ export function ModuleShell({
     <main className={`admin-page min-h-screen px-4 pb-8 text-[var(--foreground)] sm:px-6 md:px-8 md:pb-12 xl:px-10 ${flushTop ? "pt-5 md:pt-7" : "pt-6 md:pt-9"}`}>
       <div className="mx-auto min-w-0 max-w-7xl">
         {!hideHeader && (
-          <header className="admin-page-header mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <header className="bm-surface bm-card-pad admin-page-header mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[.24em] text-yellow-400">Gestión diaria</p>
               <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>

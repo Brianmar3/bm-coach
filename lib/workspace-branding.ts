@@ -131,7 +131,7 @@ export function workspaceBrandingVariables(value: unknown) {
     "--bm-accent": accent,
     "--bm-accent-hover": mix(accent, relativeLuminance(accent) > 0.42 ? 0 : 255, 0.14),
     "--bm-accent-soft": `${accent}24`,
-    "--bm-accent-contrast": relativeLuminance(accent) > 0.43 ? "#09090B" : "#FFFFFF",
+    "--bm-accent-contrast": relativeLuminance(accent) > 0.185 ? "#09090B" : "#FFFFFF",
   };
 }
 

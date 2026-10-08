@@ -75,7 +75,7 @@ function SummaryShield() {
 }
 
 function CrownIcon() {
-  return <svg viewBox="0 0 32 22" aria-hidden="true" className="absolute -top-3 left-1/2 h-5 w-7 -translate-x-1/2 text-yellow-300 drop-shadow-[0_0_7px_rgba(250,204,21,.65)]">
+  return <svg viewBox="0 0 32 22" aria-hidden="true" className="absolute -top-3 left-1/2 h-5 w-7 -translate-x-1/2 text-[var(--brand-text)] drop-shadow-[0_0_7px_rgba(250,204,21,.65)]">
     <path d="m3 5 7 5 6-8 6 8 7-5-3 14H6L3 5Z" fill="currentColor" />
   </svg>;
 }
@@ -107,7 +107,7 @@ function RankingRow({ entry, currentStudentId, delay, reducedMotion }: {
   const isWinner = entry.position === 1;
   const style = reducedMotion ? undefined : { "--ranking-delay": `${delay}ms` } as CSSProperties;
   const surface = isCurrent
-    ? "border-yellow-400/60 bg-[radial-gradient(circle_at_80%_50%,rgba(250,204,21,.12),transparent_48%),linear-gradient(100deg,rgba(250,204,21,.09),rgba(24,24,27,.8))] shadow-[0_12px_36px_rgba(0,0,0,.3)]"
+    ? "portal-ranking-current border-yellow-400/60 bg-[radial-gradient(circle_at_80%_50%,rgba(250,204,21,.12),transparent_48%),linear-gradient(100deg,rgba(250,204,21,.09),rgba(24,24,27,.8))] shadow-[0_12px_36px_rgba(0,0,0,.3)]"
     : isWinner
       ? "border-yellow-400/45 bg-[radial-gradient(circle_at_20%_50%,rgba(250,204,21,.16),transparent_44%),rgba(24,24,27,.78)] shadow-[0_0_26px_rgba(250,204,21,.08)]"
       : "border-white/[.08] bg-zinc-900/65";
@@ -118,11 +118,11 @@ function RankingRow({ entry, currentStudentId, delay, reducedMotion }: {
       <i className="portal-ranking-sparkle left-[42%] top-[72%] [animation-delay:260ms]" />
       <i className="portal-ranking-sparkle right-[9%] top-[22%] [animation-delay:520ms]" />
     </span>}
-    {isCurrent && <span className="absolute -top-3 right-4 rounded-md border border-yellow-400/25 bg-[#261b03] px-3 py-1 text-[9px] font-black uppercase tracking-[.15em] text-yellow-300">Tú</span>}
+    {isCurrent && <span className="absolute -top-3 right-4 rounded-md border border-yellow-400/25 bg-[var(--surface-elevated)] px-3 py-1 text-[9px] font-black uppercase tracking-[.15em] text-[var(--brand-text)]">Tú</span>}
     <RankBadge position={entry.position} />
     <StudentPhoto src={entry.profileImageUrl || DEFAULT_PROFILE_AVATAR.src} alt="" width={52} height={52} className="size-10 rounded-full border border-white/10 object-cover sm:size-12" />
     <span className="min-w-0 truncate text-[13px] font-bold text-zinc-100 min-[390px]:text-sm sm:text-base">{entry.studentName}</span>
-    <strong className="shrink-0 whitespace-nowrap text-[13px] text-yellow-300 min-[390px]:text-sm sm:text-base">{entry.total.toLocaleString("es-AR")} pts</strong>
+    <strong className="shrink-0 whitespace-nowrap text-[13px] text-[var(--brand-text)] min-[390px]:text-sm sm:text-base">{entry.total.toLocaleString("es-AR")} pts</strong>
   </li>;
 }
 
@@ -163,8 +163,8 @@ export function PortalRanking() {
   const currentOnPodium = Boolean(ranking?.currentPosition && ranking.currentPosition <= 3);
 
   return <div className="mx-auto w-full max-w-3xl overflow-x-clip px-0.5 sm:px-0">
-    <Link href="/portal/puntos" className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/55 px-4 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver a Puntos y logros">← Volver</Link>
-    <header className="portal-ranking-enter-item mt-6 [--ranking-delay:40ms]"><p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Puntos del mes</p><h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight sm:text-4xl">Ranking mensual</h1><p className="mt-2 text-sm leading-relaxed text-zinc-500 sm:text-base">Tu posición y la tabla completa del mes actual.</p></header>
+    <Link href="/portal/puntos" className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/55 px-4 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400/30 hover:text-[var(--brand-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver a Puntos y logros">← Volver</Link>
+    <header className="portal-ranking-enter-item mt-6 [--ranking-delay:40ms]"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Puntos del mes</p><h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight sm:text-4xl">Ranking mensual</h1><p className="mt-2 text-sm leading-relaxed text-zinc-500 sm:text-base">Tu posición y la tabla completa del mes actual.</p></header>
 
     {error ? <p role="alert" className="mt-5 rounded-xl border border-red-400/20 bg-red-400/[.06] p-4 text-sm text-red-200">{error}</p> : !ranking ? <RankingSkeleton /> : <>
       <section className="portal-ranking-summary portal-ranking-enter-item relative mt-6 grid min-h-[128px] grid-cols-[minmax(0,1fr)_56px_minmax(0,1fr)] items-center gap-2 overflow-hidden rounded-3xl border border-yellow-400/65 px-4 py-5 shadow-[0_18px_50px_rgba(0,0,0,.38),0_0_24px_rgba(250,204,21,.08)] [--ranking-delay:110ms] sm:grid-cols-[1fr_74px_1fr] sm:px-8" aria-label="Tu resumen mensual">
@@ -177,7 +177,7 @@ export function PortalRanking() {
         </span>}
         <div className="relative min-w-0"><p className="text-[8px] uppercase leading-tight tracking-[.11em] text-zinc-400 min-[390px]:text-[9px] sm:text-[11px]">Tu posición</p><strong className="mt-2 block text-3xl font-black leading-none text-white sm:text-5xl">{ranking.currentPosition ? `#${ranking.currentPosition}` : "—"}</strong></div>
         <span className="relative grid place-items-center"><SummaryShield /></span>
-        <div className="relative min-w-0 text-right"><p className="text-[8px] uppercase leading-tight tracking-[.08em] text-zinc-400 min-[390px]:text-[9px] sm:text-[11px]">Tus puntos del mes</p><strong aria-label={`${ranking.currentPoints} puntos del mes`} className="mt-2 block text-3xl font-black leading-none text-yellow-300 sm:text-5xl">{shownPoints.toLocaleString("es-AR")}</strong></div>
+        <div className="relative min-w-0 text-right"><p className="text-[8px] uppercase leading-tight tracking-[.08em] text-zinc-400 min-[390px]:text-[9px] sm:text-[11px]">Tus puntos del mes</p><strong aria-label={`${ranking.currentPoints} puntos del mes`} className="mt-2 block text-3xl font-black leading-none text-[var(--brand-text)] sm:text-5xl">{shownPoints.toLocaleString("es-AR")}</strong></div>
       </section>
 
       {entries.length === 0 ? <p className="mt-4 rounded-2xl border border-white/[.07] bg-zinc-900/55 p-6 text-center text-sm text-zinc-500">Todavía no hay posiciones para mostrar este mes.</p> : <>

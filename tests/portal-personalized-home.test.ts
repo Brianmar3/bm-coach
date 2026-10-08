@@ -47,7 +47,7 @@ test("la mejora visual permanece compacta, usa BM Icons y un CTA completo", () =
   assert.match(card, /Tu entrenamiento está listo/);
   assert.match(card, /Continuá tu entrenamiento/);
   assert.match(card, /min-h-12 w-full/);
-  assert.match(card, /p-4/);
+  assert.match(card, /px-4/);
   assert.doesNotMatch(card, /min-h-\[(?:1[0-9]|[2-9][0-9])rem\]/);
   assert.doesNotMatch(card, /[▦▶]/);
 });
@@ -76,18 +76,20 @@ test("la celebración semanal responde sólo a la transición real del mismo obj
 });
 
 test("el resumen conserva sólo Tu cuota y Tus puntos con datos reales", () => {
+  const quickStats = overview.slice(overview.indexOf("function HomeQuickStats"));
   assert.match(overview, /<HomeQuickStats data=\{data\} \/>/);
-  assert.match(overview, /grid grid-cols-2/);
-  assert.match(overview, /Tu cuota/);
-  assert.match(overview, /Tus puntos/);
-  assert.doesNotMatch(overview, /Progreso del plan|Progreso resumido/);
-  assert.doesNotMatch(overview, /href="\/portal\/progreso"/);
-  assert.match(overview, /href="\/portal\/pagos"/);
-  assert.match(overview, /href="\/portal\/puntos"/);
-  assert.match(overview, /account\.nextDueDate/);
-  assert.match(overview, /homePaymentCardCopy/);
-  assert.match(overview, /aria-label=\{`Tu cuota\. \$\{paymentCopy\.title\}/);
-  assert.match(overview, /portal-home-interactive/);
+  assert.match(quickStats, /grid grid-cols-2/);
+  assert.match(quickStats, /Tu cuota/);
+  assert.match(quickStats, /Tus puntos/);
+  assert.match(quickStats, /href="\/portal\/pagos"/);
+  assert.match(quickStats, /href="\/portal\/ranking"/);
+  assert.match(quickStats, /Ver pagos <BmChevronRightIcon size=\{16\}/);
+  assert.match(quickStats, /Ver ranking <BmChevronRightIcon size=\{16\}/);
+  assert.match(readFileSync("componentes/portal-visuals.tsx", "utf8"), /min-h-\[6\.75rem\]/);
+  assert.match(quickStats, /account\.nextDueDate/);
+  assert.match(quickStats, /homePaymentCardCopy/);
+  assert.match(quickStats, /aria-label=\{`Tu cuota\. \$\{paymentCopy\.title\}/);
+  assert.match(readFileSync("componentes/portal-visuals.tsx", "utf8"), /PORTAL_STAT_CARD_CLASS = "[^"]*portal-home-stat portal-home-interactive/);
   for (const state of ["AL_DIA", "VENCE_PRONTO", "VENCIDA", "SIN_CONFIGURAR"]) assert.match(source, new RegExp(`${state}:`));
-  assert.doesNotMatch(overview, /href="\/portal\/evaluaciones"/);
+  assert.doesNotMatch(quickStats, /href="\/portal\/evaluaciones"/);
 });

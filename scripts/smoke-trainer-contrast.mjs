@@ -20,7 +20,7 @@ const fragments = ast.statements.filter(n => (ts.isFunctionDeclaration(n) && nam
 const { DataReview, DetailTable } = compile(`${fragments.join('\n')}\nexport { DataReview, DetailTable };`);
 const students = readFileSync('app/alumnos/page.tsx', 'utf8');
 const dashboard = readFileSync('app/dashboard/page.tsx', 'utf8');
-const inactive = students.match(/"(trainer-neutral-status bg-zinc-700 text-zinc-300)"/)[1];
+const inactive = students.match(/"(trainer-neutral-status bm-status bm-status-neutral)"/)[1];
 const unconfigured = dashboard.match(/SIN_CONFIGURAR:.*className: "([^"]+)"/)[1];
 const columnsJsx = students.match(/<thead className="trainer-table-heading[^>]*>.*?<\/thead>/)[0];
 const { Columns } = compile(`export function Columns() { return ${columnsJsx}; }`);

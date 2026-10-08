@@ -58,6 +58,7 @@ test("el tema calcula contraste y variantes centralizadas", () => {
   const dark = workspaceBrandingVariables("#1D4ED8");
   assert.equal(light["--bm-accent-contrast"], "#09090B");
   assert.equal(dark["--bm-accent-contrast"], "#FFFFFF");
+  assert.equal(workspaceBrandingVariables(BM_DEFAULT_ACCENT)["--bm-accent-contrast"], "#09090B");
   assert.equal(dark["--bm-accent"], "#1D4ED8");
   assert.match(dark["--bm-accent-soft"], /^#[0-9A-F]{8}$/);
 });

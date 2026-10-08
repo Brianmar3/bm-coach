@@ -13,10 +13,13 @@ function compile(file, resolve = require, suffix = '') {
   new Function('require', 'module', 'exports', code)(resolve, compiledModule, compiledModule.exports);
   return compiledModule.exports;
 }
+const factory = compile('componentes/icons/bm-premium/icon.tsx');
+const icons = { ...compile('componentes/icons/bm-premium/core.tsx', name => name === './icon' ? factory : require(name)), ...compile('componentes/icons/bm-premium/support.tsx', name => name === './icon' ? factory : require(name)) };
 const charts = compile('componentes/routine-follow-up-charts.tsx');
 const avatars = compile('lib/profile-avatars.ts');
 const branding = compile('lib/workspace-branding.ts');
 const { StudentDrawer, StudentRow } = compile('componentes/routine-follow-up-dashboard.tsx', name => {
+  if (name === '@/componentes/icons') return icons;
   if (name === '@/componentes/student-photo') return { StudentPhoto: props => React.createElement('img', props) };
   if (name === '@/componentes/routine-follow-up-charts') return charts;
   if (name === '@/lib/profile-avatars') return avatars;
@@ -46,7 +49,7 @@ try {
       const result = await dialog.evaluate(element => {
         const style = e => getComputedStyle(e);
         const header = element.querySelector('header'), tabs = [...header.querySelectorAll('[role=tab]')];
-        return { background: style(element).backgroundColor, header: style(header).backgroundColor, title: style(header.querySelector('h2')).color, close: style(header.querySelector('button')).color, secondary: style(header.querySelector('p.text-zinc-500')).color, selected: tabs.filter(e => e.getAttribute('aria-selected') === 'true').length, active: style(tabs.find(e => e.getAttribute('aria-selected') === 'true')).color, activeBorder: style(tabs.find(e => e.getAttribute('aria-selected') === 'true')).borderBottomColor, badge: style(header.querySelector('span')).color, overflow: element.scrollWidth > element.clientWidth || document.documentElement.scrollWidth > innerWidth, card: style(element.querySelector('article')).backgroundColor };
+        return { background: style(element).backgroundColor, header: style(header).backgroundColor, title: style(header.querySelector('h2')).color, close: style(header.querySelector('button')).color, secondary: style(header.querySelector('h2 + p')).color, selected: tabs.filter(e => e.getAttribute('aria-selected') === 'true').length, active: style(tabs.find(e => e.getAttribute('aria-selected') === 'true')).color, activeBorder: style(tabs.find(e => e.getAttribute('aria-selected') === 'true')).borderBottomColor, badge: style(header.querySelector('span')).color, overflow: element.scrollWidth > element.clientWidth || document.documentElement.scrollWidth > innerWidth, card: style(element.querySelector('article')).backgroundColor };
       });
       assert.equal(result.overflow, false, JSON.stringify({ theme, width, tab, result }));
       assert.equal(result.selected, 1);
