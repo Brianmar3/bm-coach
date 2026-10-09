@@ -140,7 +140,7 @@ test("username global duplicado se rechaza antes de crear el alumno", () => {
   assert.match(consume, /Ese usuario ya existe/);
 });
 test("contraseña del alumno usa hashing y política existentes", () => {
-  assert.match(consume, /passwordValidationError\(input\.password\)/);
+  assert.match(consume, /invitationPasswordValidationError\(input\.password\)/);
   assert.match(consume, /hashPassword\(input\.password\)/);
   assert.match(consume, /mustChangePassword: false/);
   assert.doesNotMatch(manage, /passwordHash|temporaryPassword/);

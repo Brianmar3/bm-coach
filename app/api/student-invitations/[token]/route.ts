@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hashPassword, passwordValidationError, validRequestOrigin } from "@/lib/portal-auth";
+import { hashPassword, validRequestOrigin } from "@/lib/portal-auth";
+import { invitationPasswordValidationError } from "@/lib/student-invitation-password";
 import { duplicatePhone, normalizePhone, studentJsonData, type ParsedStudentInput } from "@/lib/student-enrollment";
 import { recordInitialStudentHistory } from "@/lib/student-history";
 import { assertTrainerCanAddStudent, TrainerStudentLimitError } from "@/lib/trainer-plan-limits-server";
@@ -22,7 +23,7 @@ export async function POST(request: Request, context: RouteContext<"/api/student
   const parsed = parseStudentInvitationRegistration(value);
   if (!parsed.input) return Response.json({ error: parsed.error }, { status: 400 });
   const input = parsed.input;
-  const passwordError = passwordValidationError(input.password);
+  const passwordError = invitationPasswordValidationError(input.password);
   if (passwordError) return Response.json({ error: passwordError }, { status: 400 });
   const initial = await activeStudentInvitation(token);
   const unavailable = invitationUnavailableMessage(initial);
