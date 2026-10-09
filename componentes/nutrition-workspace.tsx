@@ -208,60 +208,63 @@ function PreferencesView() {
 
   if (loading) return <Loading />;
   return (
-    <div className="portal-nutrition-preferences space-y-4">
+    <div className="portal-nutrition-preferences">
       <PageHeader title="Preferencias alimentarias" description="Declaralas una vez y actualizalas cuando cambien. Las alergias y restricciones tienen prioridad absoluta." />
       <Notice error={error} message={message} />
-      <section className="bm-surface p-5">
-        <h2 className="font-bold">Personalización y consentimiento</h2>
-        <p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">
-          La personalización usa objetivo, evaluación, entrenamiento, hábitos y estas preferencias. Podés desactivarla cuando quieras; la guía local seguirá disponible.
-        </p>
-        <button type="button" onClick={toggleConsent} className={`mt-4 min-h-11 rounded-xl px-4 text-sm font-black ${profile.personalizationEnabled ? "border border-zinc-700 text-zinc-300" : "bg-yellow-400 text-black"}`}>
-          {profile.personalizationEnabled ? "Revocar consentimiento" : "Aceptar y activar IA personalizada"}
-        </button>
-      </section>
-      <section className="grid gap-4 bm-surface p-5 md:grid-cols-2">
-        <SelectField label="Tipo de alimentación" value={profile.dietaryType} options={["", "Omnívora", "Vegetariana", "Vegana", "Otra"]} onChange={(value) => setProfile({ ...profile, dietaryType: value })} />
-        <SelectField label="Presupuesto" value={profile.budgetPreference} options={["", "Económico", "Moderado", "Flexible"]} onChange={(value) => setProfile({ ...profile, budgetPreference: value })} />
-        <TextListField label="Alergias (declaración obligatoria si existen)" value={profile.allergies} onChange={(value) => setProfile({ ...profile, allergies: value })} placeholder="Ej: maní, huevo" />
-        <TextListField label="Intolerancias" value={profile.intolerances} onChange={(value) => setProfile({ ...profile, intolerances: value })} placeholder="Ej: lactosa" />
-        <TextListField label="Restricciones" value={profile.restrictions} onChange={(value) => setProfile({ ...profile, restrictions: value })} placeholder="Ej: sin gluten" />
-        <TextListField label="Alimentos que no consumís" value={profile.dislikedFoods} onChange={(value) => setProfile({ ...profile, dislikedFoods: value })} placeholder="Separados por coma" />
-        <TextListField label="Alimentos preferidos" value={profile.preferredFoods} onChange={(value) => setProfile({ ...profile, preferredFoods: value })} placeholder="Separados por coma" />
-        <TextListField label="Equipamiento disponible" value={profile.equipment} onChange={(value) => setProfile({ ...profile, equipment: value })} placeholder="Ej: horno, microondas" />
-        <SelectField label="Nivel de cocina" value={profile.cookingLevel} options={["", "Inicial", "Intermedio", "Avanzado"]} onChange={(value) => setProfile({ ...profile, cookingLevel: value })} />
-        <label className="text-sm text-zinc-300">Tiempo habitual para cocinar
+      <div className="nutrition-preference-sections">
+        <fieldset className="nutrition-preference-group"><legend>Alimentación</legend><div className="nutrition-field-grid">
+          <SelectField label="Tipo de alimentación" value={profile.dietaryType} options={["", "Omnívora", "Vegetariana", "Vegana", "Otra"]} onChange={(value) => setProfile({ ...profile, dietaryType: value })} />
+          <TextListField label="Alergias (declaración obligatoria si existen)" value={profile.allergies} onChange={(value) => setProfile({ ...profile, allergies: value })} placeholder="Ej: maní, huevo" />
+          <TextListField label="Intolerancias" value={profile.intolerances} onChange={(value) => setProfile({ ...profile, intolerances: value })} placeholder="Ej: lactosa" />
+          <TextListField label="Restricciones" value={profile.restrictions} onChange={(value) => setProfile({ ...profile, restrictions: value })} placeholder="Ej: sin gluten" />
+          <details className="nutrition-food-preferences"><summary>Gustos y preferencias</summary><div className="nutrition-field-grid"><TextListField label="Alimentos que no consumís" value={profile.dislikedFoods} onChange={(value) => setProfile({ ...profile, dislikedFoods: value })} placeholder="Separados por coma" /><TextListField label="Alimentos preferidos" value={profile.preferredFoods} onChange={(value) => setProfile({ ...profile, preferredFoods: value })} placeholder="Separados por coma" /></div></details>
+        </div></fieldset>
+        <fieldset className="nutrition-preference-group"><legend>Organización y cocina</legend><div className="nutrition-field-grid nutrition-organization-fields">
+          <SelectField label="Presupuesto" value={profile.budgetPreference} options={["", "Económico", "Moderado", "Flexible"]} onChange={(value) => setProfile({ ...profile, budgetPreference: value })} />
+          <SelectField label="Nivel de cocina" value={profile.cookingLevel} options={["", "Inicial", "Intermedio", "Avanzado"]} onChange={(value) => setProfile({ ...profile, cookingLevel: value })} />
+          <label className="text-sm text-zinc-300">Tiempo habitual para cocinar
           <input type="number" min={5} max={240} value={profile.cookingTimeMinutes ?? ""} onChange={(event) => setProfile({ ...profile, cookingTimeMinutes: event.target.value ? Number(event.target.value) : null })} className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-black/40 px-3 outline-none focus:border-yellow-400" />
         </label>
-        <label className="text-sm text-zinc-300">Porciones habituales
+          <label className="text-sm text-zinc-300">Porciones habituales
           <input type="number" min={1} max={12} value={profile.servings} onChange={(event) => setProfile({ ...profile, servings: Number(event.target.value) || 1 })} className="mt-2 min-h-12 w-full rounded-xl border border-zinc-700 bg-black/40 px-3 outline-none focus:border-yellow-400" />
         </label>
-        <SelectField label="Repetición aceptada" value={profile.repetitionPreference} options={["", "Poca", "Moderada", "Alta"]} onChange={(value) => setProfile({ ...profile, repetitionPreference: value })} />
-        <SelectField label="Variedad deseada" value={profile.varietyPreference} options={["", "Simple", "Equilibrada", "Variada"]} onChange={(value) => setProfile({ ...profile, varietyPreference: value })} />
-        <fieldset className="rounded-xl border border-zinc-800 p-4 md:col-span-2">
+          <SelectField label="Repetición aceptada" value={profile.repetitionPreference} options={["", "Poca", "Moderada", "Alta"]} onChange={(value) => setProfile({ ...profile, repetitionPreference: value })} />
+          <SelectField label="Variedad deseada" value={profile.varietyPreference} options={["", "Simple", "Equilibrada", "Variada"]} onChange={(value) => setProfile({ ...profile, varietyPreference: value })} />
+          <div className="nutrition-equipment"><TextListField label="Equipamiento disponible" value={profile.equipment} onChange={(value) => setProfile({ ...profile, equipment: value })} placeholder="Ej: horno, microondas" /></div>
+        </div></fieldset>
+      </div>
+        <fieldset className="nutrition-preference-group nutrition-reminders">
           <legend className="px-1 text-sm font-bold text-zinc-300">Recordatorios útiles</legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          <div className="nutrition-reminder-grid">
             {[
               ["habitReminder", "Hábito del día"],
               ["weeklyPlanning", "Planificación semanal"],
               ["activeList", "Lista activa"],
               ["newEvaluation", "Nueva evaluación"],
             ].map(([key, label]) => (
-              <label key={key} className="flex min-h-11 items-center gap-2 rounded-xl bg-black/30 px-3 text-sm text-[var(--foreground-muted)]">
+              <label key={key} className="nutrition-reminder">
                 <input type="checkbox" checked={profile.notificationPreferences[key] === true} onChange={(event) => setProfile({ ...profile, notificationPreferences: { ...profile.notificationPreferences, [key]: event.target.checked } })} className="h-5 w-5 accent-yellow-400" />
                 {label}
               </label>
             ))}
           </div>
         </fieldset>
-        <div className="md:col-span-2">
+        <div className="nutrition-preference-actions">
           <button type="button" onClick={save} disabled={saving} className="bm-button bm-button-primary min-h-12 w-full rounded-xl bg-yellow-400 px-5 font-black text-black disabled:opacity-50">{saving ? "Guardando…" : "Guardar preferencias"}</button>
           {profile.updatedAt && <button type="button" onClick={clearPreferences} className="mt-3 min-h-11 w-full rounded-xl border border-red-400/20 px-4 text-xs font-bold text-red-300">Eliminar preferencias</button>}
         </div>
+      <section className="nutrition-privacy">
+        <h2 className="font-bold">Privacidad y personalización</h2>
+        <p className="mt-2 text-xs leading-5 text-[var(--foreground-muted)]">
+          La personalización usa objetivo, evaluación, entrenamiento, hábitos y estas preferencias. Podés desactivarla cuando quieras; la guía local seguirá disponible.
+        </p>
+        <button type="button" onClick={toggleConsent} className="bm-button bm-button-secondary px-4">
+          {profile.personalizationEnabled ? "Revocar consentimiento" : "Aceptar y activar IA personalizada"}
+        </button>
       </section>
-      <section id="datos-utilizados" className="scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+      <section id="datos-utilizados" className="nutrition-data scroll-mt-24">
         <h2 className="font-bold">Datos utilizados</h2>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <div className="nutrition-data-grid">
           <Data label="Objetivo" value={context?.student.objective || "No registrado"} />
           <Data label="Evaluación" value={context?.evaluation ? dateLabel(context.evaluation.date) : "Sin evaluación"} />
           <Data label="Rutina activa" value={context?.training.routineName ?? "Sin rutina activa"} />

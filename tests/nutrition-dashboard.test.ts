@@ -18,7 +18,7 @@ test("el panel sigue una jerarquía breve y accionable", () => {
   const actions = source.indexOf("Accesos útiles");
   const recipes = source.indexOf("Recetas recientes");
   const trainer = source.indexOf("Recomendación de tu entrenador");
-  assert.ok(recommendation < habits && habits < actions && actions < recipes && recipes < trainer);
+  assert.ok(recommendation < trainer && trainer < habits && habits < actions && actions < recipes);
   assert.doesNotMatch(dashboard, /Planificación activa/);
   assert.doesNotMatch(dashboard, /href="\/portal\/nutricion\/asistente"/);
 });
@@ -38,9 +38,10 @@ test("hábitos integra un resumen compacto y mantiene la edición existente", ()
   assert.doesNotMatch(source, /accent-yellow|className="h-5 w-5/);
 });
 
-test("móvil usa hábitos horizontales, accesos compactos y estados vacíos breves", () => {
-  assert.match(source, /grid grid-cols-5/);
-  assert.match(source, /grid grid-cols-2 gap-2 sm:grid-cols-4/);
+test("móvil usa hábitos legibles, herramientas compactas y estados vacíos breves", () => {
+  assert.match(source, /nutrition-habit-list/);
+  assert.match(source, /nutrition-tools/);
+  assert.doesNotMatch(source, /grid-cols-5|truncate/);
   assert.doesNotMatch(source, /overflow-x-auto|w-screen|min-w-screen/);
   assert.match(source, /Todavía no guardaste recetas/);
   assert.match(source, /Todavía no hay una recomendación nueva/);
@@ -52,7 +53,7 @@ test("preferencias, evaluación, recomendación y accesos conservan sus rutas", 
   assert.match(source, /href=\{data\.recommendation\.href\}/);
   for (const route of ["compras", "despensa", "recetas", "aprender"]) assert.match(source, new RegExp(`/portal/nutricion/${route}`));
   assert.match(source, /href="\/portal\/nutricion\/recetas"[^>]*>Ver todas/);
-  assert.match(source, /Explorar →/);
+  assert.match(source, /Explorar <BmChevronRightIcon/);
 });
 
 test("el rediseño usa iconos lineales y evita emojis y botones amarillos dominantes", () => {
