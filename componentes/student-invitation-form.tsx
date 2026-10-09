@@ -57,7 +57,7 @@ export function StudentInvitationForm({ token, branding }: { token: string; bran
           </button>
         </div>
       </div>
-      <ul id="invitation-password-checklist" aria-label="Requisitos de contraseña" className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs leading-relaxed">{invitationPasswordRequirements(password).map((requirement) => <li key={requirement.id} className={`${requirement.id === "length" ? "col-span-2 " : ""}${requirement.met ? "text-[var(--success)]" : "text-[var(--foreground-muted)]"}`}><span aria-hidden="true">{requirement.met ? "✓" : "○"}</span> <span className="sr-only">{requirement.met ? "Cumplido: " : "Pendiente: "}</span>{requirement.label}</li>)}</ul>
+      <ul id="invitation-password-checklist" aria-label="Requisitos de contraseña" className="flex flex-col gap-1 text-xs leading-relaxed">{invitationPasswordRequirements(password).map((requirement) => <li key={requirement.id} className={`${requirement.id === "lower" ? "order-last " : ""}${requirement.met ? "text-[var(--success)]" : "text-[var(--foreground-muted)]"}`}><span aria-hidden="true">{requirement.met ? "✓" : "○"}</span> <span className="sr-only">{requirement.met ? "Cumplido: " : "Pendiente: "}</span>{requirement.label}</li>)}</ul>
     </div><button disabled={saving} className="min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-60">{saving ? "Creando cuenta…" : "Crear mi cuenta"}</button></form><Link href="/portal/login?mode=student" className="mt-4 flex min-h-11 items-center justify-center text-sm font-semibold text-yellow-300">Ingresar como alumno</Link></>}</section>
     <p className="mt-5 text-center text-xs text-zinc-600">Powered by BM Training</p>
   </div></main>;
