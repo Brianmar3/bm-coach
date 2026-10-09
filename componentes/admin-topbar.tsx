@@ -44,7 +44,7 @@ export function AdminTopbar() {
           <AdminNotificationCenter />
           <Link
             href="/configuracion"
-            className="group flex items-center gap-2 rounded-xl p-1 transition hover:bg-white/5 sm:pr-3"
+            className="group hidden items-center gap-2 rounded-xl p-1 transition hover:bg-white/5 sm:pr-3 lg:flex"
             aria-label={`Abrir perfil y configuración de ${coachName}`}
           >
             <span className="grid h-9 w-9 place-items-center rounded-full border border-yellow-400/30 bg-gradient-to-br from-zinc-800 to-black text-xs font-black text-yellow-300">
