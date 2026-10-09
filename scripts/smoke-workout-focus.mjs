@@ -32,7 +32,7 @@ try {
   const snapshot = visualFixture('PERSONALIZED',accent), day = snapshot.data.routine.days[0];
   day.blocks = day.blocks.filter(b => b.type !== 'MOBILITY');
   const exercises = day.blocks.find(b => b.type === 'STRENGTH').exercises;
-  exercises[0].sets = 3; exercises[0].order = 1;
+  exercises[0].sets = 4; exercises[0].order = 1;
   exercises[1].sets = 4; exercises[1].order = 2;
   const third = {...exercises[0],id:'exercise-d',name:'Prensa de piernas',sets:5,order:3,videoUrl:'bm-library://exercise/test-focus'};
   exercises.push(third); day.exercises = exercises; snapshot.data.exerciseMediaEnabled = true;
@@ -49,17 +49,28 @@ try {
   await context.route('**/api/exercise-library/media?**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="#444"/><circle cx="160" cy="100" r="60" fill="#aaa"/></svg>'}));
   const page=await context.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin+'/portal/offline');
-  await page.getByLabel('Reps de la serie 3',{exact:true}).waitFor();
+  const cards=page.locator('.portal-routine-exercise');
+  const firstCard=cards.first();
+  await firstCard.getByRole('button',{name:'Entrenar Sentadillas con barra',exact:true}).waitFor();
   await page.evaluate(()=>document.querySelector('main').classList.add('portal-route-enter'));
-  if(cases===0){
-   const normalKg=page.getByLabel('Kg de la serie 1',{exact:true});await normalKg.focus();
-   await page.getByRole('dialog',{name:'Modo enfoque',exact:true}).waitFor();
-   assert.equal(await normalKg.evaluate(e=>e===document.activeElement),true,'Entering while editing preserves keyboard focus');
-   await normalKg.fill('51');await normalKg.press('Enter');assert.equal(await normalKg.inputValue(),'51');
-   await page.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();
-  }
-  await page.getByRole('button',{name:'Entrenar en modo enfoque',exact:true}).click();
+  assert.equal(await page.locator('.portal-routine-sets').count(),0,'Details collapsed by default');
+  assert.ok((await firstCard.innerText()).includes('0/4'));
+  if(cases===0)await page.screenshot({path:'C:/Users/brian/AppData/Local/Temp/bm-routine-compact.png',fullPage:true});
+  await firstCard.getByRole('button',{name:'Ver detalle',exact:true}).click();
+  const normalKg=firstCard.getByLabel('Kg de la serie 1',{exact:true});
+  await normalKg.fill('51');await normalKg.press('Enter');
+  assert.equal(await page.getByRole('dialog',{name:'Modo enfoque',exact:true}).count(),0,'Manual editing stays in general view');
+  await firstCard.getByText('Historial anterior (1)',{exact:true}).click();
+  await firstCard.getByRole('button',{name:'Ocultar detalle',exact:true}).click();
+  assert.equal(await page.locator('.portal-routine-sets').count(),0);
+  await firstCard.getByRole('button',{name:'Entrenar Sentadillas con barra',exact:true}).click();
   const focus=page.getByRole('dialog',{name:'Modo enfoque',exact:true});await focus.waitFor();
+  const assertNoClosure=async()=>{
+   assert.equal(await focus.getByRole('button',{name:'Guardar progreso',exact:true}).count(),0);
+   assert.equal(await focus.getByRole('button',{name:'Finalizar entrenamiento',exact:true}).count(),0);
+   assert.equal(await focus.getByText('Entrenamiento completado',{exact:true}).count(),0);
+  };
+  await assertNoClosure();
   assert.equal(await page.locator('.portal-mobile-nav').isVisible(),false);
   assert.equal(await focus.locator('.workout-focus-media').count(),0);
   assert.equal(await focus.getByRole('heading',{name:'Sentadillas con barra',exact:true}).isVisible(),true);
@@ -68,6 +79,7 @@ try {
   const kg=focus.getByLabel('Kg de la serie 1',{exact:true});await kg.fill('52');
   await focus.getByLabel('Reps de la serie 1',{exact:true}).fill('9');await focus.getByLabel('RIR de la serie 1',{exact:true}).fill('1.5');
   await focus.getByLabel('Serie 1 completada',{exact:true}).check();
+  await assertNoClosure();
   assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),true);
   await focus.getByText('Historial anterior (1)',{exact:true}).click();assert.equal(await focus.locator('.portal-routine-history').first().getAttribute('open'),'');
   await focus.getByRole('button',{name:'Iniciar descanso',exact:true}).click();
@@ -78,6 +90,7 @@ try {
   await focus.getByRole('button',{name:'Continuar descanso',exact:true}).click();
   await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
   await focus.getByRole('heading',{name:'Sentadillas sumo',exact:true}).waitFor();
+  await assertNoClosure();
   assert.equal(await focus.getByLabel('Reps de la serie 4',{exact:true}).isVisible(),true);
   assert.ok((await focus.locator('.workout-focus-rest').innerText()).includes('Sentadillas con barra'),'Rest keeps original owner');
   await focus.getByRole('button',{name:'Anterior',exact:true}).click();assert.equal(await kg.inputValue(),'52');
@@ -86,9 +99,14 @@ try {
   assert.ok((await list.innerText()).includes('En ejecución'));assert.ok((await list.innerText()).includes('Siguiente'));assert.ok((await list.innerText()).includes('Pendiente'));
   await list.getByRole('button',{name:/Prensa de piernas/}).click();
   await focus.getByRole('heading',{name:'Prensa de piernas',exact:true}).waitFor();
+  await assertNoClosure();
   assert.equal(await focus.getByLabel('Reps de la serie 5',{exact:true}).isVisible(),true);
   await focus.locator('.workout-focus-media img').waitFor();await page.waitForFunction(()=>document.querySelector('.workout-focus-media img')?.naturalWidth>0);
   assert.equal(await focus.getByRole('button',{name:'Siguiente',exact:true}).isDisabled(),true);
+  const lastSets=focus.locator('.portal-routine-exercise:not([hidden]) input[type="checkbox"]');
+  for(let setIndex=0;setIndex<await lastSets.count();setIndex++)await lastSets.nth(setIndex).check();
+  await assertNoClosure(); // Last exercise alone is insufficient: earlier work remains.
+  await lastSets.last().uncheck();await assertNoClosure();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   const geometry=await focus.evaluate(e=>{const body=e.querySelector('.workout-focus-body').getBoundingClientRect(),controls=e.querySelector('.workout-focus-controls').getBoundingClientRect(),rect=e.getBoundingClientRect();return {bodyBottom:body.bottom,controlsTop:controls.top,dialog:rect.height,top:rect.top,left:rect.left,height:innerHeight,overflow:e.scrollWidth>e.clientWidth}});
   assert.ok(geometry.bodyBottom<=geometry.controlsTop+1,'Timer does not cover series');assert.ok(geometry.dialog<=geometry.height+1);
@@ -108,11 +126,17 @@ try {
   }
   await focus.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();await focus.waitFor({state:'hidden'});
   assert.equal(await page.locator('.portal-mobile-nav').isVisible(),width<768);
-  await page.getByRole('button',{name:'Entrenar en modo enfoque',exact:true}).click();
-  await focus.getByRole('button',{name:'Anterior',exact:true}).click();await focus.getByRole('button',{name:'Anterior',exact:true}).click();
+  assert.equal(await page.locator('.portal-routine-sets').count(),0,'Exit restores compact cards');
+  assert.ok((await firstCard.innerText()).includes('1/4'));
+  assert.equal(await firstCard.getByRole('button',{name:'Continuar Sentadillas con barra',exact:true}).isVisible(),true);
+  await firstCard.getByRole('button',{name:/^(Entrenar|Continuar) Sentadillas con barra$/}).click();
+
   assert.equal(await kg.inputValue(),'52');assert.equal(await focus.locator('.workout-focus-list').getAttribute('open'),null);
   // Mobile keyboard uses the existing shell detector; the focus footer yields space.
   if(width<768){
+   // Restore touch media after the scripted mouse/keyboard interactions in Edge.
+   const cdp=await context.newCDPSession(page);await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});
+   await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='Salir del modo enfoque');
    await kg.focus();
    await page.evaluate(()=>{Object.defineProperty(visualViewport,'height',{configurable:true,value:500});visualViewport.dispatchEvent(new Event('resize'))});
    await page.waitForTimeout(100);assert.ok((await focus.boundingBox()).height<=500);
@@ -120,25 +144,43 @@ try {
    await kg.scrollIntoViewIfNeeded();assert.ok((await kg.boundingBox()).y+(await kg.boundingBox()).height<=500,'Input above overlay keyboard');
    await page.evaluate(()=>{delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))});
    await page.setViewportSize({width,height:500});await page.waitForTimeout(100);assert.equal(await focus.locator('.workout-focus-controls').isVisible(),false);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.setViewportSize({width,height:844});await kg.blur();await page.waitForTimeout(100);
+   await cdp.detach();
   }
   await focus.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();
   const interval=page.locator('.portal-routine-block').first();await interval.locator('.portal-routine-block-heading').click();
   const blockTimer=page.getByRole('region',{name:'Cronómetro INTERVAL'});await blockTimer.getByRole('button',{name:'Iniciar',exact:true}).click();
   await blockTimer.getByRole('button',{name:'Pausar',exact:true}).click();assert.equal(await blockTimer.getAttribute('data-timer-status'),'paused');await blockTimer.getByRole('button',{name:'Continuar',exact:true}).click();
-  await blockTimer.getByRole('button',{name:'Finalizar bloque',exact:true}).click();
-  await page.getByRole('button',{name:'Entrenar en modo enfoque',exact:true}).click();
+  await blockTimer.getByRole('button',{name:'Pausar',exact:true}).click();
+  await firstCard.getByRole('button',{name:/^(Entrenar|Continuar) Sentadillas con barra$/}).click();
   await page.waitForTimeout(500);
   // Copy already prepared: no new required requests; data and edits survive offline reload.
   await page.waitForFunction(async()=>!!(await (await caches.open('bm-public-offline-v1')).match('/portal/offline')));
-  await context.setOffline(true);await page.reload({waitUntil:'domcontentloaded'});await page.getByText('Modo sin conexión',{exact:true}).waitFor();
-  await page.getByRole('button',{name:'Entrenar en modo enfoque',exact:true}).click();
+  await context.setOffline(true);await page.reload({waitUntil:'domcontentloaded'});
+  await page.getByText('Modo sin conexión',{exact:true}).waitFor();
+  await firstCard.getByRole('button',{name:/^(Entrenar|Continuar) Sentadillas con barra$/}).click();
   assert.equal(await kg.inputValue(),'52');assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),true);
   await focus.getByLabel('Reps de la serie 1',{exact:true}).fill('11');
   for(let i=0;i<3;i++){
    const checkboxes=focus.locator('.portal-routine-exercise:not([hidden]) input[type="checkbox"]');
-   for(let s=0;s<await checkboxes.count();s++)await checkboxes.nth(s).check();
+   for(let s=0;s<await checkboxes.count();s++){
+    await assertNoClosure();
+    await checkboxes.nth(s).check();
+   }
    if(i<2)await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
   }
+  await assertNoClosure(); // A pending timed block keeps the existing session incomplete.
+  await focus.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();
+  await interval.locator('.portal-routine-block-heading').click();
+  await blockTimer.getByRole('button',{name:'Continuar',exact:true}).click();
+  await blockTimer.getByRole('button',{name:'Finalizar bloque',exact:true}).click();
+  await cards.nth(2).getByRole('button',{name:'Continuar Prensa de piernas',exact:true}).click();
+  await focus.getByText('Entrenamiento completado',{exact:true}).waitFor();
+  await focus.getByLabel('Serie 5 completada',{exact:true}).uncheck();await assertNoClosure();
+  await focus.getByLabel('Serie 5 completada',{exact:true}).check();
+  await focus.getByText('Entrenamiento completado',{exact:true}).waitFor();
+  await focus.getByRole('button',{name:'Anterior',exact:true}).click();await assertNoClosure();
+  await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
+  await focus.getByText('Entrenamiento completado',{exact:true}).waitFor();
   await focus.locator('.workout-focus-list summary').click();
   assert.equal(await focus.locator('.workout-focus-list [data-completed="true"]').count(),3);
   await focus.getByRole('button',{name:'Finalizar entrenamiento',exact:true}).click();

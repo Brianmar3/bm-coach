@@ -102,12 +102,14 @@ test("finalizar entrenamiento reutiliza el overlay seguro y conserva sus accione
   assert.match(finalModal, /min-h-0 overflow-y-auto/);
 });
 
-test("abre el primer ejercicio incompleto y mantiene un único acordeón controlado", () => {
+test("el recorrido inicia colapsado y mantiene un único detalle manual controlado", () => {
   const exercises = [
     { exerciseId: "done", sets: [{ completed: true }] },
     { exerciseId: "current", sets: [{ completed: true }, { completed: false }] },
   ];
   assert.equal(initialOpenExerciseId(exercises), "current");
+  assert.match(source, /\[openExerciseId, setOpenExerciseId\] = useState<string \| null>\(null\)/);
+  assert.doesNotMatch(source, /setOpenExerciseId\(initialOpenExerciseId/);
   assert.match(source, /openExerciseId === exercise\.exerciseId/);
   assert.match(source, /aria-expanded=\{open\}/);
   assert.match(source, /setOpenExerciseId\(open \? null : exercise\.exerciseId\)/);
