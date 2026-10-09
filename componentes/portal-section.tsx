@@ -27,6 +27,7 @@ import { freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS } from "@/li
 import { isTimedBlockType } from "@/lib/block-timer";
 import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
 import { ExerciseRestTimer, useExerciseRestTimer } from "@/componentes/exercise-rest-timer";
+import { WorkoutFocusControls, WorkoutFocusHeader, WorkoutFocusIdentity, WorkoutFocusList, WorkoutFocusMedia } from "@/componentes/workout-focus";
 import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-dashboard";
 import { RoutineExerciseMediaButton } from "@/componentes/routine-exercise-media";
 import { RoutineOverlay } from "@/componentes/routine-overlay";
@@ -655,6 +656,8 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   const [warmupOpen, setWarmupOpen] = useState(false);
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(() => initialOpenExerciseId(inProgress?.exercises ?? []));
   const [openBlockId, setOpenBlockId] = useState<string | null>(null);
+  const [focusExerciseId, setFocusExerciseId] = useState<string | null>(null);
+  const focusRootRef = useRef<HTMLDivElement | null>(null);
   const exerciseRestTimer = useExerciseRestTimer();
   const autosaveSignature = useRef("");
   const autosaveAbortRef = useRef<AbortController | null>(null);
@@ -665,6 +668,28 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
+  const focusViewportActive = Boolean(focusExerciseId && draft && !completionSuccess);
+  useEffect(() => {
+    if (!focusViewportActive) return;
+    const root = focusRootRef.current;
+    const viewport = window.visualViewport;
+    const fitViewport = () => {
+      if (!root || (viewport && Math.abs(viewport.scale - 1) > .05)) return;
+      root.style.setProperty("--focus-viewport-height", `${Math.min(window.innerHeight, viewport?.height ?? window.innerHeight)}px`);
+      root.style.setProperty("--focus-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+    };
+    fitViewport();
+    viewport?.addEventListener("resize", fitViewport);
+    viewport?.addEventListener("scroll", fitViewport);
+    window.addEventListener("resize", fitViewport);
+    return () => {
+      viewport?.removeEventListener("resize", fitViewport);
+      viewport?.removeEventListener("scroll", fitViewport);
+      window.removeEventListener("resize", fitViewport);
+      root?.style.removeProperty("--focus-viewport-height");
+      root?.style.removeProperty("--focus-viewport-top");
+    };
+  }, [focusViewportActive]);
 
   useEffect(() => {
     const delay = Math.max(1_000, getLocalWeekEnd().getTime() - Date.now() + 1_001);
@@ -725,6 +750,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
     if (started && draft?.status === "en_progreso" && dayId !== draft.dayId && !window.confirm("Hay un entrenamiento en progreso. Se conservará por separado. ¿Querés cambiar de día?")) return;
     const next = freshDraft(dayId);
     setSelectedDayId(dayId);
+    setFocusExerciseId(null);
     setDraft(next);
     setOpenExerciseId(initialOpenExerciseId(next?.exercises ?? []));
     setStarted(next?.status === "en_progreso" && Boolean(next.id || offlineWorkoutDraft(routine?.id ?? "", dayId, weekKey) || window.localStorage.getItem(storageKey(dayId))));
@@ -780,7 +806,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
       if (shouldAdvance) {
         const nextExerciseId = nextIncompleteExerciseId(saved.exercises, exercise.exerciseId);
         setOpenExerciseId(nextExerciseId);
-        if (nextExerciseId) window.requestAnimationFrame(() => exerciseHeaderRefs.current.get(nextExerciseId)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
+        if (nextExerciseId && !focusExerciseId) window.requestAnimationFrame(() => exerciseHeaderRefs.current.get(nextExerciseId)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
       }
     } catch (value) {
       autosaveSignature.current = "";
@@ -883,6 +909,26 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
     setAllowIncomplete(false);
     setFinalOpen(true);
   }
+  function focusExercise(id: string) {
+    setFocusExerciseId(id);
+    setOpenExerciseId(id);
+    window.requestAnimationFrame(() => {
+      document.querySelector(".workout-focus-body")?.scrollTo({ top: 0 });
+      if (!focusExerciseId) document.querySelector<HTMLButtonElement>('[aria-label="Salir del modo enfoque"]')?.focus({ preventScroll: true });
+    });
+  }
+  function exitFocus() {
+    const id = focusExerciseId;
+    setFocusExerciseId(null);
+    if (id) {
+      setOpenExerciseId(id);
+      window.requestAnimationFrame(() => {
+        const header = exerciseHeaderRefs.current.get(id);
+        header?.scrollIntoView({ block: "center" });
+        header?.focus({ preventScroll: true });
+      });
+    }
+  }
   if (!routine || !selectedDay) return <PageHeader title="Mi rutina" subtitle="Tu planificación activa"><Notice>Todavía no tenés una rutina activa.</Notice></PageHeader>;
   const totalSets = draft?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
   const completedTotal = draft?.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).length, 0) ?? 0;
@@ -903,8 +949,25 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   const dayProgress = totalBlocks ? completedBlocks / totalBlocks * 100 : 0;
   const dayStateLabel = completedBlocks === totalBlocks && totalBlocks ? "Completado" : started ? "En curso" : "Sin comenzar";
   const incomplete = completedActivities < totalActivities;
+  const focusIndex = draft?.exercises.findIndex((exercise) => exercise.exerciseId === focusExerciseId) ?? -1;
+  const focused = focusIndex >= 0 && !completionSuccess;
+  const focusExerciseData = focused ? draft?.exercises[focusIndex] : undefined;
+  // A running rest belongs to its original exercise even after Previous/Next.
+  const timerExercise = draft?.exercises.find((exercise) => exercise.exerciseId === exerciseRestTimer.timer?.exerciseId && ["running", "paused"].includes(exerciseRestTimer.timer.status)) ?? focusExerciseData;
+  const timerProgrammed = selectedDay.exercises.find((exercise) => exercise.id === timerExercise?.exerciseId);
   return <>
-    <div className="portal-routine-screen">
+    <div ref={focusRootRef} className={`portal-routine-screen ${focused ? "workout-focus" : ""}`} role={focused ? "dialog" : undefined} aria-modal={focused ? true : undefined} aria-label={focused ? "Modo enfoque" : undefined} onKeyDown={(event) => {
+      if (!focused || finalOpen || !event.currentTarget.contains(event.target as Node)) return;
+      if (event.key === "Escape") exitFocus();
+      if (event.key === "Tab") {
+        const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), summary, a[href], select, textarea')).filter((element) => element.getClientRects().length > 0);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    }}>
+    {focused && draft && <WorkoutFocusHeader index={focusIndex} total={draft.exercises.length} onExit={exitFocus} />}
+    <div hidden={focused}>
     <header className="portal-routine-enter mb-3 px-1"><p className="text-xs font-bold uppercase tracking-[.2em] text-[var(--brand-text)]/80">Tu plan activo</p><p className="mt-1 text-sm font-semibold text-zinc-300">{routineDisplayName}</p></header>
     <div aria-label="Días de la rutina" className="portal-routine-enter mb-4 flex w-fit max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{trainingDays.map((day) => {
       const usefulName = usefulDayName(day.dayNumber, day.name);
@@ -922,22 +985,26 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
     </section>
     {selectedDay.warmup.trim() && <button type="button" onClick={() => setWarmupOpen(true)} className="portal-routine-warmup portal-routine-enter mb-4 flex min-h-20 w-full items-center gap-3 rounded-3xl border px-4 py-3 text-left outline-none transition hover:border-yellow-400/45 focus-visible:ring-2 focus-visible:ring-yellow-300"><span className="grid size-12 shrink-0 place-items-center rounded-full border border-yellow-300/60 text-[var(--brand-text)]"><BmFlameIcon size={24} /></span><span className="min-w-0 flex-1"><strong className="block text-base text-zinc-100">Entrada en calor</strong><span className="mt-1 block text-xs text-[var(--foreground-muted)]">Prepará tu cuerpo para entrenar</span></span><BmChevronRightIcon size={22} className="shrink-0 text-[var(--brand-text)]" /></button>}
     <div className="portal-routine-enter mb-4 flex items-center gap-3 px-1"><BmSlidersIcon size={20} className="text-[var(--brand-text)]" /><h2 className="shrink-0 text-sm font-black uppercase tracking-[.2em] text-[var(--brand-text)]">Recorrido de hoy</h2><span className="h-px flex-1 bg-gradient-to-r from-yellow-400/40 to-transparent" /></div>
+    </div>
     {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento guardado correctamente</div>}
     {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-[var(--foreground-muted)]">Preparando ejercicios…</p>}
     <RoutineOverlay open={warmupOpen} onClose={() => setWarmupOpen(false)} labelledBy="warmup-title"><header className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-800 p-4 sm:p-5"><div className="min-w-0"><h2 id="warmup-title" className="text-lg font-black">Entrada en calor</h2><p className="mt-1 text-sm text-[var(--brand-text)]">Día {selectedDay.dayNumber} · {selectedDay.objective || selectedDay.name}</p></div><button type="button" onClick={() => setWarmupOpen(false)} aria-label="Cerrar entrada en calor" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-[var(--foreground-muted)] outline-none hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300"><BmCloseIcon size={22} /></button></header><div className="min-h-0 overflow-y-auto p-4 sm:p-5"><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">{selectedDay.warmup}</p><button type="button" onClick={() => setWarmupOpen(false)} className="mt-5 min-h-11 w-full rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-200">Cerrar</button></div></RoutineOverlay>
-    <div className="portal-routine-timeline">{draft && conditioningBlocks.map((programmed) => {
+    <div className="portal-routine-timeline" hidden={focused}>{draft && conditioningBlocks.map((programmed) => {
       const block = (draft.blocks ?? []).find((item) => item.blockId === programmed.id);
       return block ? <div key={block.blockId} className="portal-routine-timeline-row portal-routine-enter"><WorkoutBlockCard block={block} programmed={programmed} libraryMediaEnabled={data.exerciseMediaEnabled} timerPersistenceKey={`${storageKey(selectedDay.id)}:timer:${block.blockId}`} open={openBlockId === block.blockId} toggle={() => setOpenBlockId(openBlockId === block.blockId ? null : block.blockId)} update={(changes) => updateBlockResult(block.blockId, changes)} complete={(changes) => completeBlockResult(block.blockId, changes)} /></div> : null;
     })}</div>
     {draft && <>
+      <div className={focused ? "workout-focus-body" : "contents"}>
       <div className="mt-5 space-y-3">{draft.exercises.map((exercise, exerciseIndex) => {
         const programmed = selectedDay.exercises.find((item) => item.id === exercise.exerciseId);
         const instructions = separateWorkoutInstructions(programmed?.observations);
         const completedSets = exercise.sets.filter((set) => set.completed).length;
-        const open = openExerciseId === exercise.exerciseId;
+        const open = focused ? focusExerciseId === exercise.exerciseId : openExerciseId === exercise.exerciseId;
         const completed = completedSets === exercise.sets.length && exercise.sets.length > 0;
-        return <article key={exercise.exerciseId} className={`portal-routine-exercise overflow-hidden rounded-2xl border transition ${open ? "border-yellow-400/25 shadow-[0_12px_28px_rgba(0,0,0,.22)]" : "border-zinc-800"}`}>
-          <div className="relative">
+        return <article key={exercise.exerciseId} hidden={focused && focusExerciseId !== exercise.exerciseId} className={`portal-routine-exercise overflow-hidden rounded-2xl border transition ${open ? "border-yellow-400/25 shadow-[0_12px_28px_rgba(0,0,0,.22)]" : "border-zinc-800"}`}>
+          {focused && open && programmed && <WorkoutFocusMedia key={exercise.exerciseId} exercise={programmed} libraryMediaEnabled={data.exerciseMediaEnabled} />}
+          {focused && open && <WorkoutFocusIdentity name={exercise.exerciseName} muscles={programmed?.muscleGroup} previous={exercise.previous} />}
+          <div className="relative" hidden={focused}>
           <button ref={(node) => { if (node) exerciseHeaderRefs.current.set(exercise.exerciseId, node); else exerciseHeaderRefs.current.delete(exercise.exerciseId); }} type="button" aria-expanded={open} aria-controls={`exercise-${exercise.exerciseId}`} onClick={() => setOpenExerciseId(open ? null : exercise.exerciseId)} className="w-full scroll-mt-24 p-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-yellow-300">
             <span className="flex items-start gap-3"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-black ${completed ? "bg-emerald-400/10 text-emerald-300" : "bg-yellow-400/10 text-[var(--brand-text)]"}`}>{completed ? "✓" : exerciseIndex + 1}</span><span className="min-w-0 flex-1 pr-28"><span className="block truncate text-sm font-bold text-zinc-100">{exercise.exerciseName}</span><span className="mt-1 block text-[11px] leading-relaxed text-[var(--foreground-muted)]">{programmed ? `${programmed.sets} series · ${programmed.repetitions} reps${programmed.restSeconds !== null ? ` · ${programmed.restSeconds} s` : ""}${programmed.weight !== null ? ` · ${programmed.weight} kg` : ""}` : `${exercise.sets.length} series`}</span></span><span className="shrink-0 text-right"><span className="block text-[11px] font-semibold text-[var(--foreground-muted)]">{completedSets}/{exercise.sets.length}</span><span aria-hidden="true" className={`mt-1 block text-sm text-[var(--brand-text)] transition-transform ${open ? "rotate-180" : ""}`}>⌄</span></span></span>
             <span className="portal-routine-track mt-3 block h-1 overflow-hidden rounded-full"><span className="block h-full rounded-full bg-yellow-400 transition-[width]" style={{ width: `${exercise.sets.length ? completedSets / exercise.sets.length * 100 : 0}%` }} /></span>
@@ -946,19 +1013,25 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
           </div>
           {instructions.structural.length > 0 && <div data-structural-instructions className="space-y-2 border-t border-yellow-400/10 bg-yellow-400/[.035] px-3 py-3 sm:px-4">{instructions.structural.map((instruction) => <div key={`${instruction.label}-${instruction.text}`} className="flex items-start gap-2.5 rounded-xl border border-yellow-400/20 bg-zinc-950/70 px-3 py-2.5"><span className="mt-0.5 shrink-0 rounded-md bg-yellow-400/10 px-2 py-1 text-[11px] font-black tracking-wide text-[var(--brand-text)]">{instruction.label}</span><p className="min-w-0 text-xs leading-relaxed text-zinc-200">{instruction.text}</p></div>)}</div>}
           {open && <div id={`exercise-${exercise.exerciseId}`} className="border-t border-zinc-800 px-3 pb-4 pt-3 sm:px-4">
-            <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-muted)]">{programmed?.muscleGroup ? <span>{programmed.muscleGroup}</span> : <span />}{exercise.previous ? <span>Última: {exercise.previous.weight ?? "—"} kg × {exercise.previous.repetitions ?? "—"} · {date(exercise.previous.date)}</span> : <span>Sin registros anteriores</span>}</div>
-            <div className="portal-routine-sets overflow-hidden rounded-xl border">
+            {!focused && <button type="button" className="workout-focus-button mb-3 w-full" onClick={() => focusExercise(exercise.exerciseId)}><BmPlayIcon size={20} />Entrenar en modo enfoque</button>}
+            <div hidden={focused} className="mb-3 flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-muted)]">{programmed?.muscleGroup ? <span>{programmed.muscleGroup}</span> : <span />}{exercise.previous ? <span>Última: {exercise.previous.weight ?? "—"} kg × {exercise.previous.repetitions ?? "—"} · {date(exercise.previous.date)}</span> : <span>Sin registros anteriores</span>}</div>
+            <div className="portal-routine-sets overflow-hidden rounded-xl border" onFocusCapture={() => { if (!focused) setFocusExerciseId(exercise.exerciseId); }} onChangeCapture={() => { if (!focused) setFocusExerciseId(exercise.exerciseId); }}>
               <div aria-hidden="true" className="grid grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-1 border-b border-zinc-800 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-[var(--foreground-muted)]"><span>Serie</span><span>Kg</span><span>Reps</span><span>{programmed?.effortType ?? "RIR"}</span><span>✓</span></div>
-              {exercise.sets.map((set, setIndex) => <div key={set.setNumber} className={`grid grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-1 border-b border-zinc-800/70 px-2 py-0 last:border-0 ${set.completed ? "portal-routine-set-complete" : ""}`}><span className="text-center text-xs font-black text-[var(--brand-text)]">{set.setNumber}</span><label><span className="sr-only">Kilogramos de la serie {set.setNumber}</span><input aria-label={`Kg de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" step=".25" value={set.weight ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { weight: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">Repeticiones de la serie {set.setNumber}</span><input aria-label={`Reps de la serie ${set.setNumber}`} inputMode="numeric" type="number" min="0" value={set.repetitions ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { repetitions: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">{programmed?.effortType ?? "RIR"} de la serie {set.setNumber}</span><input aria-label={`${programmed?.effortType ?? "RIR"} de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" max="10" step=".5" value={set.effort ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { effort: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label className="grid min-h-10 place-items-center"><span className="sr-only">Serie {set.setNumber} completada</span><input aria-label={`Serie ${set.setNumber} completada`} type="checkbox" checked={set.completed} onChange={(event) => void updateSetCompletion(exerciseIndex, setIndex, event.target.checked)} className="h-5 w-5 accent-yellow-400" /></label></div>)}
+              {exercise.sets.map((set, setIndex) => <div key={set.setNumber} data-current={!set.completed && setIndex === exercise.sets.findIndex((item) => !item.completed)} className={`grid grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-1 border-b border-zinc-800/70 px-2 py-0 last:border-0 ${set.completed ? "portal-routine-set-complete" : ""}`}><span className="text-center text-xs font-black text-[var(--brand-text)]">{set.setNumber}</span><label><span className="sr-only">Kilogramos de la serie {set.setNumber}</span><input aria-label={`Kg de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" step=".25" value={set.weight ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { weight: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">Repeticiones de la serie {set.setNumber}</span><input aria-label={`Reps de la serie ${set.setNumber}`} inputMode="numeric" type="number" min="0" value={set.repetitions ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { repetitions: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label><span className="sr-only">{programmed?.effortType ?? "RIR"} de la serie {set.setNumber}</span><input aria-label={`${programmed?.effortType ?? "RIR"} de la serie ${set.setNumber}`} inputMode="decimal" type="number" min="0" max="10" step=".5" value={set.effort ?? ""} onChange={(event) => updateSet(exerciseIndex, setIndex, { effort: event.target.value ? Number(event.target.value) : null })} className="min-h-10 w-full min-w-0 rounded-lg border border-zinc-700 bg-black px-1 text-center text-sm text-white outline-none focus:border-yellow-400" /></label><label className="grid min-h-10 place-items-center"><span className="sr-only">Serie {set.setNumber} completada</span><input aria-label={`Serie ${set.setNumber} completada`} type="checkbox" checked={set.completed} onChange={(event) => void updateSetCompletion(exerciseIndex, setIndex, event.target.checked)} className="h-5 w-5 accent-yellow-400" /></label></div>)}
             </div>
             {instructions.technicalText && <details className="mt-3 rounded-xl border border-zinc-800 bg-black/30 px-3 py-2 text-sm text-[var(--foreground-muted)]"><summary className="cursor-pointer list-none font-semibold text-[var(--brand-text)] outline-none focus-visible:ring-2 focus-visible:ring-yellow-300">Indicaciones</summary><div className="mt-3 border-t border-zinc-800 pt-3"><p className="whitespace-pre-line text-xs leading-relaxed text-zinc-300">{instructions.technicalText}</p></div></details>}
-            {programmed && <RoutineExerciseMediaButton exercise={programmed} libraryMediaEnabled={data.exerciseMediaEnabled} separated />}
+            {!focused && programmed && <RoutineExerciseMediaButton exercise={programmed} libraryMediaEnabled={data.exerciseMediaEnabled} separated />}
             {exercise.history.length > 0 && <details className="portal-routine-history mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold text-[var(--foreground-muted)]">Historial anterior ({exercise.history.length})</summary><div className="mt-2 grid gap-2 sm:grid-cols-2">{exercise.history.map((item, index) => <p key={`${item.date}-${index}`} className="rounded-lg bg-zinc-950 p-2 text-xs text-[var(--foreground-muted)]">{date(item.date)} · {item.weight ?? "—"} kg · {item.repetitions ?? "—"} reps · esfuerzo {item.effort ?? "—"}</p>)}</div></details>}
           </div>}
         </article>;
       })}</div>
+      {focused && focusExerciseData && <>
+        <WorkoutFocusList exercises={draft.exercises} activeId={focusExerciseData.exerciseId} onSelect={focusExercise} />
+      </>}
+      </div>
+      {focused && timerExercise && <WorkoutFocusControls exercise={timerExercise} durationSeconds={timerProgrammed?.restSeconds ?? null} index={focusIndex} total={draft.exercises.length} onPrevious={() => { const previous = draft.exercises[focusIndex - 1]; if (previous) focusExercise(previous.exerciseId); }} onNext={() => { const next = draft.exercises[focusIndex + 1]; if (next) focusExercise(next.exerciseId); }} />}
       <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 p-3 max-[340px]:grid-cols-1 md:ml-auto md:flex md:max-w-xl md:justify-end"><button type="button" disabled={saving || !started} onClick={() => save(false)} className="min-h-11 min-w-0 rounded-xl border border-yellow-400/40 px-3 py-2.5 text-xs font-bold text-[var(--brand-text)] outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 disabled:opacity-50 md:text-sm">{savingAction === "draft" ? "Guardando…" : "Guardar progreso"}</button><button type="button" disabled={saving || !started} onClick={openFinalSummary} className="min-h-11 min-w-0 rounded-xl bg-yellow-400 px-3 py-2.5 text-xs font-black text-zinc-950 outline-none focus-visible:ring-2 focus-visible:ring-yellow-100 disabled:opacity-50 md:text-sm">Finalizar entrenamiento</button></div>
-      {!selfService && hasPersonalizedService(data.profile.serviceType) && <div className="mt-5 border-t border-zinc-800 pt-5"><PortalActionCard href="/portal/progreso" ariaLabel="Ver mi progreso" title="Ver mi progreso" subtitle="Historial, evolución y avances" icon={<BmProgressIcon size={20} />} /></div>}
+      {!focused && !selfService && hasPersonalizedService(data.profile.serviceType) && <div className="mt-5 border-t border-zinc-800 pt-5"><PortalActionCard href="/portal/progreso" ariaLabel="Ver mi progreso" title="Ver mi progreso" subtitle="Historial, evolución y avances" icon={<BmProgressIcon size={20} />} /></div>}
       <RoutineOverlay open={finalOpen} onClose={() => { if (!saving) setFinalOpen(false); }} labelledBy="workout-summary-title" maxWidth="max-w-xl" closeOnBackdrop={!saving}><header className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-800 p-5"><div><h2 id="workout-summary-title" className="text-xl font-bold">Finalizar entrenamiento</h2><p className="mt-1 text-sm text-[var(--foreground-muted)]">{completedTotal} de {totalSets} series{draft.durationMinutes ? ` · ${draft.durationMinutes} min` : " · duración pendiente"}</p></div><button type="button" onClick={() => setFinalOpen(false)} disabled={saving} aria-label="Cerrar finalización" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-700 text-[var(--foreground-muted)] outline-none hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300 disabled:opacity-50"><BmCloseIcon size={22} /></button></header><div className="min-h-0 overflow-y-auto p-5">
         {incomplete && !allowIncomplete ? <div className="portal-finish-warning mt-5 rounded-xl border border-orange-400/40 bg-orange-400/10 p-4"><p className="font-semibold text-orange-200">Todavía quedan ejercicios o series sin completar.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => setFinalOpen(false)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm">Continuar entrenando</button><button onClick={() => { save(false); setFinalOpen(false); }} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-[var(--brand-text)]">Guardar para continuar después</button><button onClick={() => setAllowIncomplete(true)} className="rounded-lg bg-orange-300 px-3 py-2 text-sm font-bold text-zinc-950">Finalizar igualmente</button></div></div> : <div className="mt-5 space-y-4"><Field label="Sensación general"><select value={sensation} onChange={(event) => setSensation(event.target.value)} className={`${portalInput} mt-1`}><option value="">Seleccionar</option><option>Muy buena</option><option>Buena</option><option>Normal</option><option>Difícil</option><option>Muy difícil</option></select></Field><Field label="Duración calculada (min)"><input inputMode="numeric" type="number" min="1" max="1440" placeholder="Ej: 45" value={draft.durationMinutes ?? ""} onChange={(event) => setDraft({ ...draft, durationMinutes: event.target.value === "" ? null : Number(event.target.value) })} className={`${portalInput} mt-1`} /></Field><label className="flex min-w-0 items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/[.05] p-3.5 text-red-100"><input type="checkbox" checked={draft.hasPain} onChange={(event) => setDraft({ ...draft, hasPain: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-red-400" /><span className="min-w-0"><strong className="block text-sm font-semibold">Dolor o molestias</strong><small className="mt-1 block text-xs font-normal leading-relaxed text-[var(--foreground-muted)]">Marcá esta opción si sentiste dolor durante la sesión.</small></span></label>{draft.hasPain && <div className="grid gap-3 sm:grid-cols-2"><Field label="Zona"><input value={painLocation} onChange={(event) => setPainLocation(event.target.value)} className={`${portalInput} mt-1`} /></Field><Field label="Intensidad (1 a 10)"><input type="number" min="1" max="10" value={painIntensity ?? ""} onChange={(event) => setPainIntensity(event.target.value ? Number(event.target.value) : null)} className={`${portalInput} mt-1`} /></Field><Field label="Comentario"><textarea value={draft.painDetails} onChange={(event) => setDraft({ ...draft, painDetails: event.target.value })} rows={2} className={`${portalInput} mt-1 sm:col-span-2`} /></Field></div>}<Field label="Comentario final (opcional)"><textarea value={draft.finalComment} onChange={(event) => setDraft({ ...draft, finalComment: event.target.value })} rows={3} className={`${portalInput} mt-1`} /></Field><button disabled={saving || draft.durationMinutes === null || !sensation || (draft.hasPain && (!painLocation.trim() || painIntensity === null))} onClick={() => save(true)} className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:opacity-50">{savingAction === "final" ? "Finalizando…" : "Confirmar y finalizar"}</button></div>}
       </div></RoutineOverlay></>}
