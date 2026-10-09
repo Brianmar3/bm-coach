@@ -75,7 +75,7 @@ export function OfflineTrainingPage() {
     <PortalHeader branding={snapshot.branding} profileImageUrl={identity?.scope === snapshot.scope ? identity.images.avatar : undefined} cachedLogo={identity?.scope === snapshot.scope ? identity.images.logo : undefined} studentName="" actions={<button type="button" onClick={() => { void logoutOfflineTraining().then((closed) => { if (closed) window.location.assign("/portal/login"); }); }} className="min-h-11 px-3 text-xs">Cerrar sesión</button>}>
       <nav aria-label="Navegación del portal" className="mx-auto hidden max-w-6xl gap-5 px-5 pb-2 md:flex"><a href="/portal" className="py-2">Inicio</a><a href="/portal/rutina" className="py-2">Rutina</a></nav>
     </PortalHeader>
-    <main className="mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12"><OfflineTrainingBridge />{home ? <OfflineRoutineHome data={data} /> : <WorkoutView data={data} />}</main>
+    <main className="portal-nav-content mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12"><OfflineTrainingBridge />{home ? <OfflineRoutineHome data={data} /> : <WorkoutView data={data} />}</main>
     <nav aria-label="Navegación móvil del portal" className={PORTAL_MOBILE_NAV_CLASS} style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }}><PortalNavigationLink title="Inicio" href="/portal" Icon={BmHomeIcon} active={home} /><PortalNavigationLink title="Rutina" href="/portal/rutina" Icon={BmRoutineIcon} active={!home} /></nav>
   </div></RestTimerProvider></WorkspaceBrandingValueProvider>;
 }

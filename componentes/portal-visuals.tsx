@@ -5,6 +5,7 @@ import type { BmIconProps } from "@/componentes/icons";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
 import { DEFAULT_WORKSPACE_BRANDING, type WorkspaceBranding } from "@/lib/workspace-branding";
+import { PortalKeyboardBehavior } from "@/componentes/portal-keyboard-behavior";
 
 export function PortalProfileAvatar({ src, name }: { src?: string; name: string }) {
   return <div className="size-28 shrink-0 overflow-hidden rounded-full border border-yellow-300/65 bg-black shadow-[0_0_28px_rgba(250,204,21,.14)] sm:size-40"><StudentPhoto src={src || DEFAULT_PROFILE_AVATAR.src} alt={`Avatar de ${name}`} className="h-full w-full object-cover" /></div>;
@@ -12,6 +13,7 @@ export function PortalProfileAvatar({ src, name }: { src?: string; name: string 
 
 export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perfil", studentName, profileImageUrl = "", cachedLogo, branding = DEFAULT_WORKSPACE_BRANDING, actions, children }: { homeHref?: string; profileHref?: string; studentName: string; profileImageUrl?: string; cachedLogo?: string; branding?: WorkspaceBranding; actions?: ReactNode; children?: ReactNode }) {
   return <header className="portal-header sticky top-0 z-30 overflow-hidden rounded-b-[24px] border-b border-yellow-400/20 bg-black/95 pt-[env(safe-area-inset-top)] shadow-[0_8px_30px_rgba(0,0,0,.35)] backdrop-blur-xl">
+        <PortalKeyboardBehavior />
         <div className="mx-auto flex h-[4.5rem] max-w-6xl min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-5">
           <Link
             href={homeHref}

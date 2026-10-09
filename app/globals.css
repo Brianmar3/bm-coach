@@ -1373,3 +1373,9 @@ html[data-theme="light"] .workspace-brand .portal-ranking-page .portal-ranking-w
   .bm-celebration-content, .bm-celebration-emblem { animation: none; }
   .bm-celebration-confetti { display: none; }
 }
+
+@media (max-width: 767px) {
+  html[data-portal-keyboard="open"] .portal-mobile-nav { display: none; }
+  html[data-portal-keyboard="open"] .portal-nav-content { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  html[data-portal-keyboard="open"] .portal-nav-content :is(input, textarea, [contenteditable="true"]) { scroll-margin-block: 1rem; }
+}

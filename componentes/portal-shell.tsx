@@ -170,7 +170,7 @@ export function PortalShell({
         </nav>
       </PortalHeader>
 
-      <main key={pathname} className="portal-route-enter mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12">
+      <main key={pathname} className="portal-nav-content portal-route-enter mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12">
         {(serviceType === "PERSONALIZED" || serviceType === "MIXED") && <OfflineTrainingBridge />}
         {children}
       </main>
