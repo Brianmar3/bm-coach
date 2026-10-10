@@ -14,7 +14,7 @@ test("Clases y Personalizado integran Registro rápido en la navegación sin FAB
   assert.match(shell, /links\.length \+ \(showNavigationQuickLog \? 1 : 0\)/);
   assert.doesNotMatch(home, /QuickNoteButton/);
   assert.doesNotMatch(shell, /portal-quick-note-bottom/);
-  const triggerStyles = quickLog.slice(quickLog.indexOf("const className"), quickLog.indexOf("type QuickCategory"));
+  const triggerStyles = quickLog.slice(quickLog.indexOf("const className"), quickLog.indexOf("const KIND_LABEL"));
   assert.doesNotMatch(triggerStyles, /\bfixed\b/);
 });
 
@@ -22,11 +22,11 @@ test("Mixto conserva su navegación y enlaza al mismo historial desde Clases", (
   assert.match(classesPage, /serviceType === "MIXED"/);
   assert.match(classesPage, /showQuickLogAction=/);
   assert.match(classes, /showQuickLogAction && <QuickNoteButton placement="inline"/);
-  assert.match(quickLog, /href="\/portal\/registro"/);
+  assert.match(quickLog, /href="\/portal\/registro\?new=1"/);
 });
 
 test("el acceso integrado es táctil, accesible y no depende de offsets del Home", () => {
-  assert.match(quickLog, /aria-label="Abrir mis registros"/);
+  assert.match(quickLog, /aria-label="Abrir registro rápido"/);
   assert.match(quickLog, /h-14 w-14 aspect-square/);
   assert.match(quickLog, /rounded-full/);
   assert.match(quickLog, /-translate-y-2/);
@@ -37,17 +37,17 @@ test("el acceso integrado es táctil, accesible y no depende de offsets del Home
 
 test("Registro rápido se crea dentro de Mis registros sin overlay", () => {
   assert.match(quickLog, /creating \? <GuidedQuickLogForm/);
-  assert.match(quickLog, /mt-5 overflow-hidden rounded-3xl/);
+  assert.match(quickLog, /overflow-hidden rounded-3xl/);
   assert.doesNotMatch(quickLog, /quick-log-sheet|fixed inset-0 z-\[70\]|overflow-y-auto overscroll-contain/);
 });
 
 test("el acceso central navega sin montar el formulario sobre la pantalla actual", () => {
-  const trigger = quickLog.slice(quickLog.indexOf("export function QuickNoteButton"), quickLog.indexOf("type QuickCategory"));
-  assert.match(trigger, /<Link href="\/portal\/registro"/);
+  const trigger = quickLog.slice(quickLog.indexOf("export function QuickNoteButton"), quickLog.indexOf("const KIND_LABEL"));
+  assert.match(trigger, /<Link href="\/portal\/registro\?new=1"/);
   assert.doesNotMatch(trigger, /useState|GuidedQuickLogForm|setOpen/);
 });
 
 test("las opciones actuales son genéricas y no cargan asistencia de clase", () => {
-  assert.match(quickLog, /"strength", "circuit", "other"/);
+  assert.match(quickLog, /Otro tipo de registro/);
   assert.doesNotMatch(quickLog, /ClassAttendance|asistencia presencial|clase presencial/i);
 });

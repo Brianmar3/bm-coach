@@ -1630,3 +1630,12 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
 @media(min-width:640px) { .portal-evaluation .evaluation-section,.portal-evaluation .evaluation-hero { padding: 1.25rem; } .evaluation-measurements { grid-template-columns: 1fr 1fr; column-gap: 2rem; } }
 
 .portal-evaluation svg[aria-label^="Figura corporal"] { width: 100%; height: auto; max-height: 256px; }
+
+.quick-log-create .input {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--foreground);
+  scroll-margin-block: 1rem;
+}
+.quick-log-create .input:focus { border-color: var(--bm-accent); }
+.quick-log-create button:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 3px; }

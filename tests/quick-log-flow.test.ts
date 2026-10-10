@@ -16,27 +16,25 @@ const summaryLog = (values: Partial<Parameters<typeof quickLogSummary>[0]>): Par
   repetitions: null, durationMinutes: null, currentValue: null, previousValue: null, unit: "", ...values,
 });
 
-test("el registro abre con tres opciones simples", () => {
+test("el registro abre en fuerza y los tipos secundarios quedan en el mismo formulario", () => {
   const source = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
-  assert.match(source, /¿Qué querés registrar hoy\?/);
-  assert.match(source, /Elegí una opción para guardar tu progreso\./);
-  assert.match(source, /Ejercicio de fuerza/);
-  assert.match(source, /Circuito o desafío/);
-  assert.match(source, /Otro registro/);
-  assert.match(source, /aria-label={`\$\{CATEGORY_LABEL\[value\]\}\. \$\{CATEGORY_META\[value\]\.description\}`}/);
-  assert.match(source, /min-h-\[5\.5rem\]/);
-  assert.match(source, /active:scale-\[\.985\]/);
-  assert.doesNotMatch(source.slice(source.indexOf("!category &&"), source.indexOf("category === \"circuit\"")), /FOR_TIME|ROUNDS|INTERVALS|CONDITIONING/);
+  assert.ok(source.includes('...EMPTY_QUICK_LOG_DRAFT, kind: "strength"'));
+  assert.ok(source.includes('/portal/registro?new=1'));
+  assert.ok(source.includes('Otro tipo de registro'));
+  assert.ok(source.includes('Tipo de resultado'));
+  assert.ok(source.includes('Última:'));
+  assert.ok(source.includes('option.recent).slice(0, 5)'));
+  assert.doesNotMatch(source, /¿Qué querés registrar hoy|¿Qué resultado querés registrar|choosingIntervalFormat/);
 });
 
 test("el flujo guiado es independiente de clases presenciales y asistencias", () => {
   const component = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
-  const guidedFlow = component.slice(component.indexOf("const CATEGORY_LABEL"), component.indexOf("export function QuickLogHistory"));
+  const guidedFlow = component.slice(component.indexOf("const KIND_LABEL"), component.indexOf("export function QuickLogHistory"));
   const api = readFileSync(new URL("../app/api/portal/quick-logs/route.ts", import.meta.url), "utf8");
 
   assert.match(guidedFlow, /Ejercicio de fuerza/);
   assert.match(guidedFlow, /Circuito o desafío/);
-  assert.match(guidedFlow, /Otro registro/);
+  assert.match(guidedFlow, /Nota libre/);
   assert.doesNotMatch(guidedFlow, /clase presencial|ClassAttendance|classAttendance/i);
   assert.doesNotMatch(api, /ClassAttendance|classAttendance/);
 });
@@ -110,10 +108,10 @@ test("las validaciones breves se asocian al campo mínimo faltante", () => {
 
 test("volver conserva el borrador y el alta usa el flujo normal de la página", () => {
   const source = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
-  const back = source.slice(source.indexOf("function back()"), source.indexOf("async function save"));
+  const back = source.slice(source.indexOf("function chooseKind("), source.indexOf("async function save"));
   assert.doesNotMatch(back, /setDraft/);
   assert.match(source, /creating \? <GuidedQuickLogForm/);
-  assert.match(source, /mt-5 overflow-hidden rounded-3xl/);
+  assert.match(source, /overflow-hidden rounded-3xl/);
   assert.doesNotMatch(source, /quick-log-sheet|fixed inset-0 z-\[70\]|sticky bottom-0/);
 });
 

@@ -376,6 +376,7 @@ test("Inicio conserva el dorado como acento sin botones ni superficies dominante
   const classes = readFileSync(new URL("../componentes/portal-classes.tsx", import.meta.url), "utf8");
   const quickLog = readFileSync(new URL("../componentes/quick-log.tsx", import.meta.url), "utf8");
   const shell = readFileSync(new URL("../componentes/portal-shell.tsx", import.meta.url), "utf8");
+  const portalVisuals = readFileSync(new URL("../componentes/portal-visuals.tsx", import.meta.url), "utf8");
   const home = readFileSync(new URL("../componentes/portal-section.tsx", import.meta.url), "utf8");
   const responseButtons = classes.slice(classes.indexOf("function ResponseButtons"));
   const quickLogButton = quickLog.slice(quickLog.indexOf("export function QuickNoteButton"), quickLog.indexOf("function GuidedQuickLogForm"));
@@ -385,8 +386,8 @@ test("Inicio conserva el dorado como acento sin botones ni superficies dominante
   const quickLogTriggerStyles = quickLogButton.slice(quickLogButton.indexOf("const className"), quickLogButton.indexOf("return <Link"));
   assert.doesNotMatch(quickLogTriggerStyles, /\bfixed\b|portal-quick-note-bottom/);
   assert.match(quickLogButton, /border-yellow-400\/45 bg-zinc-950/);
-  assert.match(quickLogButton, /href="\/portal\/registro"/);
-  assert.match(shell, /absolute bottom-1\.5 h-0\.5 w-4 rounded-full bg-yellow-300/);
+  assert.match(quickLogButton, /href="\/portal\/registro\?new=1"/);
+  assert.match(portalVisuals, /absolute bottom-1\.5 h-0\.5 w-4 rounded-full bg-yellow-300/);
   assert.doesNotMatch(shell, /drop-shadow-\[0_0_6px_rgba\(250,204,21/);
   assert.match(home, /role="progressbar"/);
   assert.match(home, /from-amber-500 to-yellow-300/);

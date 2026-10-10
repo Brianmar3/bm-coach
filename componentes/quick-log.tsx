@@ -18,7 +18,7 @@ import {
   type QuickLogDraft,
   type QuickLogKind,
 } from "@/lib/quick-log-flow";
-import { BmBackIcon, BmBarbellIcon, BmChallengeIcon, BmCheckIcon, BmChevronRightIcon, BmClipboardIcon, BmDeleteIcon, BmEditIcon, BmFilterIcon, BmPlusIcon, BmProgressIcon, BmSearchIcon } from "@/componentes/icons";
+import { BmBackIcon, BmCheckIcon, BmClipboardIcon, BmDeleteIcon, BmEditIcon, BmFilterIcon, BmPlusIcon, BmProgressIcon, BmSearchIcon } from "@/componentes/icons";
 
 const labels: Record<QuickLogType, { title: string }> = {
   WORKOUT: { title: "Entrenamiento" },
@@ -40,32 +40,24 @@ export function QuickNoteButton({ placement }: { placement: "navigation" | "inli
   const className = placement === "navigation"
     ? "group relative grid h-14 w-14 aspect-square shrink-0 -translate-y-2 place-items-center self-center justify-self-center rounded-full border border-yellow-400/45 bg-zinc-950 text-xl font-black text-yellow-300 shadow-[0_8px_22px_rgba(250,204,21,.08),0_10px_28px_rgba(0,0,0,.55)] transition-[color,background-color,border-color,transform,box-shadow] duration-150 hover:border-yellow-300/70 hover:bg-yellow-400/[.06] active:-translate-y-1 active:scale-95 active:shadow-[0_0_18px_rgba(250,204,21,.18),0_8px_20px_rgba(0,0,0,.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
     : "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-yellow-400/30 bg-yellow-400/[.05] px-3 text-xs font-black text-yellow-300 transition hover:border-yellow-400/50 hover:bg-yellow-400/[.09] active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300";
-  return <Link href="/portal/registro" aria-label="Abrir mis registros" className={className}><BmPlusIcon size={placement === "navigation" ? 24 : 16} /><span className={placement === "navigation" ? "sr-only" : ""}>Registro rápido</span></Link>;
+  return <Link href="/portal/registro?new=1" onClick={(event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (window.location.pathname === "/portal/registro") {
+      event.preventDefault();
+      window.dispatchEvent(new Event("quick-log:create"));
+    }
+  }} aria-label="Abrir registro rápido" className={className}><BmPlusIcon size={placement === "navigation" ? 24 : 16} /><span className={placement === "navigation" ? "sr-only" : ""}>Registro rápido</span></Link>;
 }
 
-type QuickCategory = "strength" | "circuit" | "other";
-
-function QuickCategoryIcon({ category }: { category: QuickCategory }) {
-  if (category === "strength") return <BmBarbellIcon size={22} />;
-  if (category === "circuit") return <BmChallengeIcon size={22} />;
-  return <BmClipboardIcon size={22} />;
-}
-
-const CATEGORY_LABEL: Record<QuickCategory, string> = { strength: "Ejercicio de fuerza", circuit: "Circuito o desafío", other: "Otro registro" };
-const CATEGORY_META: Record<QuickCategory, { description: string; icon: string }> = {
-  strength: { description: "Peso, series, repeticiones y marcas personales.", icon: "◆" },
-  circuit: { description: "AMRAP, EMOM, vueltas, tiempo y desafíos.", icon: "◷" },
-  other: { description: "Notas, marcas rápidas y otros seguimientos.", icon: "▤" },
-};
 const KIND_LABEL: Record<QuickLogKind, string> = { strength: "Ejercicio de fuerza", time: "Tiempo", rounds: "Vueltas", amrap: "AMRAP", emom: "EMOM", cardio: "Cardio", intervals: "Intervalos", note: "Nota libre" };
 
 function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepOpen: boolean) => void | Promise<void> }) {
-  const [category, setCategory] = useState<QuickCategory | null>(null);
-  const [draft, setDraft] = useState<QuickLogDraft>({ ...EMPTY_QUICK_LOG_DRAFT });
-  const [options, setOptions] = useState<ExerciseSuggestion[]>([]);
+  const [typesOpen, setTypesOpen] = useState(false);
+  const [draft, setDraft] = useState<QuickLogDraft>({ ...EMPTY_QUICK_LOG_DRAFT, kind: "strength" });
+  const [options, setOptions] = useState<Array<ExerciseSuggestion & { reference?: { load: number | null; unit: string; sets: number | null; repetitions: number | null } | null }>>([]);
+  const [suggestionRevision, setSuggestionRevision] = useState(0);
   const [advanced, setAdvanced] = useState(false);
   const [circuitDetails, setCircuitDetails] = useState(false);
-  const [choosingIntervalFormat, setChoosingIntervalFormat] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [selectedExerciseKey, setSelectedExerciseKey] = useState<string | null>(null);
@@ -75,28 +67,25 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
   const savingLock = useRef(false);
   const requestKey = useRef("");
   const suggestions = useMemo(() => draft.exercise.trim() ? exerciseSuggestions(options, draft.exercise) : [], [draft.exercise, options]);
+  const recentExercises = options.filter((option) => option.recent).slice(0, 5);
+  const reference = options.find((option) => normalizeExerciseSearch(option.name) === normalizeExerciseSearch(draft.exercise))?.reference;
+  const isCircuit = ["time", "rounds", "amrap", "emom"].includes(draft.kind ?? "");
   const exactSuggestion = suggestions.some((option) => normalizeExerciseSearch(option.name) === normalizeExerciseSearch(draft.exercise));
   const set = <K extends keyof QuickLogDraft>(key: K, value: QuickLogDraft[K]) => { setDraft((current) => ({ ...current, [key]: value })); setErrors((current) => ({ ...current, [key]: undefined })); };
 
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/portal/quick-logs/exercises", { cache: "no-store", signal: controller.signal })
-      .then(async (response) => { const body = await response.json() as { options?: ExerciseSuggestion[] }; if (response.ok) setOptions(body.options ?? []); })
+      .then(async (response) => { const body = await response.json() as { options?: typeof options }; if (response.ok) setOptions(body.options ?? []); })
       .catch(() => undefined);
     return () => controller.abort();
-  }, []);
+  }, [suggestionRevision]);
 
-  function chooseCategory(value: QuickCategory) {
-    setCategory(value);
-    if (value === "strength") set("kind", "strength");
-    else if (draft.kind === "strength") set("kind", null);
-  }
-
-  function back() {
-    if (choosingIntervalFormat && !draft.kind) { setChoosingIntervalFormat(false); return; }
-    if (category && draft.kind && draft.kind !== "strength") { set("kind", null); return; }
-    if (draft.kind === "strength") set("kind", null);
-    setCategory(null);
+  function chooseKind(kind: QuickLogKind) {
+    set("kind", kind);
+    setErrors({});
+    setError("");
+    setTypesOpen(false);
   }
 
   async function save(addAnother: boolean) {
@@ -117,11 +106,13 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
       announceNewAchievements(body.newAchievements);
       await saved(addAnother);
       if (addAnother) {
-        setCategory(null);
-        setDraft({ ...EMPTY_QUICK_LOG_DRAFT });
+        setTypesOpen(false);
+        setDraft({ ...EMPTY_QUICK_LOG_DRAFT, kind: "strength" });
         setAdvanced(false);
         setCircuitDetails(false);
-        setChoosingIntervalFormat(false);
+        setSuggestionsOpen(false);
+        setSelectedExerciseKey(null);
+        setSuggestionRevision((revision) => revision + 1);
         setErrors({});
         requestKey.current = "";
       } else close();
@@ -136,15 +127,12 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
   const fieldError = (key: keyof QuickLogDraft) => errors[key] ? <span className="mt-1 block text-xs text-red-300">{errors[key]}</span> : null;
   const numberInput = (key: keyof QuickLogDraft, placeholder: string, optional = false) => <><input type="number" min="0" inputMode="numeric" value={String(draft[key] ?? "")} onChange={(event) => set(key, event.target.value as never)} placeholder={placeholder} className="input min-h-12" />{optional ? null : fieldError(key)}</>;
 
-  return <form onSubmit={(event) => { event.preventDefault(); void save(false); }} className="mt-5 overflow-hidden rounded-3xl border border-yellow-400/15 bg-[#111] shadow-[0_18px_48px_rgba(0,0,0,.45)]">
-    <header className="flex items-start gap-3 border-b border-zinc-800 p-4"><button type="button" onClick={category ? back : close} disabled={saving} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/70 text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver"><BmBackIcon size={22} /></button><div className="min-w-0 pt-0.5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Registro rápido</p><h2 className="mt-0.5 text-lg font-black leading-tight sm:text-xl">{draft.kind ? KIND_LABEL[draft.kind] : category ? CATEGORY_LABEL[category] : "¿Qué querés registrar hoy?"}</h2>{!category && <p className="mt-1 text-xs leading-relaxed text-zinc-400 sm:text-sm">Elegí una opción para guardar tu progreso.</p>}</div></header>
+  return <form onSubmit={(event) => { event.preventDefault(); void save(false); }} className="quick-log-create mt-5 [&_label]:min-w-0 [&_label]:text-xs sm:[&_label]:text-sm [&_input]:min-w-0 overflow-hidden rounded-3xl border border-yellow-400/15 bg-[#111] shadow-[0_18px_48px_rgba(0,0,0,.45)]">
+    <header className="flex items-start gap-3 border-b border-zinc-800 p-4"><button type="button" onClick={close} disabled={saving} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/70 text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300" aria-label="Volver"><BmBackIcon size={22} /></button><div className="min-w-0 pt-0.5"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Registro rápido</p><h2 className="mt-0.5 text-lg font-black leading-tight sm:text-xl">{isCircuit ? "Circuito o desafío" : KIND_LABEL[draft.kind ?? "strength"]}</h2></div></header>
     <div className="space-y-4 p-4">
       {error && <p role="alert" className="rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
-      {!category && <div className="grid gap-3">{(["strength", "circuit", "other"] as QuickCategory[]).map((value) => <button key={value} type="button" onClick={() => chooseCategory(value)} aria-label={`${CATEGORY_LABEL[value]}. ${CATEGORY_META[value].description}`} className="group grid min-h-[5.5rem] w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-zinc-800 bg-[linear-gradient(135deg,#181818,#0a0a0a)] p-3 text-left shadow-[0_10px_24px_rgba(0,0,0,.18)] transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-yellow-400/35 hover:shadow-[0_14px_30px_rgba(0,0,0,.28)] active:translate-y-0 active:scale-[.985] active:border-yellow-400/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300"><span className="grid h-12 w-12 place-items-center rounded-xl border border-yellow-400/15 bg-yellow-400/[.07] text-yellow-300 transition group-hover:border-yellow-400/30 group-hover:bg-yellow-400/[.1]"><QuickCategoryIcon category={value} /></span><span className="min-w-0"><strong className="block text-sm font-black text-white sm:text-base">{CATEGORY_LABEL[value]}</strong><span className="mt-1 block text-xs leading-snug text-zinc-400 sm:text-sm">{CATEGORY_META[value].description}</span></span><BmChevronRightIcon size={18} className="mr-1 text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-yellow-300" /></button>)}</div>}
-      {category === "circuit" && !draft.kind && !choosingIntervalFormat && <Choice title="¿Qué resultado querés registrar?" options={[{ value: "time", label: "Tiempo" }, { value: "rounds", label: "Vueltas" }, { value: "interval", label: "AMRAP / EMOM" }]} choose={(value) => value === "interval" ? setChoosingIntervalFormat(true) : set("kind", value as QuickLogKind)} />}
-      {category === "other" && !draft.kind && <Choice title="¿Qué querés registrar?" options={[{ value: "cardio", label: "Cardio" }, { value: "intervals", label: "Intervalos" }, { value: "note", label: "Nota libre" }]} choose={(value) => set("kind", value as QuickLogKind)} />}
-      {category === "circuit" && !draft.kind && choosingIntervalFormat && <Choice title="Elegí el formato" options={[{ value: "amrap", label: "AMRAP" }, { value: "emom", label: "EMOM" }]} choose={(value) => set("kind", value as QuickLogKind)} compact />}
-      {draft.kind === "strength" && <div className="space-y-4"><Field label="¿Qué ejercicio hiciste?"><div className="relative"><input ref={inputRef} autoFocus value={draft.exercise} onFocus={() => setSuggestionsOpen(true)} onChange={(event) => { const value = event.target.value; set("exercise", value); setSuggestionsOpen(true); const normalized = normalizeExerciseSearch(value); if (selectedExerciseKey && normalized !== selectedExerciseKey) setSelectedExerciseKey(null); }} maxLength={120} autoComplete="off" placeholder="Empezá a escribir" className="input min-h-12" />{fieldError("exercise")}{draft.exercise.trim() && suggestionsOpen && <div className="mt-2 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">{suggestions.map((option) => <button key={normalizeExerciseName(option.name)} type="button" onClick={() => { set("exercise", option.name); setSelectedExerciseKey(normalizeExerciseSearch(option.name)); setSuggestionsOpen(false); inputRef.current?.focus(); }} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-zinc-800 px-3 text-left text-sm last:border-0"><strong>{option.name}</strong>{option.muscleGroup && <span className="text-xs text-zinc-500">{option.muscleGroup}</span>}</button>)}{!exactSuggestion && <button type="button" onClick={() => { set("exercise", draft.exercise.trim()); setSelectedExerciseKey(null); setSuggestionsOpen(false); inputRef.current?.focus(); }} className="min-h-11 w-full px-3 text-left text-sm font-semibold text-yellow-300">Usar “{draft.exercise.trim()}”</button>}</div>}</div></Field><div className="grid grid-cols-3 gap-2"><Field label="Peso (kg)"><input type="number" min="0" step="0.01" inputMode="decimal" value={draft.weight} onChange={(event) => set("weight", event.target.value)} placeholder="Opcional" className="input min-h-12" />{fieldError("weight")}</Field><Field label="Repeticiones">{numberInput("repetitions", "8")}</Field><Field label="Series">{numberInput("sets", "4")}</Field></div><button type="button" onClick={() => setAdvanced((value) => !value)} className="text-sm font-bold text-yellow-300">{advanced ? "Ocultar detalles" : "Agregar más detalles"}</button>{advanced && <div className="grid gap-3 rounded-xl border border-zinc-800 p-3 sm:grid-cols-2"><Field label="Esfuerzo"><div className="flex gap-2"><select value={draft.effortType} onChange={(event) => set("effortType", event.target.value as "RIR" | "RPE")} className="input w-24"><option>RPE</option><option>RIR</option></select><input type="number" min="0" max="10" step="0.5" value={draft.effort} onChange={(event) => set("effort", event.target.value)} className="input min-w-0 flex-1" /></div></Field><Field label="Descanso (segundos)">{numberInput("restSeconds", "90", true)}</Field><Field label="Observación" wide><textarea value={draft.note} onChange={(event) => set("note", event.target.value)} rows={2} className="input resize-none" /></Field></div>}</div>}
+      {isCircuit && <fieldset><legend className="text-sm font-semibold">Tipo de resultado</legend><div className="mt-2 flex flex-wrap gap-2">{([ ["time", "Tiempo"], ["rounds", "Vueltas"], ["amrap", "AMRAP / EMOM"] ] as const).map(([kind, label]) => <button type="button" key={kind} disabled={saving} aria-pressed={kind === draft.kind || (kind === "amrap" && draft.kind === "emom")} onClick={() => chooseKind(kind)} className="min-h-11 rounded-xl border border-zinc-800 px-3 text-sm aria-pressed:border-yellow-400/50 aria-pressed:bg-yellow-400/10 aria-pressed:text-yellow-300">{label}</button>)}</div>{(draft.kind === "amrap" || draft.kind === "emom") && <div className="mt-2 flex gap-2">{(["amrap", "emom"] as const).map((kind) => <button key={kind} type="button" disabled={saving} aria-pressed={draft.kind === kind} onClick={() => chooseKind(kind)} className="min-h-11 rounded-xl border border-zinc-800 px-3 text-sm aria-pressed:border-yellow-400/50 aria-pressed:text-yellow-300">{kind.toUpperCase()}</button>)}</div>}</fieldset>}
+      {draft.kind === "strength" && <div className="space-y-4"><Field label="¿Qué ejercicio hiciste?"><div className="relative"><input ref={inputRef} aria-label="¿Qué ejercicio hiciste?" autoFocus value={draft.exercise} onFocus={() => setSuggestionsOpen(true)} onChange={(event) => { const value = event.target.value; set("exercise", value); setSuggestionsOpen(true); const normalized = normalizeExerciseSearch(value); if (selectedExerciseKey && normalized !== selectedExerciseKey) setSelectedExerciseKey(null); }} maxLength={120} autoComplete="off" placeholder="Empezá a escribir" className="input min-h-12" />{fieldError("exercise")}{draft.exercise.trim() && suggestionsOpen && <div className="mt-2 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">{suggestions.map((option) => <button key={normalizeExerciseName(option.name)} type="button" onClick={() => { set("exercise", option.name); setSelectedExerciseKey(normalizeExerciseSearch(option.name)); setSuggestionsOpen(false); inputRef.current?.focus(); }} className="flex min-h-12 w-full items-center justify-between gap-3 border-b border-zinc-800 px-3 text-left text-sm last:border-0"><strong>{option.name}</strong>{option.muscleGroup && <span className="text-xs text-zinc-500">{option.muscleGroup}</span>}</button>)}{!exactSuggestion && <button type="button" onClick={() => { set("exercise", draft.exercise.trim()); setSelectedExerciseKey(null); setSuggestionsOpen(false); inputRef.current?.focus(); }} className="min-h-11 w-full px-3 text-left text-sm font-semibold text-yellow-300">Usar “{draft.exercise.trim()}”</button>}</div>}</div></Field>{!draft.exercise.trim() && recentExercises.length > 0 && <div><p className="text-xs text-zinc-400">Recientes</p><div className="mt-1 flex flex-wrap gap-2">{recentExercises.map((option) => <button key={normalizeExerciseName(option.name)} type="button" onClick={() => { set("exercise", option.name); setSelectedExerciseKey(normalizeExerciseSearch(option.name)); setSuggestionsOpen(false); }} className="min-h-11 max-w-full rounded-xl border border-zinc-800 px-3 text-left text-sm break-words hover:border-yellow-400/40">{option.name}</button>)}</div></div>}{reference && <p className="text-xs text-zinc-400">Última: {[reference.load === null ? null : reference.load.toLocaleString("es-AR") + " " + reference.unit, reference.sets && reference.repetitions ? reference.sets + " × " + reference.repetitions : null].filter(Boolean).join(" · ") || "Sin carga registrada"}</p>}<div className="grid grid-cols-3 gap-2"><Field label="Peso (kg)"><input type="number" min="0" step="0.01" inputMode="decimal" value={draft.weight} onChange={(event) => set("weight", event.target.value)} placeholder="Opcional" className="input min-h-12" />{fieldError("weight")}</Field><Field label="Repeticiones">{numberInput("repetitions", "8")}</Field><Field label="Series">{numberInput("sets", "4")}</Field></div><button type="button" onClick={() => setAdvanced((value) => !value)} aria-expanded={advanced} className="min-h-11 text-sm font-bold text-yellow-300">{advanced ? "Ocultar detalles" : "Agregar más detalles"}</button>{advanced && <div className="grid gap-3 rounded-xl border border-zinc-800 p-3 sm:grid-cols-2"><Field label="Esfuerzo"><div className="flex gap-2"><select value={draft.effortType} onChange={(event) => set("effortType", event.target.value as "RIR" | "RPE")} className="input w-24"><option>RPE</option><option>RIR</option></select><input type="number" min="0" max="10" step="0.5" value={draft.effort} onChange={(event) => set("effort", event.target.value)} className="input min-w-0 flex-1" /></div></Field><Field label="Descanso (segundos)">{numberInput("restSeconds", "90", true)}</Field><Field label="Observación" wide><textarea value={draft.note} onChange={(event) => set("note", event.target.value)} rows={2} className="input resize-none" /></Field></div>}</div>}
       {draft.kind === "time" && <div className="space-y-4"><TextField label="Nombre del circuito o desafío" value={draft.title} setValue={(value) => set("title", value)} error={errors.title} /><TextField label="Tiempo final" value={draft.finalTime} setValue={(value) => set("finalTime", value)} error={errors.finalTime} placeholder="12:45" inputMode="numeric" /><TextArea label="Observación opcional" value={draft.note} setValue={(value) => set("note", value)} /></div>}
       {draft.kind === "rounds" && <div className="space-y-4"><TextField label="Nombre del circuito" value={draft.title} setValue={(value) => set("title", value)} error={errors.title} /><div className="grid grid-cols-2 gap-3"><Field label="Vueltas completadas">{numberInput("rounds", "5")}</Field><Field label="Repeticiones adicionales">{numberInput("extraRepetitions", "8", true)}</Field></div><Field label="Duración opcional (min)">{numberInput("durationMinutes", "15", true)}</Field></div>}
       {draft.kind === "amrap" && <div className="space-y-4"><TextField label="Nombre del circuito" value={draft.title} setValue={(value) => set("title", value)} error={errors.title} /><div className="grid grid-cols-3 gap-2"><Field label="Duración">{numberInput("durationMinutes", "12")}</Field><Field label="Vueltas">{numberInput("rounds", "5")}</Field><Field label="Reps. extra">{numberInput("extraRepetitions", "8", true)}</Field></div></div>}
@@ -153,16 +141,21 @@ function GuidedQuickLogForm({ close, saved }: { close: () => void; saved: (keepO
       {draft.kind === "cardio" && <div className="space-y-4"><TextField label="Actividad" value={draft.activity} setValue={(value) => set("activity", value)} error={errors.activity} placeholder="Caminata" /><div className="grid grid-cols-2 gap-3"><Field label="Duración (min)">{numberInput("durationMinutes", "35")}</Field><Field label="Distancia opcional (km)"><input type="number" min="0" step="0.01" inputMode="decimal" value={draft.distance} onChange={(event) => set("distance", event.target.value)} className="input min-h-12" /></Field></div></div>}
       {draft.kind === "intervals" && <div className="space-y-4"><TextField label="Actividad" value={draft.activity} setValue={(value) => set("activity", value)} error={errors.activity} /><div className="grid grid-cols-3 gap-2"><Field label="Rondas">{numberInput("rounds", "8")}</Field><Field label="Trabajo (s)">{numberInput("workSeconds", "30")}</Field><Field label="Descanso (s)">{numberInput("restSeconds", "30")}</Field></div></div>}
       {draft.kind === "note" && <TextArea label="¿Qué querés anotar?" value={draft.note} setValue={(value) => set("note", value)} error={errors.note} />}
+      <div>
+        <button type="button" disabled={saving} aria-expanded={typesOpen} onClick={() => setTypesOpen((open) => !open)} className="min-h-11 text-sm font-semibold text-zinc-400 hover:text-yellow-300">Otro tipo de registro</button>
+        {typesOpen && <div className="flex flex-wrap gap-2" aria-label="Tipos de registro">{([
+          ["strength", "Ejercicio de fuerza"], ["time", "Circuito / desafío"], ["cardio", "Cardio"], ["intervals", "Intervalos"], ["note", "Nota libre"],
+        ] as const).filter(([kind]) => kind !== draft.kind && !(kind === "time" && isCircuit)).map(([kind, label]) => <button key={kind} type="button" onClick={() => chooseKind(kind)} className="min-h-11 rounded-xl border border-zinc-800 px-3 text-sm hover:border-yellow-400/40">{label}</button>)}</div>}
+      </div>
     </div>
     {draft.kind && <footer className="border-t border-zinc-800 p-3"><button type="submit" disabled={saving} className="min-h-12 w-full rounded-xl bg-yellow-400 px-4 font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar"}</button><div className="mt-2 flex items-center justify-between gap-3"><button type="button" disabled={saving} onClick={() => void save(true)} className="min-h-10 text-sm font-semibold text-yellow-300 disabled:opacity-50">Guardar y agregar otro</button><button type="button" disabled={saving} onClick={close} className="min-h-10 text-sm text-zinc-500 disabled:opacity-50">Cancelar</button></div></footer>}
   </form>;
 }
 
-function Choice({ title, options, choose, compact = false }: { title: string; options: Array<{ value: string; label: string }>; choose: (value: string) => void; compact?: boolean }) { return <section><h3 className="font-bold">{title}</h3><div className={`mt-3 grid gap-3 ${compact ? "grid-cols-2" : ""}`}>{options.map((option) => <button key={option.value} type="button" onClick={() => choose(option.value)} className="min-h-16 rounded-xl border border-zinc-800 bg-zinc-950 px-4 text-left font-bold hover:border-yellow-400/40 hover:text-yellow-300">{option.label}</button>)}</div></section>; }
 function TextField({ label, value, setValue, error, placeholder, inputMode }: { label: string; value: string; setValue: (value: string) => void; error?: string; placeholder?: string; inputMode?: "text" | "numeric" }) { return <Field label={label}><input value={value} onChange={(event) => setValue(event.target.value)} placeholder={placeholder} inputMode={inputMode} className="input min-h-12" />{error && <span className="mt-1 block text-xs text-red-300">{error}</span>}</Field>; }
 function TextArea({ label, value, setValue, error }: { label: string; value: string; setValue: (value: string) => void; error?: string }) { return <Field label={label}><textarea value={value} onChange={(event) => setValue(event.target.value)} rows={3} maxLength={1000} className="input resize-none" />{error && <span className="mt-1 block text-xs text-red-300">{error}</span>}</Field>; }
 
-export function QuickLogHistory() {
+export function QuickLogHistory({ startCreating = false }: { startCreating?: boolean }) {
   const [logs, setLogs] = useState<QuickLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -171,7 +164,12 @@ export function QuickLogHistory() {
   const [query, setQuery] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
+  useEffect(() => {
+    const open = () => setCreating(true);
+    window.addEventListener("quick-log:create", open);
+    return () => window.removeEventListener("quick-log:create", open);
+  }, []);
   const [editing, setEditing] = useState<QuickLog | null>(null);
   const [view, setView] = useState<"chronological" | "exercises">("chronological");
   const [selectedExercise, setSelectedExercise] = useState("");
