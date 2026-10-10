@@ -1,51 +1,88 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import Image from "next/image";
 import { EvaluationBodyMap, EvaluationLineChart, EvaluationStatusSummary, EvaluationTests } from "@/componentes/evaluation-insights";
-import { EvaluationComparisonPanel } from "@/componentes/evaluation-progress-panels";
-import { compareEvaluations } from "@/lib/evaluation-progress";
-import { BmBarbellIcon, BmChevronRightIcon, BmEvaluationIcon, BmEyeIcon, BmHealthIcon, BmMeasurementsIcon, BmProgressIcon, BmSlidersIcon, BmWeightIcon, type BmIconProps } from "@/componentes/icons";
-import type { StudentEvaluation } from "@/types/evaluation-read-model";
+import { BmBarbellIcon, BmChevronRightIcon, BmEvaluationIcon, BmEyeIcon, BmHealthIcon, BmProgressIcon, BmSlidersIcon } from "@/componentes/icons";
+import { comparablePortalMetrics, portalEvaluationAreas, portalEvaluationHistory, portalEvaluationMetrics } from "@/lib/portal-evaluation-presentation";
+import type { EvaluationMetricKey, StudentEvaluation } from "@/types/evaluation-read-model";
 
-type AreaKey = "comparison" | "body" | "mobility" | "physical" | "summary";
-const showDate = (date: string) => date ? new Date(`${date}T12:00:00Z`).toLocaleDateString("es-AR", { timeZone: "UTC" }) : "—";
+const showDate = (date: string) => date ? new Date(`${date}T12:00:00Z`).toLocaleDateString("es-AR", { timeZone: "UTC" }) : "Sin fecha";
 const value = (number: number | null, unit = "") => number === null ? "—" : `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(number)}${unit ? ` ${unit}` : ""}`;
 const statusLabel = (status: StudentEvaluation["status"]) => status === "REASSESSMENT_RECOMMENDED" ? "Reevaluación recomendada" : status === "IN_PROGRESS" ? "En curso" : "Completada";
-const evaluationName = (evaluation: StudentEvaluation) => evaluation.version === 1 ? "Evaluación inicial" : `Evaluación · Versión ${evaluation.version}`;
+const evaluationName = (evaluation: StudentEvaluation) => evaluation.version === 1 ? "Evaluación inicial" : "Reevaluación";
 
-function MetricCard({ icon: Icon, label, display }: { icon: ComponentType<BmIconProps>; label: string; display: string }) {
-  return <article className="flex min-w-0 items-center gap-2 bm-surface px-2.5 py-3 sm:gap-3 sm:px-4"><span className="grid size-8 shrink-0 place-items-center text-[var(--brand-text)] sm:size-10"><Icon size={24}/></span><span className="min-w-0"><span className="block truncate text-[11px] uppercase tracking-wide bm-evaluation-muted sm:text-[11px]">{label}</span><strong className="mt-1 block truncate text-sm bm-evaluation-value sm:text-lg">{display}</strong></span></article>;
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="evaluation-section"><h2>{title}</h2><div className="evaluation-section-content">{children}</div></section>;
 }
-
-function AreaButton({ icon: Icon, title, subtitle, active, wide = false, onClick }: { icon: ComponentType<BmIconProps>; title: string; subtitle: string; active: boolean; wide?: boolean; onClick: () => void }) {
-  return <button type="button" aria-expanded={active} onClick={onClick} className={`${wide ? "col-span-2" : ""} grid min-h-[4.25rem] grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border px-3 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-yellow-300 ${active ? "border-yellow-400/45 bg-yellow-400/[.06]" : "border-[var(--border-soft)] bg-[var(--surface-soft)] hover:border-yellow-400/35"}`}><Icon size={24} className="text-[var(--brand-text)]"/><span className="min-w-0"><strong className="block text-sm leading-tight bm-evaluation-value">{title}</strong><small className="mt-1 block truncate text-[11px] bm-evaluation-muted">{subtitle}</small></span><BmChevronRightIcon size={18} className={`text-[var(--foreground-muted)] transition ${active ? "rotate-90" : ""}`}/></button>;
+function Metrics({ current }: { current: StudentEvaluation }) {
+  const items = [{ label: "Peso", number: current.weight, unit: "kg" }, { label: "IMC", number: current.bmi, unit: "" }, { label: "Grasa corporal", number: current.bodyFatPercentage, unit: "%" }].filter(item => item.number !== null);
+  return items.length ? <dl className="evaluation-metrics">{items.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{value(item.number, item.unit)}</dd></div>)}</dl> : null;
 }
-
+function Evolution({ evaluations }: { evaluations: StudentEvaluation[] }) {
+  const options = comparablePortalMetrics(evaluations);
+  const [selected, setSelected] = useState<EvaluationMetricKey>("weight");
+  const picker = useRef<HTMLDetailsElement>(null);
+  const selectedOption = options.find(item => item.key === selected) ?? options[0];
+  if (!selectedOption) return <div className="evaluation-empty"><BmProgressIcon size={24}/><div><p>Aún se necesita una segunda evaluación para mostrar evolución.</p><small>Cuando tengas una nueva evaluación vas a poder comparar tus cambios acá.</small></div></div>;
+  const points = [...evaluations].reverse().filter(item => typeof item[selectedOption.key] === "number");
+  return <div>
+    <details className="evaluation-picker" ref={picker} onKeyDown={event => { if (event.key === "Escape" && picker.current) { picker.current.open = false; picker.current.querySelector("summary")?.focus(); } }}>
+      <summary aria-label="Métrica de evolución"><span><small>Métrica</small>{selectedOption.label}</span><BmChevronRightIcon size={20}/></summary>
+      <div className="evaluation-options" role="group" aria-label="Métricas disponibles">{options.map(item => <button key={item.key} type="button" aria-pressed={selectedOption.key === item.key} onClick={() => { setSelected(item.key); if (picker.current) { picker.current.open = false; picker.current.querySelector("summary")?.focus(); } }}>{item.label}</button>)}</div>
+    </details>
+    <p className="evaluation-before-after">{value(points[0][selectedOption.key], selectedOption.unit)} → <strong>{value(points.at(-1)![selectedOption.key], selectedOption.unit)}</strong></p>
+    <EvaluationLineChart evaluations={evaluations} portalStyle selectedMetric={selectedOption.key}/>
+  </div>;
+}
+const areas = [
+  { key: "comparison", title: "Antes / Ahora", empty: "Sin medidas comparables", icon: BmEyeIcon },
+  { key: "body", title: "Mapa corporal", empty: "Sin molestias registradas", icon: BmHealthIcon },
+  { key: "mobility", title: "Movilidad y control", empty: "Sin datos registrados", icon: BmSlidersIcon },
+  { key: "physical", title: "Tests físicos", empty: "Sin tests cargados", icon: BmBarbellIcon },
+  { key: "summary", title: "Resumen de resultados", empty: "Todavía no hay resultados suficientes", icon: BmEvaluationIcon },
+] as const;
+function Results({ current }: { current: StudentEvaluation }) {
+  return <>{current.testResults.length > 0 && <EvaluationStatusSummary tests={current.testResults}/>} {current.notes?.trim() && <p className="evaluation-notes">{current.notes}</p>}</>;
+}
+function AreaContent({ area, current, previous }: { area: typeof areas[number]["key"]; current: StudentEvaluation; previous?: StudentEvaluation }) {
+  if (area === "comparison") return <Evolution evaluations={previous ? [current, previous] : [current]}/>;
+  if (area === "body") return <EvaluationBodyMap key={current.id} issues={current.bodyIssues}/>;
+  if (area === "summary") return <Results current={current}/>;
+  return <EvaluationTests tests={current.testResults} previousTests={previous?.testResults} category={area === "mobility" ? "MOBILITY" : "PHYSICAL"} recordedOnly/>;
+}
+function Areas({ current, previous, detail = false }: { current: StudentEvaluation; previous?: StudentEvaluation; detail?: boolean }) {
+  const availability = portalEvaluationAreas(current, previous);
+  return <div className="evaluation-areas">{areas.filter(area => !detail || availability[area.key]).map(({ key, title, empty, icon: Icon }) => availability[key] ? <details key={key} className="evaluation-area"><summary><Icon size={20}/><span><strong>{title}</strong><small>{key === "comparison" ? "Comparar medidas" : "Disponible"}</small></span><BmChevronRightIcon size={20}/></summary><div className="evaluation-area-content"><AreaContent area={key} current={current} previous={previous}/></div></details> : <div key={key} className="evaluation-area-unavailable"><Icon size={20}/><span><strong>{title}</strong><small>{empty}</small></span></div>)}</div>;
+}
 function EmptyEvaluations() {
-  const benefits: Array<{ label: string; icon: ComponentType<BmIconProps> }> = [
-    { label: "Medidas corporales", icon: BmMeasurementsIcon },
-    { label: "Fuerza y resistencia", icon: BmBarbellIcon },
-    { label: "Evolución física", icon: BmProgressIcon },
-    { label: "Molestias y observaciones", icon: BmHealthIcon },
-  ];
-  return <section className="relative overflow-hidden rounded-[20px] border border-yellow-400/25 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_srgb,var(--bm-accent)_9%,transparent),transparent_35%),linear-gradient(145deg,#171719,#0B0B0C)] px-4 py-5 text-center shadow-[0_18px_45px_rgba(0,0,0,.28)] sm:p-7"><span aria-hidden="true" className="absolute -right-14 -top-14 size-44 rounded-full border border-yellow-400/[.05] shadow-[0_0_0_22px_rgba(212,167,44,.02)]"/><div className="relative mx-auto grid size-14 place-items-center rounded-2xl border border-yellow-400/35 bg-yellow-400/[.07] text-[var(--brand-text)] shadow-[0_10px_28px_rgba(0,0,0,.3)]"><BmEvaluationIcon size={30}/></div><div className="relative mx-auto mt-4 max-w-xl"><p className="text-[11px] font-bold uppercase tracking-[.2em] text-[var(--brand-text)]">Tu primera evaluación</p><h2 className="mt-2 text-xl font-black leading-tight bm-evaluation-value sm:text-2xl">Todavía no registramos una evaluación física</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed bm-evaluation-secondary">Cuando completes una evaluación vas a poder seguir tu evolución y comparar tus resultados en el tiempo.</p></div><ul className="relative mx-auto mt-5 grid max-w-2xl grid-cols-2 gap-2 text-left">{benefits.map(({ label, icon: Icon }) => <li key={label} className="flex min-h-12 items-center gap-2 rounded-xl border border-white/[.07] bg-[#1B1B1E]/90 px-3 py-2 text-xs font-medium text-zinc-200"><Icon size={19} className="shrink-0 text-[var(--brand-text)]"/><span className="leading-snug">{label}</span></li>)}</ul><p className="relative mt-5 border-t border-white/[.07] pt-4 text-xs bm-evaluation-muted">Tu entrenador cargará tu evaluación cuando corresponda.</p></section>;
+  return <div className="evaluation-section evaluation-empty-page"><BmEvaluationIcon size={24}/><p>Tu primera evaluación</p><h2>Todavía no registramos una evaluación física</h2><p>Cuando completes una evaluación vas a poder seguir tu evolución y comparar tus resultados en el tiempo.</p><ul><li>Medidas corporales</li><li>Fuerza y resistencia</li><li>Evolución física</li><li>Molestias y observaciones</li></ul><small>Tu entrenador cargará tu evaluación cuando corresponda.</small></div>;
 }
 
 export function PortalEvaluationsDashboard({ evaluations }: { evaluations: StudentEvaluation[] }) {
-  const [selectedId, setSelectedId] = useState("");
-  const [activeArea, setActiveArea] = useState<AreaKey | null>(null);
-  const current = evaluations.find((item) => item.id === selectedId) ?? evaluations[0];
-  const index = current ? evaluations.findIndex((item) => item.id === current.id) : -1;
-  const previous = index >= 0 ? evaluations[index + 1] : undefined;
-  if (!current) return <EmptyEvaluations/>;
-  const recentComparison = evaluations[0] && evaluations[1] ? compareEvaluations(evaluations[1], evaluations[0], new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date())) : null;
-  const toggleArea = (area: AreaKey) => setActiveArea((currentArea) => currentArea === area ? null : area);
-
-  return <div className="space-y-3 bm-evaluation-value">
-    <section className="bm-surface-featured relative overflow-hidden p-4 sm:p-6"><span aria-hidden="true" className="absolute -right-10 -top-16 size-56 rotate-12 rounded-full border border-yellow-400/[.06] shadow-[0_0_0_22px_color-mix(in_srgb,var(--bm-accent)_2.5%,transparent),0_0_0_44px_color-mix(in_srgb,var(--bm-accent)_1.8%,transparent)]"/><div className="relative flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[.2em] text-[var(--brand-text)]">Tu última evaluación</p><h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{showDate(current.date)}</h2><p className="mt-1 text-sm bm-evaluation-secondary">{evaluationName(current)} · <span className="text-emerald-400">{statusLabel(current.status)}</span></p></div><span className="rounded-2xl border border-emerald-400/15 bg-emerald-950/30 px-3 py-2 text-xl font-black text-emerald-400 sm:px-4 sm:text-2xl">{current.completionPercentage}%</span></div><div className="relative mt-5 h-2 overflow-hidden rounded-full bg-zinc-700"><div className="h-full rounded-full bg-gradient-to-r from-yellow-400 via-lime-300 to-emerald-400" style={{ width: `${current.completionPercentage}%` }}/></div><p className="relative mt-4 text-sm bm-evaluation-secondary">Próxima evaluación: <strong className="font-medium text-zinc-200">{showDate(current.reassessmentDate)}</strong></p></section>
-    <div className="grid grid-cols-3 gap-2"><MetricCard icon={BmWeightIcon} label="Peso" display={value(current.weight, "kg")}/><MetricCard icon={BmMeasurementsIcon} label="IMC" display={value(current.bmi)}/><MetricCard icon={BmHealthIcon} label="Grasa corporal" display={value(current.bodyFatPercentage, "%")}/></div>
-    <section className="bm-surface p-4 sm:p-5"><p className="text-[11px] font-bold uppercase tracking-[.2em] text-[var(--brand-text)]">Tu evolución</p><div className="mt-4"><EvaluationLineChart evaluations={evaluations} portalStyle/></div></section>
-    <section className="bm-surface p-3 sm:p-4"><h2 className="px-1 text-[11px] font-bold uppercase tracking-[.2em] text-[var(--brand-text)]">Áreas evaluadas</h2><div className="mt-3 grid grid-cols-2 gap-2"><AreaButton icon={BmEyeIcon} title="Antes / Ahora" subtitle="Fotos y cambios" active={activeArea === "comparison"} onClick={() => toggleArea("comparison")}/><AreaButton icon={BmHealthIcon} title="Mapa corporal" subtitle="Molestias registradas" active={activeArea === "body"} onClick={() => toggleArea("body")}/><AreaButton icon={BmSlidersIcon} title="Movilidad y control" subtitle="Postura y control" active={activeArea === "mobility"} onClick={() => toggleArea("mobility")}/><AreaButton icon={BmBarbellIcon} title="Tests físicos" subtitle="Fuerza y resistencia" active={activeArea === "physical"} onClick={() => toggleArea("physical")}/><AreaButton icon={BmEvaluationIcon} title="Resumen de resultados" subtitle="Ver conclusiones completas" active={activeArea === "summary"} wide onClick={() => toggleArea("summary")}/></div>{activeArea && <div className="mt-3 rounded-2xl border border-white/[.08] bg-black/30 p-3 sm:p-4">{activeArea === "comparison" && (recentComparison ? <EvaluationComparisonPanel comparison={recentComparison} simple/> : <p className="text-sm bm-evaluation-secondary">Se necesitan al menos dos evaluaciones comparables.</p>)}{activeArea === "body" && <EvaluationBodyMap issues={current.bodyIssues}/>} {activeArea === "mobility" && <EvaluationTests tests={current.testResults} previousTests={previous?.testResults} category="MOBILITY"/>}{activeArea === "physical" && <EvaluationTests tests={current.testResults} previousTests={previous?.testResults} category="PHYSICAL"/>}{activeArea === "summary" && <EvaluationStatusSummary tests={current.testResults}/>}</div>}</section>
-    <section className="bm-surface p-3 sm:p-4"><h2 className="px-1 text-[11px] font-bold uppercase tracking-[.2em] text-[var(--brand-text)]">Historial de evaluaciones</h2><ol className="relative ml-2 mt-3 border-l border-zinc-700 pl-5">{evaluations.map((item) => <li key={item.id} className="relative mb-2 last:mb-0"><span className="absolute -left-[26px] top-5 size-3 rounded-full bg-yellow-400 shadow-[0_0_12px_rgba(250,204,21,.35)]"/><button type="button" onClick={() => setSelectedId(item.id)} aria-label={`Ver evaluación versión ${item.version}`} className={`grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 ${current.id === item.id ? "border-yellow-400/30 bg-yellow-400/[.04]" : "border-white/[.08] bg-[#1B1B1E]"}`}><span className="min-w-0"><strong className="block text-sm">Versión {item.version}</strong><time dateTime={item.date} className="mt-0.5 block text-xs bm-evaluation-secondary">{showDate(item.date)}</time><small className="mt-1 block truncate text-[11px] bm-evaluation-muted">{evaluationName(item)} · {item.weight === null ? "—" : value(item.weight, "kg")} · {item.completionPercentage}%</small></span><span className="flex items-center gap-1 text-sm font-bold text-[var(--brand-text)]">Ver <BmChevronRightIcon size={16}/></span></button></li>)}</ol></section>
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const heading = useRef<HTMLHeadingElement | null>(null);
+  const history = portalEvaluationHistory(evaluations);
+  const current = history[0];
+  const selected = history.find(item => item.id === selectedId);
+  if (!current) return <div className="portal-evaluation"><EmptyEvaluations/></div>;
+  if (selected) {
+    const previous = history[history.indexOf(selected) + 1];
+    const measurements = portalEvaluationMetrics.filter(item => !["weight", "bodyFatPercentage"].includes(item.key) && selected[item.key] !== null);
+    const photos = [{ label: "Frente", url: selected.frontPhotoUrl }, { label: "Perfil", url: selected.sidePhotoUrl }, { label: "Espalda", url: selected.backPhotoUrl }].filter(item => item.url);
+    return <div className="portal-evaluation" data-evaluation-id={selected.id}>
+      <header className="evaluation-detail-header"><button type="button" aria-label="Volver al historial" onClick={() => { setSelectedId(null); requestAnimationFrame(() => { const button = document.getElementById(`evaluation-history-${selected.id}`); button?.focus(); button?.scrollIntoView({ block: "center" }); }); }}><BmChevronRightIcon size={20} className="rotate-180"/><span className="hidden sm:inline">Volver al historial</span></button><div><p>{evaluationName(selected)} · Versión {selected.version}</p><h2 ref={heading} tabIndex={-1}>Evaluación del {showDate(selected.date)}</h2><small>{statusLabel(selected.status)}</small></div></header>
+      <Metrics current={selected}/>
+      {measurements.length > 0 && <Section title="Medidas corporales"><dl className="evaluation-measurements">{measurements.map(item => <div key={item.key}><dt>{item.label}</dt><dd>{value(selected[item.key], item.unit)}</dd></div>)}</dl></Section>}
+      {photos.length > 0 && <Section title="Fotos de esta evaluación"><div className="evaluation-photos">{photos.map(photo => <figure key={photo.label}><Image src={photo.url!} alt={`${photo.label} · ${showDate(selected.date)}`} width={320} height={400} unoptimized/><figcaption>{photo.label}</figcaption></figure>)}</div></Section>}
+      <Areas key={selected.id} current={selected} previous={previous} detail/>
+    </div>;
+  }
+  return <div className="portal-evaluation">
+    <section className="evaluation-hero"><p className="evaluation-eyebrow">Tu última evaluación</p><h2>{showDate(current.date)}</h2><p>{evaluationName(current)} <span className="evaluation-status">{statusLabel(current.status)}</span></p><p className="evaluation-next">Próxima evaluación: <strong>{current.reassessmentDate ? showDate(current.reassessmentDate) : "Sin fecha programada"}</strong></p></section>
+    <Metrics current={current}/>
+    <Section title="Tu evolución"><Evolution evaluations={history}/></Section>
+    <Section title="Áreas evaluadas"><Areas current={current} previous={history[1]}/></Section>
+    <Section title="Historial de evaluaciones"><ol className="evaluation-history">{history.map(item => <li key={item.id}><button id={`evaluation-history-${item.id}`} type="button" aria-label={`Ver evaluación versión ${item.version}`} onClick={() => { setSelectedId(item.id); requestAnimationFrame(() => { heading.current?.focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: "instant" }); }); }}><span><time dateTime={item.date}>{showDate(item.date)}</time><strong>{evaluationName(item)}</strong><small>Versión {item.version}{item.weight !== null && ` · ${value(item.weight, "kg")}`}{item.bodyFatPercentage !== null && ` · Grasa corporal ${value(item.bodyFatPercentage, "%")}`}</small></span><span className="evaluation-history-action">Ver <BmChevronRightIcon size={20}/></span></button></li>)}</ol></Section>
   </div>;
 }

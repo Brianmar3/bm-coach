@@ -112,3 +112,23 @@ test("el endpoint aplica visibilidad después de normalizar y deduplicar fuentes
   assert.match(endpoint, /deduplicateEvaluations/);
   assert.match(endpoint, /visibleStudentsInEvaluations/);
 });
+
+// Portal availability must use the selected record, never the latest snapshot.
+import { comparablePortalMetrics, portalEvaluationAreas, portalEvaluationHistory } from "../lib/portal-evaluation-presentation.ts";
+test("portal: only metrics with two recorded values become selectable", () => {
+  const first = toStudentEvaluation(evaluation());
+  assert.equal(comparablePortalMetrics([first]).length, 0);
+  const second = toStudentEvaluation(evaluation({ id: "e2", weight: null, waist: 78 }));
+  const keys = comparablePortalMetrics([first, second]).map(item => item.key);
+  assert.ok(!keys.includes("weight")); assert.ok(keys.includes("waist"));
+});
+test("portal: areas reflect historical availability without borrowing newer results", () => {
+  const older = toStudentEvaluation(evaluation());
+  const newer = toStudentEvaluation(evaluation({ id: "e2", version: 2, date: "2026-07-15", testResults: [testValue()] }));
+  assert.equal(portalEvaluationAreas(older).summary, false);
+  assert.equal(portalEvaluationAreas(older).physical, false);
+  assert.equal(portalEvaluationAreas(newer, older).summary, true);
+  assert.equal(portalEvaluationAreas(newer, older).comparison, true);
+  const input = [older, newer]; const history = portalEvaluationHistory(input);
+  assert.equal(history[0], newer); assert.equal(history[1], older); assert.equal(input[0], older);
+});

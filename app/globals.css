@@ -1551,3 +1551,82 @@ html[data-theme] .workspace-brand .nutrition-data-grid > div { padding: 0; borde
   .nutrition-preference-sections { grid-template-columns: 1fr 1fr; gap: 2rem; }
   .nutrition-reminder-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
 }
+
+/* Student evaluations: presentation only; shared trainer views remain unchanged. */
+.portal-evaluation { display: grid; gap: 1rem; color: var(--foreground); padding-bottom: 1rem; min-width: 0; }
+.portal-evaluation .evaluation-section, .portal-evaluation .evaluation-hero { border: 1px solid var(--border-soft); border-radius: 20px; padding: 1rem; background: var(--surface); min-width: 0; }
+.portal-evaluation .evaluation-hero { background: linear-gradient(115deg,var(--bm-accent-soft),transparent 75%),var(--surface); }
+.evaluation-eyebrow { font-size: .75rem; font-weight: 700; color: var(--foreground-muted); }
+.evaluation-hero h2 { font-size: 1.75rem; font-weight: 800; margin: .5rem 0; }
+.evaluation-hero > p { font-size: .875rem; }
+.evaluation-status { display: inline-block; border-radius: 99px; padding: .25rem .5rem; margin-left: .25rem; background: var(--surface-soft); color: var(--foreground); font-size: .75rem; }
+.evaluation-next { margin-top: 1rem; color: var(--foreground-muted); }
+.evaluation-next strong { font-weight: 500; }
+.evaluation-section > h2 { font-size: 1rem; font-weight: 700; }
+.evaluation-section-content { margin-top: 1rem; }
+.evaluation-metrics { display: grid; grid-template-columns: repeat(auto-fit,minmax(85px,1fr)); gap: .5rem; }
+.evaluation-metrics > div { padding: .75rem .625rem; border-radius: 14px; background: var(--surface); min-width: 0; }
+.evaluation-metrics dt { font-size: .75rem; color: var(--foreground-muted); line-height: 1.4; }
+.evaluation-metrics dd { font-size: 1.125rem; font-weight: 700; margin-top: .375rem; }
+.evaluation-empty { display: flex; gap: .75rem; align-items: flex-start; font-size: .875rem; line-height: 1.5; }
+.evaluation-empty svg { flex-shrink: 0; color: var(--brand-text); }
+.evaluation-empty small { display: block; color: var(--foreground-muted); font-size: .8125rem; margin-top: .5rem; }
+.evaluation-picker { border: 1px solid var(--border-soft); border-radius: 12px; background: var(--surface-soft); }
+.evaluation-picker summary, .evaluation-area summary { display: flex; align-items: center; gap: .75rem; cursor: pointer; list-style: none; min-height: 52px; padding: .75rem; }
+.evaluation-picker summary::-webkit-details-marker, .evaluation-area summary::-webkit-details-marker { display: none; }
+.evaluation-picker summary > span, .evaluation-area summary > span { flex: 1; min-width: 0; }
+.evaluation-picker summary small { display: block; font-size: .75rem; color: var(--foreground-muted); }
+.evaluation-picker[open] summary > svg, .evaluation-area[open] summary > svg:last-child { transform: rotate(90deg); }
+.evaluation-options { display: grid; max-height: 260px; overflow: auto; border-top: 1px solid var(--border-soft); padding: .25rem; }
+.portal-evaluation .evaluation-options button { min-height: 44px; text-align: left; padding: .625rem .75rem; border-radius: 8px; color: var(--foreground); font-size: .875rem; }
+.portal-evaluation .evaluation-options button[aria-pressed="true"] { background: var(--bm-accent-soft); color: var(--brand-text); font-weight: 700; }
+.evaluation-before-after { font-size: 1rem; margin-top: 1rem; }
+.evaluation-areas { display: grid; gap: .5rem; }
+.evaluation-area { border-radius: 12px; border: 1px solid var(--border-soft); background: var(--surface-soft); min-width: 0; }
+.evaluation-area summary svg { flex-shrink: 0; color: var(--brand-text); }
+.evaluation-area summary strong, .evaluation-area-unavailable strong { display: block; font-size: .875rem; font-weight: 600; }
+.evaluation-area summary small, .evaluation-area-unavailable small { display: block; font-size: .75rem; color: var(--foreground-muted); margin-top: .125rem; }
+.evaluation-area-unavailable { display: flex; gap: .75rem; padding: .75rem; align-items: center; }
+.evaluation-area-unavailable svg { flex-shrink: 0; color: var(--foreground-muted); }
+.evaluation-area-content { border-top: 1px solid var(--border-soft); padding: .75rem; min-width: 0; }
+.evaluation-history { display: grid; gap: .5rem; }
+.evaluation-history button { display: flex; align-items: center; gap: .75rem; width: 100%; padding: .75rem; text-align: left; border-radius: 12px; background: var(--surface-soft); }
+.evaluation-history button > span:first-child { flex: 1; min-width: 0; }
+.evaluation-history time { display: block; font-size: .9375rem; font-weight: 700; }
+.evaluation-history strong { display: block; font-size: .8125rem; font-weight: 500; margin-top: .125rem; }
+.evaluation-history small { display: block; font-size: .75rem; color: var(--foreground-muted); margin-top: .375rem; }
+.evaluation-history-action { display: flex; align-items: center; color: var(--brand-text); font-size: .875rem; font-weight: 600; }
+.evaluation-detail-header { display: flex; gap: .75rem; align-items: flex-start; }
+.evaluation-detail-header button { display: flex; align-items: center; justify-content: center; gap: .5rem; min-width: 44px; min-height: 44px; border-radius: 12px; background: var(--surface); padding: .5rem; flex-shrink: 0; }
+.evaluation-detail-header h2 { font-size: 1.25rem; font-weight: 700; }
+.evaluation-detail-header p, .evaluation-detail-header small { font-size: .75rem; color: var(--foreground-muted); }
+.evaluation-measurements { display: grid; gap: .75rem; }
+.evaluation-measurements > div { display: flex; justify-content: space-between; gap: .75rem; font-size: .8125rem; }
+.evaluation-measurements dt { color: var(--foreground-muted); }
+.evaluation-measurements dd { font-weight: 600; flex-shrink: 0; }
+.evaluation-photos { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: .75rem; }
+.evaluation-photos img { width: 100%; height: auto; border-radius: 12px; }
+.evaluation-photos figcaption { font-size: .75rem; color: var(--foreground-muted); }
+.evaluation-notes { white-space: pre-wrap; margin-top: .75rem; font-size: .875rem; }
+.evaluation-empty-page { text-align: center; }
+.evaluation-empty-page > svg { margin: 0 auto .75rem; color: var(--brand-text); }
+.evaluation-empty-page p, .evaluation-empty-page small { font-size: .8125rem; color: var(--foreground-muted); margin: .75rem 0; }
+.evaluation-empty-page ul { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin: 1rem 0; font-size: .75rem; }
+.portal-evaluation :is(button,summary):focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 3px; }
+/* Theme shared read-only visualizations locally, without changing trainer components. */
+html[data-theme] .portal-evaluation :is(.bg-black\/35,.bg-black\/30,.bg-zinc-900) { background: var(--surface-soft); }
+html[data-theme] .portal-evaluation :is(.border-zinc-800,.border-zinc-700) { border-color: var(--border-soft); }
+html[data-theme] .portal-evaluation :is(.text-white,.text-zinc-100) { color: var(--foreground); }
+html[data-theme] .portal-evaluation :is(.text-zinc-400,.text-zinc-500,.text-zinc-600) { color: var(--foreground-muted); }
+html[data-theme] .portal-evaluation :is(.text-yellow-300,.text-yellow-400) { color: var(--brand-text); }
+html[data-theme] .portal-evaluation .text-emerald-300 { color: var(--success); }
+html[data-theme] .portal-evaluation :is(.text-orange-300,.text-orange-400) { color: var(--warning); }
+html[data-theme] .portal-evaluation .text-red-300 { color: var(--danger); }
+.portal-evaluation .text-\[10px\] { font-size: .75rem; }
+html[data-theme] .portal-evaluation .bm-evaluation-chart polyline { stroke: var(--bm-accent); }
+html[data-theme] .portal-evaluation .bm-evaluation-chart circle { fill: var(--bm-accent); stroke: var(--surface); }
+html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#fafafa"] { fill: var(--foreground); }
+html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { fill: var(--foreground-muted); }
+@media(min-width:640px) { .portal-evaluation .evaluation-section,.portal-evaluation .evaluation-hero { padding: 1.25rem; } .evaluation-measurements { grid-template-columns: 1fr 1fr; column-gap: 2rem; } }
+
+.portal-evaluation svg[aria-label^="Figura corporal"] { width: 100%; height: auto; max-height: 256px; }
