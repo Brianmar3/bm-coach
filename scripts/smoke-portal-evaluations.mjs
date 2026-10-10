@@ -78,7 +78,12 @@ const appearance=await page.evaluate(()=>{
  const a=lum(surface),b=lum(muted);return {contrast:(Math.max(a,b)+.05)/(Math.min(a,b)+.05),accent:getComputedStyle(document.querySelector('.workspace-brand')).getPropertyValue('--bm-accent').trim()};
 });assert.ok(appearance.contrast>=4.5,'Secondary text contrast');assert.equal(appearance.accent.toLowerCase(),accent.toLowerCase());
 await load([{...empty,weight:null,bmi:null,waist:null,bodyFatPercentage:null},newer]);assert.equal(await page.locator('.evaluation-picker').count(),0);await geometry();
-await load([]);await page.getByRole('heading',{name:'Todavía no registramos una evaluación física'}).waitFor();await geometry();
+await load([]);await page.getByRole('heading',{name:'Todavía no tenés evaluaciones'}).waitFor();await geometry();
+assert.equal(await page.locator('.evaluation-empty-page li').count(),3);
+assert.equal(await page.locator('.evaluation-empty-page button,.evaluation-empty-page a,.evaluation-empty-page summary').count(),0);
+await page.evaluate(()=>scrollTo(0,document.body.scrollHeight));
+if(width<768){const card=await page.locator('.evaluation-empty-page').boundingBox(),nav=await page.locator('.portal-mobile-nav').boundingBox();assert.ok(card.y+card.height<=nav.y+1,'Empty state clears navigation');}
+if(width===390&&theme==='dark'&&accent==='#2563eb')await page.screenshot({path:path.join(temp,'empty-dark-blue.png'),fullPage:true});
 assert.deepEqual(errors,[]);cases++;console.log(`${width}px ${theme} ${accent}: empty/one/multiple, history, details, selector, areas and navigation OK`);await context.close();
 }
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

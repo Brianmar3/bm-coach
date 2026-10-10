@@ -109,7 +109,7 @@ test("el panel del alumno replica la jerarquía compacta y conserva datos y áre
 test("el portal muestra un estado vacío útil sin ofrecer creación al alumno", () => {
   const portal = readFileSync(new URL("../componentes/portal-evaluations-dashboard.tsx", import.meta.url), "utf8");
   const emptyState = portal.slice(portal.indexOf("function EmptyEvaluations"), portal.indexOf("export function PortalEvaluationsDashboard"));
-  for (const text of ["Tu primera evaluación", "Todavía no registramos una evaluación física", "Medidas corporales", "Fuerza y resistencia", "Evolución física", "Molestias y observaciones", "Tu entrenador cargará tu evaluación cuando corresponda"]) assert.match(emptyState, new RegExp(text));
+  for (const text of ["TU PRIMERA EVALUACIÓN", "Todavía no tenés evaluaciones", "Medidas y composición", "Rendimiento y movimiento", "Tu evolución", "Tu entrenador cargará tu evaluación cuando corresponda"]) assert.match(emptyState, new RegExp(text));
   assert.match(portal, /if \(!current\) return .*<EmptyEvaluations\/>/);
   assert.match(emptyState, /BmEvaluationIcon|BmMeasurementsIcon|BmBarbellIcon|BmProgressIcon|BmHealthIcon/);
   assert.doesNotMatch(emptyState, /Crear|Comenzar|Nueva evaluación|href=|<button/);

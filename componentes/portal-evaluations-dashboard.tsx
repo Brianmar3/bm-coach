@@ -56,7 +56,18 @@ function Areas({ current, previous, detail = false }: { current: StudentEvaluati
   return <div className="evaluation-areas">{areas.filter(area => !detail || availability[area.key]).map(({ key, title, empty, icon: Icon }) => availability[key] ? <details key={key} className="evaluation-area"><summary><Icon size={20}/><span><strong>{title}</strong><small>{key === "comparison" ? "Comparar medidas" : "Disponible"}</small></span><BmChevronRightIcon size={20}/></summary><div className="evaluation-area-content"><AreaContent area={key} current={current} previous={previous}/></div></details> : <div key={key} className="evaluation-area-unavailable"><Icon size={20}/><span><strong>{title}</strong><small>{empty}</small></span></div>)}</div>;
 }
 function EmptyEvaluations() {
-  return <div className="evaluation-section evaluation-empty-page"><BmEvaluationIcon size={24}/><p>Tu primera evaluación</p><h2>Todavía no registramos una evaluación física</h2><p>Cuando completes una evaluación vas a poder seguir tu evolución y comparar tus resultados en el tiempo.</p><ul><li>Medidas corporales</li><li>Fuerza y resistencia</li><li>Evolución física</li><li>Molestias y observaciones</li></ul><small>Tu entrenador cargará tu evaluación cuando corresponda.</small></div>;
+  return <section className="evaluation-section evaluation-empty-page" aria-labelledby="evaluation-empty-title">
+    <p className="evaluation-empty-eyebrow">TU PRIMERA EVALUACIÓN</p>
+    <span className="evaluation-empty-icon" aria-hidden="true"><BmEvaluationIcon size={26}/></span>
+    <h2 id="evaluation-empty-title">Todavía no tenés evaluaciones</h2>
+    <p className="evaluation-empty-description">Cuando tu entrenador cargue la primera, acá vas a poder seguir tus cambios y comparar tu evolución.</p>
+    <ul>
+      <li><BmHealthIcon size={20}/><div><strong>Medidas y composición</strong><small>Peso, medidas y datos corporales</small></div></li>
+      <li><BmBarbellIcon size={20}/><div><strong>Rendimiento y movimiento</strong><small>Fuerza, resistencia y movilidad</small></div></li>
+      <li><BmProgressIcon size={20}/><div><strong>Tu evolución</strong><small>Comparaciones e historial de evaluaciones</small></div></li>
+    </ul>
+    <p className="evaluation-empty-footer">Tu entrenador cargará tu evaluación cuando corresponda.</p>
+  </section>;
 }
 
 export function PortalEvaluationsDashboard({ evaluations }: { evaluations: StudentEvaluation[] }) {

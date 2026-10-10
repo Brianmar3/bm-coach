@@ -1608,10 +1608,18 @@ html[data-theme] .workspace-brand .nutrition-data-grid > div { padding: 0; borde
 .evaluation-photos img { width: 100%; height: auto; border-radius: 12px; }
 .evaluation-photos figcaption { font-size: .75rem; color: var(--foreground-muted); }
 .evaluation-notes { white-space: pre-wrap; margin-top: .75rem; font-size: .875rem; }
-.evaluation-empty-page { text-align: center; }
-.evaluation-empty-page > svg { margin: 0 auto .75rem; color: var(--brand-text); }
-.evaluation-empty-page p, .evaluation-empty-page small { font-size: .8125rem; color: var(--foreground-muted); margin: .75rem 0; }
-.evaluation-empty-page ul { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin: 1rem 0; font-size: .75rem; }
+.portal-evaluation .evaluation-empty-page { max-width: 40rem; }
+.evaluation-empty-page .evaluation-empty-eyebrow { margin: 0 0 .75rem; color: var(--brand-text); font-size: .6875rem; font-weight: 700; letter-spacing: .14em; }
+.evaluation-empty-icon { display: grid; place-items: center; width: 3rem; height: 3rem; margin-bottom: .75rem; border-radius: 50%; color: var(--brand-text); background: color-mix(in srgb, var(--brand-text) 10%, transparent); }
+.evaluation-empty-page > h2 { font-size: 1.125rem; line-height: 1.35; }
+.evaluation-empty-page .evaluation-empty-description { margin: .5rem 0 1rem; color: var(--foreground-muted); font-size: .8125rem; line-height: 1.5; }
+.evaluation-empty-page ul { display: grid; gap: .75rem; margin: 0; list-style: none; padding: 0; }
+.evaluation-empty-page li { display: flex; align-items: flex-start; gap: .625rem; }
+.evaluation-empty-page li > svg { flex-shrink: 0; margin-top: .125rem; color: var(--brand-text); }
+.evaluation-empty-page li > div { min-width: 0; }
+.evaluation-empty-page li strong { display: block; font-size: .8125rem; font-weight: 600; }
+.evaluation-empty-page li small { display: block; margin-top: .125rem; font-size: .75rem; line-height: 1.4; color: var(--foreground-muted); }
+.evaluation-empty-page .evaluation-empty-footer { margin: 1rem 0 0; padding-top: .75rem; border-top: 1px solid var(--border-soft); font-size: .75rem; line-height: 1.5; color: var(--foreground-muted); }
 .portal-evaluation :is(button,summary):focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 3px; }
 /* Theme shared read-only visualizations locally, without changing trainer components. */
 html[data-theme] .portal-evaluation :is(.bg-black\/35,.bg-black\/30,.bg-zinc-900) { background: var(--surface-soft); }
