@@ -3,21 +3,11 @@
 import Link from "next/link";
 
 import { AdminNotificationCenter } from "@/componentes/admin-notification-center";
-import { useBrowserStore } from "@/lib/browser-store";
-import type { CoachSettings } from "@/types/gestion";
 import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
 import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 
 export function AdminTopbar() {
-  const { items } = useBrowserStore<CoachSettings>("bm-coach-settings", []);
   const branding = useWorkspaceBranding();
-  const coachName = items[0]?.coachName?.trim() || "Entrenador";
-  const initials =
-    coachName
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join("") || "BM";
 
   return (
     <header className="admin-topbar fixed inset-x-0 top-0 z-40 h-[calc(env(safe-area-inset-top)+4.5rem)] border-b border-yellow-400/10 bg-[var(--nav-bg)] pt-[env(safe-area-inset-top)] shadow-[0_12px_40px_rgba(0,0,0,.12)] backdrop-blur-xl">
@@ -40,25 +30,8 @@ export function AdminTopbar() {
           </span>
         </Link>
 
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+        <div className="flex shrink-0 items-center">
           <AdminNotificationCenter />
-          <Link
-            href="/configuracion"
-            className="group hidden items-center gap-2 rounded-xl p-1 transition hover:bg-white/5 sm:pr-3 lg:flex"
-            aria-label={`Abrir perfil y configuración de ${coachName}`}
-          >
-            <span className="grid h-9 w-9 place-items-center rounded-full border border-yellow-400/30 bg-gradient-to-br from-zinc-800 to-black text-xs font-black text-yellow-300">
-              {initials}
-            </span>
-            <span className="hidden text-left md:block">
-              <span className="block max-w-36 truncate text-xs font-semibold text-zinc-100">
-                {coachName}
-              </span>
-              <span className="block text-[10px] text-zinc-500 group-hover:text-yellow-300">
-                Ver configuración
-              </span>
-            </span>
-          </Link>
         </div>
       </div>
     </header>
