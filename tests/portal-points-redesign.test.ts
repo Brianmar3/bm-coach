@@ -57,3 +57,19 @@ test("Ranking premium conserva su página y vuelve a Puntos y logros", () => {
   assert.match(ranking, /FEATURED_RANKING_SIZE = 5/);
   assert.match(ranking, /pinnedCurrent/);
 });
+
+test("Home y Puntos y logros priorizan el mismo valor mensual y mantienen el objetivo histórico", () => {
+  const portal = read("../componentes/portal-section.tsx");
+  const home = portal.slice(portal.indexOf("function HomeQuickStats"), portal.indexOf("function WeeklyMissionAchievement"));
+  const summary = portal.slice(portal.indexOf("function PointsSummary"), portal.indexOf("function PointsAndAchievementsView"));
+  assert.match(home, /HomeAnimatedNumber value=\{data\.home\.points\.monthlyTotal\}/);
+  assert.match(home, /monthlyTotal\} puntos este mes/);
+  assert.doesNotMatch(home, /HomeAnimatedNumber value=\{data\.home\.points\.total\}/);
+  const monthly = summary.indexOf(">Este mes</p>");
+  const historical = summary.indexOf(">Total histórico</p>");
+  assert.ok(monthly >= 0 && historical > monthly);
+  assert.ok(summary.indexOf("ranking?.currentPosition") < historical);
+  assert.match(summary, /points\.total \/ points\.nextTarget/);
+  assert.match(summary, /Objetivo del total histórico/);
+  assert.match(summary, /points\.pointsToNextTarget/);
+});

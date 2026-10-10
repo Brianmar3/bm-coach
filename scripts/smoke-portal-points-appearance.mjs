@@ -50,6 +50,22 @@ function extract(file, names, extra = {}) {
   return compile(`const {${Object.keys(scope).join(',')}}=require('fixture');\n${nodes.map(n => n.getText(ast)).join('\n')}\nexport {${names.join(',')}};`, id => id === 'fixture' ? scope : require(id));
 }
 const points = extract('componentes/portal-section.tsx', ['PointsSummary', 'AchievementCard', 'achievementIcon', 'achievementLevelLabel']);
+let fixtureToday = '2026-10-10';
+const home = extract('componentes/portal-section.tsx', ['HomeQuickStats'], {
+  isCompetitiveGamificationEligible: compile(readFileSync('lib/student-service.ts', 'utf8')).isCompetitiveGamificationEligible,
+  homePaymentCardCopy: compile(readFileSync('lib/home-payment-card.ts', 'utf8')).homePaymentCardCopy,
+  argentinaDateKey: () => fixtureToday,
+  useState: value => [value, () => {}], useRef: value => ({ current: value }), useEffect: () => {},
+  PORTAL_STAT_CARD_CLASS: readFileSync('componentes/portal-visuals.tsx', 'utf8').match(/PORTAL_STAT_CARD_CLASS = "([^"]+)"/)[1],
+});
+const pointCases = [
+  { name: 'historical only', today: '2026-10-10', total: 24, monthlyTotal: 0, weekly: 0, recent: [] },
+  { name: 'monthly points', today: '2026-10-10', total: 31, monthlyTotal: 7, weekly: 7, recent: [{ points: 7, occurredAt: '2026-10-09T12:00:00Z' }] },
+  { name: 'no points', today: '2026-10-10', total: 0, monthlyTotal: 0, weekly: 0, recent: [] },
+  { name: 'before month change', today: '2026-09-30', total: 24, monthlyTotal: 12, weekly: 2, recent: [{ points: 2, occurredAt: '2026-09-30T12:00:00Z' }] },
+  { name: 'after month change, same week', today: '2026-10-01', total: 24, monthlyTotal: 0, weekly: 2, recent: [{ points: 2, occurredAt: '2026-09-30T12:00:00Z' }] },
+  { name: 'after week change, same month', today: '2026-10-12', total: 31, monthlyTotal: 7, weekly: 0, recent: [{ points: 7, occurredAt: '2026-10-09T12:00:00Z' }] },
+];
 const historyHeader = extract('componentes/portal-section.tsx', ['PointsHistoryPageView'], { PointsHistory: () => null });
 const { PortalNavigationLink } = extract('componentes/portal-visuals.tsx', ['PortalNavigationLink']);
 const navClass = readFileSync('componentes/portal-visuals.tsx', 'utf8').match(/PORTAL_MOBILE_NAV_CLASS = "([^"]+)"/)[1];
@@ -112,6 +128,28 @@ try {
     const snapshot = () => page.locator(surfaces).evaluateAll(elements => elements.map(e => { const s = getComputedStyle(e); return [s.backgroundColor, s.backgroundImage, s.color, s.borderColor, s.boxShadow]; }));
     let darkBefore;
     if (resolved === 'dark') { await page.setContent(html(oldCss)); darkBefore = await snapshot(); }
+    for (const scenario of pointCases) {
+      fixtureToday = scenario.today;
+      const fixture = { profile: { serviceType: 'CLASSES' }, paymentAccount: { status: 'SIN_PAGOS', nextDueDate: '' }, home: { points: { ...scenario, nextTarget: 50, pointsToNextTarget: 50 - scenario.total } } };
+      const content = renderToStaticMarkup(h('div', {}, h(home.HomeQuickStats, { data: fixture }), h(points.PointsSummary, { data: fixture, ranking: { currentPosition: 35 } })));
+      await page.setContent(html(css).replace(markup, content));
+      const homePoints = page.locator('.portal-home-points');
+      assert.match(await homePoints.getAttribute('aria-label'), new RegExp(scenario.monthlyTotal + ' puntos este mes'));
+      assert.equal(await homePoints.locator('p').nth(1).textContent(), String(scenario.monthlyTotal));
+      assert.equal(await homePoints.locator('p').nth(2).textContent(), '+' + scenario.weekly + ' esta semana');
+      assert.equal(await homePoints.getAttribute('href'), '/portal/puntos');
+      const figures = page.locator('.portal-points-summary > div').first();
+      assert.equal(await figures.locator('strong').nth(0).textContent(), String(scenario.monthlyTotal));
+      assert.equal(await figures.locator('strong').nth(1).textContent(), String(scenario.total));
+      assert.match(await figures.locator('div').first().textContent(), /Este mes.*Posición #35/);
+      assert.match(await figures.locator('div').last().textContent(), /Total histórico.*Acumulados/);
+      const sizes = await figures.locator('strong').evaluateAll(elements => elements.map(e => parseFloat(getComputedStyle(e).fontSize)));
+      assert.ok(sizes[0] > sizes[1], 'Monthly score must dominate historical score');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, scenario.name + ': overflow');
+      await page.getByText('Objetivo del total histórico', { exact: true }).waitFor();
+      assert.match(await page.locator('.portal-points-summary').textContent(), new RegExp((50 - scenario.total) + ' pts restantes'));
+      assert.equal(await page.locator('.portal-points-fill').evaluate(e => e.style.width), (scenario.total / 50 * 100) + '%');
+    }
     await page.setContent(html(css));
     if (theme.startsWith('system')) {
       const appearance = ts.transpileModule(readFileSync('lib/appearance.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
@@ -143,5 +181,5 @@ try {
     }
     await page.close(); cases++;
   }
-  console.log(`${cases} appearance cases passed: light/dark/system, BM/custom accent, 320/390/1280px, contrast, dark parity, routes and 44px back control. Production back handler: history restoration and safe deep links passed.`);
+  console.log(`${cases} appearance cases (6 point/week/month scenarios each) passed: light/dark/system, BM/custom accent, 320/390/1280px, contrast, dark parity, routes and 44px back control. Production back handler: history restoration and safe deep links passed.`);
 } finally { await browser.close(); }

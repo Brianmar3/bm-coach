@@ -17,7 +17,7 @@ test("la Home anima únicamente su contenido y mantiene header y navegación est
 });
 
 test("los contadores finalizan en valores reales sin alterar los datos", () => {
-  assert.match(home, /HomeAnimatedNumber value=\{data\.home\.points\.total\}/);
+  assert.match(home, /HomeAnimatedNumber value=\{data\.home\.points\.monthlyTotal\}/);
   assert.match(home, /monthlyAttendancePercentage/);
   assert.match(home, /return reducedMotion \? value : visibleValue/);
   assert.doesNotMatch(home, /points\.total\s*[+*/-]=|monthlyAttendancePercentage\s*[+*/-]=/);
