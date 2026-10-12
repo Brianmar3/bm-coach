@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { inputClass } from "@/componentes/module-shell";
-import { argentinaDateKey } from "@/lib/payment-dates";
+import { argentinaDateKey, isDateKey, nextPaymentDueDate } from "@/lib/payment-dates";
 import type { AttendanceEntry, Payment, Student, TrainingRoutine } from "@/types/gestion";
 
 type Panel = "attendance" | "payments" | "routine" | "classes";
@@ -95,6 +95,9 @@ function PaymentsPanel({ data, student, refresh }: { data: PaymentsData; student
   const [amount, setAmount] = useState(data.obligation?.balance ? String(data.obligation.balance) : "");
   const [paidDate, setPaidDate] = useState(argentinaDateKey());
   const [period, setPeriod] = useState(data.period.slice(0, 7));
+  const [nextDueDate, setNextDueDate] = useState(() => data.account.dueDate ? nextPaymentDueDate(data.account.dueDate, paidDate) : "");
+  const [dueDateError, setDueDateError] = useState("");
+  const dueDateInput = useRef<HTMLInputElement>(null);
   const [method, setMethod] = useState("Efectivo");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -107,10 +110,16 @@ function PaymentsPanel({ data, student, refresh }: { data: PaymentsData; student
     if (saving) return;
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) { setError("Ingresá un importe mayor que cero."); return; }
+    if (!isDateKey(nextDueDate) || nextDueDate < paidDate) {
+      setDueDateError(!isDateKey(nextDueDate) ? "Seleccioná el próximo vencimiento." : "El próximo vencimiento no puede ser anterior a la fecha de pago.");
+      dueDateInput.current?.focus();
+      return;
+    }
+    setDueDateError("");
     requestKey.current ||= `student-card-${student.id}-${crypto.randomUUID()}`;
     setSaving(true); setError(""); setNotice("");
     try {
-      const response = await fetch("/api/pagos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: student.id, amount: numericAmount, paidDate, billingPeriod: `${period}-01`, method, notes, requestKey: requestKey.current }) });
+      const response = await fetch("/api/pagos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: student.id, amount: numericAmount, paidDate, billingPeriod: `${period}-01`, nextDueDate, method, notes, requestKey: requestKey.current }) });
       const body = await response.json() as { error?: string; duplicate?: boolean };
       if (!response.ok) throw new Error(body.error ?? "No se pudo registrar el pago.");
       setNotice(body.duplicate ? "El pago ya estaba registrado; no se duplicó." : "Pago registrado correctamente.");
@@ -125,7 +134,7 @@ function PaymentsPanel({ data, student, refresh }: { data: PaymentsData; student
   const lastPayment = data.payments.find((payment) => payment.status !== "anulado");
   return <div className="mt-4"><div className="grid gap-2 sm:grid-cols-3"><Metric label="Plan actual" value={data.account.plan || "Sin plan"}/><Metric label="Último pago" value={lastPayment ? `${money(lastPayment.amount)} · ${showDate(lastPayment.paidDate)}` : "Sin pagos"}/><Metric label="Próximo vencimiento" value={data.account.dueDate ? showDate(data.account.dueDate) : "Sin definir"}/></div>
     {data.obligation ? <div className="mt-3 grid grid-cols-3 gap-2"><Metric label="Esperado" value={money(data.obligation.expectedAmount)}/><Metric label="Pagado" value={money(data.obligation.paidAmount)}/><Metric label="Saldo" value={money(data.obligation.balance)}/></div> : <p className="mt-3 rounded-xl border border-yellow-400/20 bg-yellow-400/5 p-3 text-xs text-yellow-200">No hay información de cuota disponible para este período. El importe actual ({money(data.account.monthlyFee)}) es solo informativo y no se usa para reconstruir deuda.</p>}
-    <form onSubmit={submit} className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-sm">Importe<input required type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm">Medio de pago<select value={method} onChange={(event) => setMethod(event.target.value)} className={`${inputClass} mt-1`}><option>Efectivo</option><option>Transferencia</option><option>Mercado Pago</option><option>Otro</option></select></label><label className="text-sm">Fecha de pago<input required type="date" value={paidDate} onChange={(event) => setPaidDate(event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm">Período<input required type="month" value={period} onChange={(event) => setPeriod(event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm sm:col-span-2">Observación <span className="text-xs text-zinc-500">(opcional)</span><textarea rows={2} maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} className={`${inputClass} mt-1`}/></label><p className="text-xs text-zinc-500 sm:col-span-2">El pago se registra con estado Pagado, igual que en el módulo Pagos.</p>
+    <form onSubmit={submit} className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-sm">Importe<input required type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm">Medio de pago<select value={method} onChange={(event) => setMethod(event.target.value)} className={`${inputClass} mt-1`}><option>Efectivo</option><option>Transferencia</option><option>Mercado Pago</option><option>Otro</option></select></label><label className="text-sm">Fecha de pago<input required type="date" value={paidDate} onChange={(event) => setPaidDate(event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm">Período<input required type="month" value={period} onChange={(event) => setPeriod(event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm sm:col-span-2">Próximo vencimiento<input ref={dueDateInput} required type="date" min={paidDate} value={nextDueDate} aria-invalid={Boolean(dueDateError)} aria-describedby={dueDateError ? "student-payment-due-date-error" : undefined} onInvalid={() => setDueDateError(!nextDueDate ? "Seleccioná el próximo vencimiento." : "El próximo vencimiento no puede ser anterior a la fecha de pago.")} onChange={(event) => { setNextDueDate(event.target.value); setDueDateError(""); }} className={`${inputClass} mt-1 min-h-11 min-w-0 max-w-full ${dueDateError ? "border-red-400" : ""}`}/>{dueDateError && <span id="student-payment-due-date-error" role="alert" className="mt-1 block text-xs text-red-400">{dueDateError}</span>}</label><label className="text-sm sm:col-span-2">Observación <span className="text-xs text-zinc-500">(opcional)</span><textarea rows={2} maxLength={1000} value={notes} onChange={(event) => setNotes(event.target.value)} className={`${inputClass} mt-1`}/></label><p className="text-xs text-zinc-500 sm:col-span-2">El pago se registra con estado Pagado, igual que en el módulo Pagos.</p>
       {error && <p role="alert" className="sm:col-span-2 rounded-lg bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}{notice && <p className="sm:col-span-2 rounded-lg bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><button disabled={saving} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 disabled:opacity-50">{saving ? "Registrando…" : "Registrar pago"}</button><Link href={`/pagos?studentId=${encodeURIComponent(student.id)}`} className="text-sm font-semibold text-yellow-400">Ver historial de pagos →</Link></div>
     </form>

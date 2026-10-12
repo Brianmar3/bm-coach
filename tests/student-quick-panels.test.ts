@@ -50,3 +50,14 @@ test("la ficha móvil usa tarjetas y no tablas horizontales", () => {
   assert.match(component, /rounded-xl border/);
 });
 
+
+test("la ficha permite elegir y enviar el próximo vencimiento con error asociado", () => {
+  assert.match(component, /nextPaymentDueDate\(data.account.dueDate, paidDate\)/);
+  assert.match(component, /data.account.dueDate \? nextPaymentDueDate[^\n]+ : ""/);
+  assert.match(component, /Próximo vencimiento<input[^>]+required type="date"/);
+  assert.match(component, /aria-invalid=\{Boolean\(dueDateError\)\}/);
+  assert.match(component, /aria-describedby=/);
+  assert.match(component, /Seleccioná el próximo vencimiento/);
+  assert.match(component, /nextDueDate < paidDate/);
+  assert.match(component, /billingPeriod: \x60\$\{period\}-01\x60, nextDueDate/);
+});
