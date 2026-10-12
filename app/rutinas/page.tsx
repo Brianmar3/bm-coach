@@ -1,4 +1,5 @@
 "use client";
+import { BmBookIcon } from "@/componentes/icons/bm-premium/support";
 import { RoutineFloatingActions } from "@/componentes/routine-floating-actions";
 import { RoutineLibraryDrag, LibraryDropZone } from "@/componentes/routine-library-drag";
 
@@ -759,7 +760,7 @@ function BlockAdder({ blocks, folders, ready, error, addNew, addFromLibrary, onB
     void fetch(`/api/training-library/blocks/${block.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "markUsed" }) }).then(async (response) => { if (response.ok) onBlockChanged(await response.json() as TrainingLibraryBlock); }).catch(() => undefined).finally(() => { insertionInFlight.current = false; setBusyId(""); });
   }
   return <>
-    <details aria-label="Agregar bloque" className="routine-block-adder"><summary>+ Agregar bloque</summary><div><p>Frecuentes</p><div className="routine-block-type-list">{(["STRENGTH", "ROUNDS", "INTERVAL"] as TrainingBlockType[]).map(type => <button key={type} type="button" onClick={() => addNew(type)}>{blockLabels[type]}</button>)}</div><p>Todos</p><div className="routine-block-type-list">{(["AMRAP", "EMOM", "FOR_TIME", "MOBILITY", "FREE"] as TrainingBlockType[]).map(type => <button key={type} type="button" onClick={() => addNew(type)}>{blockLabels[type]}</button>)}</div><button type="button" className="routine-library-open" onClick={() => setPickerOpen(true)}>Buscar en Biblioteca</button></div></details>
+    <details aria-label="Agregar bloque" className="routine-block-adder"><summary>+ Agregar bloque</summary><div className="routine-block-adder-content"><div className="routine-block-types"><p className="routine-block-types-title">Tipos de bloque</p><div className="routine-block-type-group"><p>Frecuentes</p><div className="routine-block-type-list">{(["STRENGTH", "ROUNDS", "INTERVAL"] as TrainingBlockType[]).map(type => <button key={type} type="button" onClick={() => addNew(type)}>{blockLabels[type]}</button>)}</div></div><div className="routine-block-type-group"><p>Todos</p><div className="routine-block-type-list">{(["AMRAP", "EMOM", "FOR_TIME", "MOBILITY", "FREE"] as TrainingBlockType[]).map(type => <button key={type} type="button" onClick={() => addNew(type)}>{blockLabels[type]}</button>)}</div></div></div><div className="routine-block-library-action"><button type="button" className="routine-library-open" onClick={() => setPickerOpen(true)}><BmBookIcon size={20} /><span>Buscar en Biblioteca</span></button></div></div></details>
     {pickerOpen && <TrainingLibraryBlockPicker integrated={integrated} blocks={blocks} folders={folders} ready={ready} error={error} busyId={busyId} close={() => { if (!busyId) setPickerOpen(false); }} add={insert} onBlockChanged={onBlockChanged} />}
   </>;
 }

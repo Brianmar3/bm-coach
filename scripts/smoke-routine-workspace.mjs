@@ -93,7 +93,16 @@ await page.getByRole('button',{name:'← Rutinas',exact:true}).click();assert.eq
 // Actual controls at every requested viewport and appearance combination.
 for(const width of [320,390,768,1280,1440,1920])for(const theme of ['light','dark','system'])for(const accent of ['#D4A72C','#2563eb']){
 await page.setViewportSize({width,height:900});await page.emulateMedia({colorScheme:width===390?'light':'dark',reducedMotion:'reduce'});await page.evaluate(({theme,accent})=>{window.applyTestAppearance(theme);const el=document.querySelector('.workspace-brand');Object.entries(window.testBranding(accent)).forEach(([key,value])=>el.style.setProperty(key,value));},{theme,accent});
-await geometry();await page.locator('.routine-exercise-quick').first().getByLabel('Reps',{exact:true}).fill('8-10');await page.locator('.routine-exercise-quick').first().getByLabel('Series',{exact:true}).fill('4');
+await geometry();
+const adder = page.locator('.routine-block-adder');
+if(!await adder.evaluate(el=>el.open))await adder.locator('summary').click();
+await geometry();
+assert.equal(await adder.locator('.routine-block-type-list button').count(),8);
+assert.equal(await adder.locator('.routine-block-type-list .routine-library-open').count(),0);
+assert.equal(await adder.evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'Block adder has no overflow');
+for(const button of await adder.locator('button').all()) { const box=await button.boundingBox();assert.ok(box&&box.height>=44,'Block and Library touch targets'); }
+if([320,390,768,1280].includes(width)&&theme==='dark'&&accent==='#D4A72C')await adder.screenshot({path:path.join(temp,`block-adder-${width}.png`)});
+await page.locator('.routine-exercise-quick').first().getByLabel('Reps',{exact:true}).fill('8-10');await page.locator('.routine-exercise-quick').first().getByLabel('Series',{exact:true}).fill('4');
 await page.getByRole('button',{name:'+ Agregar ejercicio',exact:true}).first().click();await page.getByLabel('Buscar ejercicio',{exact:true}).fill('sentadilla');await geometry();await page.locator('.routine-library-drawer').getByRole('button',{name:'Cerrar',exact:true}).click();
 await page.locator('.routine-editor-workspace').evaluate(el=>el.scrollTop=0);if((width===390||width===1440)&&theme!=='system'&&accent==='#2563eb')await page.screenshot({path:path.join(temp,`workspace-${width}-${theme}.png`)});
 console.log(width,theme,accent,'controls and geometry OK');}
