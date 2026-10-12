@@ -54,7 +54,7 @@ test("el serializador real de borrador y activación guarda el orden nuevo con l
   const code = ts.transpileModule(`function serialize() { ${page.slice(start, end)} return payload; }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   for (const requestedStatus of ["borrador", "activa"]) {
     const blocks = moveRoutineBlock(sample(), "d", 1);
-    const payload = runInNewContext(`${code}; serialize()`, { requestedStatus, replaceOnActivate: false, classTemplate: false, persistedRoutineExerciseVideoUrl: () => "", form: { name: "Rutina", kind: "assigned", description: "", objective: "Fuerza", level: "intermedio", studentIds: [], days: [{ id: "day-1", dayNumber: 1, name: "Día 1", blocks }] } });
+    const payload = runInNewContext(`${code}; serialize()`, { editing: { updatedAt: "2026-10-10T12:00:00.000Z" }, requestedStatus, replaceOnActivate: false, classTemplate: false, persistedRoutineExerciseVideoUrl: () => "", form: { name: "Rutina", kind: "assigned", description: "", objective: "Fuerza", level: "intermedio", studentIds: [], days: [{ id: "day-1", dayNumber: 1, name: "Día 1", blocks }] } });
     assert.equal(payload.status, requestedStatus);
     assert.equal(payload.days[0].blocks.map((block: { id: string }) => block.id).join(), "saved-a,saved-d,saved-b,saved-c");
     assert.equal(payload.days[0].blocks.map((block: { order: number }) => block.order).join(), "1,2,3,4");
@@ -112,7 +112,8 @@ function pointerHarness() {
     const list = children.find((element) => element?.props?.className === "mt-4 space-y-2")!;
     (list.props.ref as { current: unknown }).current = { children: cards() };
     effects.splice(0).forEach((effect) => effect());
-    return list.props.children as Element[];
+    const flatten = (value: unknown): Element[] => Array.isArray(value) ? value.flatMap(flatten) : value && typeof value === "object" && "props" in value ? [(value as Element), ...flatten((value as Element).props.children)] : [];
+    return flatten(list.props.children);
   }
   function handle(id: string) {
     const wrapper = render().find((element) => element.props["data-routine-block-id"] === id)!;

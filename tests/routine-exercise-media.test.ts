@@ -193,7 +193,7 @@ test("el aislamiento también se aplica a todas las estaciones de circuitos", ()
 
 test("el editor integra Biblioteca BM por ejercicio y reinicia su selección", () => {
   assert.match(editor, /openLibraryFor\(exercise\.clientId\)/);
-  assert.match(editor, /applyLibraryExerciseSelection\(current\.exercises, libraryTargetId, item\)/);
+  assert.match(editor, /applyLibraryExerciseSelection\(exercises, target, item\)/);
   assert.match(editor, /key=\{librarySession\}/);
   assert.match(editor, /createEmptyRoutineExerciseDraft\(order, type\)/);
   assert.match(editor, /name="intent" value="draft"/);

@@ -61,10 +61,10 @@ test("Movilidad conserva duración, indicación y video al guardar y reutilizar"
   assert.equal(reused.exercises[0].videoUrl, "https://cdn.example.com/tobillo.mp4");
 });
 
-test("Agregar bloque ofrece Crear nuevo y Desde Biblioteca en ambos editores", () => {
+test("Agregar bloque ofrece los tipos directamente y Buscar en Biblioteca", () => {
   assert.match(page, /function BlockAdder/);
-  assert.match(page, />Crear nuevo</);
-  assert.match(page, />Desde Biblioteca</);
+  assert.match(page, />Frecuentes</);
+  assert.match(page, />Buscar en Biblioteca</);
   assert.equal((page.match(/<BlockAdder /g) ?? []).length, 2);
   assert.match(page, /addNew\(type\)/);
   assert.match(page, /newBlock\(type, day\.blocks\.length \+ 1\)/);
@@ -87,7 +87,7 @@ test("el selector abre en Todos, reutiliza filtros, permite previsualizar y no i
 
 test("la inserción ocurre en el día actual, al final, sin guardar la rutina", () => {
   assert.match(page, /librarySnapshotToEditableBlock\(block\.content, day\.blocks\.length \+ 1\)/);
-  assert.match(page, /librarySnapshotToEditableBlock\(source\.content, currentDay\.blocks\.length \+ 1\)/);
+  assert.match(page, /librarySnapshotToEditableBlock\(source\.content, index \+ 1\)/);
   const insertion = page.slice(page.indexOf("function BlockAdder"), page.indexOf("function ClassTemplateEditor"));
   assert.match(insertion, /addFromLibrary\(block\)/);
   assert.doesNotMatch(insertion, /\/api\/rutinas|submit\(/);

@@ -1,3 +1,4 @@
+import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -15,5 +16,6 @@ export async function GET() {
     user = owners.length === 1 ? owners[0].user : null;
   }
   if (!user || !trainerIdentityHasWorkspaceAccess(user)) return Response.json({ authenticated: false, error: "La cuenta no tiene acceso a un workspace de entrenador." }, { status: 403 });
-  return Response.json({ authenticated: true, role: result.role, platformOwner: false, onboardingCompleted: user.onboardingCompleted, expiresAt: result.expiresAt.toISOString() });
+  const { workspaceId } = await requireTrainerWorkspace();
+  return Response.json({ userId: user.id, workspaceId, authenticated: true, role: result.role, platformOwner: false, onboardingCompleted: user.onboardingCompleted, expiresAt: result.expiresAt.toISOString() });
 }

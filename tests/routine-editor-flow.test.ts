@@ -28,7 +28,7 @@ test("el inicio pide sólo datos esenciales y permite armar días sin asignació
 });
 
 test("editor conserva días, biblioteca, bloques, notificaciones y activación sin asignar", () => {
-  for (const label of ["Opciones avanzadas", "Detalles del día", "Duplicar día", "Eliminar día", "Notificaciones de esta rutina", "Guardar borrador", "Activar rutina", "Seguir sin asignar"]) assert.match(editor, new RegExp(label));
+  for (const label of ["Opciones avanzadas", "Detalles del día", "Duplicar día", "Eliminar día", "Notificaciones de esta rutina", "Guardar", "Activar rutina", "Podés asignar alumnos después"]) assert.match(editor, new RegExp(label));
   assert.match(editor, /<BlockAdder/);
   assert.match(editor, /<BlockEditor[^>]+compact/);
   assert.match(page, /librarySnapshotToEditableBlock\(block\.content/);

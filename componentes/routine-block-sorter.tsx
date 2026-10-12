@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { routineBlockDropIndex, routineBlockScrollSpeed } from "@/lib/routine-block-reorder";
 
@@ -35,12 +35,14 @@ function scrollParentOf(element: HTMLElement): HTMLElement | null {
 }
 
 /** A handle-only pointer gesture; the draft changes once, on drop, never on hover. */
-export function RoutineBlockSorter<T extends SortableBlock>({ blocks, disabled = false, reorder, renderBlock, className = "mt-4 space-y-2" }: {
+export function RoutineBlockSorter<T extends SortableBlock>({ blocks, disabled = false, reorder, renderBlock, renderInsertion, itemLabel = "bloque", className = "mt-4 space-y-2" }: {
   blocks: T[];
   disabled?: boolean;
   reorder: (clientId: string, targetIndex: number) => void;
   renderBlock: (block: T, handle: ReactNode) => ReactNode;
+  renderInsertion?: (index: number) => ReactNode;
   className?: string;
+  itemLabel?: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<DragSession | null>(null);
@@ -146,7 +148,7 @@ export function RoutineBlockSorter<T extends SortableBlock>({ blocks, disabled =
     setPreview(null);
     if (!active || callbacksRef.current.disabled) return;
     callbacksRef.current.reorder(id, target);
-    setAnnouncement(`Bloque en posición ${target + 1} de ${callbacksRef.current.blocks.length}.`);
+    setAnnouncement(`${itemLabel} en posición ${target + 1} de ${callbacksRef.current.blocks.length}.`);
     requestAnimationFrame(() => { if (handle.isConnected) handle.focus({ preventScroll: true }); });
   }
 
@@ -170,11 +172,12 @@ export function RoutineBlockSorter<T extends SortableBlock>({ blocks, disabled =
     <p id={instructionsId} className="sr-only">Mantené presionado el agarre y arrastrá para reordenar dentro del día. Con teclado, usá flecha arriba o abajo; Inicio y Fin. Escape cancela el arrastre.</p>
     <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">{preview ? `Moviendo ${selected?.name || "bloque"}. Posición de destino ${preview.target + 1} de ${ordered.length}.` : announcement}</p>
     <div ref={listRef} className={className}>
-      {ordered.map((block, index) => <div id={`routine-block-${block.clientId}`} key={block.clientId} data-routine-block-id={block.clientId} data-drag-selected={preview?.id === block.clientId || undefined} data-drop-before={destinationId === block.clientId || undefined} data-drop-after={afterId === block.clientId || undefined} className="routine-sortable-block">
-        {renderBlock(block, <button type="button" aria-label={`Reordenar bloque ${block.name || "sin nombre"}, posición ${index + 1} de ${ordered.length}`} aria-describedby={instructionsId} disabled={disabled || ordered.length < 2} className="routine-block-drag-handle" onPointerDown={(event) => startDrag(event, block, index)} onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag} onKeyDown={(event) => keyboardMove(event, block, index)}>
+      {ordered.map((block, index) => <Fragment key={block.clientId}>{renderInsertion?.(index)}<div id={`routine-block-${block.clientId}`} key={block.clientId} data-routine-block-id={block.clientId} data-drag-selected={preview?.id === block.clientId || undefined} data-drop-before={destinationId === block.clientId || undefined} data-drop-after={afterId === block.clientId || undefined} className="routine-sortable-block">
+        {renderBlock(block, <button type="button" aria-label={`Reordenar ${itemLabel} ${block.name || "sin nombre"}, posición ${index + 1} de ${ordered.length}`} aria-describedby={instructionsId} disabled={disabled || ordered.length < 2} className="routine-block-drag-handle" onPointerDown={(event) => startDrag(event, block, index)} onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag} onKeyDown={(event) => keyboardMove(event, block, index)}>
           <svg aria-hidden="true" width="20" height="24" viewBox="0 0 20 24" fill="currentColor">{[6, 12, 18].flatMap((y) => [7, 13].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.7" />))}</svg>
         </button>)}
-      </div>)}
+      </div></Fragment>)}
+      {renderInsertion?.(ordered.length)}
     </div>
     {preview && createPortal(<div aria-hidden="true" className="workspace-brand routine-block-drag-preview" style={{ top: preview.top, left: preview.left, width: preview.width, "--bm-accent": preview.accent } as CSSProperties}><strong>{selected?.name || "Bloque sin nombre"}</strong><span>Posición {preview.target + 1} de {ordered.length}</span></div>, document.body)}
   </>;

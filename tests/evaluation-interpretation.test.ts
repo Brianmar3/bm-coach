@@ -76,7 +76,7 @@ test("el editor admite asignación posterior y múltiple, conserva evaluación y
   assert.doesNotMatch(modernEditor, /form\.studentIds\.length === 0 \? <StudentAssignmentPicker/);
   assert.match(page, /Asignar alumnos/); assert.match(page, /type="checkbox" checked=\{checked\}/);
   assert.doesNotMatch(page, /RoutineAIProposalPanel|applyAIProposal|\/api\/admin\/rutinas\/propuesta/);
-  assert.match(modernEditor, /min-h-14 w-28/); assert.match(modernEditor, /sm:w-32/); assert.match(modernEditor, /border-zinc-700 bg-zinc-800/);
+  assert.match(modernEditor, /RoutineDayNavigator/); assert.match(modernEditor, /RoutineEvaluationPanel/); assert.match(modernEditor, /routine-workspace-layout/);
   assert.doesNotMatch(page, /Crear borrador y revisar/);
 });
 

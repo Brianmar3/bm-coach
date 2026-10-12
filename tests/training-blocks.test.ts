@@ -242,7 +242,7 @@ test("la migración de Movilidad sólo amplía el enum y no modifica datos exist
 test("el editor agrega, reordena, duplica y elimina bloques y ejercicios", () => {
   for (const text of ["+ Agregar bloque", "Fuerza", "Circuito", "Intervalos", "EMOM", "AMRAP", "For time", "Bloque libre", "Movilidad", "+ Agregar ejercicio"]) assert.match(editor, new RegExp(text.replace("+", "\\+")));
   for (const handler of ["moveBlock", "duplicateBlock", "removeBlock", "moveExercise"]) assert.match(editor, new RegExp(handler));
-  assert.match(editor, /if \(saving\) return/);
+  assert.match(editor, /if \(saving \|\| saveInFlight.current\) return/);
   assert.match(editor, /pb-\[calc\(env\(safe-area-inset-bottom\)/);
 });
 

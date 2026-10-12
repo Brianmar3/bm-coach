@@ -228,7 +228,7 @@ test("el grid usa thumbnail lazy y no GIF", () => {
   const thumbnailSection = component.slice(component.indexOf("export function ExerciseThumbnail"), component.indexOf("export function ExerciseMedia"));
   assert.match(thumbnailSection, /loading="lazy"/);
   assert.doesNotMatch(thumbnailSection, /"gif"/);
-  assert.match(component, /paginateExerciseLibrary\(filtered, visibleCount\)/);
+  assert.match(component, /paginateExerciseLibrary\(scoped, visibleCount\)/);
   assert.doesNotMatch(component, /catalog\.items\.slice/);
 });
 
@@ -242,7 +242,7 @@ test("la página visible limita render sin reducir el catálogo y Cargar más av
 
 test("muestra contador total y contador filtrado", () => {
   assert.match(component, /catalog\.total\.toLocaleString/);
-  assert.match(component, /filtered\.length\.toLocaleString/);
+  assert.match(component, /scoped\.length\.toLocaleString/);
   assert.match(component, /Mostrando 1–/);
   assert.equal(filterExerciseLibrary(library, { equipment: "ez barbell" }).length, library.filter((item) => item.equipment === "ez barbell").length);
 });

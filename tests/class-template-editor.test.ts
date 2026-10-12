@@ -70,15 +70,15 @@ test("editar una clase de un día vuelve al editor específico", () => {
 });
 
 test("templates legacy multidía conservan el editor completo sin perder días", () => {
-  assert.match(page, /legacyMultiDayTemplate = form\.kind === "template" && form\.days\.length > 1/);
-  assert.match(routineEditor, /Editar plantilla multidía/);
-  assert.match(routineEditor, /se mantiene el editor por días para no perder contenido/);
-  assert.match(routineEditor, /aria-label="Días de la rutina"/);
-  assert.match(routineEditor, />\+ Día</);
+  assert.match(page, /form\.kind === "template" && form\.days\.length === 1/);
+  assert.match(routineEditor, /<RoutineDayNavigator draft=\{form\}/);
+  const workspace = readFileSync(new URL("../componentes/routine-editor-workspace.tsx", import.meta.url), "utf8");
+  assert.match(workspace, /aria-label="Días de la rutina"/);
+  assert.match(workspace, />\+ Día</);
 });
 
 test("Nueva rutina conserva semanas, estado, días y acciones originales", () => {
-  for (const text of ["Nueva rutina", "Fecha de inicio", "Duración (semanas)", "Estado", "Días de la rutina", "+ Día", "Guardar borrador", "Activar rutina"]) assert.match(routineEditor, new RegExp(text.replace(/[()+]/g, "\\$&")));
+  for (const text of ["Nueva rutina", "Fecha de inicio", "Duración (semanas)", "Estado", "Guardar", "Activar rutina"]) assert.match(routineEditor, new RegExp(text.replace(/[()+]/g, "\\$&")));
 });
 
 test("Enter sin submitter no guarda y Escape respeta la capa superior", () => {

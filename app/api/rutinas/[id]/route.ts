@@ -47,7 +47,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     const { id } = await context.params;
     const { workspaceId } = await requireTrainerWorkspace();
     await assertRoutineInWorkspace(id, workspaceId);
-    const input = await request.json() as RoutineInput & { replaceActive?: boolean };
+    const input = await request.json() as RoutineInput & { replaceActive?: boolean; expectedUpdatedAt?: string };
     const validationError = validateRoutine(input);
     if (validationError) return Response.json({ error: validationError }, { status: 400 });
     const students = input.kind === "template" ? 0 : await prisma.studentRecord.count({ where: { workspaceId, AND: [coachedStudentsWhere], id: { in: input.studentIds } } });
@@ -80,6 +80,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
         },
       });
       if (!existing) throw new Prisma.PrismaClientKnownRequestError("Rutina no encontrada", { code: "P2025", clientVersion: Prisma.prismaVersion.client });
+      if (input.expectedUpdatedAt && input.expectedUpdatedAt !== existing.updatedAt.toISOString()) throw new Error("ROUTINE_REVISION_CONFLICT");
       const updateInput = existing.status === "ACTIVA"
         ? { ...input, trainerNotificationsEnabled: input.trainerNotificationsEnabled ?? existing.trainerNotificationsEnabled, status: "activa" as const }
         : { ...input, trainerNotificationsEnabled: input.trainerNotificationsEnabled ?? existing.trainerNotificationsEnabled };
@@ -285,6 +286,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/rutinas/
     return Response.json(serializeRoutine(record));
   } catch (error) {
     if (isWorkspaceResourceNotFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
+    if (error instanceof Error && error.message === "ROUTINE_REVISION_CONFLICT") return Response.json({ error: "Otra edición cambió esta rutina. Tu copia local se conserva; volvé a abrir la versión actual antes de publicar." }, { status: 409 });
     if (notFound(error)) return Response.json({ error: "Rutina no encontrada." }, { status: 404 });
     if (error instanceof Error && error.message === "ACTIVE_ASSIGNMENT_CONFLICT") return Response.json({ error: "Uno o más alumnos ya tienen otra rutina activa asignada." }, { status: 409 });
     if (error instanceof Error && error.message === "ROUTINE_KIND_IMMUTABLE") return Response.json({ error: "No se puede convertir una rutina en plantilla desde la edición. Usá “Guardar como plantilla”." }, { status: 409 });

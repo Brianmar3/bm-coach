@@ -213,7 +213,7 @@ test("una rutina nueva o borrador muestra Activar rutina", () => {
 });
 
 test("el guardado bloquea doble toque", () => {
-  assert.match(submitFlow, /if \(saving\) return/);
+  assert.match(submitFlow, /if \(saving \|\| saveInFlight.current\) return/);
   assert.match(editorActions, /disabled=\{saving\}/);
 });
 
