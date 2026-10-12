@@ -1,0 +1,58 @@
+[
+  {
+    "body_part": "chest",
+    "equipment": "barbell",
+    "target": "pectorals",
+    "muscle_group": "chest",
+    "instructions": {
+      "es": "Movimiento de prueba."
+    },
+    "instruction_steps": {
+      "es": [
+        "Seguí la indicación."
+      ]
+    },
+    "id": "fixture-b",
+    "name": "barbell bench press",
+    "secondary_muscles": [
+      "triceps",
+      "delts"
+    ],
+    "image": "images/fixture.jpg",
+    "gif_url": "videos/fixture.gif",
+    "attribution": "Fixture BM"
+  },
+  {
+    "body_part": "upper arms",
+    "equipment": "dumbbell",
+    "target": "biceps",
+    "muscle_group": "arms",
+    "instructions": {
+      "es": "Movimiento de prueba."
+    },
+    "instruction_steps": {
+      "es": [
+        "Seguí la indicación."
+      ]
+    },
+    "id": "fixture-a",
+    "name": "dumbbell biceps curl",
+    "secondary_muscles": []
+  },
+  {
+    "body_part": "unknown body",
+    "equipment": "unknown equipment",
+    "target": "unknown muscle",
+    "muscle_group": "unknown group",
+    "instructions": {
+      "es": "Movimiento de prueba."
+    },
+    "instruction_steps": {
+      "es": [
+        "Seguí la indicación."
+      ]
+    },
+    "id": "fixture-c",
+    "name": "unknown fixture movement"
+  }
+]

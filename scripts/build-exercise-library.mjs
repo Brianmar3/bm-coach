@@ -1,6 +1,6 @@
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { localizeExercise } from "../lib/exercise-localization-es.mjs";
+import { transformExerciseLibrary } from "../lib/exercise-library-transform.mjs";
 
 const root = process.cwd();
 const inputPath = path.join(root, "external", "exercises-dataset-main", "data", "exercises.json");
@@ -11,51 +11,7 @@ const source = JSON.parse(await readFile(inputPath, "utf8"));
 const localization = JSON.parse(await readFile(localizationPath, "utf8"));
 const normalize = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 
-const localizedSource = source.map((item) => ({ item, localized: localizeExercise(item, localization) }));
-const library = localizedSource.map(({ item, localized }) => {
-  const searchable = [
-    item.name,
-    localized.displayNameEs,
-    ...localized.aliases,
-    item.body_part,
-    localized.bodyPartLabelEs,
-    item.equipment,
-    localized.equipmentLabelEs,
-    item.target,
-    localized.targetMuscleLabelEs,
-    item.muscle_group,
-    localized.muscleGroupLabelEs,
-    ...(item.secondary_muscles ?? []),
-    ...localized.secondaryMusclesEs
-  ];
-  return {
-    id: `dataset:${item.id}`,
-    sourceId: item.id,
-    name: item.name,
-    displayName: localized.displayNameEs,
-    displayNameEs: localized.displayNameEs,
-    aliases: localized.aliases,
-    translationStatus: localized.translationStatus,
-    translationPass: localized.translationPass,
-    bodyPart: item.body_part,
-    bodyPartLabelEs: localized.bodyPartLabelEs,
-    equipment: item.equipment,
-    equipmentLabelEs: localized.equipmentLabelEs,
-    targetMuscle: item.target,
-    targetMuscleLabelEs: localized.targetMuscleLabelEs,
-    muscleGroup: item.muscle_group,
-    muscleGroupLabelEs: localized.muscleGroupLabelEs,
-    secondaryMuscles: item.secondary_muscles ?? [],
-    secondaryMusclesEs: localized.secondaryMusclesEs,
-    instructionsEs: item.instructions.es,
-    instructionStepsEs: item.instruction_steps.es,
-    thumbnailPath: item.image,
-    gifPath: item.gif_url,
-    attribution: item.attribution,
-    source: "EXERCISES_DATASET",
-    searchableText: normalize(searchable.join(" "))
-  };
-}).sort((a, b) => a.sourceId.localeCompare(b.sourceId));
+const { localizedSource, library } = transformExerciseLibrary(source, localization);
 
 const pendingSuggestion = (localized) => localized.reviewReason === "NO_MOVEMENT_PATTERN"
   ? "Definir el nombre canónico manualmente después de revisar el GIF y las instrucciones."

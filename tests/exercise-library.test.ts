@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { EXERCISE_LIBRARY_PAGE_SIZE, exerciseLibraryFacets, exerciseLibrarySummaries, filterExerciseLibrary, getExerciseMediaUrl, normalizeLibraryText, paginateExerciseLibrary, resolveExerciseLibraryMatch } from "../lib/exercise-library.ts";
+import { transformExerciseLibrary } from "../lib/exercise-library-transform.mjs";
 import type { BMExercise } from "../types/exercise-library.ts";
 
 const library = JSON.parse(readFileSync(new URL("../data/bm-exercise-library.json", import.meta.url), "utf8")) as BMExercise[];
-const source = JSON.parse(readFileSync(new URL("../external/exercises-dataset-main/data/exercises.json", import.meta.url), "utf8")) as Array<{ id: string; name: string; body_part: string; equipment: string; target: string; secondary_muscles: string[]; instructions: { es: string }; instruction_steps: { es: string[] }; image?: string; gif_url?: string; attribution?: string }>;
-const sourceById = new Map(source.map((item) => [item.id, item]));
+const source = JSON.parse(readFileSync(new URL("./fixtures/exercise-library-source.json", import.meta.url), "utf8"));
+const localization = JSON.parse(readFileSync(new URL("../data/exercise-localization-es.json", import.meta.url), "utf8"));
+const transformed = transformExerciseLibrary(source, localization).library as BMExercise[];
+const sourceById = new Map<string, typeof source[number]>(source.map((item: { id: string }) => [item.id, item]));
 const component = readFileSync(new URL("../componentes/exercise-library.tsx", import.meta.url), "utf8");
 const apiRoute = readFileSync(new URL("../app/api/exercise-library/route.ts", import.meta.url), "utf8");
 const editor = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
@@ -16,10 +19,9 @@ const audit = JSON.parse(readFileSync(new URL("../reports/exercise-library-audit
 const translationAudit = JSON.parse(readFileSync(new URL("../reports/exercise-library-translation-audit.json", import.meta.url), "utf8"));
 
 test("carga los 1.324 ejercicios con IDs únicos", () => {
-  assert.equal(source.length, 1324);
   assert.equal(library.length, 1324);
   assert.equal(new Set(library.map((item) => item.id)).size, 1324);
-  assert.deepEqual(library.map((item) => item.sourceId).toSorted(), source.map((item) => item.id).toSorted());
+  assert.equal(new Set(library.map((item) => item.sourceId)).size, 1324);
   assert.ok(library.every((item) => item.id === `dataset:${item.sourceId}`));
 });
 
@@ -29,14 +31,20 @@ test("la proyección usada por la API conserva los 1.324 registros", () => {
   assert.match(apiRoute, /exerciseLibrarySummaries\(library\)/);
 });
 
-test("preserva todos los campos obligatorios y el español real", () => {
-  for (const [index, item] of library.entries()) {
+test("transforma el fixture preservando campos fuente, español y media", () => {
+  assert.equal(transformed.length, source.length);
+  assert.deepEqual(transformed.map((item) => item.sourceId), ["fixture-a", "fixture-b", "fixture-c"]);
+  for (const [index, item] of transformed.entries()) {
     const original = sourceById.get(item.sourceId)!;
     assert.ok(item.name && item.equipment && item.targetMuscle && item.bodyPart, `registro ${index}`);
     assert.equal(item.name, original.name);
     assert.equal(item.equipment, original.equipment);
     assert.equal(item.bodyPart, original.body_part);
     assert.equal(item.targetMuscle, original.target);
+    assert.equal(item.muscleGroup, original.muscle_group);
+    assert.deepEqual(item.secondaryMuscles, original.secondary_muscles ?? []);
+    assert.equal(item.id, `dataset:${original.id}`);
+    assert.equal(item.source, "EXERCISES_DATASET");
     assert.ok(item.displayNameEs && item.equipmentLabelEs && item.bodyPartLabelEs && item.targetMuscleLabelEs, `localización ${item.id}`);
     assert.ok(item.instructionsEs, `instructions.es ${item.id}`);
     assert.ok(item.instructionStepsEs.length, `instruction_steps.es ${item.id}`);
@@ -45,6 +53,33 @@ test("preserva todos los campos obligatorios y el español real", () => {
     assert.equal(item.thumbnailPath, original.image);
     assert.equal(item.gifPath, original.gif_url);
     assert.equal(item.attribution, original.attribution);
+  }
+});
+
+test("transforma secundarios ausentes, media opcional y términos desconocidos sin inventarlos", () => {
+  const known = transformed.find((item) => item.sourceId === "fixture-b")!;
+  assert.equal(known.displayNameEs, "Press de banca con barra");
+  assert.equal(known.equipmentLabelEs, "Barra");
+  assert.equal(known.bodyPartLabelEs, "Pecho");
+  assert.equal(known.targetMuscleLabelEs, "Pectorales");
+  assert.deepEqual(known.secondaryMuscles, ["triceps", "delts"]);
+  assert.equal(known.secondaryMusclesEs.length, 2);
+  assert.ok(known.searchableText.includes("press de banca"));
+  const unknown = transformed.find((item) => item.sourceId === "fixture-c")!;
+  assert.equal(unknown.translationStatus, "REVIEW");
+  assert.equal(unknown.displayNameEs, unknown.name);
+  assert.equal(unknown.equipmentLabelEs, "unknown equipment");
+  assert.deepEqual(unknown.secondaryMuscles, []);
+  assert.deepEqual(unknown.secondaryMusclesEs, []);
+  assert.equal(unknown.thumbnailPath, undefined);
+  assert.equal(unknown.gifPath, undefined);
+  assert.equal(unknown.id, "dataset:fixture-c");
+});
+
+test("el catálogo versionado mantiene campos obligatorios e instrucciones españolas", () => {
+  for (const item of library) {
+    assert.ok(item.name && item.equipment && item.targetMuscle && item.bodyPart);
+    assert.ok(item.instructionsEs && item.instructionStepsEs.length);
   }
 });
 
