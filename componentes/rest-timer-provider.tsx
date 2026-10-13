@@ -17,13 +17,15 @@ type RestTimerContextValue = {
   nowMs: number;
   primaryAction: (exerciseId: string, durationSeconds: number, exerciseName: string) => void;
   reset: (exerciseId: string, durationSeconds: number) => void;
+  start: (exerciseId: string, durationSeconds: number, exerciseName: string) => void;
 };
 
 type StoredRestTimer = {
   exerciseId: string;
   originalDuration: number;
-  endTimestamp: number;
-  status: "running";
+  endTimestamp: number | null;
+  remainingSeconds?: number;
+  status: "running" | "paused";
 };
 
 const RestTimerContext = createContext<RestTimerContextValue | null>(null);
@@ -32,6 +34,7 @@ function restoreRunningTimer(raw: string | null, nowMs: number): ExerciseRestTim
   if (!raw) return null;
   try {
     const stored = JSON.parse(raw) as Partial<StoredRestTimer>;
+    if (stored.status === "paused" && typeof stored.exerciseId === "string" && typeof stored.originalDuration === "number" && stored.originalDuration > 0 && typeof stored.remainingSeconds === "number" && stored.remainingSeconds > 0 && stored.remainingSeconds <= stored.originalDuration) return { ...initialExerciseRestTimer(stored.exerciseId, stored.originalDuration), remainingSeconds: stored.remainingSeconds, status: "paused" };
     if (stored.status !== "running" || typeof stored.exerciseId !== "string" || !stored.exerciseId || typeof stored.originalDuration !== "number" || stored.originalDuration <= 0 || typeof stored.endTimestamp !== "number" || stored.endTimestamp <= nowMs) return null;
     return {
       ...initialExerciseRestTimer(stored.exerciseId, stored.originalDuration),
@@ -107,6 +110,9 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     if (timer?.status === "running" && timer.endTimestamp !== null && timer.endTimestamp > Date.now()) {
       const stored: StoredRestTimer = { exerciseId: timer.exerciseId, originalDuration: timer.durationSeconds, endTimestamp: timer.endTimestamp, status: "running" };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    } else if (timer?.status === "paused") {
+      const stored: StoredRestTimer = { exerciseId: timer.exerciseId, originalDuration: timer.durationSeconds, endTimestamp: null, remainingSeconds: timer.remainingSeconds, status: "paused" };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     } else {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -143,6 +149,18 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
     updateTimer(next);
   }, [cancelNativeNotification, prepareNativeNotification, prime, startNativeNotification, updateTimer]);
 
+  // Explicit start never toggles an already running rest into pause.
+  const start = useCallback((exerciseId: string, durationSeconds: number, exerciseName: string) => {
+    if (durationSeconds <= 0) return;
+    prime("restFinish");
+    const actionTime = Date.now();
+    const next = reduceExerciseRestTimer(initialExerciseRestTimer(exerciseId, durationSeconds), "START", actionTime);
+    setNowMs(actionTime);
+    updateTimer(next);
+    prepareNativeNotification();
+    void startNativeNotification({ key: `rest:${exerciseId}`, title: "BM Training · Descanso", body: exerciseName, endAt: next.endTimestamp!, type: "REST", completionTitle: "Descanso terminado", completionBody: `Terminó el descanso de ${exerciseName}.` });
+  }, [prime, updateTimer, prepareNativeNotification, startNativeNotification]);
+
   const reset = useCallback((exerciseId: string, durationSeconds: number) => {
     void cancelNativeNotification();
     const current = timerRef.current;
@@ -151,7 +169,7 @@ export function RestTimerProvider({ children }: { children: ReactNode }) {
       : initialExerciseRestTimer(exerciseId, durationSeconds));
   }, [cancelNativeNotification, updateTimer]);
 
-  return <RestTimerContext.Provider value={{ timer, nowMs, primaryAction, reset }}>{children}</RestTimerContext.Provider>;
+  return <RestTimerContext.Provider value={{ timer, nowMs, primaryAction, reset, start }}>{children}</RestTimerContext.Provider>;
 }
 
 export function useExerciseRestTimer() {

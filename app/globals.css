@@ -1787,3 +1787,43 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
   .routine-editor-workspace:has(.routine-library-drawer) .routine-save-status { order:3; width:100%; }
 }
 @media(min-width:1600px) { .routine-editor-workspace:has(.routine-library-drawer) { padding-right:430px; } .routine-editor-workspace .routine-library-drawer { width:430px; } .routine-editor-workspace:has(.routine-library-drawer) .routine-exercise-quick { grid-template-columns:repeat(5,minmax(0,1fr)); } .routine-editor-workspace:has(.routine-library-drawer) .routine-exercise-quick label:first-child { grid-column:1/-1; } }
+
+/* Guided focus execution: one primary action, editable sets and contextual rest. */
+.workout-focus-overview { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.25rem .5rem; font-size:.875rem; }
+.workout-focus-overview > span { color:var(--foreground-muted); font-size:.6875rem; font-variant-numeric:tabular-nums; }
+.workout-focus-track { height:4px; overflow:hidden; border-radius:99px; background:var(--border-soft); margin-top:.625rem; }
+.workout-focus-track > span { display:block; height:100%; background:var(--bm-accent); transition:width .2s ease; }
+.workout-focus-guidance { padding:.75rem 1rem; background:var(--bm-accent-soft); border-top:1px solid var(--border-soft); }
+.workout-focus-eyebrow { color:var(--brand-text); font-size:.6875rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.workout-focus-guidance > p:first-child { font-size:.875rem; }
+.workout-focus-guidance > p + p { margin-top:.25rem; color:var(--foreground-muted); font-size:.75rem; line-height:1.5; }
+.workout-focus-technique { padding:.75rem 1rem; border-bottom:1px solid var(--border-soft); }
+.workout-focus-tip { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-top:.25rem; font-size:.8125rem; line-height:1.5; color:var(--foreground-muted); }
+.workout-focus-technique summary { display:flex; align-items:center; min-height:44px; color:var(--brand-text); font-size:.75rem; font-weight:700; cursor:pointer; }
+.workout-focus-technique ol { padding-left:1.25rem; list-style:decimal; font-size:.8125rem; line-height:1.6; color:var(--foreground-muted); }
+.workout-focus-media { min-height:160px; padding:.5rem; background:var(--surface-soft); }
+.workout-focus-media img { height:160px; }
+.workout-focus .portal-routine-sets > div[data-current="true"] { border:1px solid var(--bm-accent); box-shadow:inset 3px 0 var(--bm-accent); }
+.workout-focus .portal-routine-sets > div[data-current="true"] > span::after { content:'Actual'; display:block; font-size:8px; letter-spacing:0; font-weight:700; }
+.workout-focus .portal-routine-set-complete { background:var(--surface-soft); color:var(--foreground-muted); }
+.workout-focus .portal-routine-set-complete > span { color:var(--foreground-muted); }
+.workout-focus .portal-routine-sets label:last-child { min-width:40px; min-height:48px; cursor:pointer; }
+.workout-focus .portal-routine-sets input:disabled { cursor:default; opacity:.4; }
+.workout-focus-start-copy { margin:.125rem .25rem .625rem; color:var(--foreground-muted); font-size:.75rem; text-align:center; }
+.workspace-brand .workout-focus-main-action { width:100%; min-height:52px; font-size:.9375rem; border-radius:14px; }
+.workout-focus-action-copy { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.25rem; padding:.25rem .25rem .625rem; font-size:.8125rem; font-weight:700; }
+.workout-focus-action-copy > span { color:var(--foreground-muted); font-size:.6875rem; font-weight:400; }
+.workout-focus-navigation { margin-top:.5rem; }
+.workspace-brand .workout-focus-navigation > button { background:transparent; border-color:transparent; color:var(--foreground-muted); min-height:44px; font-size:.75rem; }
+.workout-focus-rest { align-items:center; gap:.625rem; padding:.125rem; }
+.is-active .workout-focus-clock { width:88px; height:88px; }
+.is-active .workout-focus-clock strong { font-size:1.5rem; }
+.workout-focus-rest-owner { font-size:.6875rem; color:var(--foreground-muted); overflow-wrap:anywhere; }
+.workout-focus-up-next { margin-top:.25rem; font-size:.8125rem; font-weight:700; overflow-wrap:anywhere; }
+.workout-focus-rest-actions { display:flex; flex-wrap:wrap; gap:.25rem; margin-top:.375rem; }
+.workspace-brand .workout-focus-rest-actions > button { min-height:44px; padding:.375rem .5rem; font-size:.6875rem; border-radius:10px; }
+@media (min-width:768px) { .workout-focus-identity { padding:1.25rem; } .workout-focus-media img { height:192px; } .workout-focus-controls { padding:.875rem; } }
+@media (max-width:340px) { .workout-focus-heading { gap:.375rem; } .workout-focus-rest { align-items:flex-start; } .is-active .workout-focus-clock { width:72px; height:72px; } .is-active .workout-focus-clock strong { font-size:1.25rem; } }
+.workout-focus summary { min-height:44px; display:flex; align-items:center; }
+.workout-focus .portal-routine-sets > div { grid-template-columns:1.75rem minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px; }
+.workout-focus .portal-routine-sets label:last-child { min-width:44px; }

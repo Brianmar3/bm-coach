@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 const {chromium}=createRequire(path.join(process.env.BM_TEST_NODE_MODULES,'playwright/package.json'))('playwright');
 const origin=process.env.BM_TEST_ORIGIN || 'http://localhost:3101';
 function fixture(serviceType) {
@@ -13,184 +14,162 @@ function fixture(serviceType) {
   return { version: 1, scope: JSON.stringify(["workspace-a", "student-a", "session-a"]), studentId: "student-a", workspaceId: "workspace-a", sessionId: "session-a", savedAt, expiresAt: new Date(now.getTime() + 7 * 86400000).toISOString(), proof: "synthetic-proof", branding: { accentColor: "#22C55E", logoMode: "DEFAULT", customLogoUrl: "", displayName: "Workspace prueba", isPremium: true, platformFallbackName: "BM Training" }, data: { profile: { id: "student-a", serviceType }, routine, workoutSessions: [], exerciseMediaEnabled: false } };
 }
 
-function visualFixture(serviceType, accent) {
- const snapshot=fixture(serviceType); snapshot.branding.accentColor=accent;
- const day=snapshot.data.routine.days[0], exercise=day.exercises[0]; exercise.name='Sentadillas con barra'; exercise.sets=4; exercise.restSeconds=120; exercise.repetitions='6–8';
- const second={...exercise,id:'exercise-c',name:'Sentadillas sumo',order:2};
- day.exercises.push(second); day.blocks[0].exercises.push(second);
- day.blocks.unshift({...day.blocks[0],id:'interval-a',name:'Intervalos',type:'INTERVAL',order:0,rounds:3,workSeconds:30,restSeconds:10,exercises:[{...exercise,id:'interval-ex',name:'Plancha frontal',sets:0,targetType:'TIME',targetSeconds:30,blockId:'interval-a'}]});
- day.blocks.push({...day.blocks[0],id:'mobility-a',name:'Movilidad',type:'MOBILITY',order:3});
- day.name='Pierna 1'; day.objective='Pierna 1'; day.estimatedMinutes=75;
- snapshot.data.routine.days[1]={...day,id:'day-b',dayNumber:2,name:'Pierna 2',objective:'Pierna 2',blocks:day.blocks.map(b=>({...b,id:b.id+'-b'}))};
- snapshot.data.workoutSessions=[{id:'history-a',routineId:'routine-a',dayId:'old-day',status:'finalizado',date:'2026-09-01',exercises:[{exerciseId:exercise.id,sets:[{setNumber:1,weight:48,repetitions:12,effort:2,completed:true}]}],blocks:[]}];
- return snapshot;
-}
+const output = path.join(process.cwd(), 'docs', 'visuals', 'workout-focus');
+await mkdir(output,{recursive:true});
 const browser = await chromium.launch({channel:'msedge',headless:true});
-let cases = 0;
+const results=[];
+async function setup(width,theme,accent,{offlineCase=false,brokenMedia=false,mixed=false}={}) {
+ const snapshot=fixture('PERSONALIZED');snapshot.branding.accentColor=accent;
+ const day=snapshot.data.routine.days[0],first=day.exercises[0];
+ first.name='Press de banca con barra';first.sets=2;first.repetitions='12';first.restSeconds=offlineCase?60:1;first.equipment='Barra';
+ const second={...first,id:'exercise-c',name:'Remo con mancuerna',order:2,videoUrl:'bm-library://exercise/dataset%3Atest-focus'};
+ day.blocks[0].exercises=[first,second];day.exercises=[first,second];
+ if(mixed)day.blocks.push({...day.blocks[0],id:'pending-free',name:'Vuelta a la calma',type:'FREE',exercises:[]});
+ snapshot.data.exerciseMediaEnabled=true;
+ const context=await browser.newContext({viewport:{width,height:844},isMobile:width<768,hasTouch:width<768,colorScheme:theme.endsWith('light')?'light':'dark',reducedMotion:'reduce',serviceWorkers:'allow'});
+ await context.addInitScript(theme=>localStorage.setItem('bm-appearance-v1',theme.startsWith('system')?'system':theme),theme);
+ const posts=[],errors=[];let networkDown=false;
+ await context.route('**/api/portal/**',route=>{
+  if(networkDown)return route.abort('internetdisconnected');
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/portal/session')return route.fulfill({json:{offlineIdentity:{studentId:'student-a',workspaceId:'workspace-a',sessionId:'session-a'}}});
+  if(url.pathname==='/api/portal/offline')return route.fulfill({json:snapshot});
+  if(url.pathname==='/api/portal/entrenamientos'){posts.push(route.request().postDataJSON());return route.fulfill({json:{id:'synthetic',status:'en_progreso'}})}
+  return route.fulfill({status:401,json:{error:'Synthetic test'}});
+ });
+ await context.route('**/api/exercise-library/**',route=>{
+  if(networkDown)return route.abort('internetdisconnected');
+  if(route.request().url().includes('/media?'))return brokenMedia?route.fulfill({status:404}):route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="360" height="200"><rect width="360" height="200" fill="#eee"/><path d="M90 150L150 70L210 150M70 70H250" stroke="#555" stroke-width="12" fill="none"/></svg>'});
+  return route.fulfill({json:{exercise:{id:'dataset:test-focus',name:second.name,displayNameEs:second.name,aliases:[],targetMuscleLabelEs:'Dorsales',equipmentLabelEs:'Mancuerna',instructionStepsEs:['Mantené el torso estable y acercá el codo al cuerpo.','Bajá con control.'],gifPath:'videos/demo.gif',thumbnailPath:'images/demo.jpg'}}});
+ });
+ const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(origin+'/portal/offline');
+ await page.getByRole('button',{name:'Entrenar Press de banca con barra',exact:true}).waitFor();
+ return {context,page,posts,errors,setOffline:async value=>{networkDown=value;await context.setOffline(value)}};
+}
+async function layout(page,focus) {
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'page overflow');
+ assert.equal(await focus.evaluate(el=>el.scrollWidth<=el.clientWidth),true,'focus overflow');
+ assert.equal(await focus.locator('.workout-focus-body').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'body overflow');
+ const tooSmall=await focus.locator('button:visible, input[type=number]:visible, summary:visible').evaluateAll(nodes=>nodes.filter(node=>node.getBoundingClientRect().height<43.5).map(node=>node.textContent||node.getAttribute('aria-label')));
+ assert.deepEqual(tooSmall,[],'touch targets');
+}
+async function enter(page,name='Press de banca con barra') {
+ await page.getByRole('button',{name:new RegExp('^(Entrenar|Continuar) '+name+'$')}).click();
+ return page.getByRole('dialog',{name:'Modo enfoque',exact:true});
+}
 try {
- for (const width of [320,390,1280]) for (const theme of ['light','dark','system-light','system-dark']) for (const accent of ['#D4A72C','#2563eb']) {
-  const snapshot = visualFixture('PERSONALIZED',accent), day = snapshot.data.routine.days[0];
-  day.blocks = day.blocks.filter(b => b.type !== 'MOBILITY');
-  const exercises = day.blocks.find(b => b.type === 'STRENGTH').exercises;
-  exercises[0].sets = 4; exercises[0].order = 1;
-  exercises[1].sets = 4; exercises[1].order = 2;
-  const third = {...exercises[0],id:'exercise-d',name:'Prensa de piernas',sets:5,order:3,videoUrl:'bm-library://exercise/test-focus'};
-  exercises.push(third); day.exercises = exercises; snapshot.data.exerciseMediaEnabled = true;
-  const context = await browser.newContext({viewport:{width,height:844},isMobile:width<768,hasTouch:width<768,colorScheme:theme.endsWith('light')?'light':'dark',reducedMotion:theme.startsWith('system')?'reduce':'no-preference',serviceWorkers:'allow'});
-  await context.addInitScript(theme=>localStorage.setItem('bm-appearance-v1',theme.startsWith('system')?'system':theme),theme);
-  let posts = [];
-  await context.route('**/api/portal/**',route=>{
-   const url=new URL(route.request().url());
-   if(url.pathname==='/api/portal/session')return route.fulfill({json:{offlineIdentity:{studentId:'student-a',workspaceId:'workspace-a',sessionId:'session-a'}}});
-   if(url.pathname==='/api/portal/offline')return route.fulfill({json:snapshot});
-   if(url.pathname==='/api/portal/entrenamientos'){posts.push(route.request().postDataJSON());return route.fulfill({json:{id:'synthetic',status:'en_progreso'}})}
-   return route.fulfill({status:401,json:{error:'Synthetic test'}});
-  });
-  await context.route('**/api/exercise-library/media?**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="#444"/><circle cx="160" cy="100" r="60" fill="#aaa"/></svg>'}));
-  const page=await context.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(origin+'/portal/offline');
-  const cards=page.locator('.portal-routine-exercise');
-  const firstCard=cards.first();
-  await firstCard.getByRole('button',{name:'Entrenar Sentadillas con barra',exact:true}).waitFor();
-  await page.evaluate(()=>document.querySelector('main').classList.add('portal-route-enter'));
-  assert.equal(await page.locator('.portal-routine-sets').count(),0,'Details collapsed by default');
-  assert.ok((await firstCard.innerText()).includes('0/4'));
-  if(cases===0)await page.screenshot({path:'C:/Users/brian/AppData/Local/Temp/bm-routine-compact.png',fullPage:true});
-  await firstCard.getByRole('button',{name:'Ver detalle',exact:true}).click();
-  const normalKg=firstCard.getByLabel('Kg de la serie 1',{exact:true});
-  await normalKg.fill('51');await normalKg.press('Enter');
-  assert.equal(await page.getByRole('dialog',{name:'Modo enfoque',exact:true}).count(),0,'Manual editing stays in general view');
-  await firstCard.getByText('Historial anterior (1)',{exact:true}).click();
-  await firstCard.getByRole('button',{name:'Ocultar detalle',exact:true}).click();
-  assert.equal(await page.locator('.portal-routine-sets').count(),0);
-  await firstCard.getByRole('button',{name:'Entrenar Sentadillas con barra',exact:true}).click();
-  const focus=page.getByRole('dialog',{name:'Modo enfoque',exact:true});await focus.waitFor();
-  const assertNoClosure=async()=>{
-   assert.equal(await focus.getByRole('button',{name:'Guardar progreso',exact:true}).count(),0);
-   assert.equal(await focus.getByRole('button',{name:'Finalizar entrenamiento',exact:true}).count(),0);
-   assert.equal(await focus.getByText('Entrenamiento completado',{exact:true}).count(),0);
-  };
-  await assertNoClosure();
-  assert.equal(await page.locator('.portal-mobile-nav').isVisible(),false);
+ for(const width of (process.env.BM_FOCUS_ONLY_OFFLINE ? [] : [320,390,430,768,1280]))for(const theme of ['dark','light','system-dark','system-light'])for(const accent of ['#D4A72C','#2563eb']) {
+  const {page,context,posts,errors}=await setup(width,theme,accent);
+  const focus=await enter(page);
+  await focus.getByRole('button',{name:'Iniciar entrenamiento',exact:true}).waitFor();
+  assert.equal(posts.length,0,'opening focus does not start session');
+  assert.equal(await focus.locator('[data-current=true]').count(),0);
   assert.equal(await focus.locator('.workout-focus-media').count(),0);
-  assert.equal(await focus.getByRole('heading',{name:'Sentadillas con barra',exact:true}).isVisible(),true);
-  assert.ok((await focus.locator('.workout-focus-mark').innerText()).includes('48 kg × 12 reps'));
-  const list=focus.locator('.workout-focus-list');assert.equal(await list.getAttribute('open'),null);
-  const kg=focus.getByLabel('Kg de la serie 1',{exact:true});await kg.fill('52');
-  await focus.getByLabel('Reps de la serie 1',{exact:true}).fill('9');await focus.getByLabel('RIR de la serie 1',{exact:true}).fill('1.5');
-  await focus.getByLabel('Serie 1 completada',{exact:true}).check();
-  await assertNoClosure();
-  assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),true);
-  await focus.getByText('Historial anterior (1)',{exact:true}).click();assert.equal(await focus.locator('.portal-routine-history').first().getAttribute('open'),'');
-  await focus.getByRole('button',{name:'Iniciar descanso',exact:true}).click();
-  await focus.locator('.workout-focus-rest[data-timer-status="running"]').waitFor();
-  assert.ok((await focus.locator('.workout-focus-rest').innerText()).includes('Serie 2'));
-  if(width===390 && theme==='dark' && accent==='#D4A72C')await page.screenshot({path:'C:/Users/brian/AppData/Local/Temp/bm-focus-no-media.png'});
-  await focus.getByRole('button',{name:'Pausar descanso',exact:true}).click();await focus.locator('.workout-focus-rest[data-timer-status="paused"]').waitFor();
-  await focus.getByRole('button',{name:'Continuar descanso',exact:true}).click();
-  await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
-  await focus.getByRole('heading',{name:'Sentadillas sumo',exact:true}).waitFor();
-  await assertNoClosure();
-  assert.equal(await focus.getByLabel('Reps de la serie 4',{exact:true}).isVisible(),true);
-  assert.ok((await focus.locator('.workout-focus-rest').innerText()).includes('Sentadillas con barra'),'Rest keeps original owner');
-  await focus.getByRole('button',{name:'Anterior',exact:true}).click();assert.equal(await kg.inputValue(),'52');
-  assert.equal(await focus.getByLabel('Reps de la serie 1',{exact:true}).inputValue(),'9');assert.equal(await focus.getByLabel('RIR de la serie 1',{exact:true}).inputValue(),'1.5');
-  await list.locator('summary').click();assert.equal(await list.getAttribute('open'),'');
-  assert.ok((await list.innerText()).includes('En ejecución'));assert.ok((await list.innerText()).includes('Siguiente'));assert.ok((await list.innerText()).includes('Pendiente'));
-  await list.getByRole('button',{name:/Prensa de piernas/}).click();
-  await focus.getByRole('heading',{name:'Prensa de piernas',exact:true}).waitFor();
-  await assertNoClosure();
-  assert.equal(await focus.getByLabel('Reps de la serie 5',{exact:true}).isVisible(),true);
-  await focus.locator('.workout-focus-media img').waitFor();await page.waitForFunction(()=>document.querySelector('.workout-focus-media img')?.naturalWidth>0);
-  assert.equal(await focus.getByRole('button',{name:'Siguiente',exact:true}).isDisabled(),true);
-  const lastSets=focus.locator('.portal-routine-exercise:not([hidden]) input[type="checkbox"]');
-  for(let setIndex=0;setIndex<await lastSets.count();setIndex++)await lastSets.nth(setIndex).check();
-  await assertNoClosure(); // Last exercise alone is insufficient: earlier work remains.
-  await lastSets.last().uncheck();await assertNoClosure();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  const geometry=await focus.evaluate(e=>{const body=e.querySelector('.workout-focus-body').getBoundingClientRect(),controls=e.querySelector('.workout-focus-controls').getBoundingClientRect(),rect=e.getBoundingClientRect();return {bodyBottom:body.bottom,controlsTop:controls.top,dialog:rect.height,top:rect.top,left:rect.left,height:innerHeight,overflow:e.scrollWidth>e.clientWidth}});
-  assert.ok(geometry.bodyBottom<=geometry.controlsTop+1,'Timer does not cover series');assert.ok(geometry.dialog<=geometry.height+1);
-  assert.equal(geometry.top,0);assert.equal(geometry.left,0);assert.equal(geometry.overflow,false);
-  const appearance=await focus.evaluate(e=>({bg:getComputedStyle(e).backgroundColor,input:getComputedStyle(e.querySelector('input[type="number"]')).color,accent:getComputedStyle(e.querySelector('.workout-focus-clock')).backgroundImage}));
-  const light=theme==='light'||theme==='system-light';assert.equal(appearance.bg,light?'rgb(245, 244, 240)':'rgb(11, 11, 12)');assert.equal(appearance.input,light?'rgb(30, 32, 37)':'rgb(255, 255, 255)');
-  if(accent==='#2563eb')assert.ok(appearance.accent.includes('37, 99, 235'),'Timer uses workspace accent');
-  if(cases===0) await page.screenshot({path:'C:/Users/brian/AppData/Local/Temp/bm-focus-debug.png'});
-  if(width===390 && theme==='dark' && accent==='#D4A72C') await page.screenshot({path:process.env.TEMP+'/bm-focus-dark.png'});
-  if(width===320 && theme==='light' && accent==='#2563eb') await page.screenshot({path:process.env.TEMP+'/bm-focus-light.png'});
-  if(cases===0){
-   await context.route('**/api/exercise-library/media?**',route=>route.abort());
-   await focus.getByRole('button',{name:'Anterior',exact:true}).click();await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
-   await focus.locator('.workout-focus-media img').evaluate(img=>{img.src='/api/exercise-library/media?id=missing-focus-fixture&kind=gif'});
-   await focus.locator('.workout-focus-media').waitFor({state:'hidden'});
-   assert.equal(await focus.getByRole('heading',{name:'Prensa de piernas',exact:true}).isVisible(),true);
-  }
-  await focus.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();await focus.waitFor({state:'hidden'});
-  assert.equal(await page.locator('.portal-mobile-nav').isVisible(),width<768);
-  assert.equal(await page.locator('.portal-routine-sets').count(),0,'Exit restores compact cards');
-  assert.ok((await firstCard.innerText()).includes('1/4'));
-  assert.equal(await firstCard.getByRole('button',{name:'Continuar Sentadillas con barra',exact:true}).isVisible(),true);
-  await firstCard.getByRole('button',{name:/^(Entrenar|Continuar) Sentadillas con barra$/}).click();
-
-  assert.equal(await kg.inputValue(),'52');assert.equal(await focus.locator('.workout-focus-list').getAttribute('open'),null);
-  // Mobile keyboard uses the existing shell detector; the focus footer yields space.
-  if(width<768){
-   // Restore touch media after the scripted mouse/keyboard interactions in Edge.
+  assert.equal(await page.locator('.portal-mobile-nav').isVisible(),false);
+  const capture=width===390&&theme==='dark'&&accent==='#2563eb';
+  if(capture)await page.screenshot({path:path.join(output,'390-ready.png')});
+  await focus.getByRole('button',{name:'Iniciar entrenamiento',exact:true}).click();
+  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).waitFor();
+  assert.equal(await focus.locator('[data-current=true]').count(),1);
+  assert.match(await focus.locator('.workout-focus-overview').innerText(),/En curso · 0:0[0-3]/,'session starts at zero');
+  await focus.getByLabel('Kg de la serie 1',{exact:true}).fill('45');
+  await focus.getByLabel('Reps de la serie 1',{exact:true}).fill('12');
+  await focus.getByLabel('RIR de la serie 1',{exact:true}).fill('2');
+  await layout(page,focus);
+  if(width===390&&theme==='dark'&&accent==='#2563eb') {
    const cdp=await context.newCDPSession(page);await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});
-   await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='Salir del modo enfoque');
-   await kg.focus();
+   const kg=focus.getByLabel('Kg de la serie 1',{exact:true});await kg.focus();
    await page.evaluate(()=>{Object.defineProperty(visualViewport,'height',{configurable:true,value:500});visualViewport.dispatchEvent(new Event('resize'))});
-   await page.waitForTimeout(100);assert.ok((await focus.boundingBox()).height<=500);
+   await page.waitForTimeout(150);
+   assert.ok((await focus.boundingBox()).height<=500,'keyboard viewport respected');
    assert.equal(await focus.locator('.workout-focus-controls').isVisible(),false);
-   await kg.scrollIntoViewIfNeeded();assert.ok((await kg.boundingBox()).y+(await kg.boundingBox()).height<=500,'Input above overlay keyboard');
-   await page.evaluate(()=>{delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))});
-   await page.setViewportSize({width,height:500});await page.waitForTimeout(100);assert.equal(await focus.locator('.workout-focus-controls').isVisible(),false);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.setViewportSize({width,height:844});await kg.blur();await page.waitForTimeout(100);
-   await cdp.detach();
+   await kg.scrollIntoViewIfNeeded();assert.ok((await kg.boundingBox()).y+(await kg.boundingBox()).height<=500);
+   await page.evaluate(()=>{delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))});await kg.blur();await cdp.detach();
   }
-  await focus.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();
-  const interval=page.locator('.portal-routine-block').first();await interval.locator('.portal-routine-block-heading').click();
-  const blockTimer=page.getByRole('region',{name:'Cronómetro INTERVAL'});await blockTimer.getByRole('button',{name:'Iniciar',exact:true}).click();
-  await blockTimer.getByRole('button',{name:'Pausar',exact:true}).click();assert.equal(await blockTimer.getAttribute('data-timer-status'),'paused');await blockTimer.getByRole('button',{name:'Continuar',exact:true}).click();
-  await blockTimer.getByRole('button',{name:'Pausar',exact:true}).click();
-  await firstCard.getByRole('button',{name:/^(Entrenar|Continuar) Sentadillas con barra$/}).click();
-  await page.waitForTimeout(500);
-  // Copy already prepared: no new required requests; data and edits survive offline reload.
-  await page.waitForFunction(async()=>!!(await (await caches.open('bm-public-offline-v1')).match('/portal/offline')));
-  await context.setOffline(true);await page.reload({waitUntil:'domcontentloaded'});
-  await page.getByText('Modo sin conexión',{exact:true}).waitFor();
-  await firstCard.getByRole('button',{name:/^(Entrenar|Continuar) Sentadillas con barra$/}).click();
-  assert.equal(await kg.inputValue(),'52');assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),true);
-  await focus.getByLabel('Reps de la serie 1',{exact:true}).fill('11');
-  for(let i=0;i<3;i++){
-   const checkboxes=focus.locator('.portal-routine-exercise:not([hidden]) input[type="checkbox"]');
-   for(let s=0;s<await checkboxes.count();s++){
-    await assertNoClosure();
-    await checkboxes.nth(s).check();
-   }
-   if(i<2)await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
-  }
-  await assertNoClosure(); // A pending timed block keeps the existing session incomplete.
-  await focus.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();
-  await interval.locator('.portal-routine-block-heading').click();
-  await blockTimer.getByRole('button',{name:'Continuar',exact:true}).click();
-  await blockTimer.getByRole('button',{name:'Finalizar bloque',exact:true}).click();
-  await cards.nth(2).getByRole('button',{name:'Continuar Prensa de piernas',exact:true}).click();
-  await focus.getByText('Entrenamiento completado',{exact:true}).waitFor();
-  await focus.getByLabel('Serie 5 completada',{exact:true}).uncheck();await assertNoClosure();
-  await focus.getByLabel('Serie 5 completada',{exact:true}).check();
-  await focus.getByText('Entrenamiento completado',{exact:true}).waitFor();
-  await focus.getByRole('button',{name:'Anterior',exact:true}).click();await assertNoClosure();
+  if(theme==='dark'&&accent==='#D4A72C')await page.screenshot({path:path.join(output,width+'-active.png')});
+  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Pausar',exact:true}).click();
+  const paused=await focus.locator('.workout-focus-clock strong').innerText();
+  await page.waitForTimeout(1100);assert.equal(await focus.locator('.workout-focus-clock strong').innerText(),paused);
+  if(capture)await page.screenshot({path:path.join(output,'390-rest-paused.png')});
+  await focus.getByRole('button',{name:'Reanudar',exact:true}).click();
+  await focus.getByRole('button',{name:'Reiniciar',exact:true}).click();
+  await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
   await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
-  await focus.getByText('Entrenamiento completado',{exact:true}).waitFor();
-  await focus.locator('.workout-focus-list summary').click();
-  assert.equal(await focus.locator('.workout-focus-list [data-completed="true"]').count(),3);
-  await focus.getByRole('button',{name:'Finalizar entrenamiento',exact:true}).click();
+  await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor();
+  await focus.locator('.workout-focus-media img').waitFor();
+  await focus.getByText('Mantené el torso estable y acercá el codo al cuerpo.',{exact:true}).first().waitFor();
+  await focus.getByText('Ver técnica',{exact:true}).click();
+  await layout(page,focus);
+  if(capture)await page.screenshot({path:path.join(output,'390-media.png')});
+  if(theme==='light'&&width===390&&accent==='#D4A72C')await page.screenshot({path:path.join(output,'390-light-media.png')});
+  await focus.getByRole('button',{name:'Anterior',exact:true}).click();
+  assert.equal(await focus.getByLabel('Kg de la serie 1',{exact:true}).inputValue(),'45');
+  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
+  await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor(); // automatic after programmed rest
+  assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),false,'no duplicate advance/completion');
+  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
+  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
   const summary=page.getByRole('dialog',{name:'Finalizar entrenamiento',exact:true});await summary.waitFor();
-  assert.equal(await summary.getByText('Todavía quedan ejercicios o series sin completar.',{exact:true}).count(),0);
-  await summary.getByRole('combobox').selectOption('Buena');await summary.getByPlaceholder('Ej: 45',{exact:true}).fill('45');
-  await summary.getByRole('button',{name:'Confirmar y finalizar',exact:true}).click();await page.getByText('Entrenamiento guardado correctamente',{exact:true}).waitFor();
-  assert.equal(await page.locator('.workout-focus').count(),0);assert.equal(await page.evaluate(()=>document.body.style.overflow),'');
-  assert.notEqual(await page.evaluate(()=>getComputedStyle(document.body).overflow),'hidden');
-  assert.deepEqual(errors,[]);console.log(`${width}px ${theme} ${accent}: strength, history, media, timer, navigation, intervals, offline, resume and finish OK`);cases++;await context.close();
+  assert.equal(await summary.getByPlaceholder('Ej: 45',{exact:true}).inputValue()!=='',true);
+  await summary.getByRole('combobox').selectOption('Buena');
+  await summary.getByRole('button',{name:'Confirmar y finalizar',exact:true}).click();
+  await page.getByText('Entrenamiento guardado correctamente',{exact:true}).waitFor();
+  assert.equal(posts.filter(post=>post.status==='finalizado').length,1,'one final write');
+  assert.deepEqual(errors,[]);
+  results.push({width,theme,accent,status:'PASS'});console.log(width,theme,accent,'PASS');await context.close();
  }
-}finally{await browser.close()}
-console.log(`${cases} focus scenarios passed`);
+ // Offline reload, paused rest recovery, automatic movement and reconnection use real IndexedDB/sync.
+ {
+  const {page,context,posts,errors,setOffline}=await setup(390,'dark','#2563eb',{offlineCase:true});
+  let focus=await enter(page);await focus.getByRole('button',{name:'Iniciar entrenamiento',exact:true}).click();
+  await page.waitForFunction(async()=>!!(await (await caches.open('bm-public-offline-v1')).match('/portal/offline')));
+  await setOffline(true);
+  await focus.getByLabel('Kg de la serie 1',{exact:true}).fill('47');
+  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Pausar',exact:true}).click();
+  await page.waitForTimeout(700);await page.reload({waitUntil:'domcontentloaded'});
+  await page.getByText('Modo sin conexión',{exact:true}).waitFor();
+  focus=await enter(page);
+  assert.equal(await focus.getByLabel('Kg de la serie 1',{exact:true}).inputValue(),'47');
+  assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),true);
+  await focus.getByRole('button',{name:'Reanudar',exact:true}).waitFor();
+  await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
+  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
+  await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
+  await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor();
+  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
+  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
+  const summary=page.getByRole('dialog',{name:'Finalizar entrenamiento',exact:true});await summary.waitFor();
+  await summary.getByRole('combobox').selectOption('Buena');await summary.getByRole('button',{name:'Confirmar y finalizar',exact:true}).click();
+  await page.getByText('Entrenamiento guardado correctamente',{exact:true}).waitFor();
+  await setOffline(false);await page.evaluate(()=>window.dispatchEvent(new Event('online')));
+  let records=[];
+  for(let attempt=0;attempt<100;attempt++) {
+    records=await page.evaluate(()=>new Promise(resolve=>{const request=indexedDB.open('bm-training-offline-v1',1);request.onsuccess=()=>{const db=request.result;const get=db.transaction('records').objectStore('records').getAll();get.onsuccess=()=>{resolve(get.result.map(r=>({pending:r.pending,status:r.payload.status,error:r.error})));db.close()}}}));
+    if(records.length===1&&!records[0].pending)break;
+    await page.waitForTimeout(100);
+  }
+  assert.deepEqual(records,[{pending:false,status:'finalizado',error:undefined}],'offline queue synchronized');
+  assert.equal(posts.filter(post=>post.status==='finalizado').length,1,'offline final sync once');
+  assert.deepEqual(errors,[]);results.push({scenario:'offline reload paused, finish, reconnect',status:'PASS'});await context.close();
+ }
+ {
+  const {page,context}=await setup(320,'light','#2563eb',{brokenMedia:true,mixed:true});const focus=await enter(page);
+  await focus.getByRole('button',{name:'Iniciar entrenamiento',exact:true}).click();
+  for(let exercise=0;exercise<2;exercise++)for(let set=1;set<=2;set++){
+   await focus.getByRole('button',{name:'Completar serie '+set,exact:true}).click();
+   if(exercise===0||set===1)await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
+   if(exercise===0&&set===2)await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor();
+  }
+  await page.waitForTimeout(800);
+  assert.equal(await page.getByRole('dialog',{name:'Finalizar entrenamiento',exact:true}).count(),0,'pending mixed block is not finalized');
+  assert.equal(await focus.locator('.workout-focus-media').count(),0,'broken media collapses');
+  await layout(page,focus);results.push({scenario:'mixed pending block and broken media',status:'PASS'});await context.close();
+ }
+ await writeFile(path.join(output,'validation.json'),JSON.stringify({results},null,2));
+} finally {await browser.close()}
+console.log(results.length+' focus scenarios passed');
