@@ -1,4 +1,4 @@
-export type BMExerciseSource = "EXERCISES_DATASET";
+export type BMExerciseSource = "EXERCISES_DATASET" | "BM_CUSTOM";
 export type BMExerciseTranslationStatus = "AUTOMATIC" | "EXCEPTION" | "REVIEW";
 export type ExerciseLibraryFacet = { value: string; label: string };
 

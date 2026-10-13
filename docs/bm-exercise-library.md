@@ -36,3 +36,13 @@ Una fase posterior puede normalizar esta referencia agregando `libraryExerciseId
 - Auditar sin escrituras: `node scripts/audit-exercise-library.mjs`.
 - Los reportes quedan en `reports/exercise-library-audit.json` y `reports/exercise-library-translation-audit.json`.
 - No se requiere migración ni dependencia adicional.
+
+## Tests reproducibles
+
+Los tests normales usan `tests/fixtures/exercise-library-source.json` para comprobar la transformación pura compartida con el importador (`lib/exercise-library-transform.mjs`). Las comprobaciones del catálogo completo leen el JSON generado y versionado, sin requerir `/external/`. El fixture cubre localización, músculos, equipamiento, instrucciones, media opcional y fallback de términos desconocidos.
+
+`npm run exercise-library:build` sigue siendo una importación explícita: requiere el dataset fuente local y regenera catálogo y reporte. No forma parte de la instalación, build ni tests normales. Los medios externos siguen siendo opcionales.
+
+## Ejercicios propios BM
+
+La lectura de producto ensambla ahora la base generada con data/bm-exercise-library-custom.json. Ver docs/bm-custom-exercises.md para IDs, altas, similares y multimedia local opcional. El importador externo sigue reemplazando sólo la base.

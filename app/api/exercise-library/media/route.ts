@@ -13,6 +13,6 @@ export async function GET(request: Request) {
   const source = await resolveExerciseMediaSource(relative);
   if (source.kind === "unavailable") return Response.json({ error: "Medio no disponible." }, { status: 404 });
   try {
-    return new Response(await readFile(source.filePath), { headers: { "Content-Type": kind === "gif" ? "image/gif" : relative.endsWith(".png") ? "image/png" : "image/jpeg", "Cache-Control": "private, max-age=3600" } });
+    return new Response(await readFile(source.filePath), { headers: { "Content-Type": relative.endsWith(".gif") ? "image/gif" : relative.endsWith(".webp") ? "image/webp" : relative.endsWith(".png") ? "image/png" : "image/jpeg", "Cache-Control": "private, max-age=3600" } });
   } catch { return Response.json({ error: "Medio no disponible." }, { status: 404 }); }
 }

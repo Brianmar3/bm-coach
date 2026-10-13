@@ -1,6 +1,7 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { BMExercise } from "../types/exercise-library";
+import { readExerciseCatalog, BM_MEDIA_PATH } from "./exercise-library-catalog.mjs";
 
 export type ExerciseMediaProvider = "local" | "remote" | "invalid";
 export type ExerciseMediaConfiguration = {
@@ -14,7 +15,7 @@ export type ExerciseMediaSource =
 
 let libraryPromise: Promise<BMExercise[]> | null = null;
 export function loadExerciseLibrary() {
-  libraryPromise ??= readFile(path.join(process.cwd(), "data", "bm-exercise-library.json"), "utf8").then((value) => JSON.parse(value) as BMExercise[]);
+  libraryPromise ??= readExerciseCatalog().then(({ items }) => items as BMExercise[]);
   return libraryPromise;
 }
 
@@ -35,6 +36,16 @@ function datasetRoot(projectRoot: string) {
 export async function exerciseMediaAvailable(env: NodeJS.ProcessEnv = process.env, projectRoot = process.cwd()) {
   const configuration = exerciseMediaConfiguration(env);
   if (!configuration.enabled || configuration.provider !== "local") return false;
+  // Own media is independent of the optional imported dataset.
+  try {
+    const custom = JSON.parse(await readFile(path.join(projectRoot, "data", "bm-exercise-library-custom.json"), "utf8")) as BMExercise[];
+    for (const item of custom) for (const relative of [item.thumbnailPath, item.gifPath]) {
+      if (relative && BM_MEDIA_PATH.test(relative)) {
+        const source = await resolveExerciseMediaSource(relative, { env, projectRoot });
+        if (source.kind === "local") return true;
+      }
+    }
+  } catch { /* Missing optional media never hides the exercise. */ }
   try {
     const [images, videos] = await Promise.all([
       readdir(path.join(datasetRoot(projectRoot), "images")),
@@ -51,10 +62,11 @@ export async function resolveExerciseMediaSource(relativePath: string, options: 
   const projectRoot = options.projectRoot ?? process.cwd();
   const configuration = exerciseMediaConfiguration(env);
   if (!configuration.enabled) return { kind: "unavailable", reason: "DISABLED" };
-  if (!/^(images|videos)\/[a-zA-Z0-9._-]+$/.test(relativePath)) return { kind: "unavailable", reason: "INVALID_PATH" };
+  const ownMedia = BM_MEDIA_PATH.test(relativePath);
+  if (!ownMedia && !/^(images|videos)\/[a-zA-Z0-9._-]+$/.test(relativePath)) return { kind: "unavailable", reason: "INVALID_PATH" };
   if (configuration.provider === "invalid") return { kind: "unavailable", reason: "INVALID_PROVIDER" };
   if (configuration.provider === "remote") return { kind: "unavailable", reason: "REMOTE_NOT_CONFIGURED" };
-  const filePath = `${datasetRoot(projectRoot)}${path.sep}${relativePath.replaceAll("/", path.sep)}`;
+  const filePath = path.join(ownMedia ? path.join(projectRoot, "public") : datasetRoot(projectRoot), relativePath);
   try {
     await access(filePath);
     return { kind: "local", filePath };
