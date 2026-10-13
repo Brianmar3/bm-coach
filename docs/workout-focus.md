@@ -23,3 +23,11 @@ El progreso usa el cálculo compartido de lib/workout-day-progress.ts: series re
 El teclado se comprueba mediante viewport visual reducido y emulación táctil de Edge; no reemplaza una prueba física en Android. La media de prueba es sintética, sin descargar ni modificar el catálogo real.
 
 Resultado final: 65 tests focales PASS; npm test 147 previos + 821 principales PASS; lint 0 errores y 34 warnings preexistentes; build y TypeScript PASS; 42 escenarios de navegador PASS. Capturas revisadas de inicio, activo, media, claro, pausa y desktop. Sin commit, push ni deploy.
+
+## Confirmación y geometría del descanso
+
+En Enfoque, el CTA dice “Confirmar serie N”. KG, reps y esfuerzo siguen siendo opcionales individualmente como en el contrato actual; se exige al menos un dato válido y se aplican sus límites existentes (KG 0–1000; reps entero 0–1000; esfuerzo 0–10). Una serie totalmente vacía queda bloqueada tanto por el CTA como por el checkbox y el handler. Los valores existentes, incluidos los precargados, muestran la indicación de revisarlos/editar antes de confirmar. No se obliga a reescribir valores válidos ni se agregan campos de tracking. No se alteró la validación del backend ni el flujo normal.
+
+El círculo usa un contenedor cuadrado de tamaño definido y dos grillas centradas. El tiempo tiene alineación central, line-height 1 y números tabulares. El label Descanso/En pausa vive fuera del círculo para no desplazarlo. El smoke mide el centro del texto respecto del círculo, estados y diferentes longitudes, además de capturar el resultado en mobile.
+
+Validación del ajuste de confirmación/timer: 80 tests focales PASS; npm test final 147 previos + 836 principales PASS (repetido tras terminar la generación de Prisma); lint 0 errores/34 warnings preexistentes; build/TypeScript PASS; 26 escenarios mobile PASS en 320/390/430, temas/accent, centrado geométrico y offline/sync. Sin cambios de backend, Prisma, Android ni proveedor de timer.

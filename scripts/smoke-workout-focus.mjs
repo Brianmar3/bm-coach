@@ -59,7 +59,7 @@ async function enter(page,name='Press de banca con barra') {
  return page.getByRole('dialog',{name:'Modo enfoque',exact:true});
 }
 try {
- for(const width of (process.env.BM_FOCUS_ONLY_OFFLINE ? [] : [320,390,430,768,1280]))for(const theme of ['dark','light','system-dark','system-light'])for(const accent of ['#D4A72C','#2563eb']) {
+ for(const width of (process.env.BM_FOCUS_ONLY_OFFLINE ? [] : process.env.BM_FOCUS_MOBILE_ONLY ? [320,390,430] : [320,390,430,768,1280]))for(const theme of ['dark','light','system-dark','system-light'])for(const accent of ['#D4A72C','#2563eb']) {
   const {page,context,posts,errors}=await setup(width,theme,accent);
   const focus=await enter(page);
   await focus.getByRole('button',{name:'Iniciar entrenamiento',exact:true}).waitFor();
@@ -70,9 +70,15 @@ try {
   const capture=width===390&&theme==='dark'&&accent==='#2563eb';
   if(capture)await page.screenshot({path:path.join(output,'390-ready.png')});
   await focus.getByRole('button',{name:'Iniciar entrenamiento',exact:true}).click();
-  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).waitFor();
+  await focus.getByRole('button',{name:'Confirmar serie 1',exact:true}).waitFor();
   assert.equal(await focus.locator('[data-current=true]').count(),1);
   assert.match(await focus.locator('.workout-focus-overview').innerText(),/En curso · 0:0[0-3]/,'session starts at zero');
+  assert.equal(await focus.getByRole('button',{name:'Confirmar serie 1',exact:true}).isEnabled(),true,'suggested kg is a valid optional-field record');
+  await focus.getByLabel('Kg de la serie 1',{exact:true}).fill('');
+  assert.equal(await focus.getByRole('button',{name:'Confirmar serie 1',exact:true}).isDisabled(),true);
+  assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isDisabled(),true);
+  assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),false);
+  assert.ok((await focus.locator('#focus-set-validation').innerText()).includes('Completá la serie para continuar'));
   await focus.getByLabel('Kg de la serie 1',{exact:true}).fill('45');
   await focus.getByLabel('Reps de la serie 1',{exact:true}).fill('12');
   await focus.getByLabel('RIR de la serie 1',{exact:true}).fill('2');
@@ -88,13 +94,22 @@ try {
    await page.evaluate(()=>{delete visualViewport.height;visualViewport.dispatchEvent(new Event('resize'))});await kg.blur();await cdp.detach();
   }
   if(theme==='dark'&&accent==='#D4A72C')await page.screenshot({path:path.join(output,width+'-active.png')});
-  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 1',exact:true}).click();
   await focus.getByRole('button',{name:'Pausar',exact:true}).click();
+  const assertCentered=async()=>{
+   const geometry=await focus.locator('.workout-focus-clock').evaluate(el=>{const circle=el.getBoundingClientRect(),text=el.querySelector('strong').getBoundingClientRect();return {dx:Math.abs(circle.x+circle.width/2-text.x-text.width/2),dy:Math.abs(circle.y+circle.height/2-text.y-text.height/2),square:Math.abs(circle.width-circle.height),overflow:el.scrollWidth>el.clientWidth}});
+   assert.ok(geometry.dx<1&&geometry.dy<1&&geometry.square<1&&!geometry.overflow,JSON.stringify(geometry));
+  };
+  await assertCentered();
   const paused=await focus.locator('.workout-focus-clock strong').innerText();
+  for(const text of ['0:09','10:00','100:00']) {await focus.locator('.workout-focus-clock strong').evaluate((el,text)=>el.textContent=text,text);await assertCentered()}
+  await focus.locator('.workout-focus-clock strong').evaluate((el,text)=>el.textContent=text,paused);
   await page.waitForTimeout(1100);assert.equal(await focus.locator('.workout-focus-clock strong').innerText(),paused);
   if(capture)await page.screenshot({path:path.join(output,'390-rest-paused.png')});
   await focus.getByRole('button',{name:'Reanudar',exact:true}).click();
+  await assertCentered();
   await focus.getByRole('button',{name:'Reiniciar',exact:true}).click();
+  await assertCentered();
   await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
   await focus.getByRole('button',{name:'Siguiente',exact:true}).click();
   await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor();
@@ -106,12 +121,12 @@ try {
   if(theme==='light'&&width===390&&accent==='#D4A72C')await page.screenshot({path:path.join(output,'390-light-media.png')});
   await focus.getByRole('button',{name:'Anterior',exact:true}).click();
   assert.equal(await focus.getByLabel('Kg de la serie 1',{exact:true}).inputValue(),'45');
-  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 2',exact:true}).click();
   await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor(); // automatic after programmed rest
   assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),false,'no duplicate advance/completion');
-  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 1',exact:true}).click();
   await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
-  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 2',exact:true}).click();
   const summary=page.getByRole('dialog',{name:'Finalizar entrenamiento',exact:true});await summary.waitFor();
   assert.equal(await summary.getByPlaceholder('Ej: 45',{exact:true}).inputValue()!=='',true);
   await summary.getByRole('combobox').selectOption('Buena');
@@ -128,7 +143,7 @@ try {
   await page.waitForFunction(async()=>!!(await (await caches.open('bm-public-offline-v1')).match('/portal/offline')));
   await setOffline(true);
   await focus.getByLabel('Kg de la serie 1',{exact:true}).fill('47');
-  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 1',exact:true}).click();
   await focus.getByRole('button',{name:'Pausar',exact:true}).click();
   await page.waitForTimeout(700);await page.reload({waitUntil:'domcontentloaded'});
   await page.getByText('Modo sin conexión',{exact:true}).waitFor();
@@ -137,12 +152,12 @@ try {
   assert.equal(await focus.getByLabel('Serie 1 completada',{exact:true}).isChecked(),true);
   await focus.getByRole('button',{name:'Reanudar',exact:true}).waitFor();
   await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
-  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 2',exact:true}).click();
   await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
   await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor();
-  await focus.getByRole('button',{name:'Completar serie 1',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 1',exact:true}).click();
   await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
-  await focus.getByRole('button',{name:'Completar serie 2',exact:true}).click();
+  await focus.getByRole('button',{name:'Confirmar serie 2',exact:true}).click();
   const summary=page.getByRole('dialog',{name:'Finalizar entrenamiento',exact:true});await summary.waitFor();
   await summary.getByRole('combobox').selectOption('Buena');await summary.getByRole('button',{name:'Confirmar y finalizar',exact:true}).click();
   await page.getByText('Entrenamiento guardado correctamente',{exact:true}).waitFor();
@@ -161,7 +176,7 @@ try {
   const {page,context}=await setup(320,'light','#2563eb',{brokenMedia:true,mixed:true});const focus=await enter(page);
   await focus.getByRole('button',{name:'Iniciar entrenamiento',exact:true}).click();
   for(let exercise=0;exercise<2;exercise++)for(let set=1;set<=2;set++){
-   await focus.getByRole('button',{name:'Completar serie '+set,exact:true}).click();
+   await focus.getByRole('button',{name:'Confirmar serie '+set,exact:true}).click();
    if(exercise===0||set===1)await focus.getByRole('button',{name:'Saltar descanso',exact:true}).click();
    if(exercise===0&&set===2)await focus.getByRole('heading',{name:'Remo con mancuerna',exact:true}).waitFor();
   }

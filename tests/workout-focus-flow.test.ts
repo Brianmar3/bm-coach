@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { currentFocusSet, focusProgress, focusCompletionTarget, workoutElapsedSeconds } from "../lib/workout-focus-flow.ts";
+import { currentFocusSet, focusSetValidation, focusProgress, focusCompletionTarget, workoutElapsedSeconds } from "../lib/workout-focus-flow.ts";
 import { initialExerciseRestTimer, reduceExerciseRestTimer, exerciseRestSeconds } from "../lib/exercise-rest-timer.ts";
 import type { PortalWorkoutSession } from "../types/portal.ts";
 
@@ -87,4 +87,18 @@ test("inicio preciso local marca cero y no reutiliza un ancla de otra sesión", 
   assert.equal(workoutElapsedSeconds(session(), now + 10000, now), 10);
   assert.equal(workoutElapsedSeconds(session(), now, now - 90000), 45);
   assert.match(portal, /started-at/);
+});
+
+test("confirmación vacía bloqueada; campos individuales opcionales y ceros válidos", () => {
+  assert.match(focusSetValidation({weight:null,repetitions:null,effort:null})!, /al menos un dato/);
+  for (const set of [{weight:45,repetitions:null,effort:null},{weight:null,repetitions:12,effort:null},{weight:null,repetitions:null,effort:2},{weight:0,repetitions:0,effort:0}]) assert.equal(focusSetValidation(set),null);
+  for (const set of [{weight:-1,repetitions:12,effort:null},{weight:1001,repetitions:12,effort:null},{weight:NaN,repetitions:12,effort:null},{weight:null,repetitions:1.5,effort:null},{weight:null,repetitions:1001,effort:null},{weight:null,repetitions:12,effort:11}]) assert.ok(focusSetValidation(set));
+});
+test("CTA inequívoco, helper compartido y checkbox no permiten saltar validación", () => {
+  assert.match(focus,/Confirmar serie/);
+  assert.doesNotMatch(focus,/>Completar serie/);
+  assert.match(focus,/disabled=\{pending \|\| Boolean\(validation\)\}/);
+  assert.match(focus,/Revisá o editá los valores/);
+  assert.match(portal,/const validation = focusSetValidation\(set\)/);
+  assert.match(portal,/!set.completed && Boolean\(focusSetValidation\(set\)\)/);
 });

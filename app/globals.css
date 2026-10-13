@@ -894,15 +894,10 @@ html[data-bm-app-ready="true"] #bm-app-root {
 .workout-focus-status[data-completed="true"], .workout-focus-list button[aria-current] .workout-focus-status { color: var(--brand-text); }
 .workout-focus-controls { flex-shrink: 0; border: 1px solid var(--border-soft); border-radius: 20px; padding: .625rem; background: linear-gradient(120deg, var(--bm-accent-soft), transparent 70%), var(--surface); }
 .workout-focus-rest { display: flex; gap: .75rem; align-items: center; padding-bottom: .5rem; }
-.workout-focus-clock { flex-shrink: 0; border-radius: 16px; padding: .5rem; color: var(--foreground); }
-.workout-focus-clock > span { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .4rem; }
-.workout-focus-clock svg { color: var(--brand-text); }
-.workout-focus-clock strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
-.workout-focus-clock small { font-size: 11px; width: 100%; color: var(--foreground-muted); }
-.is-active .workout-focus-clock { width: 110px; height: 110px; border-radius: 50%; padding: 5px; background: conic-gradient(var(--bm-accent) var(--focus-rest-progress), var(--border-soft) 0deg); }
-.is-active .workout-focus-clock > span { height: 100%; border-radius: 50%; background: var(--surface); align-content: center; gap: .15rem; }
-.is-active .workout-focus-clock strong { width: 100%; font-size: 1.65rem; }
-.is-active .workout-focus-clock svg { display: none; }
+.workout-focus-clock { --focus-clock-size:88px; display:grid; place-items:center; flex:0 0 var(--focus-clock-size); width:var(--focus-clock-size); height:var(--focus-clock-size); aspect-ratio:1; box-sizing:border-box; border-radius:50%; padding:5px; background:conic-gradient(var(--bm-accent) var(--focus-rest-progress),var(--border-soft) 0deg); color:var(--foreground); }
+.workout-focus-clock > span { display:grid; place-items:center; width:100%; height:100%; min-width:0; min-height:0; border-radius:50%; background:var(--surface); }
+.workout-focus-clock strong { display:block; width:100%; text-align:center; font-size:calc(var(--focus-clock-size) * .23); font-weight:800; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.workout-focus-rest-state { margin-bottom:.25rem; font-size:.75rem; font-weight:800; color:var(--brand-text); }
 .workout-focus-navigation { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
 .workout-focus-completed { display: flex; align-items: center; justify-content: center; gap: .5rem; flex-shrink: 0; padding-top: .75rem; color: var(--brand-text); font-size: .875rem; font-weight: 700; }
 .workout-focus > div.mt-5 { flex-shrink: 0; margin-top: .5rem; padding: .5rem; border-color: var(--border-soft); background: var(--surface); grid-template-columns: 1fr 1fr; }
@@ -910,7 +905,7 @@ html:has(.workout-focus) .portal-mobile-nav { display: none; }
 html:has(.workout-focus), html:has(.workout-focus) body { overflow: hidden; }
 .portal-route-enter:has(.workout-focus) { animation: none; transform: none; }
 html[data-portal-keyboard="open"] .workout-focus-controls { display: none; }
-@media (max-height: 550px) { .is-active .workout-focus-clock { width: 80px; height: 80px; } .is-active .workout-focus-clock strong { font-size: 1.25rem; } }
+@media (max-height: 550px) { .workout-focus-clock { --focus-clock-size:72px; } }
 @media (prefers-reduced-motion: reduce) { .workout-focus *, .workout-focus *::before, .workout-focus *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 .portal-routine-screen {
@@ -1816,14 +1811,17 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
 .workout-focus-navigation { margin-top:.5rem; }
 .workspace-brand .workout-focus-navigation > button { background:transparent; border-color:transparent; color:var(--foreground-muted); min-height:44px; font-size:.75rem; }
 .workout-focus-rest { align-items:center; gap:.625rem; padding:.125rem; }
-.is-active .workout-focus-clock { width:88px; height:88px; }
-.is-active .workout-focus-clock strong { font-size:1.5rem; }
+
+
 .workout-focus-rest-owner { font-size:.6875rem; color:var(--foreground-muted); overflow-wrap:anywhere; }
 .workout-focus-up-next { margin-top:.25rem; font-size:.8125rem; font-weight:700; overflow-wrap:anywhere; }
 .workout-focus-rest-actions { display:flex; flex-wrap:wrap; gap:.25rem; margin-top:.375rem; }
 .workspace-brand .workout-focus-rest-actions > button { min-height:44px; padding:.375rem .5rem; font-size:.6875rem; border-radius:10px; }
 @media (min-width:768px) { .workout-focus-identity { padding:1.25rem; } .workout-focus-media img { height:192px; } .workout-focus-controls { padding:.875rem; } }
-@media (max-width:340px) { .workout-focus-heading { gap:.375rem; } .workout-focus-rest { align-items:flex-start; } .is-active .workout-focus-clock { width:72px; height:72px; } .is-active .workout-focus-clock strong { font-size:1.25rem; } }
+@media (max-width:340px) { .workout-focus-heading { gap:.375rem; } .workout-focus-rest { align-items:flex-start; } .workout-focus-clock { --focus-clock-size:72px; } }
 .workout-focus summary { min-height:44px; display:flex; align-items:center; }
 .workout-focus .portal-routine-sets > div { grid-template-columns:1.75rem minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px; }
 .workout-focus .portal-routine-sets label:last-child { min-width:44px; }
+
+.workout-focus-validation { margin:0 .25rem .625rem; font-size:.75rem; line-height:1.45; color:var(--foreground-muted); }
+.workout-focus-validation span { display:block; margin-top:.2rem; font-size:.6875rem; }

@@ -68,7 +68,7 @@ try {
   if(width===390&&theme==='light'&&accent==='#D4A72C')await page.screenshot({path:path.join(output,'390-light.png')});
   await page.getByRole('button',{name:'Entrenar Fondos asistidos',exact:true}).click();
   await focusPercent(page,50);
-  await page.getByRole('button',{name:'Completar serie 1',exact:true}).click();await focusPercent(page,55);
+  await page.getByRole('button',{name:'Confirmar serie 1',exact:true}).click();await focusPercent(page,55);
   await page.getByRole('button',{name:'Salir del modo enfoque',exact:true}).click();await normalPercent(page,55);
   assert.deepEqual(errors,[]);results.push({width,theme,accent,status:'PASS'});console.log(width,theme,accent,'PASS');await context.close();
  }
