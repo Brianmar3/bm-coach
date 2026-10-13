@@ -1,4 +1,5 @@
 "use client";
+import { TrainerFilters } from "@/componentes/trainer-filters";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BmSearchIcon, BmChevronRightIcon, BmCloseIcon } from "@/componentes/icons";
@@ -217,13 +218,14 @@ function StudentDirectory({ students, schedules, query, service, studentStatus, 
   const studentStatusFilters: Array<[EvaluationStudentStatusFilter, string]> = [["ACTIVE", "Activos"], ["INACTIVE", "Inactivos"], ["ALL", "Todos"]];
   const statusFilters: Array<[EvaluationStatusFilter, string]> = [["ALL", "Todos"], ["NONE", "Sin evaluación"], ["IN_PROGRESS", "En curso"], ["COMPLETED", "Completadas"], ["REASSESSMENT_RECOMMENDED", "Reevaluación pendiente"]];
   return <div className="space-y-4">
-    <Card className="p-3 sm:p-4"><label htmlFor="evaluation-student-search" className="sr-only">Buscar alumno</label><div className="relative"><span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]"><BmSearchIcon size={20} /></span><input id="evaluation-student-search" type="search" value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Buscar alumno..." className={`${inputClass} pl-9`} /></div><FilterRow label="Servicio" values={serviceFilters} selected={service} choose={(value) => onService(value as EvaluationServiceFilter)} />{service === "CLASSES" && <FilterRow label="Horario / grupo" values={[["", "Todos los horarios"], ...schedules.map((schedule): [string, string] => [schedule.id, schedule.label])]} selected={scheduleId} choose={onSchedule} />}<FilterRow label="Estado del alumno" values={studentStatusFilters} selected={studentStatus} choose={(value) => onStudentStatus(value as EvaluationStudentStatusFilter)} /><FilterRow label="Estado de evaluación" values={statusFilters} selected={status} choose={(value) => onStatus(value as EvaluationStatusFilter)} /></Card>
+    <Card><TrainerFilters search={<><label htmlFor="evaluation-student-search" className="sr-only">Buscar alumno</label><div className="relative"><span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)]"><BmSearchIcon size={20} /></span><input id="evaluation-student-search" type="search" value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Buscar alumno..." className={`${inputClass} pl-9`} /></div></>} filters={[
+ {label:"Servicio",value:service,defaultValue:"ALL",options:serviceFilters,change:value=>onService(value as EvaluationServiceFilter)},
+ ...(service === "CLASSES" ? [{label:"Horario / grupo",value:scheduleId,defaultValue:"",options:[["","Todos los horarios"] as [string,string],...schedules.map(schedule=>[schedule.id,schedule.label] as [string,string])],change:onSchedule}] : []),
+ {label:"Estado del alumno",value:studentStatus,defaultValue:"ALL",options:studentStatusFilters,change:value=>onStudentStatus(value as EvaluationStudentStatusFilter)},
+ {label:"Estado de evaluación",value:status,defaultValue:"ALL",options:statusFilters,change:value=>onStatus(value as EvaluationStatusFilter)}
+ ]}/></Card>
     <div aria-label="Resultados de alumnos" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{students.length ? students.map((student) => <StudentCard key={student.id} student={student} onChoose={() => onChoose(student.id)} onCreate={() => onCreate(student.id)} />) : <Card className="p-8 text-center md:col-span-2 xl:col-span-3"><p className="text-sm text-[var(--foreground-muted)]">No hay alumnos que coincidan con la búsqueda y los filtros.</p></Card>}</div>
   </div>;
-}
-
-function FilterRow({ label, values, selected, choose }: { label: string; values: Array<[string, string]>; selected: string; choose: (value: string) => void }) {
-  return <div className="mt-3"><p className="mb-2 text-[11px] font-bold uppercase tracking-[.14em] text-[var(--foreground-muted)]">{label}</p><div className="flex flex-wrap gap-2" role="group" aria-label={`Filtrar por ${label.toLowerCase()}`}>{values.map(([value, text]) => <button type="button" key={value} aria-pressed={selected === value} onClick={() => choose(value)} className={`min-h-9 rounded-full border px-3 text-xs font-semibold transition ${selected === value ? "border-yellow-400/40 bg-yellow-400/10 text-[var(--brand-text)]" : "border-zinc-800 bg-black/25 text-[var(--foreground-muted)] hover:border-zinc-600"}`}>{text}</button>)}</div></div>;
 }
 
 function StudentCard({ student, onChoose, onCreate }: { student: EvaluationWorkspaceStudent; onChoose: () => void; onCreate: () => void }) {

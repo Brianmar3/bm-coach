@@ -1,4 +1,5 @@
 "use client";
+import { TrainerFilters } from "@/componentes/trainer-filters";
 
 import { type FormEvent, type ReactNode, type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -272,10 +273,7 @@ export default function PagosPage() {
     </section>
 
     <section aria-label="Buscar y filtrar pagos" className="mt-4 space-y-3">
-      <div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"><PaymentIcon name="search" /></span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nombre, plan, teléfono o estado" className={`${inputClass} w-full pl-11`} /></div>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {filters.map((item) => <button key={item.value} onClick={() => setFilter(item.value)} aria-pressed={filter === item.value} className={`min-h-10 shrink-0 rounded-xl border px-3 text-sm font-semibold transition ${filter === item.value ? "border-yellow-400/70 bg-yellow-400/10 text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-zinc-800 bg-zinc-900/70 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"}`}>{item.label}</button>)}
-      </div>
+      <TrainerFilters search={<div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"><PaymentIcon name="search" /></span><input type="search" aria-label="Buscar pagos" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nombre, plan, teléfono o estado" className={`${inputClass} w-full pl-11`} /></div>} filters={[{label:"Estado",value:filter,defaultValue:"TODOS",options:filters.map(item=>[item.value,item.label] as const),change:value=>setFilter(value as AccountFilter)}]}/>
     </section>
 
     <section aria-label="Alumnos y cuotas" className="mt-4 space-y-2">

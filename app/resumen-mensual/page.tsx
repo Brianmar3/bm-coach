@@ -1,4 +1,5 @@
 "use client";
+import { TrainerFilters } from "@/componentes/trainer-filters";
 
 import { useEffect, useMemo, useState } from "react";
 import { BmChevronRightIcon } from "@/componentes/icons";
@@ -141,11 +142,10 @@ export default function MonthlySummaryPage() {
 
       <section className="mt-5 bm-surface" aria-label="Detalle por alumno">
         <h2 className="px-4 pt-4 font-bold">Detalle por alumno</h2>
-        <div className="grid gap-3 border-b border-zinc-800 p-4 md:grid-cols-3">
-          <input aria-label="Buscar alumno" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar alumno" className={inputClass} />
-          <select aria-label="Filtrar estado" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass}><option value="todos">Todos los estados</option>{["Pagado", "Parcial", "Pendiente", "Vencido", "Sin obligación", "Anulado"].map((status) => <option key={status}>{status}</option>)}</select>
-          <select aria-label="Ordenar" value={sort} onChange={(event) => setSort(event.target.value)} className={inputClass}><option value="nombre">Ordenar por alumno</option><option value="saldo">Mayor saldo</option><option value="asistencia">Mayor asistencia</option></select>
-        </div>
+        <div className="border-b border-zinc-800"><TrainerFilters search={<input type="search" aria-label="Buscar alumno" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Buscar alumno" className={inputClass}/>} filters={[
+ {label:"Estado",value:statusFilter,defaultValue:"todos",options:[["todos","Todos"],...["Pagado","Parcial","Pendiente","Vencido","Sin obligación","Anulado"].map(value=>[value,value] as const)],change:setStatusFilter},
+ {label:"Ordenar",value:sort,defaultValue:"nombre",options:[["nombre","Por alumno"],["saldo","Mayor saldo"],["asistencia","Mayor asistencia"]],change:setSort}
+ ]}/></div>
         <div className="border-b border-zinc-800 px-4 py-2 text-xs"><details className="group relative inline-block"><summary className="min-h-10 cursor-pointer list-none rounded-lg border border-yellow-400/40 px-3 py-2.5 font-bold text-[var(--brand-text)]">Exportar <span className="inline-block transition group-open:rotate-90"><BmChevronRightIcon size={16} className="inline" /></span></summary><div className="absolute left-0 top-full z-10 mt-1 flex min-w-44 flex-col rounded-xl border border-zinc-700 bg-zinc-950 p-1 shadow-2xl"><a href={`${exportBase}&format=detail-csv`} className="rounded-lg px-3 py-2 hover:bg-zinc-800">CSV detalle</a><a href={`${exportBase}&format=general-csv`} className="rounded-lg px-3 py-2 hover:bg-zinc-800">CSV general</a><button onClick={() => window.print()} className="rounded-lg px-3 py-2 text-left hover:bg-zinc-800">Vista imprimible</button></div></details></div>
         {visibleRows.length === 0 ? <p className="p-10 text-center text-sm text-[var(--foreground-muted)]">No hay alumnos que coincidan con los filtros.</p> : <><div className="hidden md:block"><DetailTable rows={visibleRows} onSelect={setSelectedStudentId} /></div><div className="space-y-2 p-3 md:hidden">{visibleRows.map((row) => <DetailCard key={row.studentId} row={row} onSelect={setSelectedStudentId} />)}</div></>}
         {selectedRow && <StudentDetail row={selectedRow} close={() => setSelectedStudentId(null)} />}

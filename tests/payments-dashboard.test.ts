@@ -27,9 +27,9 @@ test("el resumen conserva todos los indicadores reales del read model", () => {
 
 test("buscador y filtros siguen siendo interactivos y mobile-first", () => {
   assert.match(source, /Buscar nombre, plan, teléfono o estado/);
-  assert.match(source, /aria-pressed=\{filter === item\.value\}/);
-  assert.match(source, /overflow-x-auto/);
-  assert.match(source, /min-h-10 shrink-0/);
+  assert.match(source, /<TrainerFilters/);
+  assert.match(source, /options:filters.map/);
+  assert.match(source, /change:value=>setFilter/);
 });
 
 test("las cuentas usan cards escaneables sin eliminar sus acciones", () => {
