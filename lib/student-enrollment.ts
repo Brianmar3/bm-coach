@@ -70,6 +70,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
     planId: typeof stored.planId === "string" ? stored.planId : "",
     monthlyFee: Number(stored.monthlyFee ?? 0),
     joinedAt: stored.joinedAt ?? "",
+    firstDueDate: typeof stored.firstDueDate === "string" && isDateKey(stored.firstDueDate) ? stored.firstDueDate : null,
     dueDate: stored.dueDate ?? "",
     status: stored.lifecycleStatus === "suspendido" ? "suspendido" : stored.status === "inactivo" ? "inactivo" : "activo",
     serviceType: record.serviceType,

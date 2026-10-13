@@ -30,6 +30,7 @@ export type Student = {
   planId?: string;
   monthlyFee: number;
   joinedAt: string;
+  firstDueDate?: string | null;
   dueDate: string;
   status: StudentStatus;
   lifecycleStatus?: StudentStatus;
