@@ -1,4 +1,5 @@
 import "server-only";
+import { trainerSessionIsCurrent } from "@/lib/trainer-session-revocation";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { ADMIN_SESSION_COOKIE, verifyAdminSessionValue } from "@/lib/admin-auth";
@@ -13,7 +14,9 @@ export async function requireTrainerWorkspace() {
     include: { user: true, workspace: true },
   });
   if (!auth.userId && memberships.length !== 1) throw new Error("Ejecutá y verificá el backfill del owner inicial.");
-  return authorizedTrainerWorkspace(auth.userId ?? memberships[0].userId, memberships);
+  const userId = auth.userId ?? memberships[0].userId;
+  if (!await trainerSessionIsCurrent(userId, auth.expiresAt, prisma)) throw new Error("La sesión fue revocada. Volvé a iniciar sesión.");
+  return authorizedTrainerWorkspace(userId, memberships);
 }
 
 export async function assertStudentInWorkspace(studentId: string, workspaceId: string) {

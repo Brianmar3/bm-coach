@@ -26,7 +26,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (failure) return Response.json({ error: failure.error }, { status: failure.status });
 
   const { id } = await context.params;
-  await assertStudentInWorkspace(id, (await requireTrainerWorkspace()).workspaceId);
+  const { workspaceId } = await requireTrainerWorkspace();
+  await assertStudentInWorkspace(id, workspaceId);
   const panel = new URL(request.url).searchParams.get("panel") as Panel | null;
   if (!panel || !PANELS.includes(panel)) return Response.json({ error: "El panel solicitado no es válido." }, { status: 400 });
 
@@ -38,14 +39,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const range = monthRange(month)!;
     const [records, current] = await Promise.all([
       prisma.classAttendance.findMany({
-        where: { studentId: id },
+        where: { studentId: id, OR: [{ scheduleId: null }, { schedule: { workspaceId } }] },
         include: { student: true },
         orderBy: [{ date: "desc" }, { scheduleStartTime: "asc" }],
         take: 10,
       }),
       prisma.classAttendance.groupBy({
         by: ["status"],
-        where: { studentId: id, date: { gte: range.start, lt: range.end } },
+        where: { studentId: id, date: { gte: range.start, lt: range.end }, OR: [{ scheduleId: null }, { schedule: { workspaceId } }] },
         _count: { _all: true },
       }),
     ]);
@@ -93,7 +94,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   if (panel === "routine") {
     const routine = await prisma.trainingRoutine.findFirst({
-      where: { kind: "ASSIGNED", status: "ACTIVA", assignments: { some: { studentId: id, active: true } } },
+      where: { workspaceId, kind: "ASSIGNED", status: "ACTIVA", assignments: { some: { studentId: id, active: true } } },
       include: routineInclude,
       orderBy: { updatedAt: "desc" },
     });
@@ -101,7 +102,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   }
 
   const schedules = await prisma.weeklyClassSchedule.findMany({
-    where: { active: true, assignments: { some: { studentId: id, active: true } } },
+    where: { workspaceId, active: true, assignments: { some: { studentId: id, active: true } } },
     select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true },
   });
   schedules.sort((left, right) => weekdayOrder[left.dayOfWeek] - weekdayOrder[right.dayOfWeek] || left.startTime.localeCompare(right.startTime));

@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       await assertTrainerCanAddStudent(workspaceId, transaction);
       if (normalizedPhone && await duplicatePhone(transaction, workspaceId, normalizedPhone)) throw new EnrollmentError("Ya existe un alumno registrado con ese teléfono.");
       const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
-        where: { id: { in: input.scheduleIds } },
+        where: { workspaceId, id: { in: input.scheduleIds } },
         select: { id: true, active: true, capacity: true, _count: { select: { assignments: { where: { active: true } } } } },
       }) : [];
       if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("El horario seleccionado no es válido.");
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     return Response.json(serializeStudent(record), { status: 201 });
   } catch (error) {
     console.error("Error al crear alumno", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "Los cupos o datos del alumno cambiaron mientras guardabas. Actualizá e intentá nuevamente." }, { status: 409 });
     if (error instanceof SyntaxError) return Response.json({ error: "Los datos enviados no son válidos." }, { status: 400 });
     if (error instanceof EnrollmentError) return Response.json({ error: error.message }, { status: error.message.includes("teléfono") ? 409 : 400 });
     if (error instanceof TrainerStudentLimitError) return Response.json({ error: error.message, code: "TRAINER_STUDENT_LIMIT_REACHED", action: "Ver planes" }, { status: error.status });

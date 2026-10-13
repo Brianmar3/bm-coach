@@ -40,7 +40,7 @@ test("el endpoint exige sesión administrativa y limita todas las consultas al a
 test("solo muestra rutina activa y horarios activos asignados", () => {
   assert.match(api, /kind: "ASSIGNED", status: "ACTIVA"/);
   assert.match(api, /assignments: \{ some: \{ studentId: id, active: true \} \}/);
-  assert.match(api, /where: \{ active: true, assignments/);
+  assert.match(api, /where: \{ workspaceId, active: true, assignments/);
   assert.match(api, /weekdayOrder/);
 });
 
@@ -60,4 +60,10 @@ test("la ficha permite elegir y enviar el próximo vencimiento con error asociad
   assert.match(component, /Seleccioná el próximo vencimiento/);
   assert.match(component, /nextDueDate < paidDate/);
   assert.match(component, /billingPeriod: \x60\$\{period\}-01\x60, nextDueDate/);
+});
+
+test("los vínculos históricos cruzados no exponen horarios, rutinas ni asistencias de otro workspace", () => {
+  assert.match(api, /where: \{ workspaceId, kind: "ASSIGNED"/);
+  assert.match(api, /where: \{ workspaceId, active: true, assignments/);
+  assert.equal((api.match(/OR: \[\{ scheduleId: null \}, \{ schedule: \{ workspaceId \} \}\]/g) ?? []).length, 2);
 });

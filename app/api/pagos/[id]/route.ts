@@ -101,7 +101,10 @@ export async function PATCH(request: Request, context: RouteContext<"/api/pagos/
           id: { not: id },
           studentId: existing.studentId,
           status: "PAGADO",
-          paidDate: existing.paidDate ? { gt: existing.paidDate } : undefined,
+          OR: [
+            ...(existing.paidDate ? [{ paidDate: { gt: existing.paidDate } }] : []),
+            { createdAt: { gt: existing.createdAt } },
+          ],
         },
         select: { id: true },
       });

@@ -26,7 +26,9 @@ const { serializeStudent } = load<{ serializeStudent: (row: Row) => Student }>("
   "@/lib/height": height, "@/lib/prisma": {}, "@/lib/payment-dates": {}, "@/types/gestion": { isStudentType: () => true },
   "@/lib/student-service": {}, "@/lib/coach-plans": {}, "@/lib/student-phone-identity": {},
 });
-const { StudentHealthObservations } = load<{ StudentHealthObservations: (props: { student: Student }) => React.ReactNode }>("componentes/student-health-observations.tsx", {});
+const iconBase = load<Record<string, unknown>>("componentes/icons/bm-premium/icon.tsx", {});
+const premiumIcons = load<Record<string, unknown>>("componentes/icons/bm-premium/core.tsx", { "./icon": iconBase });
+const { StudentHealthObservations } = load<{ StudentHealthObservations: (props: { student: Student }) => React.ReactNode }>("componentes/student-health-observations.tsx", { "@/componentes/icons": premiumIcons });
 const html = (student: Student) => renderToStaticMarkup(React.createElement(StudentHealthObservations, { student }));
 
 function setup(serviceType: string) {

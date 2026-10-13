@@ -39,7 +39,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       if (!current) throw new EnrollmentError("Alumno no encontrado.");
       if (normalizedPhone && await duplicatePhone(transaction, workspaceId, normalizedPhone, id)) throw new EnrollmentError("Ya existe otro alumno registrado con ese teléfono.");
       const schedules = input.scheduleIds.length ? await transaction.weeklyClassSchedule.findMany({
-        where: { id: { in: input.scheduleIds }, archivedAt: null },
+        where: { workspaceId, id: { in: input.scheduleIds }, archivedAt: null },
         select: { id: true, active: true, capacity: true, assignments: { where: { studentId: id }, select: { active: true } }, _count: { select: { assignments: { where: { active: true } } } } },
       }) : [];
       if (schedules.length !== input.scheduleIds.length) throw new EnrollmentError("El horario seleccionado no es válido.");
@@ -59,11 +59,12 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
         });
       }
       return transaction.studentRecord.findUniqueOrThrow({ where: { id, workspaceId, AND: [coachedStudentsWhere] }, include: studentInclude });
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     await reconcileStudentPointsAfterMutation(id);
     return Response.json(serializeStudent(record));
   } catch (error) {
     console.error("Error al actualizar alumno", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return Response.json({ error: "Los cupos o datos del alumno cambiaron mientras guardabas. Actualizá e intentá nuevamente." }, { status: 409 });
     if (error instanceof SyntaxError) return Response.json({ error: "Los datos enviados no son válidos." }, { status: 400 });
     if (error instanceof EnrollmentError) return Response.json({ error: error.message }, { status: error.message.includes("teléfono") ? 409 : error.message === "Alumno no encontrado." ? 404 : 400 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return Response.json({ error: "Ya existe otro alumno registrado con ese teléfono." }, { status: 409 });

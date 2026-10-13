@@ -1,3 +1,4 @@
+import { trainerSessionIsCurrent } from "@/lib/trainer-session-revocation";
 import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE, adminAuthError, verifyAdminSessionValue } from "@/lib/admin-auth";
@@ -10,6 +11,7 @@ export async function GET() {
     const failure = adminAuthError(result);
     return Response.json({ authenticated: false, error: failure.error }, { status: failure.status });
   }
+  if (result.userId && !await trainerSessionIsCurrent(result.userId, result.expiresAt, prisma)) return Response.json({ authenticated: false, error: "La sesión fue revocada. Volvé a iniciar sesión." }, { status: 401 });
   let user = result.userId ? await prisma.user.findUnique({ where: { id: result.userId }, include: { memberships: { include: { workspace: true } } } }) : null;
   if (!result.userId) {
     const owners = await prisma.workspaceMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { status: "ACTIVE" }, workspace: { slug: "bm-fuerza-funcional", status: "ACTIVE" } }, include: { user: { include: { memberships: { include: { workspace: true } } } } } });

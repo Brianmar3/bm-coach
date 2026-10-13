@@ -13,6 +13,9 @@ async function cacheIdentity(page, snapshot, avatar) {
     await exported.saveOfflineIdentity(scope, studentId, avatar, branding);
   }, { code: identityCode, scope: snapshot.scope, studentId: snapshot.studentId, branding: snapshot.branding, avatar });
 }
+async function openExerciseDetails(page) {
+  if (!await page.getByLabel("Reps de la serie 1", { exact: true }).isVisible()) await page.getByRole("button", { name: "Ver detalle", exact: true }).first().click();
+}
 async function assertHeaderImages(page) {
   await page.waitForFunction(() => [...document.querySelectorAll("header.portal-header img")].every((img) => img.complete && img.naturalWidth > 0));
 }
@@ -77,16 +80,19 @@ async function readRecords(page) {
       await page.getByRole("link", { name: "Empezar rutina", exact: true }).click();
       await page.waitForURL("**/portal/rutina");
       await page.getByText("Modo sin conexión", { exact: true }).waitFor();
+      await openExerciseDetails(page);
       await page.getByLabel("Reps de la serie 1", { exact: true }).fill("12");
       await page.waitForFunction(() => new Promise((resolve) => { const request = indexedDB.open("bm-training-offline-v1", 1); request.onsuccess = () => { const db = request.result; const tx = db.transaction("records"); const get = tx.objectStore("records").getAll(); get.onsuccess = () => resolve(get.result.some((r) => r.pending)); tx.oncomplete = () => db.close(); }; }));
       assert.equal((await readRecords(page))[0].payload.exercises[0].sets[0].repetitions, 12);
       await page.close(); page = await context.newPage();
       await page.goto(`${origin}/portal/rutina`);
+      await openExerciseDetails(page);
       await page.getByLabel("Reps de la serie 1", { exact: true }).waitFor();
       assert.equal(await page.getByLabel("Reps de la serie 1", { exact: true }).inputValue(), "12");
       // Explicit fallback route lets the queue scenarios run independently of
       // authenticated server pages, which this synthetic test does not log into.
       await page.goto(`${origin}/portal/offline`);
+      await openExerciseDetails(page);
       await page.getByLabel("Reps de la serie 1", { exact: true }).waitFor();
       // A changed trainer program must not replace an in-progress original session.
       snapshot = { ...snapshot, data: { ...snapshot.data, routine: { ...snapshot.data.routine, name: "Programa modificado" } } };
@@ -101,6 +107,7 @@ async function readRecords(page) {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.screenshot({ path: path.join(process.cwd(), `.offline-${serviceType.toLowerCase()}.png`), fullPage: true });
       await context.setOffline(true);
+      await openExerciseDetails(page);
       await page.getByRole("checkbox").first().check();
       await page.getByRole("button", { name: "Finalizar entrenamiento", exact: true }).click();
       const summary = page.getByRole("dialog", { name: "Finalizar entrenamiento" });
@@ -183,7 +190,7 @@ async function readRecords(page) {
       let coldPage = await persistent.newPage(); await coldPage.goto(`${origin}/portal/offline`);
       await coldPage.getByText("Programa original", { exact: true }).waitFor(); await coldPage.locator('aside[role="status"]').waitFor({ state: "hidden" });
       await cacheIdentity(coldPage, saved, "/avatars/bm-athlete-woman-v3.webp");
-      await persistent.setOffline(true); await coldPage.getByLabel("Kg de la serie 1", { exact: true }).fill("27.5");
+      await persistent.setOffline(true); await openExerciseDetails(coldPage); await coldPage.getByLabel("Kg de la serie 1", { exact: true }).fill("27.5");
       await coldPage.waitForFunction(() => new Promise((resolve) => { const request = indexedDB.open("bm-training-offline-v1", 1); request.onsuccess = () => { const db = request.result; const tx = db.transaction("records"); const get = tx.objectStore("records").getAll(); get.onsuccess = () => resolve(get.result.some((r) => r.pending)); tx.oncomplete = () => db.close(); }; }));
       await persistent.close();
       persistent = await chromium.launchPersistentContext(profile, { channel: "msedge", headless: true, viewport: { width: 393, height: 851 } });
@@ -191,6 +198,7 @@ async function readRecords(page) {
       await coldPage.getByText("Modo sin conexión", { exact: true }).waitFor();
       await assertHeaderImages(coldPage);
       assert.ok((await coldPage.locator("header.portal-header img[data-identity-avatar]").getAttribute("src")).startsWith("data:"));
+      await openExerciseDetails(coldPage);
       assert.equal(await coldPage.getByLabel("Kg de la serie 1", { exact: true }).inputValue(), "27.5");
       console.log("Cold browser restart offline: shell, IndexedDB and pending edits recovered OK");
     } finally {
