@@ -14,7 +14,7 @@ Al terminar la fuerza, si quedan otros bloques, la acción invita a continuar co
 
 El detalle de Biblioteca aporta instrucciones, músculo, equipo y media opcional. Se consulta independientemente del flag de media; instrucciones disponibles siguen visibles sin imagen. Fallos de red/media no impiden entrenar ni muestran contenedores vacíos. La información no cacheada de Biblioteca puede faltar offline; la rutina y las indicaciones del entrenador siguen disponibles.
 
-El progreso usa series realmente completadas y bloques no-fuerza completados, no la posición de navegación. El tiempo total es tiempo transcurrido incluyendo descansos y tiempo con la app cerrada. Un ancla local bajo la clave existente del borrador permite empezar en cero y recuperar precisión tras reload; se elimina al finalizar y entra en la limpieza existente de drafts/timers al cambiar de cuenta. Sesiones antiguas sin ancla usan fecha/hora existente con precisión de minutos. No se cambió backend, API, Prisma ni Android.
+El progreso usa el cálculo compartido de lib/workout-day-progress.ts: series realmente completadas y resultados verificables de bloques sin series, no la posición de navegación. La cabecera normal usa el mismo helper; ver docs/workout-day-progress.md para las unidades y checkpoints por tipo. El tiempo total es tiempo transcurrido incluyendo descansos y tiempo con la app cerrada. Un ancla local bajo la clave existente del borrador permite empezar en cero y recuperar precisión tras reload; se elimina al finalizar y entra en la limpieza existente de drafts/timers al cambiar de cuenta. Sesiones antiguas sin ancla usan fecha/hora existente con precisión de minutos. No se cambió backend, API, Prisma ni Android.
 
 ## Validación
 

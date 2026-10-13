@@ -27,6 +27,7 @@ import { freshWorkoutBlock, hasBlockActivity, TRAINING_BLOCK_LABELS } from "@/li
 import { isTimedBlockType } from "@/lib/block-timer";
 import { WorkoutBlockTimer } from "@/componentes/workout-block-timer";
 import { ExerciseRestTimer, useExerciseRestTimer } from "@/componentes/exercise-rest-timer";
+import { workoutProgressPercentLabel } from "@/lib/workout-day-progress";
 import { currentFocusSet, focusCompletionTarget, focusProgress, workoutElapsedSeconds } from "@/lib/workout-focus-flow";
 import { WorkoutFocusControls, WorkoutFocusHeader, WorkoutFocusIdentity, WorkoutFocusList, WorkoutFocusMedia } from "@/componentes/workout-focus";
 import { PortalEvaluationsDashboard } from "@/componentes/portal-evaluations-dashboard";
@@ -1031,7 +1032,11 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   const routineDisplayName = cleanRoutineDisplayName(routine.name) || routine.name;
   const selectedDayName = usefulDayName(selectedDay.dayNumber, selectedDay.name);
   const dayFocus = selectedDay.objective || selectedDayName || routine.objective || `Día ${selectedDay.dayNumber}`;
-  const dayProgress = totalBlocks ? completedBlocks / totalBlocks * 100 : 0;
+  const dayProgress = draft ? focusProgress(draft).percentage : 0;
+  const ringTotal = conditioningBlocks.length ? totalBlocks : draft?.exercises.length ?? 0;
+  const ringCompleted = conditioningBlocks.length ? completedBlocks : completedExercises;
+  const ringUnit = conditioningBlocks.length ? "bloques" : "ejercicios";
+  const ringProgress = ringTotal ? ringCompleted / ringTotal * 100 : 0;
   const dayStateLabel = completedBlocks === totalBlocks && totalBlocks ? "Completado" : started ? "En curso" : "Sin comenzar";
   const incomplete = completedActivities < totalActivities;
   const focusIndex = draft?.exercises.findIndex((exercise) => exercise.exerciseId === focusExerciseId) ?? -1;
@@ -1066,10 +1071,10 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
       <div className="mb-3 flex items-center gap-2 pt-6 text-[11px] font-bold uppercase tracking-[.2em] text-[var(--brand-text)]"><BmPointsIcon size={15} /> Tu entrenamiento de hoy</div>
       <div className="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_4.75rem]">
         <div className="min-w-0"><p className="line-clamp-2 break-words text-2xl font-black leading-tight text-white sm:text-3xl">{dayFocus}</p><div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--foreground-muted)]"><span className="inline-flex items-center gap-1.5"><BmBarbellIcon size={16} className="text-[var(--brand-text)]" />{selectedDay.exercises.length} ejercicios</span>{selectedDay.estimatedMinutes && <span className="inline-flex items-center gap-1.5"><BmTimerIcon size={16} className="text-[var(--brand-text)]" />{selectedDay.estimatedMinutes} min</span>}</div>{selectedDay.id === suggestedDayId && <p className="mt-2 text-sm font-semibold text-[var(--brand-text)]">Día sugerido</p>}</div>
-        <div aria-label={`${completedBlocks} de ${totalBlocks} bloques completados`} className="portal-routine-progress-ring grid aspect-square shrink-0 place-items-center rounded-full p-[7px]" style={{ "--routine-progress": `${dayProgress * 3.6}deg` } as CSSProperties}><span className="grid h-full w-full place-items-center rounded-full bg-zinc-950 text-center"><span><strong className="block text-lg font-black text-white">{completedBlocks}/{totalBlocks}</strong><small className="block text-[11px] text-[var(--foreground-muted)]">bloques</small></span></span></div>
+        <div aria-label={`${ringCompleted} de ${ringTotal} ${ringUnit} completados`} className="portal-routine-progress-ring grid aspect-square shrink-0 place-items-center rounded-full p-[7px]" style={{ "--routine-progress": `${ringProgress * 3.6}deg` } as CSSProperties}><span className="grid h-full w-full place-items-center rounded-full bg-zinc-950 text-center"><span><strong className="block text-lg font-black text-white">{ringCompleted}/{ringTotal}</strong><small className="block text-[11px] text-[var(--foreground-muted)]">{ringUnit}</small></span></span></div>
       </div>
-      <div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-muted)]"><span>Progreso del día</span><span>{Math.round(dayProgress)}%</span></div>
-      <div className="portal-routine-track mt-1.5 h-1.5 overflow-hidden rounded-full"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-[width]" style={{ width: `${dayProgress}%` }} /></div>
+      <div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-muted)]"><span>Progreso del día{totalSets > 0 && <span className="ml-1.5">· {completedTotal}/{totalSets} series</span>}</span><span>{workoutProgressPercentLabel(dayProgress)}%</span></div>
+      <div role="progressbar" aria-label="Progreso del día" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress} className="portal-routine-track mt-1.5 h-1.5 overflow-hidden rounded-full"><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-[width]" style={{ width: `${dayProgress}%` }} /></div>
     </section>
     {selectedDay.warmup.trim() && <button type="button" onClick={() => setWarmupOpen(true)} className="portal-routine-warmup portal-routine-enter mb-4 flex min-h-20 w-full items-center gap-3 rounded-3xl border px-4 py-3 text-left outline-none transition hover:border-yellow-400/45 focus-visible:ring-2 focus-visible:ring-yellow-300"><span className="grid size-12 shrink-0 place-items-center rounded-full border border-yellow-300/60 text-[var(--brand-text)]"><BmFlameIcon size={24} /></span><span className="min-w-0 flex-1"><strong className="block text-base text-zinc-100">Entrada en calor</strong><span className="mt-1 block text-xs text-[var(--foreground-muted)]">Prepará tu cuerpo para entrenar</span></span><BmChevronRightIcon size={22} className="shrink-0 text-[var(--brand-text)]" /></button>}
     <div className="portal-routine-enter mb-4 flex items-center gap-3 px-1"><BmSlidersIcon size={20} className="text-[var(--brand-text)]" /><h2 className="shrink-0 text-sm font-black uppercase tracking-[.2em] text-[var(--brand-text)]">Recorrido de hoy</h2><span className="h-px flex-1 bg-gradient-to-r from-yellow-400/40 to-transparent" /></div>

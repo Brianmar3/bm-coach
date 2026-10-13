@@ -1,13 +1,8 @@
 import type { PortalWorkoutSession } from "../types/portal.ts";
+export { workoutDayProgress as focusProgress } from "./workout-day-progress.ts";
 
 export function currentFocusSet(exercise: PortalWorkoutSession["exercises"][number]) {
   return exercise.sets.findIndex(set => !set.completed);
-}
-
-export function focusProgress(session: PortalWorkoutSession) {
-  const total = session.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0) + (session.blocks ?? []).filter(block => block.blockType !== "STRENGTH").length;
-  const complete = session.exercises.reduce((sum, exercise) => sum + exercise.sets.filter(set => set.completed).length, 0) + (session.blocks ?? []).filter(block => block.blockType !== "STRENGTH" && block.result.completed).length;
-  return { total, complete, percentage: total ? complete / total * 100 : 0 };
 }
 
 // Existing session dates/times are Argentina wall time, with minute precision.

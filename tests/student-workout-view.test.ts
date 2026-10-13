@@ -46,9 +46,9 @@ test("el selector horizontal funciona con cualquier cantidad de días", () => {
 
 test("el resumen usa bloques reales, duración, estado y progreso", () => {
   assert.equal(completedExerciseCount([{ exerciseId: "a", sets: [{ completed: true }] }, { exerciseId: "b", sets: [{ completed: false }] }]), 1);
-  for (const value of ["bloques completados", "Día sugerido", "Sin comenzar", "En curso", "Completado"]) assert.match(source, new RegExp(value));
+  for (const value of ["Día sugerido", "Sin comenzar", "En curso", "Completado"]) assert.match(source, new RegExp(value));
   assert.match(source, /portal-routine-progress-ring/);
-  assert.match(source, /\{completedBlocks\}\/\{totalBlocks\}/);
+  assert.match(source, /\{ringCompleted\}\/\{ringTotal\}/);
   assert.match(source, /\{selectedDay\.estimatedMinutes\} min/);
   assert.match(source, /width: `\$\{dayProgress\}%`/);
 });
