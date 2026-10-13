@@ -7,7 +7,7 @@ const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "
 const creation = readFileSync(new URL("../componentes/routine-creation-dialog.tsx", import.meta.url), "utf8");
 const picker = readFileSync(new URL("../componentes/training-library-block-picker.tsx", import.meta.url), "utf8");
 const api = readFileSync(new URL("../app/api/rutinas/route.ts", import.meta.url), "utf8");
-const editor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("type BlockEditorProps"));
+const editor = page.slice(page.indexOf("function RoutineEditor"), page.indexOf("type BlockEditorProps")) + readFileSync(new URL("../componentes/routine-review.tsx", import.meta.url), "utf8");
 
 function emptyRoutine(status: RoutineInput["status"]): RoutineInput {
   return { kind: "assigned", name: "Plan sin alumno", objective: "Fuerza", level: "principiante", status, description: "", startDate: "", durationWeeks: null, priorityMuscles: [], location: "", equipment: [], tags: [], studentIds: [], days: [{ dayNumber: 1, name: "Día 1", objective: "", warmup: "", observations: "", estimatedMinutes: null, blocks: [], exercises: [] }] };

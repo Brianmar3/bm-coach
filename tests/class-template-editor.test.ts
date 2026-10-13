@@ -78,7 +78,7 @@ test("templates legacy multidía conservan el editor completo sin perder días",
 });
 
 test("Nueva rutina conserva semanas, estado, días y acciones originales", () => {
-  for (const text of ["Nueva rutina", "Fecha de inicio", "Duración (semanas)", "Estado", "Guardar", "Activar rutina"]) assert.match(routineEditor, new RegExp(text.replace(/[()+]/g, "\\$&")));
+  for (const text of ["Nueva rutina", "Fecha de inicio", "Duración (semanas)", "Estado", "Guardar", "Activar rutina"]) assert.match(routineEditor + readFileSync(new URL("../componentes/routine-review.tsx", import.meta.url), "utf8"), new RegExp(text.replace(/[()+]/g, "\\$&")));
 });
 
 test("Enter sin submitter no guarda y Escape respeta la capa superior", () => {
