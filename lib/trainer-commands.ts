@@ -14,7 +14,7 @@ export type TrainerCommand = {
 export const trainerCommands: TrainerCommand[] = [
   { id: "new-student", label: "Nuevo alumno", href: "/alumnos?accion=nuevo", symbol: "+", category: "Acciones", keywords: ["crear", "alta", "nuevo alumno"], shortcut: "N", mobile: true },
   { id: "payment", label: "Registrar pago", href: "/pagos?accion=nuevo", symbol: "$", category: "Acciones", keywords: ["cobro", "cuota", "pagar"], shortcut: "P", mobile: true },
-  { id: "attendance", label: "Tomar asistencia", href: "/asistencias", symbol: "✓", category: "Acciones", keywords: ["presente", "ausente", "clase"], shortcut: "A", mobile: true },
+  { id: "attendance", label: "Tomar asistencia", href: "/asistencias?view=attendance", symbol: "✓", category: "Acciones", keywords: ["presente", "ausente", "clase"], shortcut: "A", mobile: true },
   { id: "new-class", label: "Crear clase", href: "/clases?accion=nueva", symbol: "C", category: "Acciones", keywords: ["horario", "agenda", "nueva clase"], shortcut: "C", mobile: true },
   { id: "evaluation", label: "Nueva evaluación", href: "/evaluaciones", symbol: "E", category: "Acciones", keywords: ["evaluar", "mediciones", "ficha"], shortcut: "E", mobile: true },
   { id: "event", label: "Agregar evento", href: "/eventos", symbol: "●", category: "Acciones", keywords: ["recordatorio", "agenda"], mobile: true },

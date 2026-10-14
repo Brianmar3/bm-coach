@@ -68,7 +68,7 @@ export function ClassOccurrenceAdmin() {
         </p>
         {selected.scheduleId ? (
           <Link
-            href={`/asistencias?scheduleId=${encodeURIComponent(selected.scheduleId)}&date=${selected.date}`}
+            href={`/asistencias?view=attendance&scheduleId=${encodeURIComponent(selected.scheduleId)}&date=${selected.date}`}
             className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-yellow-400 px-4 py-2.5 text-sm font-bold text-zinc-950"
           >
             Tomar asistencia
@@ -85,7 +85,7 @@ export function ClassOccurrenceAdmin() {
 }
 
 function OccurrenceCard({ item, open }: { item: AdminClassOccurrence; open: () => void }) {
-  const attendanceHref = item.scheduleId ? `/asistencias?scheduleId=${encodeURIComponent(item.scheduleId)}&date=${item.date}` : "";
+  const attendanceHref = item.scheduleId ? `/asistencias?view=attendance&scheduleId=${encodeURIComponent(item.scheduleId)}&date=${item.date}` : "";
   return <article className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
     <div className="flex justify-between gap-3"><div className="min-w-0"><p className="truncate font-bold">{item.name}</p><p className="mt-0.5 text-sm font-semibold text-yellow-300">{item.startTime}–{item.endTime}</p></div><button type="button" onClick={open} aria-label={`Configuración de ${item.name}`} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-400">⋯</button></div>
     <p className="mt-2 text-xs text-zinc-400">{item.confirmedCount} confirmados · {item.noResponse.length} sin respuesta</p>

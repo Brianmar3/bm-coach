@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { attendanceEntryKey, classesView } from "../lib/classes-navigation.ts";
 import { readFileSync } from "node:fs";
 import { automaticAttendanceSchedule, attendanceScheduleSelection } from "../lib/attendance-schedule-selection.ts";
 
@@ -47,3 +48,43 @@ test("la integración reinicia sólo al cambiar fecha y el drawer separa el pie 
   assert.match(sidebar, /min-h-0 flex-1 overflow-y-auto">\{nav\}<\/div>/);
   assert.match(sidebar, /shrink-0 border-t.*\{logoutButton\}/);
 });
+
+test("la URL decide la vista, sin heredar poca actividad de entradas anteriores", () => {
+  for (const [url, expected] of [
+    ["/asistencias?view=low-activity", "low-activity"],
+    ["/asistencias?view=attendance", "attendance"],
+    ["/asistencias", "attendance"],
+    ["/clases?view=low-activity", "calendar"],
+    ["/asistencias?view=history", "history"],
+    ["/asistencias?view=unknown", "attendance"],
+    ["/asistencias?view=low-activity", "low-activity"],
+    ["/asistencias?view=attendance&scheduleId=other", "attendance"],
+  ]) {
+    const entry = new URL(url, "https://bm.test");
+    assert.equal(classesView(entry.pathname, entry.searchParams), expected);
+  }
+});
+
+test("cada destino inicializa su formulario; refresh y orden de query conservan la identidad", () => {
+  const key = (search: string) => attendanceEntryKey(new URLSearchParams(search));
+  assert.notEqual(key("view=low-activity"), key("view=attendance"));
+  assert.notEqual(key("scheduleId=a&date=2026-10-14"), key("scheduleId=b&date=2026-10-15"));
+  assert.notEqual(key("studentId=a"), key("studentId=b"));
+  assert.equal(key("scheduleId=a&date=2026-10-14"), key("date=2026-10-14&scheduleId=a"));
+  assert.equal(key(""), key("view=attendance"));
+  const attendance = readFileSync(new URL("../app/asistencias/page.tsx", import.meta.url), "utf8");
+  assert.match(attendance, /key=\{attendanceEntryKey\(searchParams\)\}/);
+});
+
+test("Volver reemplaza la subvista por Clases y las acciones declaran asistencia", () => {
+  const attendance = readFileSync(new URL("../app/asistencias/page.tsx", import.meta.url), "utf8");
+  const tabs = readFileSync(new URL("../componentes/classes-secondary-nav.tsx", import.meta.url), "utf8");
+  assert.match(attendance, /href="\/clases" replace/);
+  assert.match(tabs, /classesView\(pathname, searchParams\)/);
+  assert.match(tabs, /href="\/asistencias\?view=attendance"/);
+  for (const file of ["app/dashboard/page.tsx", "app/clases/page.tsx", "componentes/class-occurrence-admin.tsx", "componentes/trainer-command-palette.tsx", "lib/trainer-commands.ts"]) {
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.match(source, /\/asistencias\?view=attendance/);
+  }
+});
+

@@ -109,7 +109,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
         label="Asistencia hoy"
         value={`${metrics.attendanceToday} / ${metrics.attendanceExpectedToday}`}
         subtitle={metrics.attendanceClassesToday > 0 ? `${metrics.attendanceTodayPercentage}% completado` : "Sin clases programadas"}
-        href="/asistencias"
+        href="/asistencias?view=attendance"
         icon={<BmAttendanceIcon size={20} />}
         tone="green"
       />
@@ -213,7 +213,7 @@ function RecentStudents({ items }: { items: DashboardData["recentStudents"] }) {
 
 function AttendancePanel({ data, summary }: { data: DashboardData["weeklyAttendance"]; summary: DashboardData["attendanceSummary"] }) {
   const max = Math.max(...data.map((item) => item.present), 1);
-  return <Panel title="Actividad semanal" subtitle="Asistencias de lunes a domingo" action={<SectionLink href="/asistencias">Ver detalle</SectionLink>}>
+  return <Panel title="Actividad semanal" subtitle="Asistencias de lunes a domingo" action={<SectionLink href="/asistencias?view=attendance">Ver detalle</SectionLink>}>
     <div className="mt-3 grid gap-3">
       <div className="flex h-24 items-end gap-2" role="img" aria-label="Asistencias de la semana">{data.map((day) => <div key={day.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"><span className="mb-1 text-[11px] font-bold text-zinc-300">{day.present}</span><span className="block w-full max-w-10 rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${day.present ? Math.max(8, (day.present / max) * 100) : 2}%` }} /><span className="mt-1 text-[11px] text-[var(--foreground-muted)]">{day.label}</span></div>)}</div>
       <div className="grid grid-cols-3 gap-2"><CompactMetric label="Promedio" value={`${summary.weeklyAverage}%`} tone="text-emerald-300" /><CompactMetric label="Mejor día" value={summary.bestDay} tone="text-[var(--brand-text)]" /><CompactMetric label="Asistencias" value={String(summary.totalAttendance)} tone="text-sky-300" /></div>

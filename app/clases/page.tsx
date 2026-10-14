@@ -240,7 +240,7 @@ function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open
         <p className="mt-1.5 text-xs text-zinc-400">{occupancy(schedule)}</p>
         {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-zinc-500">{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
       </button>
-      <Link href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-2.5 block min-h-10 rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
+      <Link href={`/asistencias?view=attendance&scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-2.5 block min-h-10 rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
     </article>
   );
 }
@@ -268,7 +268,7 @@ function ScheduleDetail({ schedule, close, edit, changeActive, remove }: { sched
         <div className="mt-6"><div className="flex items-center justify-between"><h3 className="font-semibold">Alumnos asignados</h3><span className="text-sm text-zinc-500">{schedule.students.length}</span></div>{schedule.students.length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{schedule.students.map((student) => <div key={student.id} className="flex items-center justify-between rounded-xl bg-zinc-950 px-3 py-3 text-sm"><span>{student.name}</span><span className={student.status === "activo" ? "text-emerald-400" : "text-zinc-600"}>{student.status}</span></div>)}</div> : <p className="mt-3 rounded-xl border border-dashed border-zinc-700 p-5 text-center text-sm text-zinc-500">Todavía no hay alumnos asignados.</p>}</div>
         <div className="mt-7 grid gap-2 sm:grid-cols-2">
           <Link
-            href={`/asistencias?scheduleId=${encodeURIComponent(schedule.id)}&date=${nextScheduleDate(schedule.dayOfWeek)}`}
+            href={`/asistencias?view=attendance&scheduleId=${encodeURIComponent(schedule.id)}&date=${nextScheduleDate(schedule.dayOfWeek)}`}
             className="rounded-xl bg-emerald-400 px-4 py-3 text-center font-bold text-zinc-950 sm:col-span-2"
           >
             Tomar asistencia

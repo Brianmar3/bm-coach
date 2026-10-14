@@ -14,7 +14,7 @@ test("Ver detalle y Tomar asistencia navegan a la clase seleccionada", () => {
   assert.match(occurrences, /scheduleId=.*date=/);
   assert.match(classes, /Tomar asistencia/);
   assert.match(classes, /scheduleId=.*attendanceDate/);
-  assert.match(attendance, /calendarMode \? entryScheduleId/);
+  assert.match(attendance, /useState<string \| null>\(entryScheduleId \|\| null\)/);
 });
 
 test("cada estado alterna con Sin registro y reemplaza a los demás", () => {

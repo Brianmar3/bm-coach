@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { attendanceEntryKey, classesView } from "@/lib/classes-navigation";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { WeeklyAttendanceHistory } from "@/componentes/weekly-attendance-history";
 import { toggledAttendanceStatus } from "@/lib/attendance-state";
@@ -28,7 +29,12 @@ function scheduleLabel(schedule: WeeklyClassSchedule) { return `${DAY_LABEL[sche
 async function responseError(response: Response, fallback: string) { try { return ((await response.json()) as { error?: string }).error ?? fallback; } catch { return fallback; } }
 
 export default function AsistenciasPage() {
-  return <Suspense fallback={<p className="p-10 text-center text-zinc-500">Cargando asistencias…</p>}><AttendancePageContent /></Suspense>;
+  return <Suspense fallback={<p className="p-10 text-center text-zinc-500">Cargando asistencias…</p>}><AttendanceEntry /></Suspense>;
+}
+
+function AttendanceEntry() {
+  const searchParams = useSearchParams();
+  return <AttendancePageContent key={attendanceEntryKey(searchParams)} />;
 }
 
 function AttendancePageContent() {
@@ -36,8 +42,9 @@ function AttendancePageContent() {
   const entryScheduleId = searchParams.get("scheduleId") ?? "";
   const targetStudentId = searchParams.get("studentId") ?? "";
   const calendarMode = Boolean(entryScheduleId);
-  const historyMode = searchParams.get("view") === "history";
-  const lowActivityMode = searchParams.get("view") === "low-activity";
+  const view = classesView("/asistencias", searchParams);
+  const historyMode = view === "history";
+  const lowActivityMode = view === "low-activity";
   const weeklyHistoryMode = historyMode && searchParams.get("mode") !== "day";
   const [date, setDate] = useState(searchParams.get("date") || todayKey());
   const [schedules, setSchedules] = useState<WeeklyClassSchedule[]>([]);
@@ -258,7 +265,7 @@ function LowActivityView({ students, ready }: { students: DashboardLowActivitySt
           <h1 className="mt-1 text-2xl font-bold">Alumnos con baja actividad</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-400">Alumnos activos de clases sin asistencias presentes en los últimos 7 días.</p>
         </div>
-        <Link href="/dashboard" className="rounded-xl border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-300">Volver</Link>
+        <Link href="/clases" replace className="min-h-11 rounded-xl border border-zinc-700 px-3 py-2 text-sm font-bold text-zinc-300">Volver</Link>
       </div>
       {!ready ? <p className="py-10 text-center text-zinc-500">Cargando alumnos…</p> : students.length === 0 ? <p className="py-10 text-center text-zinc-400">No hay alumnos con baja actividad.</p> : <div className="mt-4 grid gap-3">{students.map((student) => (
         <article key={student.studentId} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">

@@ -12,7 +12,7 @@ const serviceLabel = { CLASSES: "Clases", PERSONALIZED: "Personalizado", MIXED: 
 
 function studentHref(studentId: string, intent: StudentCommandIntent) {
   if (intent === "payment") return `/pagos?accion=nuevo&studentId=${encodeURIComponent(studentId)}`;
-  if (intent === "attendance") return `/asistencias?studentId=${encodeURIComponent(studentId)}`;
+  if (intent === "attendance") return `/asistencias?view=attendance&studentId=${encodeURIComponent(studentId)}`;
   if (intent === "routine") return `/rutinas?studentId=${encodeURIComponent(studentId)}&view=active`;
   if (intent === "evaluation") return `/evaluaciones?studentId=${encodeURIComponent(studentId)}&accion=nueva`;
   return `/alumnos?studentId=${encodeURIComponent(studentId)}`;
