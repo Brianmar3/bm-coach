@@ -20,7 +20,7 @@ const bundle=readFileSync(path.join(temp,'bundle.js'));
 console.log(`Visuals: ${temp}`);
 const server=createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(bundle)}else if(req.url==='/style.css'){res.setHeader('Content-Type','text/css');res.end(css)}else if(req.url.startsWith('/avatars/')||req.url.startsWith('/bm-training-')){try{res.end(readFileSync(path.join(root,'public',decodeURI(req.url))))}catch{res.writeHead(404).end()}}else{res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>')}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
-const output=path.join(root,'docs','visuals','exercise-picker');require('node:fs').mkdirSync(output,{recursive:true});
+const output=path.join(root,'docs','visuals','integrated-exercise-picker');require('node:fs').mkdirSync(output,{recursive:true});
 const browser=await chromium.launch({channel:'msedge',headless:true});const results=[];
 const catalog=JSON.parse(readFileSync(path.join(root,'data','bm-exercise-library.json'),'utf8'));
 const facets=Object.fromEntries([['bodyParts','bodyPart','bodyPartLabelEs'],['equipment','equipment','equipmentLabelEs'],['targets','targetMuscle','targetMuscleLabelEs']].map(([key,value,label])=>[key,[...new Map(catalog.map(item=>[item[value],{value:item[value],label:item[label]}])).values()]]));
@@ -49,16 +49,16 @@ try {
    assert.equal(await drawer.locator('.routine-library-copy-handle').first().isVisible(),false);
    const heights=await rows.evaluateAll(els=>els.map(el=>el.getBoundingClientRect().height));assert.ok(Math.max(...heights)<=120,`row height ${Math.max(...heights)}`);
    const visibleRows=await rows.evaluateAll(els=>els.filter(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}).length);assert.ok(visibleRows>=5,`${visibleRows} fully visible rows`);
-  }else{assert.equal(await drawer.getByRole('button',{name:'Filtros',exact:true}).isVisible(),false);assert.ok(bounds.width<=460);assert.equal(await drawer.locator('.routine-library-copy-handle').first().isVisible(),true)}
+  }else{assert.equal(await drawer.getByRole('button',{name:'Filtros',exact:true}).isVisible(),true);assert.ok(bounds.width<=460);assert.equal(await drawer.locator('.routine-library-copy-handle').first().isVisible(),true)}
   if(['dark','light'].includes(theme)&&accent==='#2563eb')await page.screenshot({path:path.join(output,`${width}-${theme}.png`)});
   await search.fill('zzzz-sin-resultados');await drawer.getByText('No encontramos ejercicios con esos filtros.').waitFor();await search.fill('press');await rows.first().waitFor();assert.ok(await rows.count()>0);
   await search.fill('');
-  if(width<=768)await drawer.getByRole('button',{name:'Filtros',exact:true}).click();
+  await drawer.getByRole('button',{name:'Filtros',exact:true}).click();
   if(width===390&&theme==='dark'&&accent==='#2563eb')await page.screenshot({path:path.join(output,'390-filters.png')});
   await drawer.getByRole('combobox',{name:'Equipamiento',exact:true}).selectOption(facets.equipment[0].value);
   await drawer.getByRole('combobox',{name:'Parte corporal',exact:true}).selectOption(facets.bodyParts[0].value);
-  if(width<=768){assert.equal(await drawer.getByRole('button',{name:'Filtros · 2',exact:true}).count(),1);await drawer.getByRole('button',{name:'Limpiar filtros',exact:true}).click();await drawer.getByRole('button',{name:'Filtros',exact:true}).click()}
-  else{await drawer.getByRole('combobox',{name:'Equipamiento',exact:true}).selectOption('');await drawer.getByRole('combobox',{name:'Parte corporal',exact:true}).selectOption('')}
+  if(width<=768){assert.equal(await drawer.getByRole('button',{name:'Filtros, 2 activos',exact:true}).count(),1);await drawer.getByRole('button',{name:'Limpiar filtros',exact:true}).click();await drawer.getByRole('button',{name:'Filtros',exact:true}).click()}
+  else{await drawer.getByRole('button',{name:'Limpiar filtros',exact:true}).click();await drawer.getByRole('button',{name:'Filtros',exact:true}).click()}
   await rows.first().waitFor();const first=rows.first(),fav=first.getByRole('button',{name:/Favorito:/});await fav.click();assert.equal(await fav.getAttribute('aria-pressed'),'true');
   await drawer.getByRole('button',{name:'Favoritos',exact:true}).click();assert.equal(await rows.count(),1);await drawer.getByRole('button',{name:'Biblioteca',exact:true}).click();
   await rows.first().getByRole('button',{name:'Agregar',exact:true}).click();await rows.first().getByRole('button',{name:'✓ Agregado',exact:true}).waitFor();assert.equal(await drawer.isVisible(),true);assert.equal(await page.locator('.routine-exercise-row').count(),1);

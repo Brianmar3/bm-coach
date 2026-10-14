@@ -56,5 +56,5 @@ test("el selector abre en Todos y la vista previa es separada de Agregar", () =>
   assert.match(picker, /\[\['all', 'Todos'\], \['favorites', 'Favoritos'\], \['recent', 'Recientes'\]\]/);
   assert.match(picker, /setExpandedId\(expanded \? "" : block\.id\)/);
   assert.match(picker, /aria-expanded=\{expanded\}/);
-  assert.match(picker, /onClick=\{\(\) => add\(block\)\}/);
+  assert.match(picker, /if \(event\.detail < 2\) add\(block\)/);
 });

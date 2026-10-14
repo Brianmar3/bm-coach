@@ -1,4 +1,5 @@
 "use client";
+import { SearchWithFilters } from "@/componentes/search-with-filters";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
@@ -191,11 +192,11 @@ export default function EventosPage() {
           <button onClick={() => setMode("list")} className={`rounded-lg px-3 py-2 text-sm ${mode === "list" ? "bg-yellow-400 font-bold text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}>Lista</button>
           <button onClick={() => setMode("calendar")} className={`rounded-lg px-3 py-2 text-sm ${mode === "calendar" ? "bg-yellow-400 font-bold text-zinc-950" : "bg-zinc-800 text-zinc-300"}`}>Calendario</button>
         </div>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por título, descripción o tipo" className={`${inputClass} sm:ml-auto sm:max-w-sm`} />
+        <SearchWithFilters className="flex-1" search={<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por título, descripción o tipo" className={inputClass} />} activeCount={Number(filter !== "todos")}><div className="filter-fields">
         <select value={filter} onChange={(event) => setFilter(event.target.value as "todos" | EventStatus)} className={`${inputClass} sm:w-48`}>
           <option value="todos">Todos los estados</option>
           {statuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-        </select>
+        </select><button type="button" className="trainer-filter-clear" onClick={()=>{setFilter("todos");}}>Limpiar filtros</button></div></SearchWithFilters>
       </section>
 
       {mode === "list"
