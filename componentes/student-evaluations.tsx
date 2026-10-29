@@ -56,7 +56,7 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
-export function StudentEvaluations({ student }: { student: Student }) {
+export function StudentEvaluations({ student, onMeasurementsChange }: { student: Student; onMeasurementsChange?: () => void }) {
   const baseUrl = `/api/admin/alumnos/${student.id}/evaluaciones`;
   const [items, setItems] = useState<EvaluationSummary[]>([]);
   const [editor, setEditor] = useState<EvaluationWorkflow | null>(null);
@@ -120,7 +120,7 @@ export function StudentEvaluations({ student }: { student: Student }) {
     </div>
     {error && <p role="alert" className="mt-3 rounded-lg bg-red-400/10 p-2 text-xs text-red-200">{error}</p>}
     {panelOpen && <EvaluationPanel student={student} items={items} latestDetail={latestDetail} loading={loading} creating={creating} onClose={() => { setPanelOpen(false); setLatestDetail(null); }} onCreate={create} onOpen={open} onRecommend={recommend} />}
-    {editor && <EvaluationWizard initial={editor} baseUrl={baseUrl} profileHeight={student.height} birthDate={student.birthDate} onClose={() => { setEditor(null); void load(); }} />}
+    {editor && <EvaluationWizard initial={editor} baseUrl={baseUrl} profileHeight={student.height} birthDate={student.birthDate} onClose={() => { setEditor(null); void load(); onMeasurementsChange?.(); }} />}
   </section>;
 }
 

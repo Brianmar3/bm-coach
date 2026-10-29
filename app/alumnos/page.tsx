@@ -16,6 +16,7 @@ import { StudentQuickPanels } from "@/componentes/student-quick-panels";
 import { AdminQuickLogSummary } from "@/componentes/admin-quick-log-summary";
 import { AdminNutritionSummary } from "@/componentes/admin-nutrition-summary";
 import { StudentEvaluations } from "@/componentes/student-evaluations";
+import { StudentLatestWeight } from "@/componentes/student-latest-weight";
 import { BmProfileIcon, BmClassesIcon, BmMeasurementsIcon, BmTargetIcon, BmWorkoutIcon, BmCalendarIcon, BmEditIcon, BmEyeIcon, BmMailIcon, BmPaymentIcon, BmPhoneIcon, BmSearchIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
 import { STUDENT_SERVICE_OPTIONS, studentServiceLabel } from "@/lib/student-service";
 import { buildStudentEnrollmentPayload, canonicalPlanName, normalizePlanName, resolveStudentPlan, selectedStudentPlanFormValue, studentPlanFormValue } from "@/lib/coach-plans";
@@ -398,6 +399,7 @@ function StudentDetail({ item, focus, close, edit }: {
     close: () => void;
     edit: () => void;
 }) {
+    const [weightRevision, setWeightRevision] = useState(0);
     useEffect(() => {
         if (!focus || focus.section === "records" || focus.section === "routines")
             return;
@@ -419,7 +421,7 @@ function StudentDetail({ item, focus, close, edit }: {
             <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <Detail label="Tipo de alumno" value={item.studentType}/>
                 <Detail label="Servicio" value={studentServiceLabel(item.serviceType)}/>
-                <Detail label="Edad / IMC" value={`${age(item.birthDate)} años · ${bmi(item.weight, item.height)}`}/>
+                <Detail label="Último peso" value={<StudentLatestWeight studentId={item.id} profileWeight={item.weight} revision={weightRevision}/>}/>
                 <Detail label="Objetivo" value={item.goal || "No definido"}/>
                 <Detail label="Cuota" value={money(item.monthlyFee)}/>
                 <Detail label="Contacto" value={item.studentType === "Kids" ? item.responsiblePhone || item.phone || "Sin teléfono" : item.phone}/>
@@ -429,7 +431,7 @@ function StudentDetail({ item, focus, close, edit }: {
                 <Detail label="Horario principal" value={item.scheduleLabel ?? "Sin horario principal"} wide/>
             </dl>
             <StudentHealthObservations student={item}/>
-            {item.serviceType !== "CLASSES" && <StudentEvaluations student={item}/>}
+            {item.serviceType !== "CLASSES" && <StudentEvaluations student={item} onMeasurementsChange={() => setWeightRevision(value => value + 1)}/>}
             {focus?.section === "achievements" && <section id="student-section-achievements" className="mt-5 scroll-mt-24 rounded-xl border border-yellow-300/50 bg-yellow-400/10 p-4 shadow-[0_0_24px_rgba(250,204,21,.08)]"><p className="text-xs font-bold uppercase tracking-wide text-[var(--brand-text)]">Logros</p><h3 className="mt-1 font-bold">Logro relacionado con la notificación</h3><p className="mt-1 text-sm text-zinc-300">La ficha corresponde a {item.firstName} {item.lastName}. {focus.entityId ? "El logro relacionado fue localizado desde su identificador histórico." : "La notificación no conserva un identificador de logro específico."}</p></section>}
             <div id="student-section-attendance"><StudentQuickPanels student={item} initialPanel={focus?.section === "attendance" ? "attendance" : null}/></div>
             <AdminQuickLogSummary studentId={item.id} focusSection={focus?.section === "records" || focus?.section === "routines" ? focus.section : null} focusEntityId={focus?.entityId ?? null}/>
@@ -442,9 +444,9 @@ function StudentDetail({ item, focus, close, edit }: {
         </KeyboardDialog>
     </div>;
 }
-const detailIcons = { "Tipo de alumno": BmProfileIcon, Servicio: BmClassesIcon, "Edad / IMC": BmMeasurementsIcon, Objetivo: BmTargetIcon, Cuota: BmPaymentIcon, Contacto: BmPhoneIcon, Responsable: BmUserIcon, Vencimiento: BmCalendarIcon, "Fecha de inicio": BmCalendarIcon, "Horario principal": BmTimerIcon };
+const detailIcons = { "Tipo de alumno": BmProfileIcon, Servicio: BmClassesIcon, "Último peso": BmMeasurementsIcon, Objetivo: BmTargetIcon, Cuota: BmPaymentIcon, Contacto: BmPhoneIcon, Responsable: BmUserIcon, Vencimiento: BmCalendarIcon, "Fecha de inicio": BmCalendarIcon, "Horario principal": BmTimerIcon };
 function Detail({ label, value, wide = false }: {
     label: string;
-    value: string;
+    value: React.ReactNode;
     wide?: boolean;
 }) { const Icon = detailIcons[label as keyof typeof detailIcons]; return <div className={wide ? "sm:col-span-2" : ""}><dt className="flex items-center gap-2 text-[var(--foreground-muted)]">{Icon && <Icon size={16} className="text-[var(--brand-text)]" />}{label}</dt><dd className="mt-1">{value}</dd></div>; }
