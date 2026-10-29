@@ -7,7 +7,7 @@ export function SearchWithFilters({ search, activeCount, children, className = "
   const toggle = useRef<HTMLButtonElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
   useEffect(() => { if (open && document.activeElement === document.body && lastFocused.current?.matches(":disabled")) toggle.current?.focus(); });
-  return <div className={`search-with-filters ${className}`} onFocusCapture={event => { lastFocused.current = event.target as HTMLElement; }} onKeyDown={event => { if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); toggle.current?.focus(); } }}>
+  return <div className={`search-with-filters ${className}`} data-escape-first={open || undefined} onFocusCapture={event => { lastFocused.current = event.target as HTMLElement; }} onKeyDown={event => { if (!event.defaultPrevented && !event.nativeEvent.isComposing && event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); toggle.current?.focus(); } }}>
     <div className="search-with-filters-field">
       <svg className="search-with-filters-magnifier" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
       <div className="search-with-filters-slot">{search}</div>

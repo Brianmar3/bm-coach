@@ -79,7 +79,7 @@ test("la UI confirma antes de solicitar y la página pública queda fuera del lo
   assert.match(settings, /confirming &&[\s\S]*onClick=\{requestDeletion\}/);
   assert.match(publicPage, /Cómo solicitar la eliminación/);
   assert.match(publicPage, /Qué datos se eliminan/);
-  assert.match(publicPage, /Conservación temporal/);
+  assert.match(publicPage, /Qué permanece/);
   assert.match(publicPage, /Contactar soporte/);
   assert.match(proxy, /path === "\/eliminar-cuenta"/);
   assert.match(frame, /pathname === "\/eliminar-cuenta"/);

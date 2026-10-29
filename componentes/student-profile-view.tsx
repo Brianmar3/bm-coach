@@ -1,4 +1,6 @@
 "use client";
+import { KeyboardDialog } from "@/componentes/keyboard-dialog";
+
 import { logoutOfflineTraining } from "@/lib/offline-training-client";
 import { PortalProfileFrame, PortalProfileAvatar } from "@/componentes/portal-visuals";
 
@@ -57,11 +59,9 @@ export function StudentProfileView({ profile: initialProfile }: { profile: Porta
 
   useEffect(() => {
     if (!settingsOpen) return;
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setSettingsOpen(false); };
     const outside = (event: PointerEvent) => { if (!settingsRef.current?.contains(event.target as Node)) setSettingsOpen(false); };
-    document.addEventListener("keydown", close);
     document.addEventListener("pointerdown", outside);
-    return () => { document.removeEventListener("keydown", close); document.removeEventListener("pointerdown", outside); };
+    return () => { document.removeEventListener("pointerdown", outside); };
   }, [settingsOpen]);
 
   async function save() {
@@ -102,11 +102,11 @@ function SettingsMenu({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   async function logout() { setBusy(true); try { if (await logoutOfflineTraining()) window.location.assign("/portal/login"); } finally { setBusy(false); } }
   const links: ReadonlyArray<readonly [string, string, SettingsIconName]> = [["Seguridad", "/portal/perfil/seguridad", "security"], ["Privacidad", "/portal/perfil/privacidad", "privacy"], ["Preferencias", "/portal/perfil/preferencias", "preferences"], ["Ayuda", "/portal/perfil/ayuda", "help"]];
-  return <div role="dialog" aria-label="Ajustes de cuenta" className="fixed inset-x-4 top-[max(5.5rem,env(safe-area-inset-top))] z-[80] max-h-[calc(100dvh-7rem)] overflow-auto rounded-[24px] border border-yellow-400/55 bg-[#111] p-4 shadow-[0_24px_80px_rgba(0,0,0,.8),0_0_24px_rgba(250,204,21,.1)] sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+1rem)] sm:w-80">
+  return <KeyboardDialog modal={false} onClose={onClose} role="dialog" aria-label="Ajustes de cuenta" className="fixed inset-x-4 top-[max(5.5rem,env(safe-area-inset-top))] z-[80] max-h-[calc(100dvh-7rem)] overflow-auto rounded-[24px] border border-yellow-400/55 bg-[#111] p-4 shadow-[0_24px_80px_rgba(0,0,0,.8),0_0_24px_rgba(250,204,21,.1)] sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+1rem)] sm:w-80">
     <div className="flex items-start justify-between"><div><h2 className="text-xl font-bold">Ajustes</h2><p className="text-sm text-zinc-500">Cuenta y ajustes</p></div><button type="button" onClick={onClose} aria-label="Cerrar ajustes" className="grid size-10 place-items-center rounded-xl text-zinc-400"><BmCloseIcon size={20} /></button></div>
     <div className="mt-4"><PushNotificationsCard compact /></div><nav className="mt-2 space-y-2">{links.map(([label, href, iconName]) => <Link key={label} href={href} onClick={onClose} className="flex min-h-14 items-center gap-3 rounded-xl border border-white/10 bg-white/[.025] px-4 transition hover:border-yellow-400/30"><SettingsIcon name={iconName} className="size-6 shrink-0 text-yellow-400" /><span className="min-w-0 flex-1 text-sm">{label}</span><BmChevronRightIcon size={18} className="shrink-0 text-zinc-500" /></Link>)}</nav>
     <button disabled={busy} onClick={logout} className="mt-3 flex min-h-14 w-full items-center gap-3 rounded-xl border border-red-400/30 px-4 text-left text-sm text-red-300"><SettingsIcon name="logout" className="size-6 shrink-0" /><span className="min-w-0 flex-1">{busy ? "Cerrando…" : "Cerrar sesión"}</span></button>
-  </div>;
+  </KeyboardDialog>;
 }
 
 function InfoRow({ Icon, title, value, last = false, tone = "default" }: { Icon: ComponentType<BmIconProps>; title: string; value: string; last?: boolean; tone?: "default" | "success" }) { return <div className={`grid min-h-14 grid-cols-[1.5rem_minmax(0,.8fr)_minmax(0,1fr)] items-center gap-3 px-4 py-3 ${last ? "" : "border-b border-white/10"}`}><Icon size={20} className="text-yellow-400" /><span className="text-sm text-zinc-500">{title}</span><span className={`break-words text-right text-sm capitalize ${tone === "success" ? "text-emerald-300" : "text-zinc-100"}`}>{value}</span></div>; }

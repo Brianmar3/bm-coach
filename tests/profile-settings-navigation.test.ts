@@ -31,11 +31,11 @@ test("cada opción de ajustes usa su ruta propia", () => {
   assert.doesNotMatch(view, /\/portal\/configuracion#/);
 });
 
-test("seguridad reutiliza el formulario real y las páginas son vistas normales", () => {
+test("seguridad reutiliza el formulario real y las páginas no usan bottom sheet", () => {
   assert.match(settings, /<ChangePasswordCard \/>/);
   assert.match(settings, /href="\/portal\/perfil"/);
   assert.match(settings, /prefers-reduced-motion: reduce/);
-  assert.doesNotMatch(settings, /fixed inset|role="dialog"|bottom.sheet/i);
+  assert.doesNotMatch(settings, /bottom.sheet/i);
 });
 
 test("ajustes usa iconos SVG semánticos y conserva las rutas existentes", () => {

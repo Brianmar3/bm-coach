@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
+import { useDialogKeyboard } from "@/componentes/keyboard-dialog";
+import { useResultNavigation } from "@/componentes/use-result-navigation";
 import { usePathname, useRouter } from "next/navigation";
 import { openNotificationSafely } from "@/lib/trainer-notification-destination";
 import { actionMenuPosition } from "@/lib/action-menu-position";
@@ -98,8 +99,10 @@ function NotificationCenter({ audience }: { audience: Audience }) {
     window.requestAnimationFrame(() => deleteTriggerRef.current?.focus());
   }, [deleting, setConfirmingDelete, setDeleteError]);
 
-  useEscapeLayer(open, close, { priority: 70, triggerRef });
-  useEscapeLayer(visibleDeleteConfirmation, closeDeleteConfirmation, { priority: 80, triggerRef: deleteTriggerRef });
+  const panelKeyboard = useDialogKeyboard(panelRef, open && Boolean(position), close, { priority: 70, modal: false });
+  const noSearch = useRef<HTMLInputElement>(null);
+  const notificationKeyboard = useResultNavigation(listRef, noSearch);
+  const confirmationKeyboard = useDialogKeyboard(confirmationRef, visibleDeleteConfirmation, closeDeleteConfirmation, { priority: 80, dismissible: !deleting, autoFocus: false });
 
   useEffect(() => {
     if (visibleDeleteConfirmation) window.requestAnimationFrame(() => cancelDeleteRef.current?.focus());
@@ -243,6 +246,8 @@ function NotificationCenter({ audience }: { audience: Audience }) {
           <>
             <div
               ref={panelRef}
+              tabIndex={-1}
+              onKeyDown={event => { notificationKeyboard(event); panelKeyboard(event); }}
               role="dialog"
               aria-label="Centro de notificaciones"
               style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? "min(25rem, calc(100vw - 24px))", maxHeight: position?.maxHeight ?? "68dvh", visibility: position ? "visible" : "hidden" }}
@@ -317,6 +322,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                       <li key={notification.id}>
                         <button
                           type="button"
+                          data-keyboard-result
                           onClick={() => openNotification(notification)}
                           className={`block w-full px-4 py-3 text-left transition hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-yellow-300 ${
                             notification.readAt ? "" : "bg-yellow-400/[0.06]"
@@ -369,6 +375,8 @@ function NotificationCenter({ audience }: { audience: Audience }) {
               >
                 <section
                   ref={confirmationRef}
+                  tabIndex={-1}
+                  onKeyDown={confirmationKeyboard}
                   role="alertdialog"
                   aria-modal="true"
                   aria-labelledby="delete-notifications-title"

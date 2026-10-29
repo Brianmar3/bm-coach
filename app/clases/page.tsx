@@ -1,4 +1,6 @@
 "use client";
+import { StudentAssignmentOptions } from "@/componentes/student-assignment-options";
+import { KeyboardDialog, preventImplicitSubmit } from "@/componentes/keyboard-dialog";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -261,7 +263,7 @@ function LoadingCalendar() {
 
 function ScheduleDetail({ schedule, close, edit, changeActive, remove }: { schedule: WeeklyClassSchedule; close: () => void; edit: () => void; changeActive: () => void; remove: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4" role="dialog" aria-modal="true">
+    <KeyboardDialog as="div" onClose={close} className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4" role="dialog" aria-modal="true">
       <section className="mx-auto my-8 w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:p-6">
         <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">{dayName(schedule.dayOfWeek)}</p><h2 className="mt-2 text-2xl font-bold">{schedule.classType}</h2><p className="mt-1 text-zinc-400">{schedule.startTime} – {schedule.endTime}</p></div><button onClick={close} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-white">Cerrar</button></div>
         <dl className="mt-6 grid grid-cols-2 gap-3"><DetailValue label="Estado" value={schedule.active ? "Activo" : "Inactivo"} highlight={schedule.active} /><DetailValue label="Cupo" value={schedule.capacity === null ? "Sin límite" : `${schedule.students.length} de ${schedule.capacity}`} /></dl>
@@ -276,7 +278,7 @@ function ScheduleDetail({ schedule, close, edit, changeActive, remove }: { sched
           <button onClick={edit} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950">Editar y asignar alumnos</button><button onClick={changeActive} className="rounded-xl border border-zinc-700 px-4 py-3 font-semibold text-white">{schedule.active ? "Desactivar horario" : "Activar horario"}</button><button onClick={remove} className="rounded-xl border border-red-400/30 px-4 py-3 text-sm font-semibold text-red-300 sm:col-span-2">Eliminar horario</button>
         </div>
       </section>
-    </div>
+    </KeyboardDialog>
   );
 }
 
@@ -292,8 +294,8 @@ function ScheduleEditor({ form, setForm, students, studentQuery, setStudentQuery
   const atCapacity = form.capacity !== null && form.studentIds.length >= form.capacity;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 sm:p-4" role="dialog" aria-modal="true">
-      <form onSubmit={save} className="mx-auto my-3 w-full max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-8 sm:p-6">
+    <KeyboardDialog onClose={close} dismissible={!saving} aria-label={editing ? "Editar horario semanal" : "Crear horario semanal"} className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 sm:p-4">
+      <form onSubmit={save} onKeyDown={preventImplicitSubmit} className="mx-auto my-3 w-full max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-8 sm:p-6">
         <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">Plantilla recurrente</p><h2 className="mt-1 text-xl font-bold">{editing ? "Editar horario semanal" : "Crear horario semanal"}</h2></div><button type="button" onClick={close} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800">Cerrar</button></div>
         {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -305,13 +307,11 @@ function ScheduleEditor({ form, setForm, students, studentQuery, setStudentQuery
           <label className="text-sm sm:col-span-2">Cupo opcional<input type="number" min={1} max={500} value={form.capacity ?? ""} onChange={(event) => set("capacity", event.target.value === "" ? null : Number(event.target.value))} placeholder="Sin límite" className={`${inputClass} mt-1`} /><span className="mt-1 block text-xs text-zinc-500">Dejalo vacío si el grupo no tiene límite.</span></label>
         </div>
 
-        <section className="mt-6"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><h3 className="font-semibold">Alumnos asignados <span className="text-sm font-normal text-zinc-500">({form.studentIds.length}{form.capacity === null ? "" : `/${form.capacity}`})</span></h3><input value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Buscar alumno o teléfono" className={`${inputClass} sm:w-72`} /></div>
-          <div className="mt-3 max-h-64 space-y-2 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2">
-            {visibleStudents.length ? visibleStudents.map((student) => { const selected = form.studentIds.includes(student.id); const disabled = !selected && atCapacity; return <label key={student.id} className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-3 text-sm transition ${selected ? "border-yellow-400/50 bg-yellow-400/10" : "border-zinc-800 bg-zinc-900"} ${disabled ? "cursor-not-allowed opacity-40" : "hover:border-zinc-600"}`}><span><span className="block font-medium">{student.firstName} {student.lastName}</span><span className="mt-0.5 block text-xs text-zinc-500">{student.phone} · {student.status}</span></span><input type="checkbox" checked={selected} disabled={disabled} onChange={() => toggle(student.id)} className="h-4 w-4 accent-yellow-400" /></label>; }) : <p className="p-5 text-center text-sm text-zinc-500">No hay alumnos que coincidan.</p>}
-          </div>
+        <section className="mt-6"><h3 className="font-semibold">Alumnos asignados <span className="text-sm font-normal text-zinc-500">({form.studentIds.length}{form.capacity === null ? "" : `/${form.capacity}`})</span></h3>
+          <StudentAssignmentOptions detailed students={visibleStudents} query={studentQuery} onQueryChange={setStudentQuery} selectedIds={form.studentIds} toggle={toggle} isDisabled={student => !form.studentIds.includes(student.id) && atCapacity} />
         </section>
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={close} disabled={saving} className="rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300">Cancelar</button><button disabled={saving} className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar horario"}</button></div>
       </form>
-    </div>
+    </KeyboardDialog>
   );
 }

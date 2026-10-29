@@ -18,8 +18,8 @@ test("el selector ofrece los tres orígenes y conserva accesibilidad de diálogo
   assert.match(dialog, /Desde rutina existente/);
   assert.match(dialog, /role="dialog"/);
   assert.match(dialog, /aria-modal="true"/);
-  assert.match(dialog, /event\.key === "Escape"/);
-  assert.match(dialog, /event\.key !== "Tab"/);
+  assert.match(dialog, /useDialogKeyboard\(dialogRef, true, close/);
+  assert.match(dialog, /dialogKeyboard\(event\)/);
   assert.match(dialog, /actionInFlight\.current/);
 });
 

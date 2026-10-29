@@ -20,8 +20,8 @@ test("los filtros principales quedan compactos y sin fecha ni checkbox de molest
 test("el detalle es un drawer responsive con pestañas y cierre por Escape", () => {
   assert.match(dashboard, /lg:w-\[62vw\]/);
   assert.match(dashboard, /h-dvh/);
-  assert.match(dashboard, /event\.key === "Escape"/);
-  assert.match(dashboard, /role="tab" aria-selected=\{tab === value\}/);
+  assert.match(dashboard, /KeyboardDialog as="section" onClose=\{close\}/);
+  assert.match(dashboard, /role="tab"[^>]*aria-selected=\{tab === value\}/);
   assert.match(dashboard, /min-h-11 shrink-0 border-b-2/);
   assert.match(dashboard, /aria-label="Cerrar seguimiento"/);
   for (const tab of ["Resumen", "Sesiones", "Progreso", "Molestias"]) assert.match(dashboard, new RegExp(tab));

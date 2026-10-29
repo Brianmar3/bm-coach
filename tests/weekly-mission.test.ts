@@ -220,7 +220,7 @@ test("Puntos separa total y mes y navega al ranking completo", () => {
   assert.match(portal, /href="\/portal\/ranking"/);
   assert.match(page, /<PortalRanking/);
   assert.match(ranking, /fetch\("\/api\/portal\/ranking"/);
-  assert.match(ranking, /href="\/portal\/puntos"/);
+  assert.match(ranking, /<PortalPointsBackLink \/>/);
   assert.match(ranking, /FEATURED_RANKING_SIZE = 5/);
   assert.match(ranking, /pinnedCurrent/);
   assert.match(ranking, /entry\.studentId !== pinnedCurrent\?\.studentId/);

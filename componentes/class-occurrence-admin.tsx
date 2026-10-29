@@ -1,4 +1,5 @@
 "use client";
+import { KeyboardDialog } from "@/componentes/keyboard-dialog";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -58,7 +59,7 @@ export function ClassOccurrenceAdmin() {
     <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs uppercase tracking-wider text-yellow-400">Ocurrencias concretas</p><h2 className="mt-1 text-lg font-bold">{date === todayKey() ? "Clases hoy" : "Clases del día"}</h2><p className="mt-1 text-xs text-zinc-500">La confirmación y la asistencia real se muestran por separado.</p></div><input type="date" value={date} onChange={(event) => { setLoading(true); setDate(event.target.value); }} className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2" /></div>
     {(error || notice) && <p className={`m-4 rounded-xl p-3 text-sm ${error ? "bg-red-400/10 text-red-200" : "bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
     {loading ? <p className="p-8 text-center text-zinc-500">Cargando clases…</p> : items.length ? <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">{items.map((item) => <OccurrenceCard key={item.id} item={item} open={() => setSelectedId(item.id)} />)}</div> : <p className="p-8 text-center text-zinc-500">No hay clases programadas para esta fecha.</p>}
-    {selected && <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 p-3"><section className="mx-auto my-4 max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-yellow-400">{selected.date} · {selected.startTime}</p><h2 className="text-2xl font-bold">{selected.name}</h2><p className="mt-1 text-zinc-400">{selected.statusLabel} · cupo {selected.capacity ?? "sin límite"}</p></div><button onClick={() => setSelectedId("")}>Cerrar</button></div>
+    {selected && <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 p-3"><KeyboardDialog as="section" onClose={() => setSelectedId("")} dismissible={!saving} aria-label={`Clase ${selected.name}`} className="mx-auto my-4 max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs text-yellow-400">{selected.date} · {selected.startTime}</p><h2 className="text-2xl font-bold">{selected.name}</h2><p className="mt-1 text-zinc-400">{selected.statusLabel} · cupo {selected.capacity ?? "sin límite"}</p></div><button onClick={() => setSelectedId("")}>Cerrar</button></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3"><StudentGroup title="Asistirán" students={selected.students.filter((student) => student.response === "GOING")} /><StudentGroup title="No asistirán" students={selected.students.filter((student) => student.response === "NOT_GOING")} /><StudentGroup title="Sin respuesta" students={selected.noResponse} /></div>
       <section className="mt-5 rounded-xl border border-yellow-400/20 bg-yellow-400/5 p-4">
         <h3 className="font-bold">Asistencia real</h3>
@@ -80,7 +81,7 @@ export function ClassOccurrenceAdmin() {
         )}
       </section>
       <OccurrenceSettings occurrence={selected} saving={saving} patch={patch} />
-    </section></div>}
+    </KeyboardDialog></div>}
   </section>;
 }
 

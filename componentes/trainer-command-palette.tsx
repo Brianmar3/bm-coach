@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { filterTrainerCommands, nextCommandIndex, shouldIgnoreGlobalShortcut, studentCommandIntent, studentSearchTerms, trainerCommands, type StudentCommandIntent } from "@/lib/trainer-commands";
+import { revealOption } from "@/lib/keyboard-navigation";
 import { useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
 
 type StudentResult = { id: string; name: string; serviceType: "CLASSES" | "PERSONALIZED" | "MIXED"; status: string; plan: string; frequency: string };
@@ -107,14 +108,20 @@ export function TrainerCommandPalette() {
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [help, open, query]);
 
+  useEffect(() => {
+    if (!open || help || !items[selectedIndex]) return;
+    revealOption(document.getElementById(`${dialogId}-results`), document.getElementById(`${dialogId}-${items[selectedIndex].id}`));
+  }, [dialogId, help, items, open, selectedIndex]);
+
   if (!open) return null;
 
   return <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/75 p-3 pt-[max(5rem,12vh)] backdrop-blur-sm" onPointerDown={close}>
     <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={`${dialogId}-title`} className="w-full max-w-2xl overflow-hidden rounded-2xl border border-yellow-400/20 bg-zinc-950 shadow-[0_25px_80px_rgba(0,0,0,.7)]" onPointerDown={(event) => event.stopPropagation()}>
-      <header className="flex items-center gap-3 border-b border-zinc-800 p-3 sm:p-4"><span aria-hidden="true" className="text-yellow-400">⌕</span><div className="min-w-0 flex-1"><h2 id={`${dialogId}-title`} className="sr-only">BM Command</h2><input ref={inputRef} value={query} onChange={(event) => { setQuery(event.target.value); setStudents([]); setSearching(false); setHelp(false); setActiveIndex(0); }} onKeyDown={(event) => {
+      <header className="flex items-center gap-3 border-b border-zinc-800 p-3 sm:p-4"><span aria-hidden="true" className="text-yellow-400">⌕</span><div className="min-w-0 flex-1"><h2 id={`${dialogId}-title`} className="sr-only">BM Command</h2><input ref={inputRef} role="combobox" aria-autocomplete="list" aria-expanded={!help} value={query} onChange={(event) => { setQuery(event.target.value); setStudents([]); setSearching(false); setHelp(false); setActiveIndex(0); }} onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.keyCode === 229 || event.altKey || event.ctrlKey || event.metaKey) return;
         if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setActiveIndex((current) => nextCommandIndex(current, event.key, items.length)); }
-        if (event.key === "Enter") { event.preventDefault(); execute(items[selectedIndex]); }
-      }} placeholder="Buscar alumno o acción…" aria-label="Buscar alumno o acción" aria-controls={`${dialogId}-results`} aria-activedescendant={items[selectedIndex] ? `${dialogId}-${items[selectedIndex].id}` : undefined} className="w-full bg-transparent text-base text-white outline-none placeholder:text-zinc-600" /></div><button type="button" onClick={() => setHelp((value) => !value)} className="grid h-9 w-9 place-items-center rounded-lg text-sm text-zinc-400 hover:bg-zinc-800" aria-label="Ver atajos de teclado">?</button><button type="button" onClick={close} className="grid h-9 w-9 place-items-center rounded-lg text-lg text-zinc-400 hover:bg-zinc-800" aria-label="Cerrar BM Command">×</button></header>
+        if (event.key === "Enter") { event.preventDefault(); if (!event.repeat) execute(items[selectedIndex]); }
+      }} placeholder="Buscar alumno o acción…" aria-label="Buscar alumno o acción" aria-controls={!help ? `${dialogId}-results` : undefined} aria-activedescendant={!help && items[selectedIndex] ? `${dialogId}-${items[selectedIndex].id}` : undefined} className="w-full bg-transparent text-base text-white outline-none placeholder:text-zinc-600" /></div><button type="button" onClick={() => setHelp((value) => !value)} className="grid h-9 w-9 place-items-center rounded-lg text-sm text-zinc-400 hover:bg-zinc-800" aria-label="Ver atajos de teclado">?</button><button type="button" onClick={close} className="grid h-9 w-9 place-items-center rounded-lg text-lg text-zinc-400 hover:bg-zinc-800" aria-label="Cerrar BM Command">×</button></header>
       {help ? <ShortcutHelp /> : <div id={`${dialogId}-results`} role="listbox" aria-label="Resultados de BM Command" className="max-h-[min(65vh,32rem)] overflow-y-auto p-2 sm:p-3">
         {searching && <p className="px-3 py-2 text-xs text-zinc-500">Buscando alumnos…</p>}
         {items.length ? items.map((item, index) => <button id={`${dialogId}-${item.id}`} role="option" aria-selected={index === selectedIndex} key={item.id} type="button" onPointerMove={() => setActiveIndex(index)} onClick={() => execute(item)} className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${index === selectedIndex ? "bg-yellow-400/10 text-yellow-100" : "text-zinc-200 hover:bg-zinc-900"}`}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-yellow-400/10 text-xs font-black text-yellow-300">{item.symbol}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.label}</span><span className="mt-0.5 block truncate text-xs text-zinc-500">{item.detail}</span></span>{item.shortcut && <kbd className="hidden rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-500 sm:block">{item.shortcut}</kbd>}</button>) : <p className="p-8 text-center text-sm text-zinc-500">No encontramos acciones ni alumnos.</p>}

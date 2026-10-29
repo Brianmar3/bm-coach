@@ -10,6 +10,7 @@ export function useRoutineKeyboardNavigation() {
   return useCallback((event: KeyboardEvent<HTMLFormElement>) => {
     if (event.defaultPrevented || event.isDefaultPrevented() || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return;
     const target = event.target;
+    if (target instanceof Element && target.closest('[data-keyboard-owned="true"]')) return;
     if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement)) return;
 
     if (event.key === "Enter" && target.dataset.enterNext === "tag-input" && target.value.trim()) return;

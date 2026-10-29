@@ -10,7 +10,7 @@ test("profile keeps real avatar route and exposes anchored settings", () => {
   assert.match(view, /\/portal\/perfil\/avatar/);
   assert.match(view, /aria-label="Abrir ajustes"/);
   assert.match(view, /role="dialog"/);
-  assert.match(view, /Escape/);
+  assert.match(view, /KeyboardDialog modal=\{false\} onClose=\{onClose\}/);
 });
 
 test("student profile update is self-scoped and allowlisted", () => {

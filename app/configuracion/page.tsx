@@ -1,4 +1,6 @@
 "use client";
+import { preventImplicitSubmit } from "@/componentes/keyboard-dialog";
+
 
 import { FormEvent, useMemo, useRef, useState, type CSSProperties } from "react";
 import { BmBellIcon, BmDeleteIcon, BmPaymentIcon, BmPlusIcon, BmSettingsIcon, BmSlidersIcon } from "@/componentes/icons";
@@ -50,7 +52,7 @@ export default function ConfiguracionPage() {
     <nav aria-label="Secciones de configuración" className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 md:grid-cols-3 xl:grid-cols-7">
       {sections.map((section) => <button key={section.id} type="button" onClick={() => { setActive(section.id); setError(""); setSavedSection(null); }} aria-current={active === section.id ? "page" : undefined} className={`min-h-11 min-w-0 rounded-xl px-2 text-sm font-semibold transition ${active === section.id ? "bg-yellow-400 text-zinc-950" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}>{section.label}</button>)}
     </nav>
-    <form id="settings-form" onSubmit={submit} className="min-w-0 space-y-4">
+    <form onKeyDown={preventImplicitSubmit} id="settings-form" onSubmit={submit} className="min-w-0 space-y-4">
       {savedSection === active && <p className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-200">Cambios de {sections.find((item) => item.id === active)?.label} guardados correctamente.</p>}
       {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
       {active === "general" && <Panel title="General" description="Información principal que identifica a tu espacio." icon={<BmSettingsIcon className="size-5" />}><div className="grid gap-4 md:grid-cols-2">

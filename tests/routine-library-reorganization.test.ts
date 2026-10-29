@@ -14,7 +14,8 @@ test("una rutina admite múltiples alumnos mediante la relación existente", () 
   assert.match(schema, /assignments\s+TrainingRoutineAssignment\[\]/);
   assert.match(schema, /model TrainingRoutineAssignment/);
   assert.match(schema, /@@id\(\[routineId, studentId\]\)/);
-  assert.match(page, /type="checkbox" checked=\{checked\}/);
+  assert.match(page, /<StudentAssignmentOptions students=\{visible\}/);
+  assert.match(readFileSync(new URL("../componentes/student-assignment-options.tsx", import.meta.url), "utf8"), /aria-multiselectable="true"/);
   assert.match(page, /Guardar asignaciones \(\$\{studentIds\.length\}\)/);
 });
 

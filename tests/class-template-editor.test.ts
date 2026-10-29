@@ -83,10 +83,11 @@ test("Nueva rutina conserva semanas, estado, días y acciones originales", () =>
 
 test("Enter sin submitter no guarda y Escape respeta la capa superior", () => {
   assert.match(submitFlow, /if \(!\(submitter instanceof HTMLButtonElement\)\) return/);
-  assert.match(classEditor, /aria-label="Biblioteca de ejercicios BM"/);
-  assert.match(classEditor, /aria-labelledby="block-library-picker-title"/);
-  assert.match(classEditor, /aria-labelledby="library-block-dialog-title"/);
-  assert.match(exerciseLibrary, /event\.key === "Escape"/);
+  assert.match(classEditor, /KeyboardDialog as="form" onClose=\{close\}/);
+  assert.match(exerciseLibrary, /aria-label="Biblioteca de ejercicios BM"/);
+  assert.match(classEditor, /<BlockAdder/);
+  assert.match(classEditor, /<BlockEditor/);
+  assert.match(exerciseLibrary, /useDialogKeyboard\(pickerRef, open, onClose/);
   assert.match(exerciseLibrary, /onClose\(\)/);
 });
 

@@ -1,4 +1,6 @@
 "use client";
+import { KeyboardResults } from "@/componentes/keyboard-results";
+
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -24,6 +26,6 @@ export function PlatformShell({ children }: { children: ReactNode }) {
         <details className="group relative shrink-0"><summary aria-label="Opciones de cuenta" className="grid size-9 cursor-pointer list-none place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-300 marker:content-none hover:border-yellow-400 hover:text-white">•••</summary><div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 p-1.5 shadow-2xl"><Link href="/dashboard" className="block rounded-lg px-3 py-2.5 text-sm font-bold hover:bg-zinc-800">Ir a BM Training</Link><button type="button" onClick={logout} className="w-full rounded-lg px-3 py-2.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-red-300">Cerrar sesión</button></div></details>
       </div>
     </header>
-    {children}
+    <KeyboardResults>{children}</KeyboardResults>
   </div>;
 }

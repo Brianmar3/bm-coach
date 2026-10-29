@@ -1920,3 +1920,13 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
  .search-with-filters-toggle { height:44px; min-height:44px; }
  .search-with-filters-field { min-height:48px; }
 }
+/* Keyboard-only affordances shared by opt-in result lists and existing native controls. */
+:where(button, a[href], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-text, #facc15);
+  outline-offset: 2px;
+}
+[data-keyboard-active="true"] {
+  outline: 2px solid var(--brand-text, #facc15);
+  outline-offset: -2px;
+  background-color: color-mix(in srgb, var(--brand-text, #facc15) 12%, transparent);
+}

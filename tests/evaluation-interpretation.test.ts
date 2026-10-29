@@ -74,7 +74,8 @@ test("el editor admite asignación posterior y múltiple, conserva evaluación y
   assert.match(panel, /slice\(0, 2\)/); assert.match(panel, /p-3/); assert.match(panel, /evaluation\.primaryGoal/);
   assert.match(modernEditor, /Rutina sin asignar/);
   assert.doesNotMatch(modernEditor, /form\.studentIds\.length === 0 \? <StudentAssignmentPicker/);
-  assert.match(page, /Asignar alumnos/); assert.match(page, /type="checkbox" checked=\{checked\}/);
+  assert.match(page, /Asignar alumnos/); assert.match(page, /<StudentAssignmentOptions students=\{visible\}/);
+  assert.match(readFileSync(new URL("../componentes/student-assignment-options.tsx", import.meta.url), "utf8"), /aria-multiselectable="true"/);
   assert.doesNotMatch(page, /RoutineAIProposalPanel|applyAIProposal|\/api\/admin\/rutinas\/propuesta/);
   assert.match(modernEditor, /RoutineDayNavigator/); assert.match(modernEditor, /RoutineEvaluationPanel/); assert.match(modernEditor, /routine-workspace-layout/);
   assert.doesNotMatch(page, /Crear borrador y revisar/);
@@ -118,9 +119,9 @@ test("el portal muestra un estado vacío útil sin ofrecer creación al alumno",
 test("Evaluaciones del entrenador no contiene Vista Global y presenta buscador, filtros y lista", () => {
   const dashboard = readFileSync(new URL("../componentes/professional-evaluations-dashboard.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(dashboard, /EvaluationGlobalDashboard|Vista global|Seguimiento de evaluaciones/);
-  assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /label="Estado del alumno"/); assert.match(dashboard, /label="Estado de evaluación"/); assert.match(dashboard, /Reevaluación pendiente/);
+  assert.match(dashboard, /Buscar alumno/); assert.match(dashboard, /label:"Estado del alumno"/); assert.match(dashboard, /label:"Estado de evaluación"/); assert.match(dashboard, /Reevaluación pendiente/);
   assert.match(dashboard, /Personalizados/); assert.match(dashboard, /Mixtos/); assert.match(dashboard, /"CLASSES", "Clases"/);
-  assert.match(dashboard, /service === "CLASSES" && <FilterRow label="Horario \/ grupo"/);
+  assert.match(dashboard, /service === "CLASSES" \? \[\{label:"Horario \/ grupo"/);
   assert.doesNotMatch(dashboard, /<option value="CLASSES">Clases<\/option>/);
   assert.match(dashboard, /serviceLabel\[student\.serviceType\]/);
   assert.match(dashboard, /Resultados de alumnos/); assert.match(dashboard, /Abrir ficha/);

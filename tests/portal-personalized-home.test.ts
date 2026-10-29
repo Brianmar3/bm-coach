@@ -82,9 +82,10 @@ test("el resumen conserva sólo Tu cuota y Tus puntos con datos reales", () => {
   assert.match(quickStats, /Tu cuota/);
   assert.match(quickStats, /Tus puntos/);
   assert.match(quickStats, /href="\/portal\/pagos"/);
-  assert.match(quickStats, /href="\/portal\/ranking"/);
+  assert.match(quickStats, /href="\/portal\/puntos"/);
+  assert.doesNotMatch(quickStats, /href="\/portal\/ranking"/);
   assert.match(quickStats, /Ver pagos <BmChevronRightIcon size=\{16\}/);
-  assert.match(quickStats, /Ver ranking <BmChevronRightIcon size=\{16\}/);
+  assert.match(quickStats, /Ver puntos <BmChevronRightIcon size=\{16\}/);
   assert.match(readFileSync("componentes/portal-visuals.tsx", "utf8"), /min-h-\[6\.75rem\]/);
   assert.match(quickStats, /account\.nextDueDate/);
   assert.match(quickStats, /homePaymentCardCopy/);

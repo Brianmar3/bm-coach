@@ -29,10 +29,12 @@ test("el buscador de asignaciones filtra nombre, apellido y tildes con máximo o
 });
 
 test("la selección admite varios alumnos con búsqueda, conteo y limpieza", () => {
-  for (const text of ["Asignar alumnos", "Buscar alumno", "No se encontraron alumnos", "Seleccionados:", "Limpiar"]) assert.match(page, new RegExp(text));
+  const assignment = page + readFileSync(new URL("../componentes/student-assignment-options.tsx", import.meta.url), "utf8");
+  for (const text of ["Asignar alumnos", "Buscar alumno", "No se encontraron alumnos", "Seleccionados:", "Limpiar"]) assert.match(assignment, new RegExp(text));
   assert.match(page, /searchStudents\(students, query, \[\]\)/);
-  assert.match(page, /type="checkbox" checked=\{checked\}/);
-  assert.match(page, /max-h-64 min-w-0 overflow-y-auto/);
+  assert.match(page, /<StudentAssignmentOptions students=\{visible\}/);
+  assert.match(readFileSync(new URL("../componentes/student-assignment-options.tsx", import.meta.url), "utf8"), /aria-multiselectable="true"/);
+  assert.match(assignment, /max-h-64 min-w-0 overflow-y-auto/);
 });
 const table = readFileSync(new URL("../componentes/routine-table-view.tsx", import.meta.url), "utf8");
 const bodyMap = readFileSync(new URL("../componentes/body-map.tsx", import.meta.url), "utf8");
@@ -45,7 +47,7 @@ test("el detalle usa Volver con Escape y cede primero a los modales superiores",
   assert.match(table, /closeRef\.current\(\)/);
   assert.match(table, /window\.removeEventListener\("keydown", onKeyDown\)/);
   assert.match(page, /modalOpen=\{Boolean\(assignmentTarget/);
-  assert.match(bodyMap, /if \(e\.key === "Escape"\) onClose\(\)/);
+  assert.match(bodyMap, /useDialogKeyboard\(modalRef, open, onClose/);
 });
 
 test("el teclado desplaza el detalle, bloquea el fondo y respeta los campos editables", () => {
@@ -64,7 +66,7 @@ function loadBodyMapModule(source: string, isModal = false) {
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
   runInNewContext(code, {
     module: loaded, exports: loaded.exports,
-    require: (name: string) => isModal && name === "./body-map-figure" ? { BodyMapFigure: () => null } : nativeRequire(name),
+    require: (name: string) => isModal && name === "./body-map-figure" ? { BodyMapFigure: () => null } : isModal && name.startsWith("@/componentes/keyboard-") ? {} : nativeRequire(name),
     console,
   });
   return loaded.exports as Record<string, unknown>;

@@ -1,3 +1,5 @@
+import { useDialogKeyboard } from "@/componentes/keyboard-dialog";
+import { KeyboardTabs } from "@/componentes/keyboard-tabs";
 import React, { useEffect, useRef, useState } from "react";
 import { BodyMapFigure, type BodyMapView } from "./body-map-figure";
 
@@ -50,17 +52,14 @@ export default function BodyMapModal({
   const contentRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<BodyMapView>("front");
 
+  const keyboard = useDialogKeyboard(modalRef, open, onClose, { priority: 90 });
+
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
     document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
 
@@ -92,7 +91,7 @@ export default function BodyMapModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4 sm:px-6 sm:py-10" ref={modalRef} onClick={handleBackdropClick} role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4 sm:px-6 sm:py-10" ref={modalRef} tabIndex={-1} onKeyDown={keyboard} onClick={handleBackdropClick} role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div className="absolute inset-0 bg-black/70" aria-hidden />
       <div className="body-map-dialog relative w-full max-w-2xl max-h-[90dvh] overflow-hidden rounded-3xl bg-gradient-to-b from-[#0f0f0f] to-[#050505] shadow-2xl border border-zinc-800/50 flex flex-col" ref={contentRef}>
         <button
@@ -121,11 +120,11 @@ export default function BodyMapModal({
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl border border-amber-400/15 bg-black/40 p-1" role="tablist" aria-label="Vista del mapa corporal">
-            <button type="button" role="tab" aria-selected={view === "front"} onClick={() => setView("front")} className={"min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors " + (view === "front" ? "bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/35" : "text-zinc-400 hover:text-zinc-100")}>Vista anterior</button>
-            <button type="button" role="tab" aria-selected={view === "back"} onClick={() => setView("back")} className={"min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors " + (view === "back" ? "bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/35" : "text-zinc-400 hover:text-zinc-100")}>Vista posterior</button>
-          </div>
-          <div className="mt-3 flex min-h-[320px] items-center justify-center rounded-2xl border border-amber-400/10 bg-[radial-gradient(ellipse_at_50%_40%,rgba(131,101,39,0.12),transparent_65%)]">
+          <KeyboardTabs  className="mt-5 grid grid-cols-2 gap-2 rounded-xl border border-amber-400/15 bg-black/40 p-1" role="tablist" aria-label="Vista del mapa corporal">
+            <button type="button" role="tab" id="body-map-front-tab" aria-controls="body-map-view" aria-selected={view === "front"} tabIndex={view === "front" ? 0 : -1} onClick={() => setView("front")} className={"min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors " + (view === "front" ? "bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/35" : "text-zinc-400 hover:text-zinc-100")}>Vista anterior</button>
+            <button type="button" role="tab" id="body-map-back-tab" aria-controls="body-map-view" aria-selected={view === "back"} tabIndex={view === "back" ? 0 : -1} onClick={() => setView("back")} className={"min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors " + (view === "back" ? "bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/35" : "text-zinc-400 hover:text-zinc-100")}>Vista posterior</button>
+          </KeyboardTabs>
+          <div role="tabpanel" id="body-map-view" aria-labelledby={`body-map-${view}-tab`} className="mt-3 flex min-h-[320px] items-center justify-center rounded-2xl border border-amber-400/10 bg-[radial-gradient(ellipse_at_50%_40%,rgba(131,101,39,0.12),transparent_65%)]">
             <div className="h-[min(55dvh,500px)] min-h-[320px] w-full max-w-[340px]">
               <BodyMapFigure view={view} zoneColor={zoneColor} zoneSeries={zoneSeries} />
             </div>

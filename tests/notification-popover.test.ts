@@ -40,7 +40,7 @@ test("el panel abre debajo, hace flip arriba y queda dentro del viewport", () =>
 test("cierres y acciones existentes permanecen conectados", () => {
   assert.match(center, /setOpenedOnPath\(\(current\) => current === pathname \? null : pathname\)/);
   assert.match(center, /!panelRef\.current\?\.contains\(target\)/);
-  assert.match(center, /useEscapeLayer\(open, close/);
+  assert.match(center, /useDialogKeyboard\(panelRef, open && Boolean\(position\), close/);
   assert.match(center, /panelRef\.current\?\.contains\(event\.target\)\) return/);
   assert.match(center, /const open = openedOnPath === pathname/);
   assert.match(center, /aria-expanded=\{open\}/);

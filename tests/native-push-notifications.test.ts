@@ -17,6 +17,17 @@ test("Capacitor usa FCM nativo antes de evaluar compatibilidad Web Push", () => 
   assert.match(card, /Firebase todavía no está configurado para esta APK/);
 });
 
+test("la activación nativa distingue Firebase del registro posterior en backend", () => {
+  const card = source("componentes/push-notifications-card.tsx");
+  assert.match(card, /nativeStage = "firebase-token"/);
+  assert.match(card, /nativeStage = "backend-register"/);
+  assert.match(card, /stage === "firebase-token"/);
+  assert.match(card, /stage === "backend-register"/);
+  assert.match(card, /Firebase generó el token, pero no pudimos registrar este dispositivo en BM Training/);
+  assert.match(card, /console\.error\("\[BM Training Native Push\] activación fallida", \{\s*stage,/);
+  assert.doesNotMatch(card, /console\.(?:log|error)\([^\n]*(?:nativeToken|\btoken\b)/);
+});
+
 test("Web Push continúa separado de los tokens FCM", () => {
   const schema = source("prisma/schema.prisma");
   const migration = source(

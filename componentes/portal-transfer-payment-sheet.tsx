@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDialogKeyboard } from "@/componentes/keyboard-dialog";
 import type { TransferPaymentDetails } from "@/types/gestion";
 import type { PortalPaymentObligation } from "@/types/portal";
 import { hasTransferDetails, openTransferObligations, transferCopyText } from "@/lib/transfer-payment";
@@ -32,6 +33,8 @@ export function PortalTransferPaymentSheet({ details, obligations }: { details: 
     };
   }, [open]);
 
+  const handleKeyDown = useDialogKeyboard(sheetRef, open && Boolean(selected), close, { priority: 85, autoFocus: false });
+
   if (!openObligations.length) return null;
 
   async function copy(value: string, label: string) {
@@ -48,23 +51,13 @@ export function PortalTransferPaymentSheet({ details, obligations }: { details: 
     setCopyStatus("");
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") { event.preventDefault(); close(); return; }
-    if (event.key !== "Tab" || !sheetRef.current) return;
-    const focusable = [...sheetRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')];
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  }
 
   return <>
     <button ref={triggerRef} type="button" onClick={() => { setSelectedId(openObligations[0]?.id ?? ""); setOpen(true); }} className="flex min-h-12 w-full items-center justify-between rounded-lg border border-yellow-400/20 bg-yellow-400/[.04] px-3 py-2.5 text-left text-sm font-semibold text-zinc-100 transition hover:border-yellow-400/40 hover:bg-yellow-400/[.07] focus:outline-none focus:ring-2 focus:ring-yellow-400">
       <span>Transferencia</span><span className="inline-flex items-center gap-1 text-xs font-bold text-yellow-400">Ver datos <BmChevronRightIcon size={14} /></span>
     </button>
     {open && selected && <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }} onKeyDown={handleKeyDown} className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
-      <div ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby="transfer-title" aria-describedby="transfer-description" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-[26px] border border-white/10 bg-[#111] shadow-[0_-20px_60px_rgba(0,0,0,.55)] sm:max-w-lg sm:rounded-[26px]">
+      <div ref={sheetRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="transfer-title" aria-describedby="transfer-description" className="max-h-[90dvh] w-full overflow-y-auto rounded-t-[26px] border border-white/10 bg-[#111] shadow-[0_-20px_60px_rgba(0,0,0,.55)] sm:max-w-lg sm:rounded-[26px]">
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/[.07] bg-[#111]/95 px-4 py-4 backdrop-blur sm:px-5">
           <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Pago por transferencia</p><h2 id="transfer-title" className="mt-1 text-xl font-black text-zinc-50">Datos para transferir</h2><p id="transfer-description" className="mt-1 text-xs text-zinc-500">Usá estos datos para realizar la transferencia desde tu banco o billetera.</p></div>
           <button ref={closeRef} type="button" onClick={close} aria-label="Cerrar datos de transferencia" className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-white/10 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-yellow-400"><BmCloseIcon size={20} /></button>

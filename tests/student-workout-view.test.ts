@@ -71,7 +71,7 @@ test("la entrada en calor aparece solo cuando existe y abre un modal accesible",
 });
 
 test("el modal se cierra de forma segura y queda sobre la navegación móvil", () => {
-  assert.match(overlay, /event\.key === "Escape"/);
+  assert.match(overlay, /KeyboardDialog as="section" onClose=\{onClose\} priority=\{95\}/);
   assert.match(overlay, /document\.body\.style\.overflow = "hidden"/);
   assert.match(overlay, /document\.body\.style\.overflow = previousOverflow/);
   assert.match(overlay, /createPortal/);

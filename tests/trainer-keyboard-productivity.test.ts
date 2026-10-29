@@ -31,7 +31,8 @@ test("Pago rápido enfoca alumno o importe y Enter no hace submit", () => {
   assert.match(payment, /if \(!form\.studentId\) studentInputRef\.current\?\.focus\(\)/);
   assert.match(payment, /input\[name="payment-amount"\]/);
   assert.match(payment, /onKeyDownCapture=\{handleEnterNavigation\}/);
-  assert.match(payment, /data-enter-next="false"/);
+  assert.match(payment, /useComboboxNavigation/);
+  assert.match(readFileSync(new URL("../componentes/use-combobox-navigation.ts", import.meta.url), "utf8"), /"data-enter-next": "false"/);
   assert.match(payment, /role="dialog"/);
   assert.doesNotMatch(payment, /requestSubmit/);
 });

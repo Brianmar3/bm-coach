@@ -12,7 +12,10 @@ let listening = false;
 
 function controlOwnsEscape(target: EventTarget | null) {
   if (!(target instanceof Element)) return false;
-  return Boolean(target.closest('[aria-expanded="true"], [data-escape-first="true"]'));
+  const disclosure = target.closest("details[open]");
+  const dialog = target.closest('[role="dialog"], [role="alertdialog"]');
+  if (disclosure && (!dialog || dialog.contains(disclosure))) return true;
+  return Boolean(target.closest('dialog[open], select, input[list], [aria-expanded="true"], [data-escape-first="true"]'));
 }
 
 function topLayer() {
@@ -20,7 +23,7 @@ function topLayer() {
 }
 
 function handleEscape(event: KeyboardEvent) {
-  if (event.key !== "Escape" || event.defaultPrevented || controlOwnsEscape(event.target)) return;
+  if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || controlOwnsEscape(event.target)) return;
   const layer = topLayer();
   if (!layer) return;
   event.preventDefault();

@@ -1,4 +1,6 @@
 "use client";
+import { KeyboardDialog } from "@/componentes/keyboard-dialog";
+import { useMenuNavigation } from "@/componentes/use-result-navigation";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -70,8 +72,8 @@ function Metric({ label, value }: { label: string; value: string }) { return <di
 
 function DeleteDialog({ routine, busy, cancel, confirm }: { routine: TrainingRoutine; busy: boolean; cancel: () => void; confirm: () => void }) {
   const assigned = students(routine);
-  useEffect(() => { const listener = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) cancel(); }; document.addEventListener("keydown", listener); return () => document.removeEventListener("keydown", listener); }, [busy, cancel]);
-  return <div className="fixed inset-0 z-[80] flex items-end bg-black/80 sm:items-center sm:justify-center sm:p-4" onPointerDown={(event) => { if (event.target === event.currentTarget && !busy) cancel(); }}><section role="dialog" aria-modal="true" aria-labelledby="delete-routine-title" className="w-full rounded-t-3xl border border-red-400/20 bg-[#121212] p-5 shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-6"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-red-300">Acción permanente</p><h2 id="delete-routine-title" className="mt-2 text-xl font-black">Eliminar rutina</h2><p className="mt-3 text-sm text-zinc-300">¿Querés eliminar “{routine.name}”?</p><p className="mt-2 text-sm leading-relaxed text-zinc-500">Se retirarán el plan editable y {assigned.length ? `${assigned.length} asignación${assigned.length === 1 ? "" : "es"}` : "sus asignaciones"}. Las sesiones realizadas, cargas, marcas, puntos y datos del alumno se conservarán mediante sus snapshots históricos.</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={busy} onClick={cancel} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50">Cancelar</button><button type="button" disabled={busy} onClick={confirm} className="min-h-11 rounded-xl border border-red-400/30 bg-red-400/10 px-4 text-sm font-black text-red-200 disabled:opacity-50">{busy ? "Eliminando…" : "Eliminar rutina"}</button></div></section></div>;
+
+  return <div className="fixed inset-0 z-[80] flex items-end bg-black/80 sm:items-center sm:justify-center sm:p-4" onPointerDown={(event) => { if (event.target === event.currentTarget && !busy) cancel(); }}><KeyboardDialog as="section" onClose={cancel} dismissible={!busy} role="dialog" aria-modal="true" aria-labelledby="delete-routine-title" className="w-full rounded-t-3xl border border-red-400/20 bg-[#121212] p-5 shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-6"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-red-300">Acción permanente</p><h2 id="delete-routine-title" className="mt-2 text-xl font-black">Eliminar rutina</h2><p className="mt-3 text-sm text-zinc-300">¿Querés eliminar “{routine.name}”?</p><p className="mt-2 text-sm leading-relaxed text-zinc-500">Se retirarán el plan editable y {assigned.length ? `${assigned.length} asignación${assigned.length === 1 ? "" : "es"}` : "sus asignaciones"}. Las sesiones realizadas, cargas, marcas, puntos y datos del alumno se conservarán mediante sus snapshots históricos.</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={busy} onClick={cancel} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50">Cancelar</button><button type="button" disabled={busy} onClick={confirm} className="min-h-11 rounded-xl border border-red-400/30 bg-red-400/10 px-4 text-sm font-black text-red-200 disabled:opacity-50">{busy ? "Eliminando…" : "Eliminar rutina"}</button></div></KeyboardDialog></div>;
 }
 
 export function RoutineManagementPanel({ routines, mode, routineSection, ready, busyId, duplicatingId, actions }: { routines: TrainingRoutine[]; mode: Mode; routineSection?: RoutineStatusSection; ready: boolean; busyId: string; duplicatingId: string; actions: Actions }) {
@@ -131,34 +133,27 @@ function VisibleActions({ variant, routine, mode, menuOpen, busy, duplicating, t
       if (target instanceof Node && (triggerRef.current?.contains(target) || menuRef.current?.contains(target))) return;
       toggleMenu();
     };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      toggleMenu();
-      triggerRef.current?.focus();
-    };
     const scroll = (event: Event) => {
       if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
       toggleMenu();
     };
     document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
     window.addEventListener("scroll", scroll, true);
     window.addEventListener("resize", toggleMenu);
     return () => {
       document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
       window.removeEventListener("scroll", scroll, true);
       window.removeEventListener("resize", toggleMenu);
     };
   }, [menuOpen, position, toggleMenu]);
 
+  const menuKeyboard = useMenuNavigation(menuRef, triggerRef, menuOpen, toggleMenu, Boolean(position));
   const closeAndRun = (action: () => void) => () => { toggleMenu(); action(); };
   return <div className="relative flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-    <button type="button" onClick={primaryAction} className="min-h-9 rounded-lg border border-yellow-400/30 px-3 text-xs font-bold text-zinc-100">{primaryLabel}</button>
+    <button type="button" data-keyboard-result onClick={primaryAction} className="min-h-9 rounded-lg border border-yellow-400/30 px-3 text-xs font-bold text-zinc-100">{primaryLabel}</button>
     {routine.kind === "assigned" && <button type="button" onClick={() => actions.openTracking(routine)} aria-label="Abrir seguimiento" className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-yellow-300">↗</button>}
-    <button ref={triggerRef} type="button" onClick={() => { setPosition(null); toggleMenu(); }} aria-label="Más acciones" aria-expanded={menuOpen} aria-controls={menuId} className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-300">⋮</button>
-    {menuOpen && createPortal(<div ref={menuRef} id={menuId} style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? 208, maxHeight: position?.maxHeight ?? "calc(100dvh - 16px)", visibility: position ? "visible" : "hidden" }} className="fixed z-[70] w-52 overflow-y-auto overscroll-contain rounded-xl border border-zinc-700 bg-[#171717] p-1 text-left text-xs shadow-2xl theme-popover">
+    <button ref={triggerRef} type="button" aria-haspopup="menu" onKeyDown={event => { if ((event.key === "ArrowDown" || event.key === "ArrowUp") && !menuOpen) { event.preventDefault(); toggleMenu(); } }} onClick={() => { setPosition(null); toggleMenu(); }} aria-label="Más acciones" aria-expanded={menuOpen} aria-controls={menuId} className="grid size-9 place-items-center rounded-lg border border-zinc-700 text-lg text-zinc-300">⋮</button>
+    {menuOpen && createPortal(<div ref={menuRef} role="menu" aria-label="Acciones de rutina" onKeyDown={menuKeyboard} id={menuId} style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? 208, maxHeight: position?.maxHeight ?? "calc(100dvh - 16px)", visibility: position ? "visible" : "hidden" }} className="fixed z-[70] w-52 overflow-y-auto overscroll-contain rounded-xl border border-zinc-700 bg-[#171717] p-1 text-left text-xs shadow-2xl theme-popover">
       <MenuItem label="Editar" disabled={routine.status === "archivada"} action={closeAndRun(() => actions.edit(routine))} />
       {!reusableCompleteClass && <MenuItem label={duplicating ? "Duplicando…" : "Duplicar"} disabled={duplicating} action={closeAndRun(() => actions.duplicate(routine))} />}
       {routine.kind === "assigned" && <><MenuItem label="Usar como plantilla" action={closeAndRun(() => actions.saveAsTemplate(routine))} />{routine.status !== "archivada" && <MenuItem label="Asignar alumnos" action={closeAndRun(() => actions.manageAssignments(routine))} />}</>}
@@ -170,4 +165,4 @@ function VisibleActions({ variant, routine, mode, menuOpen, busy, duplicating, t
   </div>;
 }
 
-function MenuItem({ label, action, disabled = false, danger = false }: { label: string; action: () => void; disabled?: boolean; danger?: boolean }) { return <button type="button" disabled={disabled} onClick={action} className={`min-h-10 w-full rounded-lg px-3 text-left font-semibold disabled:opacity-40 ${danger ? "text-red-300 hover:bg-red-400/10" : "text-zinc-300 hover:bg-zinc-800"}`}>{label}</button>; }
+function MenuItem({ label, action, disabled = false, danger = false }: { label: string; action: () => void; disabled?: boolean; danger?: boolean }) { return <button type="button" role="menuitem" disabled={disabled} onClick={action} className={`min-h-10 w-full rounded-lg px-3 text-left font-semibold disabled:opacity-40 ${danger ? "text-red-300 hover:bg-red-400/10" : "text-zinc-300 hover:bg-zinc-800"}`}>{label}</button>; }

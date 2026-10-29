@@ -1,4 +1,6 @@
 "use client";
+import { KeyboardDialog } from "@/componentes/keyboard-dialog";
+
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DuplicateRoutineCandidate, DuplicateRoutineGroup } from "@/lib/routine-duplicates";
@@ -87,7 +89,7 @@ export function RoutineDuplicatesReview({ close, onDeleted, onArchived }: Props)
   }
 
   return <div className="fixed inset-0 z-[80] flex items-end bg-black/80 sm:items-center sm:justify-center sm:p-4" onPointerDown={(event) => { if (event.target === event.currentTarget && !busy) close(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="duplicate-review-title" className="flex max-h-[94dvh] w-full flex-col rounded-t-3xl border border-zinc-700 bg-[#111] text-white shadow-2xl sm:max-w-6xl sm:rounded-2xl">
+    <KeyboardDialog as="section" onClose={close} dismissible={!busy} role="dialog" aria-modal="true" aria-labelledby="duplicate-review-title" className="flex max-h-[94dvh] w-full flex-col rounded-t-3xl border border-zinc-700 bg-[#111] text-white shadow-2xl sm:max-w-6xl sm:rounded-2xl">
       <header className="flex items-start justify-between gap-4 border-b border-zinc-800 p-5 sm:p-6">
         <div><p className="text-xs font-black uppercase tracking-[.18em] text-yellow-400">Rutinas · revisión segura</p><h2 id="duplicate-review-title" className="mt-1 text-2xl font-black">Posibles duplicados</h2><p className="mt-1 max-w-3xl text-sm text-zinc-400">Coincidencias conservadoras por nombre normalizado, objetivo y estructura exacta. Nada se combina ni se elimina automáticamente.</p></div>
         <button type="button" onClick={close} disabled={busy} className="min-h-10 rounded-xl border border-zinc-700 px-3 text-sm text-zinc-300 disabled:opacity-50">Cerrar</button>
@@ -121,7 +123,7 @@ export function RoutineDuplicatesReview({ close, onDeleted, onArchived }: Props)
           })}</div>
         </>}
       </div>
-      {pendingDelete && <div role="alertdialog" aria-modal="true" aria-labelledby="duplicate-delete-title" className="border-t border-red-400/20 bg-red-400/[.06] p-4 sm:p-5"><p id="duplicate-delete-title" className="font-black text-red-200">Confirmar eliminación definitiva</p><ul className="mt-2 list-inside list-disc text-sm text-zinc-200">{pendingDelete.group.routines.filter((routine) => pendingDelete.ids.includes(routine.id)).map((routine) => <li key={routine.id}>{routine.name} · ID {routine.id.slice(-8).toUpperCase()}</li>)}</ul><p className="mt-2 text-sm text-zinc-300">Esta acción eliminará definitivamente {pendingDelete.ids.length === 1 ? "esta rutina" : "estas rutinas"} y su versión inicial, si existe. No se puede deshacer. El servidor volverá a verificar alumnos, sesiones, versiones y progreso; si apareció una dependencia o historial adicional, cancelará toda la operación.</p><div className="mt-3 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setPendingDelete(null)} className="min-h-10 rounded-xl border border-zinc-700 px-4 text-sm font-bold">Cancelar</button><button type="button" disabled={busy} onClick={() => void deleteSafeRoutines()} className="min-h-10 rounded-xl bg-red-500 px-4 text-sm font-black text-white disabled:opacity-50">{busy ? "Verificando…" : "Eliminar definitivamente"}</button></div></div>}
-    </section>
+      {pendingDelete && <KeyboardDialog onClose={() => setPendingDelete(null)} dismissible={!busy} priority={90} role="alertdialog" aria-modal="true" aria-labelledby="duplicate-delete-title" className="border-t border-red-400/20 bg-red-400/[.06] p-4 sm:p-5"><p id="duplicate-delete-title" className="font-black text-red-200">Confirmar eliminación definitiva</p><ul className="mt-2 list-inside list-disc text-sm text-zinc-200">{pendingDelete.group.routines.filter((routine) => pendingDelete.ids.includes(routine.id)).map((routine) => <li key={routine.id}>{routine.name} · ID {routine.id.slice(-8).toUpperCase()}</li>)}</ul><p className="mt-2 text-sm text-zinc-300">Esta acción eliminará definitivamente {pendingDelete.ids.length === 1 ? "esta rutina" : "estas rutinas"} y su versión inicial, si existe. No se puede deshacer. El servidor volverá a verificar alumnos, sesiones, versiones y progreso; si apareció una dependencia o historial adicional, cancelará toda la operación.</p><div className="mt-3 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setPendingDelete(null)} className="min-h-10 rounded-xl border border-zinc-700 px-4 text-sm font-bold">Cancelar</button><button type="button" disabled={busy} onClick={() => void deleteSafeRoutines()} className="min-h-10 rounded-xl bg-red-500 px-4 text-sm font-black text-white disabled:opacity-50">{busy ? "Verificando…" : "Eliminar definitivamente"}</button></div></KeyboardDialog>}
+    </KeyboardDialog>
   </div>;
 }

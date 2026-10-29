@@ -71,7 +71,7 @@ test("Pagos reutiliza el popover de Rutinas y conserva cierre y acciones", () =>
   assert.match(source, /className="fixed z-\[100\] w-56 overflow-y-auto overscroll-contain/);
   assert.match(source, /getBoundingClientRect\(\)/);
   assert.match(source, /document\.addEventListener\("pointerdown", outside\)/);
-  assert.match(source, /event\.key !== "Escape"/);
+  assert.match(source, /useMenuNavigation\(menuRef, triggerRef, open, close/);
   assert.match(source, /window\.addEventListener\("scroll", scroll, true\)/);
   assert.match(source, /const run = \(action: \(\) => void\) => \{/);
   assert.match(source, /close\(false\);\s+action\(\);/);

@@ -1,4 +1,6 @@
 "use client";
+import { preventImplicitSubmit } from "@/componentes/keyboard-dialog";
+
 
 import { FormEvent, useState } from "react";
 import type { PlatformSettingsValue } from "@/lib/platform-settings";
@@ -20,7 +22,7 @@ export function PlatformSettingsForm({ initial }: { initial: PlatformSettingsVal
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : "No se pudo guardar."); }
     finally { setSaving(false); }
   }
-  return <form onSubmit={save} className="max-w-2xl rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
+  return <form onKeyDown={preventImplicitSubmit} onSubmit={save} className="max-w-2xl rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
     <section aria-labelledby="general-heading"><h2 id="general-heading" className="mb-3 font-bold text-yellow-400">General</h2><div className="grid gap-4 sm:grid-cols-2">
       <label className="text-sm">Nombre de plataforma<input name="platformName" required maxLength={100} defaultValue={initial.platformName} className={field} /></label>
       <label className="text-sm">Email de soporte<input name="supportEmail" type="email" maxLength={254} defaultValue={initial.supportEmail} placeholder="soporte@ejemplo.com" className={field} /></label>

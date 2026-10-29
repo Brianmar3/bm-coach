@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { KeyboardResults } from "@/componentes/keyboard-results";
 
 export function ModuleShell({
   title,
@@ -28,7 +29,7 @@ export function ModuleShell({
             {action && <div className="admin-module-action flex shrink-0 items-center">{action}</div>}
           </header>
         )}
-        {children}
+        <KeyboardResults>{children}</KeyboardResults>
       </div>
     </main>
   );

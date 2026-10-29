@@ -1,4 +1,5 @@
 "use client";
+import { KeyboardDialog } from "@/componentes/keyboard-dialog";
 import { SearchWithFilters } from "@/componentes/search-with-filters";
 import { RoutineReview } from "@/componentes/routine-review";
 import type { RoutineReviewError } from "@/lib/routine-review";
@@ -32,6 +33,7 @@ import { useRoutineKeyboardNavigation } from "@/componentes/use-routine-keyboard
 import { contextualExerciseSuggestions, uncoveredPriorityReminders } from "@/lib/evaluation-interpretation";
 import { CLASS_TYPE_TAG_PREFIX, classTemplateToClassDraft, classTemplateToRoutineDraft, isClassTypeTag, type ClassBaseDayDraft, type ClassBaseRoutineDraft } from "@/lib/class-template-base";
 import { clearedExerciseTarget } from "@/lib/training-blocks";
+import { StudentAssignmentOptions } from "@/componentes/student-assignment-options";
 import { searchStudents } from "@/lib/student-search";
 import { applyLibraryExerciseSelection, createEmptyRoutineExerciseDraft, persistedRoutineExerciseVideoUrl, removeRoutineExerciseDraft, unlinkLibraryExercise, type RoutineExerciseDraft } from "@/lib/routine-exercise-draft";
 import { libraryExerciseIdFromMediaUrl, resolveRoutineExerciseMedia } from "@/lib/routine-exercise-media";
@@ -597,7 +599,7 @@ export default function RutinasPage() {
       </nav>
       {librarySection === "classes" ? <>
         <div className="mb-3 flex justify-end"><button type="button" onClick={() => begin(undefined, "template")} className="min-h-10 rounded-xl border border-yellow-400/30 bg-black/20 px-3.5 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]">+ Crear clase completa</button></div>
-        <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><SearchWithFilters search={<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar clase completa…" className={inputClass} />} activeCount={Number(objectiveFilter !== "todos")}><div className="filter-fields"><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><button type="button" className="trainer-filter-clear" onClick={()=>{setObjectiveFilter("todos");}}>Limpiar filtros</button></div></SearchWithFilters></section>
+        <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><SearchWithFilters search={<input data-keyboard-results-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar clase completa…" className={inputClass} />} activeCount={Number(objectiveFilter !== "todos")}><div className="filter-fields"><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><button type="button" className="trainer-filter-clear" onClick={()=>{setObjectiveFilter("todos");}}>Limpiar filtros</button></div></SearchWithFilters></section>
         <RoutineManagementPanel routines={visible} mode="plantillas" ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), manageAssignments: setAssignmentTarget, archive, restore, history: openHistory, remove }} />
       </> : <>
         <TrainingLibraryBlocksPanel blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} loadError={libraryLoadError} retry={() => { setLibraryLoadError(""); if (!libraryBlocks.length) setLibraryReady(false); setLibraryReload((value) => value + 1); }} onNew={() => beginLibraryBlock()} onEdit={beginLibraryBlock} onBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} onBlockDeleted={(blockId) => setLibraryBlocks((current) => current.filter((item) => item.id !== blockId))} onFoldersChanged={setLibraryFolders} />
@@ -605,7 +607,7 @@ export default function RutinasPage() {
     </> : <>
       <div className="mb-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setDuplicatesOpen(true)} className="min-h-11 rounded-xl border border-zinc-700 px-3.5 text-xs font-bold text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300">Revisar duplicados</button><button type="button" onClick={() => setCreationOpen(true)} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-yellow-300">+ Nueva rutina</button></div>
       <nav aria-label="Estado de las rutinas" className="mb-3 grid grid-cols-3 border-b border-zinc-800 bg-black/10">{([["activas", "Activas"], ["borradores", "Borradores"], ["archivadas", "Archivadas"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={routineSection === value ? "page" : undefined} onClick={() => setRoutineSection(value)} className={`relative min-h-11 min-w-0 px-1 text-xs font-bold transition sm:px-3 sm:text-sm ${routineSection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:bg-yellow-400 sm:after:inset-x-3" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}><span className="truncate">{title}</span> <span className="text-[10px] tabular-nums text-zinc-500 sm:text-xs">{statusCounts[value]}</span></button>)}</nav>
-      <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><SearchWithFilters search={<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina o alumno…" className={inputClass} />} activeCount={Number(objectiveFilter !== "todos")+Number(studentFilter !== "todos")}><div className="filter-fields"><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select><button type="button" className="trainer-filter-clear" onClick={()=>{setObjectiveFilter("todos");setStudentFilter("todos");}}>Limpiar filtros</button></div></SearchWithFilters></section>
+      <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><SearchWithFilters search={<input data-keyboard-results-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar rutina o alumno…" className={inputClass} />} activeCount={Number(objectiveFilter !== "todos")+Number(studentFilter !== "todos")}><div className="filter-fields"><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><select aria-label="Alumno" value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} className={inputClass}><option value="todos">Todos los alumnos</option>{students.map((student) => <option key={student.id} value={student.id}>{student.firstName} {student.lastName}</option>)}</select><button type="button" className="trainer-filter-clear" onClick={()=>{setObjectiveFilter("todos");setStudentFilter("todos");}}>Limpiar filtros</button></div></SearchWithFilters></section>
       <RoutineManagementPanel routines={visible} mode="rutinas" routineSection={routineSection} ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), manageAssignments: setAssignmentTarget, archive, restore, history: openHistory, remove }} />
     </>}
     {open && <RoutineValidationContext.Provider value={{ issues: validationIssues, activeDay }}>{form.kind === "template" && form.days.length === 1
@@ -649,14 +651,10 @@ function LibraryBlockDialog({ block, setBlock, folders, folderId, setFolderId, t
   submit: (event: FormEvent) => void;
 }) {
   const handleKeyboardNavigation = useRoutineKeyboardNavigation();
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && !saving) close(); };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [close, saving]);
+
 
   return <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/85 p-0 sm:p-4">
-    <form onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} role="dialog" aria-modal="true" aria-labelledby="library-block-dialog-title" className={`mx-auto min-h-dvh w-full border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5 ${compact ? "max-w-xl" : "max-w-6xl"}`}>
+    <KeyboardDialog as="form" onClose={close} dismissible={!saving} onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} role="dialog" aria-modal="true" aria-labelledby="library-block-dialog-title" className={`mx-auto min-h-dvh w-full border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5 ${compact ? "max-w-xl" : "max-w-6xl"}`}>
       <header className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-300">Biblioteca · Bloques</p><h2 id="library-block-dialog-title" className="mt-1 text-xl font-black">{compact ? "Guardar en Biblioteca" : editing ? "Editar bloque reusable" : "Nuevo bloque reusable"}</h2><p className="mt-1 text-sm text-zinc-400">{compact ? "Guardá una copia independiente del bloque actual." : "Se guarda como una copia independiente, lista para reutilizar más adelante."}</p></div><button type="button" onClick={close} aria-label="Cerrar editor de bloque" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300">×</button></header>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
       <section className={`mt-5 grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/50 p-3 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
@@ -666,7 +664,7 @@ function LibraryBlockDialog({ block, setBlock, folders, folderId, setFolderId, t
       </section>
       {!compact && <div className="mt-4"><BlockEditor standalone block={block} interpretation={null} update={(updater) => setBlock(updater(block))} move={() => undefined} duplicate={() => undefined} remove={() => undefined} /></div>}
       <footer className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t border-zinc-800 bg-zinc-900 py-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)]"><button type="button" disabled={saving} onClick={close} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50">Cancelar</button><button type="submit" name="intent" value="save-library-block" disabled={saving} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : compact ? "Guardar en Biblioteca" : "Guardar bloque"}</button></footer>
-    </form>
+    </KeyboardDialog>
   </div>;
 }
 
@@ -675,19 +673,15 @@ function ClassBaseChoiceDialog({ source, close, choose }: {
   close: () => void;
   choose: (destination: "class" | "routine") => void;
 }) {
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [close]);
+
 
   return <div className="fixed inset-0 z-[85] flex items-end bg-black/80 sm:items-center sm:justify-center sm:p-4" onPointerDown={(event) => { if (event.target === event.currentTarget) close(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="class-base-choice-title" className="w-full rounded-t-3xl border border-white/10 bg-[#121212] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-6">
+    <KeyboardDialog as="section" onClose={close} role="dialog" aria-modal="true" aria-labelledby="class-base-choice-title" className="w-full rounded-t-3xl border border-white/10 bg-[#121212] p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-6">
       <div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[.2em] text-yellow-300">Biblioteca · Clase completa</p><h2 id="class-base-choice-title" className="mt-2 text-xl font-black">Usar como base</h2><p className="mt-1 truncate text-sm text-zinc-400">{source.name}</p></div><button type="button" onClick={close} aria-label="Cerrar opciones" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-700 text-lg text-zinc-300">×</button></div>
       <p className="mt-5 text-sm leading-relaxed text-zinc-300">Elegí qué querés crear. La copia se abrirá como borrador editable y no se guardará hasta que confirmes desde el editor.</p>
       <div className="mt-5 grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => choose("class")} className="min-h-12 rounded-xl border border-yellow-400/35 bg-yellow-400/[.05] px-4 text-sm font-black text-yellow-200 transition hover:bg-yellow-400/[.1]">Nueva clase</button><button type="button" onClick={() => choose("routine")} className="min-h-12 rounded-xl border border-zinc-700 px-4 text-sm font-black text-zinc-100 transition hover:bg-white/[.04]">Nueva rutina</button></div>
       <button type="button" onClick={close} className="mt-2 min-h-11 w-full rounded-xl px-4 text-sm font-bold text-zinc-400 transition hover:bg-white/[.03] hover:text-zinc-200">Cancelar</button>
-    </section>
+    </KeyboardDialog>
   </div>;
 }
 
@@ -707,11 +701,7 @@ function RoutineCopyDialog({ flow, students, routines, busy, close, submit }: {
   const activeRoutines = routines.filter((routine) => routine.kind === "assigned" && routine.status === "activa" && routine.studentIds.some((studentId) => studentIds.includes(studentId)));
   function toggleStudent(studentId: string) { setStudentIds((current) => current.includes(studentId) ? current.filter((id) => id !== studentId) : [...current, studentId]); setReplaceActive(false); }
 
-  useEffect(() => {
-    function keydown(event: KeyboardEvent) { if (event.key === "Escape" && !busy) close(); }
-    document.addEventListener("keydown", keydown);
-    return () => document.removeEventListener("keydown", keydown);
-  }, [busy, close]);
+
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -720,21 +710,21 @@ function RoutineCopyDialog({ flow, students, routines, busy, close, submit }: {
   }
 
   return <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget && !busy) close(); }} className="fixed inset-0 z-[70] flex items-end bg-black/80 p-0 sm:items-center sm:justify-center sm:p-4">
-    <form onSubmit={onSubmit} role="dialog" aria-modal="true" aria-labelledby="copy-routine-title" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-zinc-700 bg-zinc-900 p-5 text-white shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6">
+    <KeyboardDialog as="form" onClose={close} dismissible={!busy} onSubmit={onSubmit} role="dialog" aria-modal="true" aria-labelledby="copy-routine-title" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-zinc-700 bg-zinc-900 p-5 text-white shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6">
       <div className="flex items-start justify-between gap-4"><div><h2 id="copy-routine-title" className="text-xl font-bold">{flow.mode === "saveAsTemplate" ? "Guardar como plantilla" : "Usar plantilla"}</h2><p className="mt-1 text-sm text-zinc-400">Se creará una sola rutina independiente, sin sesiones ni resultados previos.</p></div><button type="button" onClick={close} disabled={busy} className="rounded-lg px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-800 disabled:opacity-50">Cerrar</button></div>
       <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="sm:col-span-2">Nombre<input autoFocus={!needsStudent} required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className={`${inputClass} mt-1`} /></label>{flow.mode !== "saveAsTemplate" && <label>Fecha de inicio<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className={`${inputClass} mt-1`} /></label>}</div>
       {needsStudent && <StudentAssignmentPicker students={students} selectedIds={studentIds} toggle={toggleStudent} clear={() => { setStudentIds([]); setReplaceActive(false); }} />}
       {needsStudent && activeRoutines.length > 0 && <label className="mt-5 flex gap-3 rounded-xl border border-orange-400/30 bg-orange-400/10 p-4 text-sm text-orange-100"><input type="checkbox" checked={replaceActive} onChange={(event) => setReplaceActive(event.target.checked)} /><span>{activeRoutines.length} alumno{activeRoutines.length === 1 ? "" : "s"} ya tiene{activeRoutines.length === 1 ? "" : "n"} otra rutina activa. Finalizar esas asignaciones y activar esta rutina.</span></label>}
       <div className="mt-6 flex flex-wrap justify-end gap-3"><button type="button" onClick={close} disabled={busy} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-bold disabled:opacity-50">Cancelar</button><button type="submit" disabled={busy || !name.trim() || (needsStudent && (!studentIds.length || Boolean(activeRoutines.length) && !replaceActive))} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 disabled:opacity-50">{busy ? "Creando…" : flow.mode === "saveAsTemplate" ? "Crear plantilla" : "Activar rutina"}</button></div>
-    </form>
+    </KeyboardDialog>
   </div>;
 }
 
 function RoutineAssignmentDialog({ routine, students, busy, close, submit }: { routine: TrainingRoutine; students: Student[]; busy: boolean; close: () => void; submit: (studentIds: string[]) => Promise<void> }) {
   const [studentIds, setStudentIds] = useState<string[]>(routine.studentIds);
   function toggleStudent(studentId: string) { setStudentIds((current) => current.includes(studentId) ? current.filter((id) => id !== studentId) : [...current, studentId]); }
-  useEffect(() => { const listener = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) close(); }; document.addEventListener("keydown", listener); return () => document.removeEventListener("keydown", listener); }, [busy, close]);
-  return <div className="fixed inset-0 z-[75] flex items-end bg-black/80 sm:items-center sm:justify-center sm:p-4" onPointerDown={(event) => { if (event.target === event.currentTarget && !busy) close(); }}><section role="dialog" aria-modal="true" aria-labelledby="routine-assignment-title" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-zinc-700 bg-zinc-900 p-5 text-white shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><h2 id="routine-assignment-title" className="text-xl font-black">Asignar alumnos</h2><p className="mt-1 text-sm text-zinc-400">{routine.name} · se conserva el mismo plan y el progreso individual.</p></div><button type="button" onClick={close} disabled={busy} className="min-h-10 rounded-lg px-3 text-sm text-zinc-400 disabled:opacity-50">Cerrar</button></div><StudentAssignmentPicker students={students} selectedIds={studentIds} toggle={toggleStudent} clear={() => setStudentIds([])} /><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={close} disabled={busy} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold disabled:opacity-50">Cancelar</button><button type="button" onClick={() => void submit(studentIds)} disabled={busy} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50">{busy ? "Guardando…" : `Guardar asignaciones (${studentIds.length})`}</button></div></section></div>;
+
+  return <div className="fixed inset-0 z-[75] flex items-end bg-black/80 sm:items-center sm:justify-center sm:p-4" onPointerDown={(event) => { if (event.target === event.currentTarget && !busy) close(); }}><KeyboardDialog as="section" onClose={close} dismissible={!busy} role="dialog" aria-modal="true" aria-labelledby="routine-assignment-title" className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-zinc-700 bg-zinc-900 p-5 text-white shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><h2 id="routine-assignment-title" className="text-xl font-black">Asignar alumnos</h2><p className="mt-1 text-sm text-zinc-400">{routine.name} · se conserva el mismo plan y el progreso individual.</p></div><button type="button" onClick={close} disabled={busy} className="min-h-10 rounded-lg px-3 text-sm text-zinc-400 disabled:opacity-50">Cerrar</button></div><StudentAssignmentPicker students={students} selectedIds={studentIds} toggle={toggleStudent} clear={() => setStudentIds([])} /><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={close} disabled={busy} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold disabled:opacity-50">Cancelar</button><button type="button" onClick={() => void submit(studentIds)} disabled={busy} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50">{busy ? "Guardando…" : `Guardar asignaciones (${studentIds.length})`}</button></div></KeyboardDialog></div>;
 }
 
 function BlockTransferOptions({ days, currentDay, onTransfer }: { days: DayDraft[]; currentDay: string; onTransfer: (target: string, copy: boolean) => void }) {
@@ -791,17 +781,10 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
   function duplicateBlock(clientId: string) { updateDay((day) => { const index = day.blocks.findIndex((block) => block.clientId === clientId); if (index < 0) return day; const source = day.blocks[index]; const copy = { ...source, id: undefined, clientId: crypto.randomUUID(), name: `${source.name} (copia)`, exercises: source.exercises.map((exercise) => ({ ...exercise, id: undefined, clientId: crypto.randomUUID() })) }; return { ...day, blocks: reorderBlocks([...day.blocks.slice(0, index + 1), copy, ...day.blocks.slice(index + 1)]) }; }); }
   function removeBlock(clientId: string) { if (!window.confirm("¿Eliminar este bloque de la clase?")) return; updateDay((day) => ({ ...day, blocks: reorderBlocks(day.blocks.filter((block) => block.clientId !== clientId)) })); }
 
-  useEffect(() => {
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape" || saving || document.querySelector('[aria-label="Biblioteca de ejercicios BM"], [aria-labelledby="block-library-picker-title"], [aria-labelledby="library-block-dialog-title"]')) return;
-      close();
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [close, saving]);
+
 
   return <div role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget && !saving) close(); }} className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-0 sm:p-3">
-    <form noValidate onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} role="dialog" aria-modal="true" aria-labelledby="class-template-title" className="mx-auto min-h-dvh w-full max-w-6xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
+    <KeyboardDialog as="form" onClose={close} dismissible={!saving} noValidate onSubmit={submit} onKeyDownCapture={handleKeyboardNavigation} role="dialog" aria-modal="true" aria-labelledby="class-template-title" className="mx-auto min-h-dvh w-full max-w-6xl border border-zinc-800 bg-zinc-900 p-3 text-white sm:my-4 sm:min-h-0 sm:rounded-2xl sm:p-5">
       <header className="sticky top-0 z-20 -mx-3 -mt-3 flex items-start justify-between gap-4 border-b border-zinc-800 bg-zinc-900/95 px-3 py-3 backdrop-blur sm:-mx-5 sm:-mt-5 sm:rounded-t-2xl sm:px-5 sm:py-4"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-yellow-400">Biblioteca · Clase completa</p><h2 id="class-template-title" className="mt-1 text-xl font-black">{editing ? "Editar clase" : "Nueva clase completa"}</h2><p className="mt-1 text-sm text-zinc-400">Diseñá una sesión lista para reutilizar.</p></div><button type="button" onClick={close} disabled={saving} aria-label="Cerrar editor de clase" className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-800 text-lg text-zinc-300 disabled:opacity-50">×</button></header>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
       {notice && <p role="status" className="mt-4 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
@@ -831,7 +814,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
       <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/45 p-3 sm:p-4"><label className="font-bold text-zinc-200">Cierre / observaciones<textarea maxLength={1000} rows={3} value={currentDay.observations} onChange={(event) => updateDay((day) => ({ ...day, observations: event.target.value }))} placeholder="Vuelta a la calma final" className={`${inputClass} mt-2 font-normal`} /></label></section>
 
       <footer className="sticky bottom-0 z-20 -mx-3 mt-4 flex justify-end gap-2 border-t border-zinc-800 bg-zinc-900/95 px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] backdrop-blur sm:-mx-5 sm:rounded-b-2xl sm:px-5"><button type="button" onClick={close} disabled={saving} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300 disabled:opacity-50">Cancelar</button><button type="submit" name="intent" value="class" disabled={saving} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar clase"}</button></footer>
-    </form>
+    </KeyboardDialog>
   </div>;
 }
 
@@ -991,7 +974,7 @@ function NumberField({ label: title, value, setValue, validationKey, issue }: { 
 function StudentAssignmentPicker({ students, selectedIds, toggle, clear }: { students: Student[]; selectedIds: string[]; toggle: (studentId: string) => void; clear: () => void }) {
   const [query, setQuery] = useState("");
   const visible = query.trim() ? searchStudents(students, query, []) : students;
-  return <fieldset className="mt-5 min-w-0 rounded-xl border border-zinc-800 bg-zinc-950/50 p-4"><legend className="px-1 text-base font-bold text-yellow-400">Asignar alumnos</legend><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-zinc-400">Seleccionados: <strong className="text-zinc-100">{selectedIds.length}</strong></p>{selectedIds.length > 0 && <button type="button" onClick={clear} className="min-h-9 rounded-lg px-3 text-xs font-bold text-zinc-400 hover:bg-zinc-800">Limpiar</button>}</div><label className="mt-3 block text-sm text-zinc-400">Buscar alumno<input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre, apellido o teléfono" className={`${inputClass} mt-1`} /></label><div className="mt-2 max-h-64 min-w-0 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950/70">{visible.length ? visible.map((student) => { const checked = selectedIds.includes(student.id); return <label key={student.id} className={`flex min-h-11 cursor-pointer items-center gap-3 border-b border-zinc-800 px-3 py-2.5 text-sm last:border-0 hover:bg-zinc-800 focus-within:outline-2 focus-within:outline-yellow-400 ${checked ? "bg-yellow-400/[.06]" : ""}`}><input type="checkbox" checked={checked} onChange={() => toggle(student.id)} className="size-4 shrink-0 accent-yellow-400" /><span className="min-w-0 flex-1 truncate">{student.firstName} {student.lastName}</span><span className="hidden truncate text-xs text-zinc-500 sm:block">{student.phone || "Sin teléfono"}</span></label>; }) : <p className="p-3 text-center text-sm text-zinc-500">No se encontraron alumnos</p>}</div></fieldset>;
+  return <fieldset className="mt-5 min-w-0 rounded-xl border border-zinc-800 bg-zinc-950/50 p-4"><legend className="px-1 text-base font-bold text-yellow-400">Asignar alumnos</legend><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-zinc-400">Seleccionados: <strong className="text-zinc-100">{selectedIds.length}</strong></p>{selectedIds.length > 0 && <button type="button" onClick={clear} className="min-h-9 rounded-lg px-3 text-xs font-bold text-zinc-400 hover:bg-zinc-800">Limpiar</button>}</div><StudentAssignmentOptions students={visible} autoFocus query={query} onQueryChange={setQuery} selectedIds={selectedIds} toggle={toggle} /></fieldset>;
 }
 
 function IntervalExerciseEditor({ exercise, update, changeTarget, move, remove }: { exercise: ExerciseDraft; update: <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) => void; changeTarget: (targetType: ExerciseDraft["targetType"]) => void; move: (direction: -1 | 1) => void; remove: () => void }) {

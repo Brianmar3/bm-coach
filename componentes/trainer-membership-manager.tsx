@@ -1,4 +1,5 @@
 "use client";
+import { KeyboardDialog } from "@/componentes/keyboard-dialog";
 
 import { FormEvent, useRef, useState } from "react";
 import { inputClass } from "@/componentes/module-shell";
@@ -56,7 +57,7 @@ export function TrainerMembershipManager({ trainer, subscription, onClose, onSav
   }
 
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/85 p-3 sm:p-4" onPointerDown={() => { if (!saving) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="membership-title" className="my-2 w-full max-w-2xl rounded-3xl border border-yellow-400/20 bg-zinc-900 p-4 sm:p-6" onPointerDown={(event) => event.stopPropagation()}>
+    <KeyboardDialog as="section" onClose={onClose} dismissible={!saving} role="dialog" aria-modal="true" aria-labelledby="membership-title" className="my-2 w-full max-w-2xl rounded-3xl border border-yellow-400/20 bg-zinc-900 p-4 sm:p-6" onPointerDown={(event) => event.stopPropagation()}>
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">Membresía comercial</p><h2 id="membership-title" className="mt-1 truncate text-xl font-black sm:text-2xl">{trainer.name}</h2><p className="mt-1 text-xs text-zinc-400">{plan} · {subscriptionLabel[status]}</p></div><button type="button" disabled={saving} onClick={onClose} className="min-h-10 shrink-0 text-sm text-zinc-400 disabled:opacity-50">Cerrar</button></div>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-300">{error}</p>}
       <form onSubmit={save} className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -73,6 +74,6 @@ export function TrainerMembershipManager({ trainer, subscription, onClose, onSav
         <section className="rounded-2xl bg-black/30 p-3 sm:p-4"><h3 className="font-bold">Marcar como pagado</h3><p className="mt-1 text-xs text-zinc-500">Actualiza el último pago, período y vencimiento.</p><select value={period} onChange={(event) => setPeriod(event.target.value)} className={`${inputClass} mt-3`}><option value="1">1 mes</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option><option value="manual">Fecha manual</option></select>{period === "manual" && <input aria-label="Fecha de renovación manual" type="date" value={renewalDate} onChange={(event) => setRenewalDate(event.target.value)} className={`${inputClass} mt-2`} />}<button type="button" disabled={saving} onClick={() => request(period === "manual" ? { renewalDate } : { periodMonths: Number(period) }, "/mark-paid", "Pago registrado")} className="mt-3 min-h-11 w-full rounded-xl bg-emerald-400/15 font-bold text-emerald-300 disabled:opacity-50">Marcar como pagado</button></section>
         <section className="rounded-2xl bg-black/30 p-3 sm:p-4"><h3 className="font-bold">Control de acceso</h3><p className="mt-1 text-xs text-zinc-500">Sin tocar el workspace ni sus datos.</p><label className="mt-3 block text-xs text-zinc-400">Vencimiento al reactivar<input type="date" value={reactivationDate} onChange={(event) => setReactivationDate(event.target.value)} className={`${inputClass} mt-1`} /></label><div className="mt-3 grid gap-2"><button type="button" disabled={saving} onClick={() => request({ action: "REACTIVATE_ACCESS", nextDueAt: reactivationDate }, "", "Acceso reactivado")} className="min-h-11 rounded-xl bg-emerald-400/15 font-bold text-emerald-300 disabled:opacity-50">Reactivar y dejar al día</button><button type="button" disabled={saving} onClick={() => window.confirm("¿Suspender acceso sin eliminar ningún dato?") && request({ action: "SUSPEND_ACCESS" }, "", "Acceso suspendido")} className="min-h-11 rounded-xl bg-red-400/10 font-bold text-red-300 disabled:opacity-50">Suspender acceso</button></div></section>
       </div>}
-    </section>
+    </KeyboardDialog>
   </div>;
 }

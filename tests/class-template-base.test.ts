@@ -128,7 +128,7 @@ test("templates legacy multidía conservan Usar plantilla y no abren el flujo de
 test("la decisión es compacta, cancelable y sólo abre el draft local", () => {
   const dialog = page.slice(page.indexOf("function ClassBaseChoiceDialog"), page.indexOf("function RoutineCopyDialog"));
   for (const label of ["Usar como base", "Nueva clase", "Nueva rutina", "Cancelar"]) assert.match(dialog, new RegExp(label));
-  assert.match(dialog, /event\.key === "Escape"/);
+  assert.match(dialog, /<KeyboardDialog as="section" onClose=\{close\}/);
   assert.match(dialog, /items-end/);
   assert.match(dialog, /sm:max-w-md/);
   assert.doesNotMatch(dialog, /fetch\(|\/api\//);

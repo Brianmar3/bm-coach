@@ -7,7 +7,10 @@ import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { ErrorState } from "@/componentes/async-states";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
-import { useEnterFieldNavigation, useEscapeLayer } from "@/componentes/use-trainer-keyboard-interactions";
+import { useComboboxNavigation } from "@/componentes/use-combobox-navigation";
+import { useMenuNavigation } from "@/componentes/use-result-navigation";
+import { KeyboardDialog, useDialogKeyboard } from "@/componentes/keyboard-dialog";
+import { useEnterFieldNavigation } from "@/componentes/use-trainer-keyboard-interactions";
 import { addMonthsToDateKey } from "@/lib/payment-dates";
 import { apiRequest } from "@/lib/client-api";
 import { actionMenuPosition } from "@/lib/action-menu-position";
@@ -273,7 +276,7 @@ export default function PagosPage() {
     </section>
 
     <section aria-label="Buscar y filtrar pagos" className="mt-4 space-y-3">
-      <TrainerFilters search={<div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"><PaymentIcon name="search" /></span><input type="search" aria-label="Buscar pagos" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nombre, plan, teléfono o estado" className={`${inputClass} w-full pl-11`} /></div>} filters={[{label:"Estado",value:filter,defaultValue:"TODOS",options:filters.map(item=>[item.value,item.label] as const),change:value=>setFilter(value as AccountFilter)}]}/>
+      <TrainerFilters search={<div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"><PaymentIcon name="search" /></span><input data-keyboard-results-search type="search" aria-label="Buscar pagos" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar nombre, plan, teléfono o estado" className={`${inputClass} w-full pl-11`} /></div>} filters={[{label:"Estado",value:filter,defaultValue:"TODOS",options:filters.map(item=>[item.value,item.label] as const),change:value=>setFilter(value as AccountFilter)}]}/>
     </section>
 
     <section aria-label="Alumnos y cuotas" className="mt-4 space-y-2">
@@ -298,7 +301,7 @@ function AccountRow({ account, expanded, saving, toggle, begin, paidToday, histo
   return <article className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80 shadow-lg shadow-black/10">
     <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${statusAccent[account.status]}`} />
     <div className="flex items-center gap-2 p-3 pl-4 sm:gap-3 sm:p-4 sm:pl-5">
-      <button onClick={toggle} aria-expanded={expanded} className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-left sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+      <button type="button" data-keyboard-result onClick={toggle} aria-expanded={expanded} className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-left sm:grid-cols-[auto_minmax(0,1fr)_auto]">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-zinc-700 bg-black/30 text-sm font-bold text-yellow-300">{initials(account.student)}</span>
         <span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm leading-tight text-white sm:text-base">{account.student}</strong><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 sm:hidden ${status.className}`}>{status.label}</span></span><span className="mt-1 block text-xs leading-relaxed text-zinc-400">{account.plan || "Sin plan"} · {money(account.monthlyFee)}</span><span className="mt-0.5 block text-[11px] leading-relaxed text-zinc-500">Vence: {showDate(account.nextDueDate)}{account.lastPaymentDate ? ` · Último: ${showDate(account.lastPaymentDate)}` : " · Sin pagos"}</span></span>
         <span className="hidden min-w-24 text-right sm:block"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${status.className}`}>{status.label}</span><strong className="mt-2 block whitespace-nowrap text-sm text-white">{money(account.monthlyFee)}</strong></span>
@@ -337,36 +340,30 @@ function AccountActions({ account, saving, canMessage, begin, paidToday, history
       if (target instanceof Node && (triggerRef.current?.contains(target) || menuRef.current?.contains(target))) return;
       setOpen(false);
     };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      close();
-    };
     const scroll = (event: Event) => {
       if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
       setOpen(false);
     };
     document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
     window.addEventListener("scroll", scroll, true);
     window.addEventListener("resize", scroll);
     const focusFrame = requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>("button, a")?.focus());
     return () => {
       cancelAnimationFrame(focusFrame);
       document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
       window.removeEventListener("scroll", scroll, true);
       window.removeEventListener("resize", scroll);
     };
   }, [open, position]);
+  const menuKeyboard = useMenuNavigation(menuRef, triggerRef, open, close, Boolean(position));
   const run = (action: () => void) => {
     close(false);
     action();
   };
   return <>
-    <button ref={triggerRef} type="button" aria-label={`Acciones de ${account.student}`} aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} onClick={() => open ? close() : show()} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-700/80 bg-black/25 text-xl text-zinc-400 transition hover:border-yellow-400/30 hover:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>
+    <button ref={triggerRef} type="button" onKeyDown={event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); show(); } }} aria-label={`Acciones de ${account.student}`} aria-haspopup="menu" aria-expanded={open} aria-controls={menuId} onClick={() => open ? close() : show()} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-zinc-700/80 bg-black/25 text-xl text-zinc-400 transition hover:border-yellow-400/30 hover:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-400">⋮</button>
     {open && createPortal(
-      <div ref={menuRef} id={menuId} role="menu" aria-label={`Acciones de ${account.student}`} style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? 224, maxHeight: position?.maxHeight ?? "calc(100dvh - 16px)", visibility: position ? "visible" : "hidden" }} className="fixed z-[100] w-56 overflow-y-auto overscroll-contain rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-sm text-white shadow-2xl theme-popover">
+      <div ref={menuRef} onKeyDown={menuKeyboard} id={menuId} role="menu" aria-label={`Acciones de ${account.student}`} style={{ top: position?.top ?? 0, left: position?.left ?? 0, width: position?.width ?? 224, maxHeight: position?.maxHeight ?? "calc(100dvh - 16px)", visibility: position ? "visible" : "hidden" }} className="fixed z-[100] w-56 overflow-y-auto overscroll-contain rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 text-sm text-white shadow-2xl theme-popover">
         <p className="hidden px-3 py-2 text-xs font-semibold text-zinc-500 max-sm:block">{account.student}</p>
         <button role="menuitem" onClick={() => run(begin)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Agregar pago</button>
         <button role="menuitem" onClick={() => run(paidToday)} disabled={saving || account.monthlyFee <= 0} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800 disabled:opacity-40">Pagó hoy</button>
@@ -406,22 +403,10 @@ function PaymentIcon({ name }: { name: PaymentIconName }) {
 function StudentCombobox({ form, accounts, setForm, disabled, inputRef, onSelected }: { form: PaymentForm; accounts: PaymentStudentAccount[]; setForm: (form: PaymentForm) => void; disabled: boolean; inputRef: RefObject<HTMLInputElement | null>; onSelected: () => void }) {
   const selected = accounts.find((account) => account.studentId === form.studentId);
   const [query, setQuery] = useState(selected?.student ?? "");
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const rootRef = useRef<HTMLDivElement>(null);
   const normalized = query.trim().toLocaleLowerCase("es");
   const results = accounts.filter((account) => !normalized || `${account.student} ${account.phone}`.toLocaleLowerCase("es").includes(normalized)).slice(0, 10);
-  useEffect(() => {
-    const closeOutside = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    return () => document.removeEventListener("pointerdown", closeOutside);
-  }, []);
   function choose(account: PaymentStudentAccount) {
     setQuery(account.student);
-    setOpen(false);
-    setActiveIndex(0);
     setForm({
       ...form,
       studentId: account.studentId,
@@ -432,24 +417,20 @@ function StudentCombobox({ form, accounts, setForm, disabled, inputRef, onSelect
   }
   function clear() {
     setQuery("");
-    setOpen(true);
-    setActiveIndex(0);
+    navigation.changed();
+    inputRef.current?.focus();
     setForm({ ...form, studentId: "", amount: 0, dueDate: "" });
   }
-  return <div ref={rootRef} className="relative sm:col-span-2">
+  const { attachRoot, attachList, attachInput, ...navigation } = useComboboxNavigation({ items: results, itemKey: account => account.studentId, queryKey: query, onSelect: choose, enabled: !disabled });
+  return <div ref={attachRoot} {...navigation.rootProps} className="relative sm:col-span-2">
     <label htmlFor="payment-student-search" className="text-sm">Alumno</label>
     <div className="relative mt-1">
-      <input ref={inputRef} id="payment-student-search" data-enter-next="false" role="combobox" aria-expanded={open} aria-controls="payment-student-options" aria-autocomplete="list" aria-activedescendant={open && results[activeIndex] ? `payment-student-${results[activeIndex].studentId}` : undefined} disabled={disabled} value={query} onFocus={() => !disabled && setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); if (form.studentId) setForm({ ...form, studentId: "" }); }} onKeyDown={(event) => {
-        if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, results.length - 1)); }
-        if (event.key === "ArrowUp") { event.preventDefault(); setActiveIndex((index) => Math.max(index - 1, 0)); }
-        if (event.key === "Enter" && open && results[activeIndex]) { event.preventDefault(); choose(results[activeIndex]); }
-        if (event.key === "Escape") setOpen(false);
-      }} placeholder="Buscar por nombre, apellido o teléfono" className={`${inputClass} pr-20`} />
+      <input ref={node => { inputRef.current = node; attachInput(node); }} id="payment-student-search" {...navigation.inputProps} disabled={disabled} value={query} onChange={(event) => { setQuery(event.target.value); navigation.changed(); if (form.studentId) setForm({ ...form, studentId: "" }); }} placeholder="Buscar por nombre, apellido o teléfono" className={`${inputClass} pr-20`} />
       {!disabled && query && <button type="button" onClick={clear} aria-label="Limpiar alumno seleccionado" className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800">Limpiar</button>}
     </div>
     {selected && <p className="mt-2 text-xs text-yellow-200">Alumno elegido: <strong>{selected.student}</strong></p>}
-    {open && !disabled && <div id="payment-student-options" role="listbox" className="absolute z-[110] mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 shadow-2xl">
-      {results.length ? results.map((account, index) => <button id={`payment-student-${account.studentId}`} role="option" aria-selected={account.studentId === form.studentId} key={account.studentId} type="button" onPointerMove={() => setActiveIndex(index)} onClick={() => choose(account)} className={`block w-full rounded-lg px-3 py-3 text-left ${index === activeIndex || account.studentId === form.studentId ? "bg-yellow-400/10 text-yellow-100" : "text-zinc-200 hover:bg-zinc-800"}`}><span className="block font-semibold">{account.student}</span><span className="mt-0.5 block text-xs text-zinc-500">{account.phone || "Sin teléfono"} · {account.plan || "Sin plan"}</span></button>) : <p className="p-4 text-center text-sm text-zinc-500">No se encontraron alumnos.</p>}
+    {navigation.open && <div ref={attachList} {...navigation.listProps} aria-label="Alumnos para registrar pago" className="absolute z-[110] mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 shadow-2xl">
+      {results.length ? results.map((account) => <button {...navigation.optionProps(account)} key={account.studentId} type="button" className={`block w-full rounded-lg px-3 py-3 text-left ${navigation.activeKey === account.studentId || account.studentId === form.studentId ? "bg-yellow-400/10 text-yellow-100" : "text-zinc-200 hover:bg-zinc-800"}`}><span className="block font-semibold">{account.student}</span><span className="mt-0.5 block text-xs text-zinc-500">{account.phone || "Sin teléfono"} · {account.plan || "Sin plan"}</span></button>) : <p className="p-4 text-center text-sm text-zinc-500">No se encontraron alumnos.</p>}
     </div>}
   </div>;
 }
@@ -460,7 +441,7 @@ function PaymentModal({ form, accounts, setForm, error, saving, close, submit }:
   const formRef = useRef<HTMLFormElement>(null);
   const studentInputRef = useRef<HTMLInputElement>(null);
   const handleEnterNavigation = useEnterFieldNavigation();
-  useEscapeLayer(true, close, { priority: 80 });
+  const dialogKeyboard = useDialogKeyboard(formRef, true, close, { dismissible: !saving, autoFocus: false });
   useEffect(() => {
     requestAnimationFrame(() => {
       if (!form.studentId) studentInputRef.current?.focus();
@@ -468,7 +449,7 @@ function PaymentModal({ form, accounts, setForm, error, saving, close, submit }:
     });
   }, [form.studentId]);
   function focusAmount() { formRef.current?.querySelector<HTMLInputElement>('input[name="payment-amount"]')?.focus(); }
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3"><form ref={formRef} onSubmit={submit} onKeyDownCapture={handleEnterNavigation} role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10">
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3"><form ref={formRef} onSubmit={submit} onKeyDownCapture={handleEnterNavigation} onKeyDown={dialogKeyboard} role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10">
     <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-yellow-400">{title}</p><h2 id="payment-modal-title" className="mt-1 text-lg font-bold">{account?.student ?? "Seleccioná un alumno"}</h2>{form.mode === "quick" && <p className="mt-1 text-xs text-zinc-400">Revisá importe y fecha antes de confirmar.</p>}</div><button type="button" onClick={close} disabled={saving} className="p-2 text-zinc-400">Cerrar</button></div>
     {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -485,9 +466,9 @@ function PaymentModal({ form, accounts, setForm, error, saving, close, submit }:
 }
 
 function HistoryModal({ account, payments, loading, savingId, close, edit, voidPayment }: { account: PaymentStudentAccount; payments: Payment[]; loading: boolean; savingId: string; close: () => void; edit: (payment: Payment) => void; voidPayment: (payment: Payment) => void }) {
-  return <div className="fixed inset-0 z-40 overflow-y-auto bg-black/85 p-3"><section className="mx-auto my-4 w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10">
+  return <div className="fixed inset-0 z-40 overflow-y-auto bg-black/85 p-3"><KeyboardDialog as="section" onClose={close} aria-label={`Historial de pagos de ${account.student}`} className="mx-auto my-4 w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10">
     <div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-yellow-400">Historial de pagos</p><h2 className="mt-1 text-xl font-bold">{account.student}</h2></div><button onClick={close} className="p-2 text-zinc-400">Cerrar</button></div>
     <div className="mt-5 space-y-2">{loading ? <p className="rounded-xl bg-zinc-950 p-8 text-center text-zinc-500">Cargando historial…</p> : payments.length === 0 ? <p className="rounded-xl bg-zinc-950 p-8 text-center text-zinc-500">Este alumno todavía no tiene pagos.</p> : payments.map((payment) => <article key={payment.id} className={`rounded-xl border p-3 ${payment.status === "anulado" ? "border-red-400/20 bg-red-400/5 opacity-70" : "border-zinc-800 bg-zinc-950"}`}><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{showDate(payment.paidDate)} {payment.status === "anulado" && <span className="ml-2 rounded bg-red-400/10 px-2 py-0.5 text-[10px] text-red-300">ANULADO</span>}</p><p className="mt-1 text-sm text-zinc-300">{money(payment.amount)} · {monthLabel(payment.billingPeriod)}</p><p className="mt-1 text-xs text-zinc-500">{payment.method} · Cargado {showDate(payment.createdAt)}</p>{payment.notes && <p className="mt-2 text-xs text-zinc-400">{payment.notes}</p>}{payment.voidReason && <p className="mt-2 text-xs text-red-300">Motivo: {payment.voidReason}</p>}</div>{payment.status !== "anulado" && <details className="relative"><summary className="grid h-9 w-9 cursor-pointer list-none place-items-center rounded-lg bg-zinc-800 text-lg">⋮</summary><div className="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-zinc-700 bg-zinc-900 p-1 shadow-xl"><button onClick={() => edit(payment)} className="block w-full rounded px-2 py-2 text-left text-xs hover:bg-zinc-800">Editar pago</button><button onClick={() => voidPayment(payment)} disabled={savingId === payment.id} className="block w-full rounded px-2 py-2 text-left text-xs text-red-300 hover:bg-zinc-800 disabled:opacity-50">Anular pago</button></div></details>}</div></article>)}</div>
     <p className="mt-4 text-xs text-zinc-600">Registrado por el entrenador autenticado de BM Training.</p>
-  </section></div>;
+  </KeyboardDialog></div>;
 }

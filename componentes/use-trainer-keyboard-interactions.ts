@@ -10,6 +10,7 @@ export function useEnterFieldNavigation() {
   return useCallback((event: ReactKeyboardEvent<HTMLFormElement>) => {
     if (event.key !== "Enter" || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.nativeEvent.isComposing) return;
     const target = event.target;
+    if (target instanceof Element && target.closest('[data-keyboard-owned="true"]')) return;
     if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
     if (target.dataset.enterNext === "false") return;
     if (!shouldEnterAdvance({ tagName: target.tagName, inputType: target instanceof HTMLInputElement ? target.type : undefined, hasList: target instanceof HTMLInputElement && Boolean(target.getAttribute("list")), disabled: target.disabled })) return;
@@ -31,12 +32,12 @@ export function useEnterFieldNavigation() {
   }, []);
 }
 
-export function useEscapeLayer(active: boolean, dismiss: () => void, { priority = 0, triggerRef }: { priority?: number; triggerRef?: RefObject<HTMLElement | null> } = {}) {
+export function useEscapeLayer(active: boolean, dismiss: () => void, { priority = 0, triggerRef, restoreFocus = true }: { priority?: number; triggerRef?: RefObject<HTMLElement | null>; restoreFocus?: boolean } = {}) {
   const dismissRef = useRef(dismiss);
   useEffect(() => { dismissRef.current = dismiss; }, [dismiss]);
   useEffect(() => {
     if (!active) return;
-    const restoreFocus = triggerRef?.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
-    return registerEscapeLayer({ dismiss: () => dismissRef.current(), priority, restoreFocus });
-  }, [active, priority, triggerRef]);
+    const focusTarget = restoreFocus ? triggerRef?.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null) : null;
+    return registerEscapeLayer({ dismiss: () => dismissRef.current(), priority, restoreFocus: focusTarget });
+  }, [active, priority, triggerRef, restoreFocus]);
 }

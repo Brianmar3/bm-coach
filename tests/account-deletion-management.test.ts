@@ -7,6 +7,7 @@ import ts from "typescript";
 import { accountDeletionRequestId, ACCOUNT_DELETION_BODY, isAccountDeletionRequest } from "../lib/account-deletion-request.ts";
 
 const nativeRequire = createRequire(import.meta.url);
+class MockDeletionError extends Error { code: string; constructor(code: string) { super(code); this.code = code; } }
 type Comment = { id: string; studentId: string; author: string; context: string; category: string; status: string; body: string; private: boolean; parentId?: string; createdAt: Date; updatedAt: Date };
 const students = [
   { id: "student-a", workspaceId: "workspace-a", data: { firstName: "Ana", lastName: "López" } },
@@ -16,6 +17,7 @@ const students = [
 
 function fixture() {
   const comments: Comment[] = [];
+  const deleted = new Set<string>();
   const pushes: Array<{ workspaceId: string; payload: { title: string; body: string; url: string; tag: string } }> = [];
   let clock = 0;
   const stamp = () => new Date(Date.UTC(2026, 8, 30, 12, clock++));
@@ -46,11 +48,11 @@ function fixture() {
     },
   };
   const prisma = {
-    studentRecord: { findFirst: async ({ where }: { where: { id: string; workspaceId: string } }) => students.find((item) => item.id === where.id && item.workspaceId === where.workspaceId) ?? null },
+    studentRecord: { findFirst: async ({ where }: { where: { id: string; workspaceId: string } }) => students.find((item) => item.id === where.id && item.workspaceId === where.workspaceId && !deleted.has(item.id)) ?? null },
     followUpComment,
     $transaction: async <T>(callback: (transaction: { followUpComment: typeof followUpComment }) => Promise<T>) => callback({ followUpComment }),
   };
-  function route(path: string, workspaceId = "workspace-a", options: { authenticated?: boolean; pushFails?: boolean } = {}) {
+  function route(path: string, workspaceId = "workspace-a", options: { authenticated?: boolean; pushFails?: boolean; deletionFails?: boolean } = {}) {
     const loaded = { exports: {} };
     const code = ts.transpileModule(readFileSync(path, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const mocks: Record<string, unknown> = {
@@ -60,16 +62,27 @@ function fixture() {
       "@/lib/native-push-notifications": { sendTrainerNativePush: async (target: string, payload: unknown) => { pushes.push({ workspaceId: target, payload: payload as typeof pushes[number]["payload"] }); if (options.pushFails) throw new Error("sin dispositivos"); return { configured: false, delivered: false, results: [] }; } },
       "@/lib/admin-api-auth": { requireAdminApiResponse: async () => options.authenticated === false ? Response.json({ error: "No autorizado" }, { status: 401 }) : null },
       "@/lib/trainer-workspace": { requireTrainerWorkspace: async () => ({ workspaceId }) },
+      "@/lib/student-account-deletion": {
+        StudentAccountDeletionError: MockDeletionError,
+        deleteStudentAccountSafely: async (identity: { workspaceId: string; requestId: string }) => {
+          const pending = comments.find((item) => matches(item, { id: identity.requestId, status: "PENDING", student: { workspaceId: identity.workspaceId } }));
+          if (!pending || !isAccountDeletionRequest(pending)) throw new MockDeletionError("NOT_FOUND");
+          if (options.deletionFails) throw new Error("storage unavailable");
+          deleted.add(pending.studentId);
+          comments.splice(0, comments.length, ...comments.filter((item) => item.studentId !== pending.studentId));
+          return { accountDeleted: true };
+        },
+      },
       "@prisma/client": { Prisma: { PrismaClientKnownRequestError: class extends Error {} } },
     };
     runInNewContext(code, { module: loaded, exports: loaded.exports, require: (name: string) => name in mocks ? mocks[name] : nativeRequire(name), Response, Request, Date, console });
     return loaded.exports as { GET: () => Promise<Response>; POST: (request: Request) => Promise<Response>; PATCH: (request: Request) => Promise<Response> };
   }
-  return { comments, pushes, portal: (workspaceId?: string, options?: { authenticated?: boolean; pushFails?: boolean }) => route("app/api/portal/account-deletion/route.ts", workspaceId, options), admin: (workspaceId?: string, options?: { authenticated?: boolean }) => route("app/api/admin/account-deletion/route.ts", workspaceId, options) };
+  return { comments, pushes, deleted, portal: (workspaceId?: string, options?: { authenticated?: boolean; pushFails?: boolean }) => route("app/api/portal/account-deletion/route.ts", workspaceId, options), admin: (workspaceId?: string, options?: { authenticated?: boolean; deletionFails?: boolean }) => route("app/api/admin/account-deletion/route.ts", workspaceId, options) };
 }
 
 const post = () => new Request("http://localhost/api/portal/account-deletion", { method: "POST" });
-const patch = (id: string) => new Request("http://localhost/api/admin/account-deletion", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: id }) });
+const patch = (id: string, confirmation = "ELIMINAR") => new Request("http://localhost/api/admin/account-deletion", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: id, confirmation }) });
 
 test("creación y repetición: badge correcto, fecha conservada y push sólo una vez al workspace A", async () => {
   const state = fixture();
@@ -117,26 +130,34 @@ test("contador incluye sólo solicitudes auténticas y pendientes del workspace"
   assert.deepEqual(body.requests.map((item) => item.id).sort(), [accountDeletionRequestId("student-a"), accountDeletionRequestId("student-a2")].sort());
 });
 
-test("resolver conserva trazabilidad, desaparece de pendientes y permite nueva solicitud sin nuevo ID", async () => {
+test("eliminar requiere confirmación, retira cuenta y solicitud, e impide nuevo acceso", async () => {
   const state = fixture();
   const portal = state.portal();
   await portal.POST(post());
   const id = accountDeletionRequestId("student-a");
-  const createdAt = state.comments[0].createdAt.toISOString();
-  const reviewed = await state.admin().PATCH(patch(id));
-  assert.equal(reviewed.status, 200);
-  assert.equal((await reviewed.json() as { accountDeleted: boolean }).accountDeleted, false);
-  assert.equal(state.comments[0].status, "REVIEWED");
-  assert.equal(state.comments[0].createdAt.toISOString(), createdAt);
-  assert.notEqual(state.comments[0].updatedAt.toISOString(), createdAt);
-  assert.equal(state.comments[1].parentId, id);
-  assert.equal(state.comments[1].private, true);
-  assert.equal((await state.admin().GET().then((response) => response.json()) as { requests: unknown[] }).requests.length, 0);
-  assert.equal((await portal.GET().then((response) => response.json()) as { requested: boolean }).requested, false);
-  assert.equal((await portal.POST(post())).status, 201);
-  assert.equal(state.comments[0].id, id);
+  assert.equal((await state.admin().PATCH(patch(id, ""))).status, 400);
   assert.equal(state.comments[0].status, "PENDING");
-  assert.equal(state.pushes.length, 2);
+  const result = await state.admin().PATCH(patch(id));
+  assert.equal(result.status, 200);
+  assert.equal((await result.json() as { accountDeleted: boolean }).accountDeleted, true);
+  assert.equal(state.deleted.has("student-a"), true);
+  assert.equal(state.comments.length, 0);
+  assert.equal((await state.admin().GET().then((response) => response.json()) as { requests: unknown[] }).requests.length, 0);
+  assert.equal((await portal.GET()).status, 401);
+  assert.equal((await portal.POST(post())).status, 401);
+  assert.equal((await state.admin().PATCH(patch(id))).status, 404);
+  assert.equal(state.deleted.has("student-b"), false);
+});
+
+test("fallo mantiene solicitud pendiente y permite reintentar", async () => {
+  const state = fixture();
+  await state.portal().POST(post());
+  const id = accountDeletionRequestId("student-a");
+  assert.equal((await state.admin("workspace-a", { deletionFails: true }).PATCH(patch(id))).status, 500);
+  assert.equal(state.comments[0].status, "PENDING");
+  assert.equal(state.deleted.size, 0);
+  assert.equal((await state.admin().PATCH(patch(id))).status, 200);
+  assert.equal(state.deleted.has("student-a"), true);
 });
 
 test("sin Native Push la solicitud persiste; sin sesión no se crea", async () => {
@@ -153,8 +174,8 @@ test("panel muestra contador discreto y los textos conservan UTF-8", () => {
   const portal = readFileSync("app/api/portal/account-deletion/route.ts", "utf8");
   assert.match(panel, /requests\.length/);
   assert.match(panel, /Ver alumno/);
-  assert.match(panel, /Gestionar solicitud/);
-  assert.match(panel, /Marcar como resuelta \/ procesada/);
+  assert.match(panel, /Eliminar cuenta y datos/);
+  assert.match(panel, /Escribí ELIMINAR para confirmar/);
   assert.match(student, /requestedAt/);
   assert.match(student, /Solicitar eliminación de cuenta/);
   assert.doesNotMatch([panel, student, portal].join("\n"), /eliminaciÃ|SesiÃ|DebÃ/);

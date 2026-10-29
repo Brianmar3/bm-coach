@@ -39,25 +39,27 @@ export default function DeleteAccountPage() {
               <li>Abrí <strong className="text-white">Perfil</strong>, luego <strong className="text-white">Configuración</strong> y entrá en <strong className="text-white">Privacidad</strong>.</li>
               <li>Elegí <strong className="text-white">Solicitar eliminación de cuenta</strong>.</li>
               <li>Leé la advertencia y confirmá la solicitud. La cuenta no se elimina instantáneamente sin esta confirmación.</li>
+              <li>El entrenador revisa la solicitud y confirma la eliminación de la cuenta y sus datos desde su panel. Si el procedimiento falla, la solicitud permanece pendiente.</li>
             </ol>
             <Link href="/portal/login" className="mt-6 inline-flex min-h-12 items-center justify-center rounded-xl bg-yellow-400 px-5 font-black text-black transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-200">Ingresar para solicitar la eliminación</Link>
           </section>
 
           <section className={sectionClass}>
             <h2 className={headingClass}>Qué datos se eliminan</h2>
-            <p className={paragraphClass}>Al aprobarse y completarse la solicitud, se eliminan o desvinculan de la cuenta los datos personales y contenidos asociados que BM Training ya no necesite conservar, incluyendo:</p>
+            <p className={paragraphClass}>Cuando el entrenador confirma y el procedimiento termina correctamente, se eliminan la cuenta y los datos asociados, incluyendo:</p>
             <ul className={listClass}>
               <li>credenciales y acceso al Portal del Alumno</li>
               <li>datos del perfil y preferencias</li>
               <li>rutinas, registros de entrenamiento y progreso</li>
               <li>asistencias, reservas y evaluaciones</li>
               <li>comentarios, notificaciones, fotografías y archivos asociados</li>
+              <li>registros individuales de pagos y vencimientos</li>
             </ul>
           </section>
 
           <section className={sectionClass}>
-            <h2 className={headingClass}>Conservación temporal</h2>
-            <p className={paragraphClass}>Cierta información puede conservarse temporalmente cuando sea necesaria para cumplir obligaciones legales, proteger la seguridad de la plataforma, prevenir abusos, resolver incidencias o mantener respaldos. Esa información se limita a lo necesario y se elimina o anonimiza cuando deja de ser requerida.</p>
+            <h2 className={headingClass}>Qué permanece</h2>
+            <p className={paragraphClass}>Puede permanecer un registro técnico de que se completó el procedimiento, sin identificar al alumno, y estadísticas mensuales agregadas sin su detalle individual. No se conserva la credencial ni el historial individual de pagos en la base operativa. Si un archivo no puede verificarse o eliminarse, la solicitud sigue pendiente y se requiere revisión antes de confirmar la eliminación.</p>
           </section>
 
           <section className={sectionClass}>

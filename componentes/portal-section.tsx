@@ -1,4 +1,6 @@
 "use client";
+import { useDialogKeyboard, KeyboardDialog } from "@/componentes/keyboard-dialog";
+
 import { hasOfflineTraining, hydrateOfflineTraining, offlineWorkoutData, offlineWorkoutDraft, refreshOfflineTraining, saveOfflineWorkout, stageOfflineWorkout, logoutOfflineTraining, subscribeOfflineTraining } from "@/lib/offline-training-client";
 import type { OfflineWorkoutData } from "@/lib/offline-training-types";
 import { PortalHeroFrame, PortalRoutineFrame, PORTAL_STAT_CARD_CLASS } from "@/componentes/portal-visuals";
@@ -233,7 +235,7 @@ function PortalEventAnnouncement({ events, studentId }: { events: PortalData["ev
     {!dismissed && <section className="portal-home-enter relative overflow-hidden rounded-2xl border border-yellow-400/25 bg-[linear-gradient(145deg,rgba(250,204,21,.08),#101010_70%)] px-4 py-4 shadow-[0_12px_30px_rgba(0,0,0,.24)] sm:px-5">
       <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/10 text-[var(--brand-text)]"><BmCalendarIcon size={20} /></span><div className="min-w-0 flex-1"><p className="text-[11px] font-black uppercase tracking-[.2em] text-[var(--brand-text)]">Evento de {branding.displayName}</p><h2 className="mt-1 break-words text-base font-bold text-white sm:text-lg">{event.title}</h2><p className="mt-1 text-xs text-[var(--foreground-muted)] sm:text-sm">{eventDateLabel(event.date, event.time)}</p>{event.location && <p className="mt-1 break-words text-xs text-[var(--foreground-muted)] sm:text-sm">{event.location}</p>}<div className="mt-3 flex flex-wrap items-center gap-3"><button type="button" onClick={() => setDetail(event)} className="min-h-10 text-sm font-bold text-[var(--brand-text)]">Ver detalles →</button>{events.length > 1 && <span className="text-xs text-[var(--foreground-muted)]">+ {events.length - 1} evento{events.length === 2 ? "" : "s"}</span>}</div></div><button type="button" onClick={dismiss} aria-label="Ocultar anuncio" className="grid size-10 shrink-0 place-items-center rounded-xl text-[var(--foreground-muted)] hover:bg-white/5 hover:text-white"><BmCloseIcon size={18} /></button></div>
     </section>}
-    {detail && <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/80 p-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:grid sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetail(null); }}><section role="dialog" aria-modal="true" aria-labelledby="portal-event-title" className="mx-auto w-full max-w-lg rounded-2xl border border-yellow-400/25 bg-zinc-950 p-5 text-white shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[11px] font-black uppercase tracking-[.2em] text-[var(--brand-text)]">Evento de {branding.displayName}</p><h2 id="portal-event-title" className="mt-2 text-xl font-bold">{detail.title}</h2></div><button type="button" onClick={() => setDetail(null)} aria-label="Cerrar detalle" className="grid size-10 shrink-0 place-items-center rounded-xl text-[var(--foreground-muted)] hover:bg-zinc-900"><BmCloseIcon size={20} /></button></div><dl className="mt-5 space-y-3 text-sm"><div><dt className="text-xs text-[var(--foreground-muted)]">Fecha y hora</dt><dd className="mt-1">{eventDateLabel(detail.date, detail.time)}</dd></div>{detail.location && <div><dt className="text-xs text-[var(--foreground-muted)]">Lugar</dt><dd className="mt-1 break-words">{detail.location}</dd></div>}</dl>{detail.description && <p className="mt-5 border-t border-zinc-800 pt-4 text-sm leading-relaxed text-zinc-300">{detail.description}</p>}</section></div>}
+    {detail && <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/80 p-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:grid sm:place-items-center sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetail(null); }}><KeyboardDialog as="section" onClose={() => setDetail(null)} role="dialog" aria-modal="true" aria-labelledby="portal-event-title" className="mx-auto w-full max-w-lg rounded-2xl border border-yellow-400/25 bg-zinc-950 p-5 text-white shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[11px] font-black uppercase tracking-[.2em] text-[var(--brand-text)]">Evento de {branding.displayName}</p><h2 id="portal-event-title" className="mt-2 text-xl font-bold">{detail.title}</h2></div><button type="button" onClick={() => setDetail(null)} aria-label="Cerrar detalle" className="grid size-10 shrink-0 place-items-center rounded-xl text-[var(--foreground-muted)] hover:bg-zinc-900"><BmCloseIcon size={20} /></button></div><dl className="mt-5 space-y-3 text-sm"><div><dt className="text-xs text-[var(--foreground-muted)]">Fecha y hora</dt><dd className="mt-1">{eventDateLabel(detail.date, detail.time)}</dd></div>{detail.location && <div><dt className="text-xs text-[var(--foreground-muted)]">Lugar</dt><dd className="mt-1 break-words">{detail.location}</dd></div>}</dl>{detail.description && <p className="mt-5 border-t border-zinc-800 pt-4 text-sm leading-relaxed text-zinc-300">{detail.description}</p>}</KeyboardDialog></div>}
   </>;
 }
 
@@ -678,6 +680,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   const [error, setError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
   const focusViewportActive = Boolean(focusExerciseId && draft && !completionSuccess);
+  const focusKeyboard = useDialogKeyboard(focusRootRef, focusViewportActive && !finalOpen, exitFocus, { priority: 60, autoFocus: false });
   useEffect(() => {
     if (!focusViewportActive) return;
     const root = focusRootRef.current;
@@ -1053,16 +1056,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   const timerExercise = draft?.exercises.find((exercise) => exercise.exerciseId === exerciseRestTimer.timer?.exerciseId && ["running", "paused"].includes(exerciseRestTimer.timer.status)) ?? focusExerciseData;
   const timerProgrammed = selectedDay.exercises.find((exercise) => exercise.id === timerExercise?.exerciseId);
   return <>
-    <div ref={focusRootRef} className={`portal-routine-screen ${focused ? "workout-focus" : ""}`} role={focused ? "dialog" : undefined} aria-modal={focused ? true : undefined} aria-label={focused ? "Modo enfoque" : undefined} onKeyDown={(event) => {
-      if (!focused || finalOpen || !event.currentTarget.contains(event.target as Node)) return;
-      if (event.key === "Escape") exitFocus();
-      if (event.key === "Tab") {
-        const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), summary, a[href], select, textarea')).filter((element) => element.getClientRects().length > 0);
-        const first = controls[0], last = controls[controls.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }
-    }}>
+    <div ref={focusRootRef} className={`portal-routine-screen ${focused ? "workout-focus" : ""}`} role={focused ? "dialog" : undefined} aria-modal={focused ? true : undefined} aria-label={focused ? "Modo enfoque" : undefined} tabIndex={focused ? -1 : undefined} onKeyDown={focusKeyboard}>
     {focused && draft && <WorkoutFocusHeader index={focusIndex} total={draft.exercises.length} progress={focusProgress(draft)} elapsed={started ? workoutElapsedSeconds(draft, focusNow, sessionStartedAtMs) : null} onExit={exitFocus} />}
     <div hidden={focused}>
     <header className="portal-routine-enter mb-3 px-1"><p className="text-xs font-bold uppercase tracking-[.2em] text-[var(--brand-text)]/80">Tu plan activo</p><p className="mt-1 text-sm font-semibold text-zinc-300">{routineDisplayName}</p></header>
