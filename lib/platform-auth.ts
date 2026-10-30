@@ -1,15 +1,13 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { PLATFORM_SESSION_COOKIE, adminAuthError, verifyPlatformSessionValue } from "@/lib/admin-auth";
+import { PLATFORM_SESSION_COOKIE, adminAuthError } from "@/lib/admin-auth";
+import { platformSessionAccess } from "@/lib/platform-session-access";
 import { isPlatformOwner } from "@/lib/platform-access";
 import { prisma } from "@/lib/prisma";
 
 async function currentUser() {
-  const session = verifyPlatformSessionValue((await cookies()).get(PLATFORM_SESSION_COOKIE)?.value);
-  if (!session.ok) return { session, user: null };
-  const user = session.userId ? await prisma.user.findUnique({ where: { id: session.userId } }) : null;
-  return { session, user };
+  return platformSessionAccess((await cookies()).get(PLATFORM_SESSION_COOKIE)?.value, prisma);
 }
 
 export async function requirePlatformOwnerPage() {

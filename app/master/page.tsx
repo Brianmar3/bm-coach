@@ -2,11 +2,10 @@
 
 import Image from "next/image";
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { PasswordField } from "@/componentes/password-field";
+import { masterReturnPath } from "@/lib/master-access";
 
 export default function MasterLoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -26,8 +25,8 @@ export default function MasterLoginPage() {
       });
       if (!response.ok) throw new Error("Los datos ingresados no son correctos.");
       setPassword("");
-      router.replace("/platform/trainers");
-      router.refresh();
+      // Start a fresh server request after Set-Cookie, without reusing a prefetched login redirect.
+      window.location.replace(masterReturnPath(new URLSearchParams(window.location.search).get("next")));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo iniciar sesión.");
     } finally {

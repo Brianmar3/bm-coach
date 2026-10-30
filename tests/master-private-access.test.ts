@@ -22,8 +22,8 @@ test("PLATFORM_OWNER abre y vuelve a abrir /master con su sesión persistente", 
     const session = createPlatformSessionValue("owner-a", createdAt);
     assert.ok(session);
     assert.equal(verifyPlatformSessionValue(session.value, new Date("2026-10-20T12:00:00.000Z")).ok, true);
-    assert.equal(masterEntryDestination({ platformOwnerValid: true, trainerValid: false, studentValid: false }), "/platform/trainers");
-    assert.match(read("proxy.ts"), /path === "\/master"[\s\S]*verifyPlatformSessionValue[\s\S]*masterEntryDestination/);
+    assert.equal(masterEntryDestination({ platformOwnerValid: true }), "/platform/trainers");
+    assert.match(read("proxy.ts"), /path === "\/master"[\s\S]*platformSessionAccess[\s\S]*masterEntryDestination/);
   } finally {
     if (previous === undefined) delete process.env.BM_COACH_ADMIN_TOKEN;
     else process.env.BM_COACH_ADMIN_TOKEN = previous;
@@ -33,14 +33,13 @@ test("PLATFORM_OWNER abre y vuelve a abrir /master con su sesión persistente", 
 test("PLATFORM_OWNER conserva acceso a /platform/trainers bajo guard propio", () => {
   const proxy = read("proxy.ts");
   assert.match(proxy, /const platformRoute = [^;]*\/platform/);
-  assert.match(proxy, /if \(platformRoute\)[\s\S]*verifyPlatformSessionValue/);
+  assert.match(proxy, /if \(platformRoute\)[\s\S]*platformSessionAccess/);
   assert.match(read("app/platform/layout.tsx"), /requirePlatformOwnerPage/);
   assert.match(read("lib/platform-auth.ts"), /PLATFORM_SESSION_COOKIE/);
 });
 
-test("TRAINER y STUDENT que intentan /master vuelven a su portal", () => {
-  assert.equal(masterEntryDestination({ platformOwnerValid: false, trainerValid: true, studentValid: false }), "/dashboard");
-  assert.equal(masterEntryDestination({ platformOwnerValid: false, trainerValid: false, studentValid: true }), "/portal");
+test("sesiones ajenas no bloquean el login Master", () => {
+  assert.equal(masterEntryDestination({ platformOwnerValid: false }), null);
 });
 
 test("la entrada normal mantiene al TRAINER en el dashboard", () => {
@@ -83,7 +82,7 @@ test("Master, Trainer y Student coexisten sin compartir cookie ni logout", () =>
     if (previous === undefined) delete process.env.BM_COACH_ADMIN_TOKEN;
     else process.env.BM_COACH_ADMIN_TOKEN = previous;
   }
-  assert.equal(masterEntryDestination({ platformOwnerValid: true, trainerValid: true, studentValid: true }), "/platform/trainers");
+  assert.equal(masterEntryDestination({ platformOwnerValid: true }), "/platform/trainers");
   assert.match(read("componentes/platform-shell.tsx"), /\/api\/platform\/auth\/logout/);
   assert.match(read("app/api/platform/auth/logout/route.ts"), /PLATFORM_SESSION_COOKIE/);
   assert.doesNotMatch(read("app/api/platform/auth/logout/route.ts"), /ADMIN_SESSION_COOKIE|STUDENT_SESSION_COOKIE/);

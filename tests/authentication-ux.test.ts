@@ -71,5 +71,5 @@ test("el login público no expone administración y el acceso master permanece s
   assert.doesNotMatch(trainerLogin, /credencial administrativa|cuenta maestra|PLATFORM_OWNER|plataforma/i);
   assert.doesNotMatch(portalLogin, /cuenta maestra|PLATFORM_OWNER|\/master|\/platform/i);
   assert.match(masterLogin, /fetch\("\/api\/platform\/auth\/login"/);
-  assert.match(masterLogin, /router\.replace\("\/platform\/trainers"\)/);
+  assert.match(masterLogin, /window\.location\.replace\(masterReturnPath/);
 });
