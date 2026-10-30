@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-29",
+  "workspace": "C:\\bmcoach-local",
+  "cause": {
+    "previousMasterManifest": "/manifest.webmanifest",
+    "previousAppId": "/admin",
+    "previousStartUrl": "/dashboard",
+    "phoneWebApkInspected": false
+  },
+  "master": {
+    "manifest": "/master/manifest.webmanifest",
+    "id": "/master",
+    "start_url": "/master",
+    "scope": "/",
+    "name": "BM Training Master",
+    "short_name": "BM Master"
+  },
+  "preserved": {
+    "trainer": {
+      "id": "/admin",
+      "start_url": "/dashboard"
+    },
+    "student": {
+      "id": "/portal",
+      "start_url": "/portal"
+    },
+    "sharedServiceWorker": "/sw.js",
+    "authentication": "PLATFORM_OWNER guards unchanged"
+  },
+  "validation": {
+    "unitAndRegression": {
+      "pass": 26,
+      "fail": 0
+    },
+    "productionHttpAndroidUserAgent": {
+      "pass": 5,
+      "fail": 0
+    },
+    "masterAccess": {
+      "pass": 61,
+      "fail": 0
+    },
+    "lintChanged": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "typescript": {
+      "errors": 53,
+      "newDiagnostics": 0
+    },
+    "nextBuild": {
+      "passed": true,
+      "staticPages": 82
+    }
+  },
+  "limits": [
+    "HTTP tests use the real Next production build with a fake account and database writes blocked.",
+    "Physical Android WebAPK installation, Chrome installation prompts and actual home-screen launcher were not exercised."
+  ],
+  "productionModified": false,
+  "committed": false,
+  "pushed": false
+}
