@@ -7,6 +7,9 @@ import { useSearchParams } from "next/navigation";
 import { attendanceEntryKey, classesView } from "@/lib/classes-navigation";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { WeeklyAttendanceHistory } from "@/componentes/weekly-attendance-history";
+import { AttendancePeriodReport } from "@/componentes/attendance-period-report";
+import { studentAttendanceHref } from "@/lib/student-attendance-history";
+import { normalizeStudentSearch } from "@/lib/student-search";
 import { toggledAttendanceStatus } from "@/lib/attendance-state";
 import { automaticAttendanceSchedule, attendanceScheduleSelection } from "@/lib/attendance-schedule-selection";
 import { nextRosterIndex, rosterStatusForKey } from "@/lib/trainer-keyboard-interactions";
@@ -46,7 +49,9 @@ function AttendancePageContent() {
   const view = classesView("/asistencias", searchParams);
   const historyMode = view === "history";
   const lowActivityMode = view === "low-activity";
-  const weeklyHistoryMode = historyMode && searchParams.get("mode") !== "day";
+  const historyTab = searchParams.get("mode") ?? "records";
+  const periodHistoryMode = historyMode && (historyTab === "records" || historyTab === "stats");
+  const weeklyHistoryMode = historyMode && !periodHistoryMode && searchParams.get("mode") !== "day";
   const [date, setDate] = useState(searchParams.get("date") || todayKey());
   const [schedules, setSchedules] = useState<WeeklyClassSchedule[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -54,7 +59,7 @@ function AttendancePageContent() {
   const [roster, setRoster] = useState<AttendanceRosterStudent[]>([]);
   const [summary, setSummary] = useState<AttendanceGeneralSummary | null>(null);
   const [lowActivityStudents, setLowActivityStudents] = useState<DashboardLowActivityStudent[]>([]);
-  const [studentQuery, setStudentQuery] = useState("");
+  const [studentQuery, setStudentQuery] = useState(searchParams.get("q") ?? "");
   const [addingStudent, setAddingStudent] = useState(false);
   const [addStudentQuery, setAddStudentQuery] = useState("");
   const [ready, setReady] = useState(false);
@@ -97,13 +102,23 @@ function AttendancePageContent() {
   const selectedSchedule = schedules.find((schedule) => schedule.id === effectiveScheduleId) ?? null;
 
   useEffect(() => {
-    if (weeklyHistoryMode || lowActivityMode) return;
+    if (weeklyHistoryMode || periodHistoryMode || lowActivityMode) return;
     const controller = new AbortController();
     fetch(`/api/asistencias/resumen?date=${date}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudo cargar el resumen.")); return response.json() as Promise<AttendanceGeneralSummary>; })
       .then(setSummary).catch((summaryError: unknown) => { if (summaryError instanceof Error && summaryError.name !== "AbortError") setError(summaryError.message); });
     return () => controller.abort();
-  }, [date, lowActivityMode, weeklyHistoryMode]);
+  }, [date, lowActivityMode, weeklyHistoryMode, periodHistoryMode]);
+
+  useEffect(() => {
+    if (historyMode || lowActivityMode) return;
+    const url = new URL(window.location.href);
+    if (studentQuery) url.searchParams.set("q", studentQuery); else url.searchParams.delete("q");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search);
+  }, [studentQuery, historyMode, lowActivityMode]);
+
+  const dailyContext = "/asistencias?" + new URLSearchParams({ view: "attendance", date, scheduleId: effectiveScheduleId, q: studentQuery, ...(targetStudentId ? { studentId: targetStudentId } : {}) });
+  function rememberDailyContext() { window.history.replaceState(window.history.state, "", dailyContext); }
 
   const loadRoster = useCallback((targetScheduleId: string, targetDate = date) => {
     const controller = new AbortController();
@@ -129,8 +144,8 @@ function AttendancePageContent() {
     return () => controller.abort();
   }, [date, effectiveScheduleId, historyMode, loadRoster, lowActivityMode]);
 
-  const rosterStudents = useMemo(() => {
-    const normalized = studentQuery.trim().toLocaleLowerCase("es");
+  const rosterStudents = (() => {
+    const normalized = normalizeStudentSearch(studentQuery);
     const available = targetStudentId
       ? [...roster].sort(
           (left, right) =>
@@ -139,8 +154,8 @@ function AttendancePageContent() {
         )
       : roster;
     if (!normalized) return available;
-    return available.filter((student) => student.name.toLocaleLowerCase("es").includes(normalized));
-  }, [roster, studentQuery, targetStudentId]);
+    return available.filter((student) => normalizeStudentSearch(student.name).includes(normalized));
+  })();
 
   const addableStudents = useMemo(() => {
     const existing = new Set(roster.map((student) => student.id));
@@ -245,16 +260,18 @@ function AttendancePageContent() {
       {!lowActivityMode && selectedSchedule && <section className="mb-3 rounded-xl border border-zinc-800 bg-zinc-900/80 px-4 py-3"><p className="text-[11px] font-bold uppercase tracking-wider text-yellow-400">{DAY_LABEL[selectedSchedule.dayOfWeek]} · {selectedSchedule.startTime}–{selectedSchedule.endTime}</p><div className="mt-1 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-bold">{selectedSchedule.classType}</h2><p className="text-xs text-zinc-500">{selectedSchedule.students.length} alumnos asignados</p></div></section>}
       <section className={`${historyMode || lowActivityMode ? "hidden " : ""}overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/80`}>
         <div className="grid gap-3 border-b border-zinc-800 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><label className="text-xs text-zinc-400">Fecha<input type="date" value={date} onChange={(event) => changeDate(event.target.value)} className={`${inputClass} mt-1`} /></label><button disabled={saving || !roster.some((student) => student.assigned)} onClick={markAllPresent} className="min-h-11 rounded-xl border border-emerald-400/40 px-4 text-sm font-bold text-emerald-300 disabled:opacity-50">Marcar todos presentes</button></div>
-        <div className="border-b border-zinc-800 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-end"><label className="min-w-0 flex-1 text-sm">Buscar alumno<input value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Nombre o apellido" className={`${inputClass} mt-1`} /></label><button ref={addStudentTriggerRef} type="button" aria-expanded={addingStudent} onClick={() => setAddingStudent((value) => !value)} className="min-h-11 shrink-0 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-yellow-300">+ Agregar alumno</button></div>{addingStudent && <div ref={attachRoot} {...addNavigation.rootProps} onKeyDown={event => { if (!event.defaultPrevented && !event.nativeEvent.isComposing && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setAddingStudent(false); addStudentTriggerRef.current?.focus(); } }} className="mt-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3"><label className="text-xs text-zinc-400">Buscar alumno activo<input autoFocus ref={attachInput} {...addNavigation.inputProps} value={addStudentQuery} onChange={(event) => { setAddStudentQuery(event.target.value); addNavigation.changed(); }} placeholder="Nombre, apellido o teléfono" className={`${inputClass} mt-1`} /></label>{addNavigation.open && <div ref={attachList} {...addNavigation.listProps} aria-label="Alumnos activos para agregar" className="mt-2 overflow-hidden rounded-lg border border-zinc-800">{!ready ? <p className="p-3 text-sm text-zinc-500">Buscando alumnos…</p> : addableStudents.length ? addableStudents.map((student) => <button key={student.id} type="button" {...addNavigation.optionProps(student)} className="flex w-full items-center justify-between gap-3 border-b border-zinc-800 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-zinc-900"><span>{student.firstName} {student.lastName}</span><span className="text-xs text-zinc-500">{student.phone}</span></button>) : <p className="p-3 text-sm text-zinc-500">No se encontraron alumnos activos.</p>}</div>}</div>}</div>
+        <div className="border-b border-zinc-800 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-end"><label className="min-w-0 flex-1 text-sm">Buscar alumno<input value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} placeholder="Nombre o apellido" className={`${inputClass} mt-1`} /></label><button type="button" onClick={() => setStudentQuery("")} className="min-h-11 shrink-0 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-300">Todos los alumnos</button><button ref={addStudentTriggerRef} type="button" aria-expanded={addingStudent} onClick={() => setAddingStudent((value) => !value)} className="min-h-11 shrink-0 rounded-xl border border-zinc-700 px-4 text-sm font-bold text-yellow-300">+ Agregar alumno</button></div>{addingStudent && <div ref={attachRoot} {...addNavigation.rootProps} onKeyDown={event => { if (!event.defaultPrevented && !event.nativeEvent.isComposing && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setAddingStudent(false); addStudentTriggerRef.current?.focus(); } }} className="mt-3 rounded-xl border border-zinc-700 bg-zinc-950 p-3"><label className="text-xs text-zinc-400">Buscar alumno activo<input autoFocus ref={attachInput} {...addNavigation.inputProps} value={addStudentQuery} onChange={(event) => { setAddStudentQuery(event.target.value); addNavigation.changed(); }} placeholder="Nombre, apellido o teléfono" className={`${inputClass} mt-1`} /></label>{addNavigation.open && <div ref={attachList} {...addNavigation.listProps} aria-label="Alumnos activos para agregar" className="mt-2 overflow-hidden rounded-lg border border-zinc-800">{!ready ? <p className="p-3 text-sm text-zinc-500">Buscando alumnos…</p> : addableStudents.length ? addableStudents.map((student) => <button key={student.id} type="button" {...addNavigation.optionProps(student)} className="flex w-full items-center justify-between gap-3 border-b border-zinc-800 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-zinc-900"><span>{student.firstName} {student.lastName}</span><span className="text-xs text-zinc-500">{student.phone}</span></button>) : <p className="p-3 text-sm text-zinc-500">No se encontraron alumnos activos.</p>}</div>}</div>}</div>
         {!calendarMode && <div className="border-b border-zinc-800 p-4"><label className="text-sm">Horario o grupo (opcional)<select value={effectiveScheduleId} onChange={(event) => changeSchedule(event.target.value)} className={`${inputClass} mt-1`}><option value="">Sin horario fijo</option>{dateSchedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}</select><span className="mt-1 block text-xs text-zinc-500">Podés usar el registro sin horario y corregirlo después.</span></label></div>}
-        {!ready ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : loadingRoster ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : rosterStudents.length === 0 ? <p className="p-12 text-center text-zinc-500">No hay alumnos para esta fecha. Podés agregarlos con “+ Agregar alumno”.</p> : <div className="grid gap-2 p-3" aria-label="Lista de asistencia">{rosterStudents.map((student, index) => <AttendanceStudentCard key={student.id} student={student} highlighted={student.id === targetStudentId} keyboardActive={index === activeRosterIndex} saving={saving} setRef={(node) => { if (node) rosterRefs.current.set(student.id, node); else rosterRefs.current.delete(student.id); }} onFocus={() => setActiveRosterIndex(index)} onKeyDown={(event) => handleRosterKey(index, event)} setStatus={(status) => setStatus(student.id, status)} />)}</div>}
+        {!ready ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : loadingRoster ? <p className="p-12 text-center text-zinc-500">Cargando alumnos…</p> : rosterStudents.length === 0 ? <p className="p-12 text-center text-zinc-500">No hay alumnos para esta fecha. Podés agregarlos con “+ Agregar alumno”.</p> : <div className="grid gap-2 p-3" aria-label="Lista de asistencia">{rosterStudents.map((student, index) => <AttendanceStudentCard key={student.id} historyHref={studentAttendanceHref(student.id, dailyContext)} onHistoryNavigate={rememberDailyContext} student={student} highlighted={student.id === targetStudentId} keyboardActive={index === activeRosterIndex} saving={saving} setRef={(node) => { if (node) rosterRefs.current.set(student.id, node); else rosterRefs.current.delete(student.id); }} onFocus={() => setActiveRosterIndex(index)} onKeyDown={(event) => handleRosterKey(index, event)} setStatus={(status) => setStatus(student.id, status)} />)}</div>}
       </section>
       <div className={historyMode ? "" : "hidden"}>
-        <div className="mb-5 flex w-fit rounded-xl border border-zinc-800 bg-zinc-900 p-1" role="tablist" aria-label="Período del historial">
-          <Link href="/asistencias?view=history&mode=day" role="tab" aria-selected={!weeklyHistoryMode} className={`rounded-lg px-4 py-2 text-sm font-bold ${!weeklyHistoryMode ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Día</Link>
+        <div className="mb-5 flex w-full flex-wrap rounded-xl border border-zinc-800 bg-zinc-900 p-1" role="tablist" aria-label="Período del historial">
+          <Link href="/asistencias?view=history&mode=records" role="tab" aria-selected={periodHistoryMode && historyTab === "records"} className={`rounded-lg px-4 py-2 text-sm font-bold ${periodHistoryMode && historyTab === "records" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Historial</Link>
+          <Link href="/asistencias?view=history&mode=stats" role="tab" aria-selected={historyTab === "stats"} className={`rounded-lg px-4 py-2 text-sm font-bold ${historyTab === "stats" ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Estadísticas</Link>
+          <Link href="/asistencias?view=history&mode=day" role="tab" aria-selected={!weeklyHistoryMode && !periodHistoryMode} className={`rounded-lg px-4 py-2 text-sm font-bold ${!weeklyHistoryMode && !periodHistoryMode ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Día</Link>
           <Link href="/asistencias?view=history&mode=week" role="tab" aria-selected={weeklyHistoryMode} className={`rounded-lg px-4 py-2 text-sm font-bold ${weeklyHistoryMode ? "bg-yellow-400 text-zinc-950" : "text-zinc-400"}`}>Semana</Link>
         </div>
-        {weeklyHistoryMode ? <WeeklyAttendanceHistory /> : <AttendanceHistory summary={summary} />}
+        {periodHistoryMode ? <AttendancePeriodReport statistics={historyTab === "stats"}/> : weeklyHistoryMode ? <WeeklyAttendanceHistory /> : <AttendanceHistory summary={summary} />}
       </div>
     </ModuleShell>
   );
@@ -306,6 +323,8 @@ function AttendanceStudentCard({
   onFocus,
   onKeyDown,
   setStatus,
+  historyHref,
+  onHistoryNavigate,
 }: {
   student: AttendanceRosterStudent;
   highlighted: boolean;
@@ -315,6 +334,8 @@ function AttendanceStudentCard({
   onFocus: () => void;
   onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
   setStatus: (status: AttendanceStatus) => void;
+  historyHref: string;
+  onHistoryNavigate: () => void;
 }) {
   const confirmation = student.confirmation
     ? CONFIRMATION_LABEL[student.confirmation]
@@ -384,6 +405,7 @@ function AttendanceStudentCard({
           </button>
         ))}
       </div>
+      <Link href={historyHref} onClick={onHistoryNavigate} className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-yellow-300">Ver historial del alumno →</Link>
     </article>
   );
 }

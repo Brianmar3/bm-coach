@@ -41,5 +41,16 @@ export function attendanceReturnHref(studentId: string, value?: string | null) {
 }
 
 export function studentAttendanceHref(studentId: string, returnTo: string) {
-  return `/alumnos/${encodeURIComponent(studentId)}/asistencias?${new URLSearchParams({ returnTo: attendanceReturnHref(studentId, returnTo) })}`;
+  return `/alumnos/${encodeURIComponent(studentId)}/asistencias?${new URLSearchParams({ returnTo: attendanceOriginHref(studentId, returnTo) })}`;
+}
+
+export function attendanceOriginHref(studentId: string, value?: string | null) {
+  if (!value?.startsWith("/asistencias?") || value.includes("\\")) return attendanceReturnHref(studentId, value);
+  const source = new URL(value, "https://bm.invalid");
+  const params = new URLSearchParams();
+  for (const key of ["view", "mode", "filter", "month", "from", "to", "status", "q", "page", "lowPage", "date", "scheduleId", "studentId"]) {
+    const field = source.searchParams.get(key);
+    if (field) params.set(key, field);
+  }
+  return `/asistencias?${params}`;
 }

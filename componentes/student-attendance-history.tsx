@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { argentinaDateKey } from "@/lib/payment-dates";
-import { attendanceReturnHref, type StudentAttendanceHistory } from "@/lib/student-attendance-history";
+import { attendanceOriginHref, type StudentAttendanceHistory } from "@/lib/student-attendance-history";
 
 const statuses = {
   presente: { label: "Presente", style: "bg-emerald-400/15 text-emerald-300" },
@@ -31,7 +31,7 @@ function HistoryContent({ studentId, returnTo, query }: { studentId: string; ret
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
-  const back = attendanceReturnHref(studentId, params.get("returnTo") ?? returnTo);
+  const back = attendanceOriginHref(studentId, params.get("returnTo") ?? returnTo);
 
   useEffect(() => {
     const current = new URLSearchParams(query);
@@ -53,7 +53,7 @@ function HistoryContent({ studentId, returnTo, query }: { studentId: string; ret
   }
   function pageHref(page: number) { const next = new URLSearchParams(query); next.set("page", String(page)); return `?${next}`; }
 
-  return <ModuleShell title={data?.student.name ?? "Historial de asistencias"} subtitle="Historial individual de asistencias" action={<Link href={back} scroll={false} className="bm-button bm-button-secondary min-h-11 rounded-xl border border-zinc-700 px-4 py-3 text-sm font-bold text-yellow-300">← Volver a la ficha</Link>}>
+  return <ModuleShell title={data?.student.name ?? "Historial de asistencias"} subtitle="Historial individual de asistencias" action={<Link href={back} scroll={false} className="bm-button bm-button-secondary min-h-11 rounded-xl border border-zinc-700 px-4 py-3 text-sm font-bold text-yellow-300">{back.startsWith("/asistencias?") ? "← Volver a asistencias" : "← Volver a la ficha"}</Link>}>
     {data && <section aria-label="Resumen histórico" className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">{[
       ["Total histórico de presentes", data.summary.attended], ["Primera asistencia", showDate(data.summary.firstAttendance)],
       ["Última asistencia", showDate(data.summary.lastAttendance)], ["Presentes del mes actual", data.summary.currentMonth],
