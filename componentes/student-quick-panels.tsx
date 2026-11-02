@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { studentAttendanceHref } from "@/lib/student-attendance-history";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { inputClass } from "@/componentes/module-shell";
 import { argentinaDateKey, isDateKey, nextPaymentDueDate } from "@/lib/payment-dates";
@@ -30,7 +31,7 @@ function money(value: number) { return new Intl.NumberFormat("es-AR", { style: "
 function showDate(value: string) { return value ? new Date(`${value}T12:00:00`).toLocaleDateString("es-AR") : "Sin fecha"; }
 function monthLabel(value: string) { return value ? new Date(`${value.slice(0, 7)}-15T12:00:00`).toLocaleDateString("es-AR", { month: "long", year: "numeric" }) : ""; }
 
-export function StudentQuickPanels({ student, initialPanel = null }: { student: Student; initialPanel?: Panel | null }) {
+export function StudentQuickPanels({ student, initialPanel = null, attendanceReturnTo = "/alumnos" }: { student: Student; initialPanel?: Panel | null; attendanceReturnTo?: string }) {
   const [active, setActive] = useState<Panel | null>(initialPanel);
   const [data, setData] = useState<Partial<Record<Panel, PanelData>>>({});
   const [loading, setLoading] = useState<Panel | null>(null);
@@ -72,7 +73,7 @@ export function StudentQuickPanels({ student, initialPanel = null }: { student: 
       <div className="flex items-center justify-between gap-3"><h3 className="font-bold text-yellow-300">{actions.find((action) => action.key === active)?.label}</h3><div className="flex items-center gap-1"><button type="button" disabled={loading === active} onClick={() => void load(active, true)} className="rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 disabled:opacity-50">Actualizar</button><button type="button" onClick={() => setActive(null)} className="rounded-lg px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800">Cerrar</button></div></div>
       {loading === active && !data[active] && <PanelSkeleton />}
       {errors[active] && <div role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200"><p>{errors[active]}</p><button type="button" onClick={() => void load(active, true)} className="mt-3 rounded-lg border border-red-300/40 px-3 py-2 font-bold">Reintentar</button></div>}
-      {!errors[active] && data[active]?.panel === "attendance" && <AttendancePanel data={data[active] as AttendanceData} studentId={student.id}/>} 
+      {!errors[active] && data[active]?.panel === "attendance" && <AttendancePanel data={data[active] as AttendanceData} studentId={student.id} returnTo={attendanceReturnTo}/>}
       {!errors[active] && data[active]?.panel === "payments" && <PaymentsPanel data={data[active] as PaymentsData} student={student} refresh={() => load("payments", true)}/>} 
       {!errors[active] && data[active]?.panel === "routine" && <RoutinePanel data={data[active] as RoutineData} studentId={student.id}/>} 
       {!errors[active] && data[active]?.panel === "classes" && <ClassesPanel data={data[active] as ClassesData}/>} 
@@ -84,10 +85,10 @@ function PanelSkeleton() { return <div aria-label="Cargando" className="mt-4 spa
 
 function Metric({ label, value }: { label: string; value: string | number }) { return <div className="rounded-xl bg-zinc-900 p-3"><p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p><p className="mt-1 text-lg font-bold text-yellow-300">{value}</p></div>; }
 
-function AttendancePanel({ data, studentId }: { data: AttendanceData; studentId: string }) {
+function AttendancePanel({ data, studentId, returnTo }: { data: AttendanceData; studentId: string; returnTo: string }) {
   return <div className="mt-4"><p className="text-xs text-zinc-500">Mes actual: {monthLabel(`${data.month}-01`)}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label="Presentes" value={data.summary.attended}/><Metric label="Ausentes" value={data.summary.absent}/><Metric label="Justificadas" value={data.summary.justified}/><Metric label="Asistencia" value={`${data.summary.percentage}%`}/></div>
     <div className="mt-4 space-y-2">{data.history.length ? data.history.map((entry) => { const status = attendanceStyle[entry.status]; return <article key={entry.id} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div><p className="text-sm font-semibold">{showDate(entry.date)}</p><p className="mt-0.5 text-xs text-zinc-500">{entry.scheduleLabel} · {entry.scheduleStartTime}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${status.className}`}>{status.label}</span></article>; }) : <p className="rounded-xl bg-zinc-900 p-5 text-center text-sm text-zinc-500">Todavía no hay asistencias registradas.</p>}</div>
-    <Link href={`/asistencias?studentId=${encodeURIComponent(studentId)}`} className="mt-4 inline-flex text-sm font-semibold text-yellow-400">Ver historial completo →</Link>
+    <Link href={studentAttendanceHref(studentId, returnTo)} onClick={() => { const url = new URL(window.location.href); url.searchParams.set("section", "attendance"); window.history.replaceState(window.history.state, "", url.pathname + url.search); }} className="mt-4 inline-flex text-sm font-semibold text-yellow-400">Ver historial completo →</Link>
   </div>;
 }
 

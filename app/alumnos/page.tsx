@@ -103,8 +103,11 @@ export default function AlumnosPage() {
             setOptions(enrollmentOptions);
             setLoadError("");
             const params = new URLSearchParams(window.location.search);
-            if (params.get("estado") === "activo")
-                setStatus("activo");
+            if (["activo", "inactivo", "todos"].includes(params.get("estado") ?? ""))
+                setStatus(params.get("estado")!);
+            setPlan(params.get("plan") ?? "todos");
+            const service = params.get("servicio");
+            if (service === "CLASSES" || service === "PERSONALIZED" || service === "MIXED") setServiceType(service);
             if (params.get("buscar")) {
                 setQuery(params.get("buscar") ?? "");
                 setAppliedQuery(params.get("buscar") ?? "");
@@ -129,6 +132,41 @@ export default function AlumnosPage() {
         const timeout = window.setTimeout(() => setAppliedQuery(query), 400);
         return () => window.clearTimeout(timeout);
     }, [query]);
+    // Persist list context for reloads and browser/Android Back.
+    useEffect(() => {
+        if (!ready || loadError) return;
+        const params = new URLSearchParams(window.location.search);
+        for (const [key, value] of Object.entries({ buscar: query, estado: status, plan, servicio: serviceType })) {
+            if (value && value !== "todos") params.set(key, value); else params.delete(key);
+        }
+        if (viewing) params.set("studentId", viewing.id);
+        else { params.delete("studentId"); params.delete("section"); params.delete("entityId"); }
+        window.history.replaceState(window.history.state, "", "/alumnos?" + params);
+    }, [ready, loadError, query, status, plan, serviceType, viewing]);
+    useEffect(() => {
+        if (!ready) return;
+        const restore = () => {
+            const params = new URLSearchParams(window.location.search);
+            setQuery(params.get("buscar") ?? ""); setAppliedQuery(params.get("buscar") ?? "");
+            setStatus(params.get("estado") ?? "todos"); setPlan(params.get("plan") ?? "todos");
+            const service = params.get("servicio");
+            setServiceType(service === "CLASSES" || service === "PERSONALIZED" || service === "MIXED" ? service : "todos");
+            setViewing(items.find(item => item.id === params.get("studentId")) ?? null);
+            setNotificationFocus(params.get("section") === "attendance" ? { section: "attendance", entityId: null } : null);
+        };
+        const saveScroll = () => {
+            if (viewing) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set("scroll", String(Math.round(window.scrollY)));
+            window.history.replaceState(window.history.state, "", url.pathname + url.search);
+        };
+        const saved = Number(new URLSearchParams(window.location.search).get("scroll"));
+        const frame = requestAnimationFrame(() => { if (Number.isFinite(saved) && saved > 0) window.scrollTo(0, Math.min(saved, document.documentElement.scrollHeight)); });
+        window.addEventListener("popstate", restore);
+        window.addEventListener("scroll", saveScroll, { passive: true });
+        return () => { cancelAnimationFrame(frame); window.removeEventListener("popstate", restore); window.removeEventListener("scroll", saveScroll); };
+    }, [ready, items, viewing]);
+    const attendanceReturnTo = "/alumnos?" + new URLSearchParams({ buscar: query, estado: status, plan, servicio: serviceType, ...(typeof window !== "undefined" ? { scroll: new URLSearchParams(window.location.search).get("scroll") ?? String(Math.round(window.scrollY)) } : {}) });
     const planIdentity = (item: Student) => {
         const resolution = resolveStudentPlan(item, options.plans);
         return resolution.status === "matched" ? resolution.plan.selectionKey : `legacy:${normalizePlanName(item.plan)}`;
@@ -272,7 +310,7 @@ export default function AlumnosPage() {
     <StudentInvitations open={inviteOpen} onClose={() => setInviteOpen(false)} />
     {chooseEnrollment && <div className="fixed inset-0 z-[70] grid place-items-center bg-black/85 p-4"><KeyboardDialog as="section" onClose={() => setChooseEnrollment(false)} role="dialog" aria-modal="true" aria-label="Nuevo alumno" className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-5 text-white"><div className="flex items-center justify-between"><h2 className="text-xl font-black">Nuevo alumno</h2><button type="button" onClick={() => setChooseEnrollment(false)} className="p-2 text-[var(--foreground-muted)]">Cerrar</button></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => { setChooseEnrollment(false); setInviteOpen(true); }} className="rounded-xl border border-yellow-400/50 bg-yellow-400/10 p-4 text-left"><strong className="block text-[var(--brand-text)]">Invitar alumno</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">El alumno completa sus datos desde un enlace.</span></button><button type="button" onClick={() => { setChooseEnrollment(false); void begin(); }} className="rounded-xl border border-zinc-700 p-4 text-left"><strong className="block">Cargar manualmente</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">Completá vos los datos del alumno.</span></button></div></KeyboardDialog></div>}
     {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
-    {viewing && <StudentDetail item={viewing} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
+    {viewing && <StudentDetail item={viewing} attendanceReturnTo={attendanceReturnTo} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
     <TrainerFloatingActions mode="direct" enabled={!open && !viewing && !chooseEnrollment && !inviteOpen} actions={[{ label: "Nuevo alumno", symbol: "+", onSelect: () => setChooseEnrollment(true) }]} />
   </ModuleShell>;
 }
@@ -393,7 +431,8 @@ function ServiceBadge({ value }: { value: StudentServiceType }) {
     return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${styles}`}>{studentServiceLabel(value)}</span>;
 }
 
-function StudentDetail({ item, focus, close, edit }: {
+function StudentDetail({ item, attendanceReturnTo, focus, close, edit }: {
+    attendanceReturnTo: string;
     item: Student;
     focus: StudentNotificationFocus | null;
     close: () => void;
@@ -433,7 +472,7 @@ function StudentDetail({ item, focus, close, edit }: {
             <StudentHealthObservations student={item}/>
             {item.serviceType !== "CLASSES" && <StudentEvaluations student={item} onMeasurementsChange={() => setWeightRevision(value => value + 1)}/>}
             {focus?.section === "achievements" && <section id="student-section-achievements" className="mt-5 scroll-mt-24 rounded-xl border border-yellow-300/50 bg-yellow-400/10 p-4 shadow-[0_0_24px_rgba(250,204,21,.08)]"><p className="text-xs font-bold uppercase tracking-wide text-[var(--brand-text)]">Logros</p><h3 className="mt-1 font-bold">Logro relacionado con la notificación</h3><p className="mt-1 text-sm text-zinc-300">La ficha corresponde a {item.firstName} {item.lastName}. {focus.entityId ? "El logro relacionado fue localizado desde su identificador histórico." : "La notificación no conserva un identificador de logro específico."}</p></section>}
-            <div id="student-section-attendance"><StudentQuickPanels student={item} initialPanel={focus?.section === "attendance" ? "attendance" : null}/></div>
+            <div id="student-section-attendance"><StudentQuickPanels student={item} attendanceReturnTo={attendanceReturnTo} initialPanel={focus?.section === "attendance" ? "attendance" : null}/></div>
             <AdminQuickLogSummary studentId={item.id} focusSection={focus?.section === "records" || focus?.section === "routines" ? focus.section : null} focusEntityId={focus?.entityId ?? null}/>
             <AdminNutritionSummary studentId={item.id}/>
             <StudentAccessControls studentId={item.id}/>
