@@ -225,7 +225,7 @@ for (const width of [390, 1280]) test(`${width}px opinión opcional privada, com
   assert.ok(screen.getByText(/sólo tu entrenador puede verla e identificar/));
   fireEvent.click(screen.getByRole("button", { name: "🔥 Excelente" })); fireEvent.change(screen.getByLabelText("Comentario (opcional)"), { target: { value: "Muy clara la explicación" } }); fireEvent.click(screen.getByRole("button", { name: "Enviar opinión" }));
   await screen.findByText("Gracias por compartir tu opinión."); assert.equal(row.classRating, "EXCELLENT"); assert.equal(row.classComment, "Muy clara la explicación");
-  view.unmount(); render(h(Invitation)); await waitFor(() => assert.equal(screen.queryByRole("region", { name: "Opinión de tu clase" }), null));
+  view.unmount(); render(h(Invitation)); await waitFor(() => assert.ok(screen.queryByRole("region", { name: "Opinión de tu clase" }) === null));
 });
 
 test("Omitir en el portal no exige seleccionar valoración ni cambia la asistencia", async () => {
@@ -238,9 +238,10 @@ test("Omitir en el portal no exige seleccionar valoración ni cambia la asistenc
 });
 
 test("una invitación respondida en otro dispositivo se retira si el envío devuelve 409", async () => {
-  globalThis.fetch = async (_url, options = {}) => options.method === "POST" ? { status: 409, ok: false, json: async () => ({ error: "Ya respondiste" }) } : { ok: true, json: async () => ({ invitation: { occurrenceId: occurrence.id, date: "2026-11-03", className: "Funcional", startTime: "09:00", endTime: "10:00" } }) };
+  let answered = false;
+  globalThis.fetch = async (_url, options = {}) => options.method === "POST" ? (answered = true, { status: 409, ok: false, json: async () => ({ error: "Ya respondiste" }) }) : { ok: true, json: async () => ({ invitation: answered ? null : { occurrenceId: occurrence.id, date: "2026-11-03", className: "Funcional", startTime: "09:00", endTime: "10:00" } }) };
   render(h(Invitation)); await screen.findByRole("button", { name: "💪 Buena" }); fireEvent.click(screen.getByRole("button", { name: "💪 Buena" })); fireEvent.click(screen.getByRole("button", { name: "Enviar opinión" }));
-  await waitFor(() => assert.equal(screen.queryByRole("region", { name: "Opinión de tu clase" }), null));
+  await waitFor(() => assert.ok(screen.queryByRole("region", { name: "Opinión de tu clase" }) === null));
 });
 
 for (const width of [390, 1280]) test(`${width}px panel de Clases muestra distribución/comentarios y filtra por fecha/clase`, async () => {
@@ -292,4 +293,34 @@ test("filtros rápidos son accesibles y el enlace del dashboard abre Opiniones r
  fireEvent.click(screen.getByRole("button", {name:"Todas"}));
  await waitFor(()=>assert.ok(requests.at(-1).includes("quick=all")));
  window.history.replaceState({}, "", "/");
+});
+
+
+for (const skip of [false, true]) test(`persistencia al recargar después de ${skip ? "Omitir" : "enviar"}, incluso con actualización simultánea de asistencia`, async () => {
+ const row = attendance(); const other = attendance({id:"other-attendance",occurrenceId:"other-class",occurrence:{...occurrence,id:"other-class",date:new Date("2026-11-02T00:00:00Z")}});
+ const db = database([row, other]); const update = db.classOccurrenceAttendance.updateMany;
+ let conflict = true;
+ db.classOccurrenceAttendance.updateMany = async args => {if (conflict) {conflict=false; row.updatedAt=new Date("2026-11-03T11:00:00Z"); return {count:0};} return update(args);};
+ const api = loader({"@/lib/class-occurrences":occurrenceTools,"@/lib/prisma":{prisma:db},"@/lib/portal-auth":{getPortalSession:async()=>({studentId:"a",credential:{student:{workspaceId:"bm"}}}),validRequestOrigin:()=>true}})("app/api/portal/clases/opiniones/route.ts");
+ let reads=0;
+ globalThis.fetch=async (_url, options={})=> {if(options.method==="POST") return api.POST(new Request("https://bm.test/api/portal/clases/opiniones",options)); const response=await api.GET();reads++;return response;};
+ const view=render(h(Invitation)); await screen.findByRole("button",{name:"Omitir"});
+ if (!skip) fireEvent.click(screen.getByRole("button",{name:"💪 Buena"}));
+ fireEvent.click(screen.getByRole("button",{name:skip?"Omitir":"Enviar opinión"}));
+ await waitFor(()=>assert.ok(skip?row.classFeedbackSkippedAt:row.classFeedbackAt));
+ await waitFor(()=>assert.ok(screen.queryByRole("region",{name:"Opinión de tu clase"}) === null));
+ assert.equal(row.updatedAt.toISOString(),"2026-11-03T11:00:00.000Z");
+ view.unmount(); const before=reads; render(h(Invitation));
+ await waitFor(()=>assert.ok(reads>before));
+ await screen.findByRole("region",{name:"Opinión de tu clase"});
+ assert.equal((await (await api.GET()).json()).invitation.occurrenceId,"other-class");
+ assert.ok(screen.getByText(/2\/11\/2026/));
+});
+
+
+test("un 409 sin decisión persistida no oculta falsamente la invitación", async () => {
+ globalThis.fetch=async (_url, options={})=>options.method==="POST"?{status:409,ok:false,json:async()=>({})}:{ok:true,json:async()=>({invitation:{occurrenceId:occurrence.id,date:"2026-11-03",className:"Funcional",startTime:"09:00",endTime:"10:00"}})};
+ render(h(Invitation)); await screen.findByRole("button",{name:"Omitir"}); fireEvent.click(screen.getByRole("button",{name:"Omitir"}));
+ await screen.findByText("Tu respuesta no se guardó. Volvé a intentar.");
+ assert.ok(screen.getByRole("region",{name:"Opinión de tu clase"}));
 });

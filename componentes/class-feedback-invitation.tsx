@@ -8,22 +8,40 @@ type Invitation = { occurrenceId: string; date: string; className: string; start
 export function ClassFeedbackInvitation() {
   const [invitation, setInvitation] = useState<Invitation | null>(null); const [rating, setRating] = useState(""); const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [sent, setSent] = useState(false); const inFlight = useRef(false);
+  const revision = useRef(0);
   useEffect(() => {
-    const controller = new AbortController();
-    void fetch("/api/portal/clases/opiniones", { cache: "no-store", signal: controller.signal }).then(async response => {
-      if (response.ok) { const body = await response.json(); if (!controller.signal.aborted) setInvitation(body.invitation); }
-    }).catch(() => {});
-    return () => controller.abort();
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      if (inFlight.current) return;
+      controller?.abort(); controller = new AbortController();
+      const signal = controller.signal;
+      const currentRevision = revision.current;
+      void fetch("/api/portal/clases/opiniones", { cache: "no-store", signal }).then(async response => {
+        if (response.ok) { const body = await response.json(); if (!signal.aborted && !inFlight.current && currentRevision === revision.current) setInvitation(body.invitation); }
+      }).catch(() => {});
+    };
+    const visible = () => { if (document.visibilityState === "visible") refresh(); };
+    refresh();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    document.addEventListener("visibilitychange", visible);
+    return () => { controller?.abort(); window.removeEventListener("focus", refresh); window.removeEventListener("pageshow", refresh); document.removeEventListener("visibilitychange", visible); };
   }, []);
   async function submit(skip = false) {
     if (!invitation || inFlight.current) return;
     setError(""); let input;
     try { input = feedbackInput({ occurrenceId: invitation.occurrenceId, rating, comment, skip }); }
     catch (failure) { setError((failure as Error).message); return; }
-    inFlight.current = true; setSaving(true);
+    revision.current++; inFlight.current = true; setSaving(true);
     try {
       const response = await fetch("/api/portal/clases/opiniones", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-      if (response.status === 409) { setInvitation(null); return; }
+      if (response.status === 409) {
+        const latest = await fetch("/api/portal/clases/opiniones", { cache: "no-store" });
+        if (!latest.ok) throw new Error("No se pudo verificar tu respuesta. Volvé a intentar.");
+        const current = await latest.json();
+        if (current.invitation?.occurrenceId === invitation.occurrenceId) throw new Error("Tu respuesta no se guardó. Volvé a intentar.");
+        setInvitation(null); return;
+      }
       const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "No se pudo guardar tu opinión.");
       setInvitation(null); setSent(!skip);
     } catch (failure) { setError(failure instanceof Error ? failure.message : "No se pudo guardar tu opinión."); }

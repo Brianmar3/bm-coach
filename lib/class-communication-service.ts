@@ -22,15 +22,19 @@ export async function pendingClassFeedback(db: Db, studentId: string, workspaceI
 
 export async function submitClassFeedback(db: Db, studentId: string, workspaceId: string, input: ReturnType<typeof feedbackInput>) {
   const where = { ...eligibleFeedback(studentId, workspaceId), occurrenceId: input.occurrenceId };
-  const existing = await db.classOccurrenceAttendance.findFirst({ where, select: { id: true, updatedAt: true } });
-  if (!existing) return false;
-  // Preserve the timestamp used by legacy attendance ordering. Compare it to avoid stale writes.
-  // One conditional write: concurrent submissions cannot overwrite a rating or create duplicates.
-  const result = await db.classOccurrenceAttendance.updateMany({
-    where: { ...where, id: existing.id, updatedAt: existing.updatedAt },
-    data: { updatedAt: existing.updatedAt, ...(input.skip ? { classFeedbackSkippedAt: new Date() } : { classRating: input.rating, classComment: input.comment, classFeedbackAt: new Date() }) },
-  });
-  return result.count === 1;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await db.classOccurrenceAttendance.findFirst({ where, select: { id: true, updatedAt: true } });
+    if (!existing) return false;
+    // Preserve attendance chronology; retry a concurrent attendance update instead of
+    // reporting it as an already answered invitation when nothing was persisted.
+    const result = await db.classOccurrenceAttendance.updateMany({
+      where: { ...where, id: existing.id, updatedAt: existing.updatedAt },
+      data: { updatedAt: existing.updatedAt, ...(input.skip ? { classFeedbackSkippedAt: new Date() } : { classRating: input.rating, classComment: input.comment, classFeedbackAt: new Date() }) },
+    });
+    if (result.count === 1) return true;
+  }
+  if (!await db.classOccurrenceAttendance.findFirst({ where, select: { id: true } })) return false;
+  throw new Error("No se pudo guardar la opinión por una actualización simultánea. Volvé a intentar.");
 }
 
 export async function reactToConfirmation(tx: Prisma.TransactionClient, workspaceId: string, id: string, reaction: ClassReaction) {
