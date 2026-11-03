@@ -9,6 +9,16 @@ export const EVALUATION_STEPS = [
 
 export const EVALUATION_FLOW_VERSION = 5;
 
+/** Navigation targets for the existing validation messages; no validation rules live here. */
+export const EVALUATION_ESSENTIAL_TARGETS: Record<string, { step: number; fieldId: string }> = {
+  "Fecha de evaluación": { step: 1, fieldId: "evaluation-date" },
+  "Objetivo principal": { step: 1, fieldId: "evaluation-goal" },
+  "Nivel o experiencia": { step: 1, fieldId: "evaluation-experience" },
+  "Disponibilidad semanal": { step: 1, fieldId: "evaluation-availability" },
+  "Prioridad u observación para la planificación": { step: 5, fieldId: "evaluation-priorities" },
+  "Al menos una medida corporal o un test realizado": { step: 3, fieldId: "evaluation-weight" },
+};
+
 /** Old eight-step drafts keep their raw step until the first save in the new flow. */
 export function evaluationWizardStep(currentStep: number, generalData: Record<string, unknown>): number {
   if (generalData.evaluationFlowVersion === EVALUATION_FLOW_VERSION) return Math.min(5, Math.max(1, currentStep));

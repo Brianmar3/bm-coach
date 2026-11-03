@@ -1,10 +1,13 @@
 import { assertStudentInWorkspace, requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { Prisma } from "@prisma/client";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
-import { duplicateEvaluationData, evaluationInclude, serializeWorkflowEvaluation, workflowSummary } from "@/lib/evaluation-persistence";
+import { duplicateEvaluationData, evaluationInclude, normalizeLegacyEvaluationRecord, normalizePhysicalEvaluation, serializeWorkflowEvaluation, workflowSummary } from "@/lib/evaluation-persistence";
 import { prisma } from "@/lib/prisma";
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { EVALUATION_FLOW_VERSION, calculateAgeAtDate } from "@/lib/evaluation-workflow";
+import { latestStudentWeight } from "@/lib/student-latest-weight";
+import { storedHeightToCentimeters } from "@/lib/height";
+import { deduplicateEvaluations } from "@/lib/evaluation-read-model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +27,8 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
   const unauthorized = await requireAdminApiResponse();
   if (unauthorized) return unauthorized;
   const { id: studentId } = await context.params;
-  await assertStudentInWorkspace(studentId, (await requireTrainerWorkspace()).workspaceId);
+  const { workspaceId } = await requireTrainerWorkspace();
+  await assertStudentInWorkspace(studentId, workspaceId);
   const body = await request.json().catch(() => ({})) as { creationKey?: string; date?: string; baseEvaluationId?: string };
   const creationKey = body.creationKey?.trim();
   if (!creationKey || creationKey.length > 100) return Response.json({ error: "Falta una clave válida para prevenir duplicados." }, { status: 400 });
@@ -35,7 +39,7 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
         if (prior.studentId !== studentId) throw new Error("CREATION_KEY_CONFLICT");
         return prior;
       }
-      const student = await transaction.studentRecord.findUnique({ where: { id: studentId }, select: { id: true, serviceType: true, data: true } });
+      const student = await transaction.studentRecord.findUnique({ where: { id: studentId, workspaceId }, select: { id: true, serviceType: true, data: true } });
       if (!student) throw new Error("STUDENT_NOT_FOUND");
       const inProgress = await transaction.physicalEvaluation.findFirst({ where: { studentId, status: "IN_PROGRESS" }, include: evaluationInclude, orderBy: { updatedAt: "desc" } });
       if (inProgress && body.baseEvaluationId) throw new Error("IN_PROGRESS_EXISTS");
@@ -52,8 +56,16 @@ export async function POST(request: Request, context: RouteContext<"/api/admin/a
           include: evaluationInclude,
         });
       }
+      // Initialize only a genuinely new evaluation, before any trainer input is possible.
+      const [physical, legacy] = await Promise.all([
+        transaction.physicalEvaluation.findMany({ where: { studentId, student: { workspaceId } }, include: evaluationInclude }),
+        transaction.evaluationRecord.findMany({ where: { workspaceId, OR: [{ data: { path: ["studentId"], equals: studentId } }, { data: { path: ["data", "studentId"], equals: studentId } }] } }),
+      ]);
+      const weight = latestStudentWeight(studentId, deduplicateEvaluations([...physical.map(normalizePhysicalEvaluation), ...legacy.map(normalizeLegacyEvaluationRecord)]), Number(studentData.weight ?? 0));
+      const height = storedHeightToCentimeters(studentData.height);
+      const generalData = ageSnapshot === null ? { evaluationFlowVersion: EVALUATION_FLOW_VERSION } : { ageSnapshot, evaluationFlowVersion: EVALUATION_FLOW_VERSION };
       return transaction.physicalEvaluation.create({
-        data: { studentId, date: new Date(`${candidate}T12:00:00.000Z`), version: (latest._max.version ?? 0) + 1, status: "IN_PROGRESS", currentStep: 1, completionPercentage: 20, creationKey, generalData: ageSnapshot === null ? { evaluationFlowVersion: EVALUATION_FLOW_VERSION } : { ageSnapshot, evaluationFlowVersion: EVALUATION_FLOW_VERSION } },
+        data: { studentId, date: new Date(`${candidate}T12:00:00.000Z`), version: (latest._max.version ?? 0) + 1, status: "IN_PROGRESS", currentStep: 1, completionPercentage: 20, creationKey, generalData: { ...generalData, ...(height > 0 ? { height: height / 100 } : {}) }, measurements: { create: weight === null ? [] : [{ measurementType: "WEIGHT", side: null, value: weight, unit: "kg", notes: "" }] } },
         include: evaluationInclude,
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

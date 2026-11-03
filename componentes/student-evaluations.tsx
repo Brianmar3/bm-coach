@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { inputClass } from "@/componentes/module-shell";
 import { bmiFromCentimeters, storedHeightToCentimeters } from "@/lib/height";
 import {
-  EVALUATION_STEPS, EXPERIENCE_LEVELS, MEASUREMENT_DEFINITIONS, PRIMARY_GOALS,
+  EVALUATION_STEPS, EVALUATION_ESSENTIAL_TARGETS, EXPERIENCE_LEVELS, MEASUREMENT_DEFINITIONS, PRIMARY_GOALS,
   TEST_DEFINITIONS, calculateAgeAtDate, emptyTest, missingEssentialFields,
 } from "@/lib/evaluation-workflow";
 import { studentServiceLabel } from "@/lib/student-service";
@@ -153,6 +153,8 @@ export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, a
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState("");
   const [missing, setMissing] = useState<string[]>([]);
+  const [focusTarget, setFocusTarget] = useState<string | null>(null);
+  const contentRef = useRef<HTMLElement>(null);
   const skipFirstSave = useRef(true);
   const requestNumber = useRef(0);
   const editRevision = useRef(0);
@@ -187,6 +189,27 @@ export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, a
   function objectString(section: "generalData" | "habits" | "trainingObservations", key: string) { const current = value[section][key]; if (section === "generalData" && key === "height") return String(storedHeightToCentimeters(current) || ""); return typeof current === "string" || typeof current === "number" ? String(current) : ""; }
   function changeStep(step: number) { update({ currentStep: Math.max(1, Math.min(EVALUATION_STEPS.length, step)) }); }
 
+  function jumpToMissing(label: string) {
+    const target = EVALUATION_ESSENTIAL_TARGETS[label];
+    if (!target) return;
+    if (value.currentStep !== target.step) changeStep(target.step);
+    setFocusTarget(target.fieldId);
+  }
+  useEffect(() => {
+    if (!focusTarget) return;
+    const frame = requestAnimationFrame(() => {
+      const control = contentRef.current?.querySelector<HTMLElement>(`#${focusTarget}`);
+      if (control) {
+        let disclosure = control.closest("details");
+        while (disclosure) { disclosure.open = true; disclosure = disclosure.parentElement?.closest("details") ?? null; }
+        control.focus({ preventScroll: true });
+        control.scrollIntoView({ block: "center", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      }
+      setFocusTarget(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusTarget, value.currentStep]);
+
   async function saveAndExit() {
     try { await saveNow(value); onClose(); } catch { /* El error visible permite reintentar. */ }
   }
@@ -208,12 +231,12 @@ export function EvaluationWizard({ initial, baseUrl, profileHeight, birthDate, a
   return <KeyboardDialog as="div" onClose={readonly ? onClose : () => { void saveAndExit(); }} priority={90} dismissible={saveState !== "saving"} className="fixed inset-0 z-[70] bg-black/90 p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="evaluation-title">
     <section className="mx-auto flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden bg-zinc-950 text-white sm:h-[calc(100dvh-2rem)] sm:rounded-2xl sm:border sm:border-zinc-800">
       <header className="shrink-0 border-b border-zinc-800 px-4 py-3 sm:px-6"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-yellow-400">Evaluación — Versión {value.version}</p><h2 id="evaluation-title" className="mt-1 text-lg font-bold">{value.studentName}</h2><p className="mt-1 text-xs text-zinc-400">{statusLabel[value.status]} · {value.completionPercentage}% · {saveState === "saving" ? "Guardando…" : saveState === "saved" ? "Guardado" : saveState === "error" ? "Error al guardar" : "Cambios pendientes"}</p></div><button type="button" aria-label="Cerrar evaluación" onClick={readonly ? onClose : saveAndExit} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-lg border border-zinc-700 text-xl">×</button></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full bg-yellow-400 transition-all" style={{ width: `${value.currentStep / EVALUATION_STEPS.length * 100}%` }} /></div><div className="mt-2 hidden grid-cols-5 gap-1 md:grid">{EVALUATION_STEPS.map((step, index) => <button type="button" key={step} onClick={() => changeStep(index + 1)} className={`min-h-11 rounded-md px-1 text-[11px] leading-tight ${value.currentStep === index + 1 ? "bg-yellow-400/15 font-bold text-yellow-300" : "text-zinc-500 hover:bg-zinc-900"}`}><span className="block">{index + 1}</span>{step}</button>)}</div><p className="mt-2 text-xs text-zinc-400 md:hidden">Paso {value.currentStep} de {EVALUATION_STEPS.length} — {EVALUATION_STEPS[value.currentStep - 1]}</p></header>
-      <main className="flex-1 overflow-y-auto px-4 py-5 pb-28 sm:px-6"><fieldset disabled={readonly} className="disabled:opacity-80">
+      <main ref={contentRef} className="flex-1 overflow-y-auto px-4 py-5 pb-28 sm:px-6"><fieldset disabled={readonly} className="disabled:opacity-80">
         {value.currentStep === 1 && <GeneralStep value={value} update={update} setObject={setObject} objectString={objectString} profileHeight={profileHeight} birthDate={birthDate} />}
         {value.currentStep === 2 && <HabitsStep value={value} setObject={setObject} objectString={objectString} />}
         {value.currentStep === 3 && <MeasurementsStep value={value} update={update} />}
         {value.currentStep === 4 && <TestsStep value={value} update={update} />}
-        {value.currentStep === 5 && <SummaryStep value={value} update={update} missing={missing} />}
+        {value.currentStep === 5 && <SummaryStep value={value} update={update} missing={missing} jumpToMissing={jumpToMissing} />}
       </fieldset>{readonly && <p className="mt-5 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">Esta evaluación está en modo consulta y no puede modificarse.</p>}{error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}</main>
       <footer className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-5xl items-center justify-between gap-2 border-t border-zinc-800 bg-zinc-950/95 p-3 pb-[calc(env(safe-area-inset-bottom)+.75rem)] backdrop-blur sm:static sm:pb-3"><button type="button" disabled={value.currentStep === 1} onClick={() => changeStep(value.currentStep - 1)} className="min-h-11 rounded-xl border border-zinc-700 px-4 text-sm font-bold disabled:opacity-30">Anterior</button>{!readonly && <button type="button" disabled={saveState === "saving"} onClick={saveAndExit} className="min-h-11 rounded-xl px-3 text-sm font-bold text-zinc-300 disabled:opacity-50">Guardar y salir</button>}{value.currentStep < EVALUATION_STEPS.length ? <button type="button" onClick={() => changeStep(value.currentStep + 1)} className="min-h-11 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-zinc-950">Siguiente</button> : readonly ? <button type="button" onClick={onClose} className="min-h-11 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-zinc-950">Cerrar</button> : editingCompleted ? <button type="button" disabled={saveState === "saving"} onClick={saveAndExit} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-bold text-zinc-950 disabled:opacity-50">Guardar cambios</button> : <button type="button" disabled={saveState === "saving"} onClick={complete} className="min-h-11 rounded-xl bg-emerald-400 px-4 text-sm font-bold text-zinc-950 disabled:opacity-50">Completar</button>}</footer>
     </section>
@@ -228,12 +251,12 @@ const field = `${inputClass} mt-1 min-h-11`;
 function GeneralStep({ value, update, setObject, objectString, profileHeight, birthDate }: { value: EvaluationWorkflow; update: Update; setObject: SetObject; objectString: ObjectString; profileHeight: number; birthDate: string }) {
   const calculatedAge = calculateAgeAtDate(birthDate, value.date);
   function changeDate(date: string) { update({ date, generalData: { ...value.generalData, ageSnapshot: calculateAgeAtDate(birthDate, date) } }); }
-  return <Step title="Perfil y objetivo" note="Datos esenciales para planificar. La edad se calcula desde el perfil y queda guardada en esta evaluación."><div className="grid gap-4 sm:grid-cols-2"><Label text="Fecha de evaluación *"><input type="date" required value={value.date} onChange={(event) => changeDate(event.target.value)} className={field} /></Label><Label text="Edad">{calculatedAge !== null ? <div className={`${field} flex items-center bg-zinc-900 text-zinc-200`} aria-label={`Edad calculada: ${calculatedAge} años`}>{calculatedAge} años <span className="ml-2 text-xs text-zinc-500">calculada desde el perfil</span></div> : <div className={`${field} flex flex-col justify-center bg-zinc-900 text-zinc-300`} aria-label="Sin fecha de nacimiento"><span>Sin fecha de nacimiento</span><span className="text-xs text-zinc-500">Completala desde el perfil del alumno</span></div>}</Label><Label text="Disponibilidad semanal *"><input value={value.weeklyAvailability} onChange={(event) => update({ weeklyAvailability: event.target.value })} placeholder="Ej. 3 días" className={field} /></Label><Label text="Altura (cm, opcional)"><input type="number" min="50" max="300" step="1" value={objectString("generalData", "height")} onChange={(event) => setObject("generalData", "height", event.target.value)} className={field} placeholder="Ej. 166" />{profileHeight > 0 && <button type="button" onClick={() => setObject("generalData", "height", profileHeight)} className="mt-1 min-h-11 text-xs font-bold text-yellow-300">Usar {profileHeight} cm del perfil</button>}</Label></div><div className="mt-5 border-t border-zinc-800 pt-5"><GoalsStep value={value} update={update} setObject={setObject} objectString={objectString} /></div></Step>;
+  return <Step title="Perfil y objetivo" note="Datos esenciales para planificar. La edad se calcula desde el perfil y queda guardada en esta evaluación."><div className="grid gap-4 sm:grid-cols-2"><Label text="Fecha de evaluación *"><input id="evaluation-date" type="date" required value={value.date} onChange={(event) => changeDate(event.target.value)} className={field} /></Label><Label text="Edad">{calculatedAge !== null ? <div className={`${field} flex items-center bg-zinc-900 text-zinc-200`} aria-label={`Edad calculada: ${calculatedAge} años`}>{calculatedAge} años <span className="ml-2 text-xs text-zinc-500">calculada desde el perfil</span></div> : <div className={`${field} flex flex-col justify-center bg-zinc-900 text-zinc-300`} aria-label="Sin fecha de nacimiento"><span>Sin fecha de nacimiento</span><span className="text-xs text-zinc-500">Completala desde el perfil del alumno</span></div>}</Label><Label text="Disponibilidad semanal *"><input id="evaluation-availability" value={value.weeklyAvailability} onChange={(event) => update({ weeklyAvailability: event.target.value })} placeholder="Ej. 3 días" className={field} /></Label><Label text="Altura (cm, opcional)"><input type="number" min="50" max="300" step="1" value={objectString("generalData", "height")} onChange={(event) => setObject("generalData", "height", event.target.value)} className={field} placeholder="Ej. 166" />{profileHeight > 0 && <button type="button" onClick={() => setObject("generalData", "height", profileHeight)} className="mt-1 min-h-11 text-xs font-bold text-yellow-300">Usar {profileHeight} cm del perfil</button>}</Label></div><div className="mt-5 border-t border-zinc-800 pt-5"><GoalsStep value={value} update={update} setObject={setObject} objectString={objectString} /></div></Step>;
 }
 
 function GoalsStep({ value, update, setObject, objectString }: { value: EvaluationWorkflow; update: Update; setObject: SetObject; objectString: ObjectString }) {
   function toggle(goal: string) { update({ secondaryGoals: value.secondaryGoals.includes(goal) ? value.secondaryGoals.filter((item) => item !== goal) : [...value.secondaryGoals, goal] }); }
-  return <div className="grid gap-4 sm:grid-cols-2"><Label text="Objetivo principal *"><select value={value.primaryGoal} onChange={(event) => update({ primaryGoal: event.target.value })} className={field}><option value="">Seleccionar</option>{PRIMARY_GOALS.map((item) => <option key={item}>{item}</option>)}</select></Label><Label text="Nivel o experiencia *"><select value={value.experienceLevel} onChange={(event) => update({ experienceLevel: event.target.value })} className={field}><option value="">Seleccionar</option>{EXPERIENCE_LEVELS.map((item) => <option key={item}>{item}</option>)}</select></Label><div className="sm:col-span-2"><p className="text-sm">Objetivos secundarios (opcionales)</p><div className="mt-2 flex flex-wrap gap-2">{PRIMARY_GOALS.map((goal) => <label key={goal} className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-700 px-3 text-sm"><input type="checkbox" checked={value.secondaryGoals.includes(goal)} onChange={() => toggle(goal)} />{goal}</label>)}</div></div>{(value.primaryGoal === "Otro" || value.secondaryGoals.includes("Otro")) && <Label text="Detalle de “Otro”"><input value={objectString("generalData", "otherGoal")} onChange={(event) => setObject("generalData", "otherGoal", event.target.value)} className={field} /></Label>}<Label text="Experiencia entrenando"><textarea rows={2} value={objectString("generalData", "experienceNotes")} onChange={(event) => setObject("generalData", "experienceNotes", event.target.value)} className={field} /></Label><Label text="Actividades o deportes actuales (opcional)" wide><input value={objectString("generalData", "activities")} onChange={(event) => setObject("generalData", "activities", event.target.value)} className={field} /></Label></div>;
+  return <div className="grid gap-4 sm:grid-cols-2"><Label text="Objetivo principal *"><select id="evaluation-goal" value={value.primaryGoal} onChange={(event) => update({ primaryGoal: event.target.value })} className={field}><option value="">Seleccionar</option>{PRIMARY_GOALS.map((item) => <option key={item}>{item}</option>)}</select></Label><Label text="Nivel o experiencia *"><select id="evaluation-experience" value={value.experienceLevel} onChange={(event) => update({ experienceLevel: event.target.value })} className={field}><option value="">Seleccionar</option>{EXPERIENCE_LEVELS.map((item) => <option key={item}>{item}</option>)}</select></Label><div className="sm:col-span-2"><p className="text-sm">Objetivos secundarios (opcionales)</p><div className="mt-2 flex flex-wrap gap-2">{PRIMARY_GOALS.map((goal) => <label key={goal} className="flex min-h-11 items-center gap-2 rounded-lg border border-zinc-700 px-3 text-sm"><input type="checkbox" checked={value.secondaryGoals.includes(goal)} onChange={() => toggle(goal)} />{goal}</label>)}</div></div>{(value.primaryGoal === "Otro" || value.secondaryGoals.includes("Otro")) && <Label text="Detalle de “Otro”"><input value={objectString("generalData", "otherGoal")} onChange={(event) => setObject("generalData", "otherGoal", event.target.value)} className={field} /></Label>}<Label text="Experiencia entrenando"><textarea rows={2} value={objectString("generalData", "experienceNotes")} onChange={(event) => setObject("generalData", "experienceNotes", event.target.value)} className={field} /></Label><Label text="Actividades o deportes actuales (opcional)" wide><input value={objectString("generalData", "activities")} onChange={(event) => setObject("generalData", "activities", event.target.value)} className={field} /></Label></div>;
 }
 
 function HabitsStep({ value, setObject, objectString }: { value: EvaluationWorkflow; setObject: SetObject; objectString: ObjectString }) {
@@ -249,7 +272,7 @@ function MeasurementsStep({ value, update }: { value: EvaluationWorkflow; update
     const measurement: EvaluationMeasurementValue = { measurementType: type, side, unit, value: Number(raw), notes: current(type, side)?.notes ?? "" };
     update({ measurements: [...rest, measurement] });
   }
-  return <Step title="Medidas corporales" note="Todas son opcionales. Los valores quedan guardados en esta versión y no reemplazan mediciones anteriores."><div className="grid gap-4 sm:grid-cols-2">{MEASUREMENT_DEFINITIONS.flatMap((definition) => ("sides" in definition && definition.sides ? ["RIGHT", "LEFT"] : [null]).map((side) => { const item = current(definition.key, side); return <Label key={`${definition.key}-${side}`} text={`${definition.label}${side === "RIGHT" ? " derecho" : side === "LEFT" ? " izquierdo" : ""} (${definition.unit})`}><input type="number" min={definition.min} max={definition.max} step="0.1" value={item?.value ?? ""} onChange={(event) => setMeasurement(definition.key, side, definition.unit, event.target.value)} className={field} /></Label>; }) )}</div></Step>;
+  return <Step title="Medidas corporales" note="Todas son opcionales. Los valores quedan guardados en esta versión y no reemplazan mediciones anteriores."><div className="grid gap-4 sm:grid-cols-2">{MEASUREMENT_DEFINITIONS.flatMap((definition) => ("sides" in definition && definition.sides ? ["RIGHT", "LEFT"] : [null]).map((side) => { const item = current(definition.key, side); return <Label key={`${definition.key}-${side}`} text={`${definition.label}${side === "RIGHT" ? " derecho" : side === "LEFT" ? " izquierdo" : ""} (${definition.unit})`}><input id={definition.key === "WEIGHT" ? "evaluation-weight" : undefined} type="number" min={definition.min} max={definition.max} step="0.1" value={item?.value ?? ""} onChange={(event) => setMeasurement(definition.key, side, definition.unit, event.target.value)} className={field} /></Label>; }) )}</div></Step>;
 }
 
 function TestsStep({ value, update }: { value: EvaluationWorkflow; update: Update }) {
@@ -290,7 +313,7 @@ function TestsStep({ value, update }: { value: EvaluationWorkflow; update: Updat
   </Step>;
 }
 
-function SummaryStep({ value, update, missing }: { value: EvaluationWorkflow; update: Update; missing: string[] }) {
+function SummaryStep({ value, update, missing, jumpToMissing }: { value: EvaluationWorkflow; update: Update; missing: string[]; jumpToMissing: (label: string) => void }) {
   const currentMissing = missing.length ? missing : missingEssentialFields(value);
   const performedTests = value.testResults.filter((item) => item.status !== "NOT_PERFORMED").length;
   const reportedLimitations = String(value.trainingObservations.description ?? "").trim()
@@ -306,9 +329,9 @@ function SummaryStep({ value, update, missing }: { value: EvaluationWorkflow; up
       <Summary label="Tests realizados" value={String(performedTests)} />
       <Summary label="Molestias o limitaciones" value={reportedLimitations || "No registradas"} />
     </div>
-    {currentMissing.length > 0 && <div role="alert" className="mt-4 rounded-xl border border-yellow-400/30 bg-yellow-400/10 p-3"><p className="font-semibold text-yellow-200">Falta información esencial</p><ul className="mt-2 list-disc pl-5 text-sm text-yellow-100">{currentMissing.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+    {currentMissing.length > 0 && <div role="alert" className="mt-4 rounded-xl border border-yellow-400/30 bg-yellow-400/10 p-3"><p className="font-semibold text-yellow-200">Falta información esencial</p><ul className="mt-2 list-disc pl-5 text-sm text-yellow-100">{currentMissing.map((item) => <li key={item}><button type="button" onClick={() => jumpToMissing(item)} className="min-h-11 rounded-sm text-left underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-yellow-300">{item}</button></li>)}</ul></div>}
     <div className="mt-5 grid gap-4 sm:grid-cols-2">
-      <Label text="Prioridades para trabajar"><textarea rows={3} value={value.finalPriorities} onChange={(event) => update({ finalPriorities: event.target.value })} className={field} /></Label>
+      <Label text="Prioridades para trabajar"><textarea id="evaluation-priorities" rows={3} value={value.finalPriorities} onChange={(event) => update({ finalPriorities: event.target.value })} className={field} /></Label>
       <Label text="Observaciones para la planificación"><textarea rows={3} value={value.planningNotes} onChange={(event) => update({ planningNotes: event.target.value })} className={field} /></Label>
     </div>
     {hasHistoricalNotes && <details className="mt-5 rounded-xl border border-zinc-800 p-3 text-sm text-zinc-400"><summary className="cursor-pointer">Datos conservados de esta evaluación</summary><div className="mt-3 space-y-2">{value.finalStrengths && <p><strong>Fortalezas:</strong> {value.finalStrengths}</p>}{value.finalLimitations && <p><strong>Limitaciones:</strong> {value.finalLimitations}</p>}{value.finalComment && <p><strong>Comentario final:</strong> {value.finalComment}</p>}{value.reassessmentDate && <p><strong>Reevaluación sugerida:</strong> {formatDate(value.reassessmentDate)}</p>}</div></details>}

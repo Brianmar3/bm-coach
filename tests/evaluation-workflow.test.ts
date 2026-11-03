@@ -134,7 +134,7 @@ test("Paso 1 calcula una edad de solo lectura y no repite el peso", () => {
   assert.doesNotMatch(generalStep, /Observaciones generales del entrenador/);
   assert.doesNotMatch(generalStep, /setObject\([^\n]*birthDate|update\(\{\s*birthDate/);
   const createRoute = readFileSync("app/api/admin/alumnos/[id]/evaluaciones/route.ts", "utf8");
-  assert.match(createRoute, /generalData: ageSnapshot === null \? \{ evaluationFlowVersion: EVALUATION_FLOW_VERSION \} : \{ ageSnapshot, evaluationFlowVersion: EVALUATION_FLOW_VERSION \}/);
+    assert.match(createRoute, /const generalData = ageSnapshot === null \? \{ evaluationFlowVersion: EVALUATION_FLOW_VERSION \} : \{ ageSnapshot, evaluationFlowVersion: EVALUATION_FLOW_VERSION \}/);
 });
 
 test("el perfil permite editar la misma fecha de nacimiento usada por la evaluación", () => {
