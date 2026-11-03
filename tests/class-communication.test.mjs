@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { afterEach, test, mock } from "node:test";
 import { readFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -24,7 +24,10 @@ function loader(overrides = {}) {
   }
   return load;
 }
-const occurrenceTools = { argentinaClock: () => ({ date: "2026-11-03", time: "12:00" }), occurrenceClassName: row => row.classNameSnapshot };
+const fixedNow = new Date("2026-11-03T15:00:00Z");
+mock.timers.enable({ apis: ["Date"], now: fixedNow });
+afterEach(() => mock.timers.setTime(fixedNow.getTime()));
+const occurrenceTools = { argentinaClock: (date = new Date()) => { const local = new Date(date.getTime() - 3 * 60 * 60 * 1000).toISOString(); return {date: local.slice(0,10), time: local.slice(11,16)}; }, occurrenceClassName: row => row.classNameSnapshot };
 const load = loader({ "@/lib/class-occurrences": occurrenceTools });
 const { feedbackInput, CLASS_REACTIONS } = load("lib/class-communication.ts");
 const { pendingClassFeedback, submitClassFeedback, reactToConfirmation, classOpinions, feedbackReportFilter, classOpinionsReceivedToday } = load("lib/class-communication-service.ts");
@@ -39,7 +42,8 @@ function matches(row, where) {
     if (expected instanceof Date) return actual?.getTime() === expected.getTime();
     if (expected && typeof expected === "object") {
       if ("not" in expected) return actual !== expected.not && (!expected.notIn || !expected.notIn.includes(actual));
-      if (["gte", "lte", "lt", "contains"].some(key => key in expected)) return (!Object.hasOwn(expected, "gte") || actual >= expected.gte) && (!Object.hasOwn(expected, "lte") || actual <= expected.lte) && (!Object.hasOwn(expected, "lt") || actual < expected.lt) && (!Object.hasOwn(expected, "contains") || String(actual).toLowerCase().includes(expected.contains.toLowerCase()));
+      if ("notIn" in expected) return !expected.notIn.includes(actual);
+      if (["gte", "lte", "lt", "gt", "contains"].some(key => key in expected)) return (!Object.hasOwn(expected, "gt") || actual > expected.gt) && (!Object.hasOwn(expected, "gte") || actual >= expected.gte) && (!Object.hasOwn(expected, "lte") || actual <= expected.lte) && (!Object.hasOwn(expected, "lt") || actual < expected.lt) && (!Object.hasOwn(expected, "contains") || String(actual).toLowerCase().includes(expected.contains.toLowerCase()));
       return actual && matches(actual, expected);
     }
     return actual === expected;
@@ -298,7 +302,7 @@ test("filtros rápidos son accesibles y el enlace del dashboard abre Opiniones r
 
 
 for (const skip of [false, true]) test(`persistencia al recargar después de ${skip ? "Omitir" : "enviar"}, incluso con actualización simultánea de asistencia`, async () => {
- const row = attendance(); const other = attendance({id:"other-attendance",occurrenceId:"other-class",occurrence:{...occurrence,id:"other-class",date:new Date("2026-11-02T00:00:00Z")}});
+ const row = attendance(); const other = attendance({id:"other-attendance",occurrenceId:"other-class",occurrence:{...occurrence,id:"other-class",date:new Date("2026-11-02T00:00:00Z"),endTime:"13:00"}});
  const db = database([row, other]); const update = db.classOccurrenceAttendance.updateMany;
  let conflict = true;
  db.classOccurrenceAttendance.updateMany = async args => {if (conflict) {conflict=false; row.updatedAt=new Date("2026-11-03T11:00:00Z"); return {count:0};} return update(args);};
@@ -324,4 +328,41 @@ test("un 409 sin decisión persistida no oculta falsamente la invitación", asyn
  render(h(Invitation)); await screen.findByRole("button",{name:"Omitir"}); fireEvent.click(screen.getByRole("button",{name:"Omitir"}));
  await screen.findByText("Tu respuesta no se guardó. Volvé a intentar.");
  assert.ok(screen.getByRole("region",{name:"Opinión de tu clase"}));
+});
+
+
+for (const [label, now, date, startTime, endTime, actualAttendance, status, allowed] of [
+ ["futura", "2026-11-03T15:00:00Z", "2026-11-04", "09:00", "10:00", "PRESENT", "SCHEDULED", false],
+ ["en curso", "2026-11-03T12:30:00Z", "2026-11-03", "09:00", "10:00", "PRESENT", "SCHEDULED", false],
+ ["confirmada sin PRESENT", "2026-11-03T15:00:00Z", "2026-11-03", "09:00", "10:00", "UNKNOWN", "SCHEDULED", false],
+ ["finalizada presente", "2026-11-03T15:00:00Z", "2026-11-03", "09:00", "10:00", "PRESENT", "SCHEDULED", true],
+ ["instante finalización", "2026-11-03T13:00:00Z", "2026-11-03", "09:00", "10:00", "PRESENT", "SCHEDULED", true],
+ ["23h59m59s999", "2026-11-04T12:59:59.999Z", "2026-11-03", "09:00", "10:00", "PRESENT", "SCHEDULED", true],
+ ["24h exactas", "2026-11-04T13:00:00Z", "2026-11-03", "09:00", "10:00", "PRESENT", "SCHEDULED", false],
+ ["7 días", "2026-11-10T13:00:00Z", "2026-11-03", "09:00", "10:00", "PRESENT", "SCHEDULED", false],
+ ["cruce de medianoche UTC", "2026-11-04T02:30:00Z", "2026-11-03", "22:00", "23:00", "PRESENT", "SCHEDULED", true],
+ ["medianoche argentina", "2026-11-04T03:01:00Z", "2026-11-03", "22:00", "23:00", "PRESENT", "SCHEDULED", true],
+ ["cancelada", "2026-11-03T15:00:00Z", "2026-11-03", "09:00", "10:00", "PRESENT", "CANCELLED", false],
+ ["sin fin fiable", "2026-11-03T15:00:00Z", "2026-11-03", "09:00", "", "PRESENT", "SCHEDULED", false],
+ ["fin inválido", "2026-11-03T15:00:00Z", "2026-11-03", "09:00", "10:99", "PRESENT", "SCHEDULED", false],
+ ["fin anterior al inicio", "2026-11-03T15:00:00Z", "2026-11-03", "09:00", "08:00", "PRESENT", "SCHEDULED", false],
+]) test(`plazo 24h: ${label}, misma regla GET y POST para enviar y omitir`, async () => {
+ mock.timers.setTime(new Date(now).getTime());
+ for (const skip of [false,true]) {
+  const row = attendance({actualAttendance, occurrence:{...occurrence,date:new Date(date+"T00:00:00Z"),startTime,endTime,status}}); const db=database([row]);
+  const api=loader({"@/lib/class-occurrences":occurrenceTools,"@/lib/prisma":{prisma:db},"@/lib/portal-auth":{getPortalSession:async()=>({studentId:"a",credential:{student:{workspaceId:"bm"}}}),validRequestOrigin:()=>true}})("app/api/portal/clases/opiniones/route.ts");
+  const invitation=(await (await api.GET()).json()).invitation;
+  assert.equal(Boolean(invitation),allowed);
+  if(invitation) assert.equal(new Date(invitation.expiresAt).getTime()-new Date(date+"T"+endTime+":00-03:00").getTime(),86400000);
+  const result=await api.POST(new Request("https://bm.test/api/portal/clases/opiniones",{method:"POST",body:JSON.stringify({occurrenceId:"class-a",rating:"GOOD",skip})}));
+  assert.equal(result.status,allowed?200:409);
+  if(!allowed) assert.equal(db.writes.length,0);
+  else assert.equal((await (await api.GET()).json()).invitation,null);
+ }
+});
+
+test("una invitación vence mientras el portal sigue abierto sin usar la hora del dispositivo",async()=>{
+ globalThis.fetch=async()=>({ok:true,json:async()=>({invitation:{occurrenceId:occurrence.id,date:"2026-11-03",className:"Funcional",startTime:"09:00",endTime:"10:00",serverNow:"2026-11-04T12:59:59.800Z",expiresAt:"2026-11-04T13:00:00Z"}})});
+ render(h(Invitation)); await screen.findByRole("region",{name:"Opinión de tu clase"});
+ await waitFor(()=>assert.ok(screen.queryByRole("region",{name:"Opinión de tu clase"})===null));
 });

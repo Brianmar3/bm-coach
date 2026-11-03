@@ -4,11 +4,21 @@ import { CLASS_FEEDBACK_PRIVACY, CLASS_RATINGS, feedbackInput } from "@/lib/clas
 import { argentinaDateKey } from "@/lib/payment-dates";
 import { inputClass } from "@/componentes/module-shell";
 
-type Invitation = { occurrenceId: string; date: string; className: string; startTime: string; endTime: string };
+type Invitation = { occurrenceId: string; date: string; className: string; startTime: string; endTime: string; expiresAt: string; serverNow: string };
 export function ClassFeedbackInvitation() {
   const [invitation, setInvitation] = useState<Invitation | null>(null); const [rating, setRating] = useState(""); const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [sent, setSent] = useState(false); const inFlight = useRef(false);
   const revision = useRef(0);
+  useEffect(() => {
+    if (!invitation?.expiresAt || !invitation.serverNow) return;
+    // Use the server's clock so a device with an incorrect clock still expires on time.
+    const remaining = Math.max(0, Date.parse(invitation.expiresAt) - Date.parse(invitation.serverNow));
+    const timer = window.setTimeout(() => {
+      revision.current++;
+      setInvitation(current => current?.occurrenceId === invitation.occurrenceId ? null : current);
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [invitation]);
   useEffect(() => {
     let controller: AbortController | undefined;
     const refresh = () => {

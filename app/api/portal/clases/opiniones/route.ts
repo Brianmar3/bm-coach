@@ -26,6 +26,6 @@ export async function POST(request: Request) {
   catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Respuesta no válida." }, { status: 400 }); }
   try {
     const saved = await submitClassFeedback(prisma, session.studentId, workspaceId, input);
-    return saved ? Response.json({ ok: true }) : Response.json({ error: "La clase no está disponible para valorar o ya respondiste." }, { status: 409 });
+    return saved ? Response.json({ ok: true }) : Response.json({ error: "La clase no está disponible: el plazo de 24 horas venció, ya respondiste o no hay asistencia efectiva habilitada." }, { status: 409 });
   } catch (error) { console.error("No se pudo guardar la opinión de clase", error); return Response.json({ error: "No se pudo guardar tu opinión." }, { status: 500 }); }
 }

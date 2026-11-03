@@ -11,29 +11,56 @@ function endedClasses(workspaceId: string): Prisma.ClassOccurrenceWhereInput {
   return { workspaceId, status: { not: "CANCELLED" }, OR: [{ date: { lt: new Date(now.date + "T00:00:00Z") } }, { date: new Date(now.date + "T00:00:00Z"), endTime: { lte: now.time } }] };
 }
 
+function feedbackClasses(workspaceId: string, now = new Date()): Prisma.ClassOccurrenceWhereInput {
+  const upper = argentinaClock(now), lower = argentinaClock(new Date(now.getTime() - 86_400_000));
+  const lowerDate = new Date(lower.date + "T00:00:00Z"), upperDate = new Date(upper.date + "T00:00:00Z");
+  return { workspaceId, status: { not: "CANCELLED" }, AND: [
+    { date: { gte: lowerDate, lte: upperDate } },
+    { OR: [{ date: { gt: lowerDate } }, { date: lowerDate, endTime: { gt: lower.time } }] },
+    { OR: [{ date: { lt: upperDate } }, { date: upperDate, endTime: { lte: upper.time } }] },
+  ] };
+}
+
+function feedbackDeadline(occurrence: { date: Date; startTime: string; endTime: string }) {
+  // Occurrences store a civil date and HH:mm local times, not a completion timestamp.
+  // Overnight/invalid intervals cannot be inferred reliably and are ineligible.
+  const time = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (!time.test(occurrence.startTime) || !time.test(occurrence.endTime) || occurrence.endTime <= occurrence.startTime) return null;
+  return new Date(new Date(databaseDateKey(occurrence.date) + "T" + occurrence.endTime + ":00-03:00").getTime() + 86_400_000);
+}
+
 export function eligibleFeedback(studentId: string, workspaceId: string): Prisma.ClassOccurrenceAttendanceWhereInput {
-  return { studentId, student: { workspaceId }, actualAttendance: "PRESENT", classFeedbackAt: null, classFeedbackSkippedAt: null, occurrence: endedClasses(workspaceId) };
+  return { studentId, student: { workspaceId }, actualAttendance: "PRESENT", classFeedbackAt: null, classFeedbackSkippedAt: null, occurrence: feedbackClasses(workspaceId) };
 }
 
 export async function pendingClassFeedback(db: Db, studentId: string, workspaceId: string) {
-  const row = await db.classOccurrenceAttendance.findFirst({ where: eligibleFeedback(studentId, workspaceId), include: { occurrence: true }, orderBy: [{ occurrence: { date: "desc" } }, { occurrence: { startTime: "desc" } }] });
-  return row ? { occurrenceId: row.occurrenceId, date: databaseDateKey(row.occurrence.date), className: occurrenceClassName(row.occurrence), startTime: row.occurrence.startTime, endTime: row.occurrence.endTime } : null;
+  const excluded: string[] = [];
+  for (;;) {
+    const row = await db.classOccurrenceAttendance.findFirst({ where: { ...eligibleFeedback(studentId, workspaceId), ...(excluded.length ? { id: { notIn: excluded } } : {}) }, include: { occurrence: true }, orderBy: [{ occurrence: { date: "desc" } }, { occurrence: { startTime: "desc" } }] });
+    if (!row) return null;
+    const expiresAt = feedbackDeadline(row.occurrence), now = new Date();
+    if (expiresAt && expiresAt.getTime() > now.getTime()) return { occurrenceId: row.occurrenceId, date: databaseDateKey(row.occurrence.date), className: occurrenceClassName(row.occurrence), startTime: row.occurrence.startTime, endTime: row.occurrence.endTime, expiresAt: expiresAt.toISOString(), serverNow: now.toISOString() };
+    excluded.push(row.id);
+  }
 }
 
 export async function submitClassFeedback(db: Db, studentId: string, workspaceId: string, input: ReturnType<typeof feedbackInput>) {
-  const where = { ...eligibleFeedback(studentId, workspaceId), occurrenceId: input.occurrenceId };
   for (let attempt = 0; attempt < 3; attempt++) {
-    const existing = await db.classOccurrenceAttendance.findFirst({ where, select: { id: true, updatedAt: true } });
+    const where = { ...eligibleFeedback(studentId, workspaceId), occurrenceId: input.occurrenceId };
+    const existing = await db.classOccurrenceAttendance.findFirst({ where, include: { occurrence: true } });
     if (!existing) return false;
+    const expiresAt = feedbackDeadline(existing.occurrence);
+    const now = new Date();
+    if (!expiresAt || expiresAt.getTime() <= now.getTime()) return false;
     // Preserve attendance chronology; retry a concurrent attendance update instead of
     // reporting it as an already answered invitation when nothing was persisted.
     const result = await db.classOccurrenceAttendance.updateMany({
-      where: { ...where, id: existing.id, updatedAt: existing.updatedAt },
-      data: { updatedAt: existing.updatedAt, ...(input.skip ? { classFeedbackSkippedAt: new Date() } : { classRating: input.rating, classComment: input.comment, classFeedbackAt: new Date() }) },
+      where: { ...eligibleFeedback(studentId, workspaceId), occurrenceId: input.occurrenceId, id: existing.id, updatedAt: existing.updatedAt, occurrence: { AND: [feedbackClasses(workspaceId), { date: existing.occurrence.date, startTime: existing.occurrence.startTime, endTime: existing.occurrence.endTime }] } },
+      data: { updatedAt: existing.updatedAt, ...(input.skip ? { classFeedbackSkippedAt: now } : { classRating: input.rating, classComment: input.comment, classFeedbackAt: now }) },
     });
     if (result.count === 1) return true;
   }
-  if (!await db.classOccurrenceAttendance.findFirst({ where, select: { id: true } })) return false;
+  if (!await db.classOccurrenceAttendance.findFirst({ where: { ...eligibleFeedback(studentId, workspaceId), occurrenceId: input.occurrenceId }, select: { id: true } })) return false;
   throw new Error("No se pudo guardar la opinión por una actualización simultánea. Volvé a intentar.");
 }
 
