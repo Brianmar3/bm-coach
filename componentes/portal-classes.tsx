@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ClassFeedbackInvitation } from "@/componentes/class-feedback-invitation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalClassOccurrence } from "@/types/classes";
 import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
@@ -200,6 +201,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
   if (compact)
     return (
       <section className="h-full overflow-hidden rounded-[26px] border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_18px_45px_rgba(0,0,0,.32),inset_0_1px_rgba(255,255,255,.025)] sm:p-4">
+        <ClassFeedbackInvitation/>
         <div className="flex items-start justify-between gap-3 sm:gap-5">
           <div className="min-w-0">
             <p className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-[11px]">
@@ -251,6 +253,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-4">
+      <ClassFeedbackInvitation/>
       <header className="flex items-start justify-between gap-3 px-1">
         <div className="min-w-0"><p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Agenda presencial</p>
         <h1 className="mt-1.5 text-2xl font-black leading-tight tracking-[-.03em] text-zinc-50 sm:text-4xl">Tus próximas clases</h1>

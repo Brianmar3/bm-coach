@@ -7,6 +7,7 @@ import { useResultNavigation } from "@/componentes/use-result-navigation";
 import { usePathname, useRouter } from "next/navigation";
 import { openNotificationSafely } from "@/lib/trainer-notification-destination";
 import { actionMenuPosition } from "@/lib/action-menu-position";
+import { ClassConfirmationReactions } from "@/componentes/class-confirmation-reactions";
 
 type HeaderNotification = {
   id: string;
@@ -16,6 +17,9 @@ type HeaderNotification = {
   url: string;
   destination?: string;
   response?: "GOING" | "NOT_GOING";
+  reaction?: string | null;
+  studentId?: string | null;
+  occurrenceId?: string | null;
   readAt: string | null;
   createdAt: string;
 };
@@ -357,6 +361,7 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                             </span>
                           </span>
                         </button>
+                        {audience === "trainer" && notification.type === "CLASS_RESPONSE" && notification.studentId && notification.occurrenceId && notification.response && <ClassConfirmationReactions notificationId={notification.id} reaction={notification.reaction} onChange={reaction => setNotifications(current => current.map(item => item.id === notification.id ? { ...item, reaction } : item))}/>}
                       </li>
                     ))}
                   </ul>

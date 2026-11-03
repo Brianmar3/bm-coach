@@ -950,6 +950,8 @@ model TrainerNotification {
   studentId       String?
   occurrenceId    String?
   response        ClassResponseStatus?
+  reaction        String?
+  reactedAt       DateTime?
   readAt          DateTime?
   pushAttemptedAt DateTime?
   pushDeliveredAt DateTime?
@@ -1852,6 +1854,10 @@ model ClassOccurrenceAttendance {
   actualAttendance ClassActualAttendance @default(UNKNOWN)
   respondedAt      DateTime?
   checkedInAt      DateTime?
+  classRating      String?
+  classComment     String?
+  classFeedbackAt  DateTime?
+  classFeedbackSkippedAt DateTime?
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
   occurrence       ClassOccurrence       @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)

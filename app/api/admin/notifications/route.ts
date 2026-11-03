@@ -63,6 +63,7 @@ export async function GET() {
           },
         },
         response: true,
+        reaction: true,
         readAt: true,
         createdAt: true,
       },

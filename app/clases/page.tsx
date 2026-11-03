@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { ClassOccurrenceAdmin } from "@/componentes/class-occurrence-admin";
+import { ClassOpinionsPanel } from "@/componentes/class-opinions-panel";
 import { EmptyState, ErrorState } from "@/componentes/async-states";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
 
@@ -192,6 +193,7 @@ export default function ClasesPage() {
       </section>
 
       <ClassOccurrenceAdmin />
+      <ClassOpinionsPanel />
 
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
         <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">
