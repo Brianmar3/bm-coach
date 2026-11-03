@@ -17,7 +17,7 @@ function loader(overrides = {}) {
       if (name === "server-only") return {};
       if (!name.startsWith("@/") && !name.startsWith(".")) return require(name);
       const base = name.startsWith("@/") ? path.resolve(name.slice(2)) : path.resolve(path.dirname(file), name);
-      return load([base + ".ts", base + ".tsx", base].find(existsSync));
+      return load([base + ".ts", base + ".tsx", path.join(base, "index.ts"), path.join(base, "index.tsx"), base].find(existsSync));
     };
     new Function("require", "module", "exports", code)(localRequire, record, record.exports);
     return record.exports;
