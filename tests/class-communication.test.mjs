@@ -27,7 +27,7 @@ function loader(overrides = {}) {
 const occurrenceTools = { argentinaClock: () => ({ date: "2026-11-03", time: "12:00" }), occurrenceClassName: row => row.classNameSnapshot };
 const load = loader({ "@/lib/class-occurrences": occurrenceTools });
 const { feedbackInput, CLASS_REACTIONS } = load("lib/class-communication.ts");
-const { pendingClassFeedback, submitClassFeedback, reactToConfirmation, classOpinions, feedbackReportFilter } = load("lib/class-communication-service.ts");
+const { pendingClassFeedback, submitClassFeedback, reactToConfirmation, classOpinions, feedbackReportFilter, classOpinionsReceivedToday } = load("lib/class-communication-service.ts");
 const occurrence = { id: "class-a", workspaceId: "bm", date: new Date("2026-11-03T00:00:00Z"), startTime: "09:00", endTime: "10:00", status: "SCHEDULED", classNameSnapshot: "Funcional", categorySnapshot: "Funcional" };
 function attendance(patch = {}) { return { id: "attendance-a", occurrenceId: "class-a", studentId: "a", student: { workspaceId: "bm", data: { firstName: "Ana", lastName: "Pérez" } }, occurrence, response: "GOING", actualAttendance: "PRESENT", updatedAt: new Date("2026-11-03T10:00:00Z"), classRating: null, classComment: null, classFeedbackAt: null, classFeedbackSkippedAt: null, ...patch }; }
 
@@ -38,7 +38,7 @@ function matches(row, where) {
     const actual = row[field];
     if (expected instanceof Date) return actual?.getTime() === expected.getTime();
     if (expected && typeof expected === "object") {
-      if ("not" in expected) return actual !== expected.not;
+      if ("not" in expected) return actual !== expected.not && (!expected.notIn || !expected.notIn.includes(actual));
       if (["gte", "lte", "lt", "contains"].some(key => key in expected)) return (!Object.hasOwn(expected, "gte") || actual >= expected.gte) && (!Object.hasOwn(expected, "lte") || actual <= expected.lte) && (!Object.hasOwn(expected, "lt") || actual < expected.lt) && (!Object.hasOwn(expected, "contains") || String(actual).toLowerCase().includes(expected.contains.toLowerCase()));
       return actual && matches(actual, expected);
     }
@@ -55,7 +55,7 @@ function database(rows) {
     findFirst: async ({ where }) => scoped(where).sort((a, b) => b.occurrence.date - a.occurrence.date)[0] ?? null,
     updateMany: async ({ where, data }) => { const found = scoped(where); for (const row of found) Object.assign(row, data, { updatedAt: data.updatedAt ?? new Date() }); writes.push(data); return { count: found.length }; },
     count: async ({ where }) => scoped(where).length,
-    findMany: async ({ where, take, skip }) => { assert.equal(take, 30); return scoped(where).slice(skip, skip + take); },
+    findMany: async ({ where, take, skip, orderBy }) => { assert.equal(take, 30); const rows = scoped(where); if (orderBy?.[0]?.classRating) rows.sort((a,b) => b.classRating.localeCompare(a.classRating)); return rows.slice(skip, skip + take); },
     groupBy: async ({ where }) => {
       const groups = new Map(); for (const row of scoped(where)) { const key = row.occurrenceId + row.classRating; const group = groups.get(key) ?? { occurrenceId: row.occurrenceId, classRating: row.classRating, _count: { _all: 0 } }; group._count._all++; groups.set(key, group); } return [...groups.values()];
     },
@@ -112,7 +112,7 @@ test("las opiniones se agregan por clase real, fecha y workspace y se paginan", 
   const result = await classOpinions(database(rows), "bm", filter);
   assert.equal(result.total, 2); assert.equal(result.classes[0].count, 2);
   assert.deepEqual(result.classes[0].distribution, { EXCELLENT: 1, GOOD: 1, IMPROVE: 0 });
-  assert.deepEqual(result.classes[0].opinions.map(item => item.studentName), ["Ana Pérez", "Bruno"]);
+  assert.deepEqual(result.classes[0].opinions.map(item => item.studentName), ["Bruno", "Ana Pérez"]);
   assert.equal((await classOpinions(database(rows), "bm", { ...filter, q: "GAP" })).total, 0);
   const many = database(Array.from({ length: 35 }, (_, index) => attendance({ id: String(index), classRating: "GOOD", classFeedbackAt: new Date() })));
   const page = await classOpinions(many, "bm", { ...filter, page: 2 }); assert.equal(page.classes[0].count, 35); assert.equal(page.classes[0].opinions.length, 5);
@@ -252,4 +252,44 @@ for (const width of [390, 1280]) test(`${width}px panel de Clases muestra distri
   fireEvent.change(screen.getByLabelText("Clase"), { target: { value: "GAP" } }); fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-11-01" } }); fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "2026-11-03" } });
   fireEvent.submit(screen.getByRole("button", { name: "Aplicar filtros" }).closest("form")); await screen.findByText("Todavía no hay opiniones para estos filtros.");
   assert.ok(requests.at(-1).includes("class=GAP"));
+});
+
+
+test("filtros rápidos mantienen resumen completo y priorizan A mejorar antes de paginar", async () => {
+ const rows = Array.from({length: 32}, (_, i) => attendance({id: String(i), classRating: i === 31 ? "IMPROVE" : "EXCELLENT", classComment: i === 31 ? "Cambiar ritmo" : "", classFeedbackAt: new Date("2026-11-03T15:00:00Z")}));
+ const filter = feedbackReportFilter(new URLSearchParams());
+ const all = await classOpinions(database(rows), "bm", filter);
+ assert.equal(all.total, 32); assert.equal(all.classes[0].opinions[0].rating, "IMPROVE");
+ for (const quick of ["improve", "comments"]) {
+  const report = await classOpinions(database(rows), "bm", {...filter, quick});
+  assert.equal(report.total, 1); assert.equal(report.classes[0].count, 32); assert.equal(report.classes[0].opinions[0].id, "31");
+ }
+ assert.throws(() => feedbackReportFilter(new URLSearchParams("quick=invalid")));
+});
+
+test("recepción hoy usa límites argentinos y aísla workspaces, incluso para clases anteriores", async () => {
+ const row = (id, at, patch={}) => attendance({id, classRating: "IMPROVE", classFeedbackAt: new Date(at), occurrence: {...occurrence, date: new Date("2026-10-01T00:00:00Z")}, ...patch});
+ const db = database([row("before", "2026-11-03T02:59:59Z"), row("first", "2026-11-03T03:00:00Z"), row("last", "2026-11-04T02:59:59Z", {classRating:"GOOD"}), row("after", "2026-11-04T03:00:00Z"), row("foreign", "2026-11-03T15:00:00Z", {student: {workspaceId:"other",data:{}}})]);
+ assert.deepEqual(await classOpinionsReceivedToday(db, "bm"), {total:2, improve:1});
+ const report = await classOpinions(db, "bm", feedbackReportFilter(new URLSearchParams("receivedOn=2026-11-03")));
+ assert.equal(report.total,2); assert.equal(report.classes[0].date,"2026-10-01");
+});
+
+
+test("filtros rápidos son accesibles y el enlace del dashboard abre Opiniones recibidas hoy", async () => {
+ const requests=[];
+ window.history.replaceState({}, "", "/clases?opiniones=hoy#opiniones");
+ globalThis.fetch = async url => {requests.push(url);return {ok:true,json:async()=>({total:0,page:1,pages:1,classes:[]})};};
+ render(h(Panel));
+ await screen.findByRole("button", {name:"Con comentarios"});
+ await waitFor(()=>assert.ok(requests.length));
+ assert.ok(requests[0].includes("receivedOn="));
+ fireEvent.click(screen.getByRole("button", {name:"A mejorar",exact:true}));
+ await waitFor(()=>assert.ok(requests.at(-1).includes("quick=improve")));
+ assert.equal(screen.getByRole("button", {name:"A mejorar",exact:true}).getAttribute("aria-pressed"),"true");
+ fireEvent.click(screen.getByRole("button", {name:"Con comentarios"}));
+ await waitFor(()=>assert.ok(requests.at(-1).includes("quick=comments")));
+ fireEvent.click(screen.getByRole("button", {name:"Todas"}));
+ await waitFor(()=>assert.ok(requests.at(-1).includes("quick=all")));
+ window.history.replaceState({}, "", "/");
 });

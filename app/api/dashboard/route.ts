@@ -1,3 +1,4 @@
+import { classOpinionsReceivedToday } from "@/lib/class-communication-service";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma, type ClassWeekday } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -85,7 +86,7 @@ export async function GET() {
     const weekday = WEEKDAY[todayDate.getUTCDay()];
     await ensureClassOccurrences(35, workspaceId);
 
-    const [studentRecords, paymentRecords, todayPaymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events, evaluations, pointTotals, routineAssignments, classAssignments, recentWorkouts, recentAttendances, recentOccurrenceAttendances] = await Promise.all([
+    const [studentRecords, paymentRecords, todayPaymentRecords, todayOccurrences, todayAttendances, weeklyAttendances, newWeeklyAttendances, events, evaluations, pointTotals, routineAssignments, classAssignments, recentWorkouts, recentAttendances, recentOccurrenceAttendances, opinionsToday] = await Promise.all([
       prisma.studentRecord.findMany({
         where: { workspaceId, AND: [coachedStudentsWhere] },
         select: {
@@ -170,6 +171,7 @@ export async function GET() {
         where: { student: { workspaceId }, actualAttendance: "PRESENT", occurrence: { workspaceId, date: { lt: tomorrowDate } } },
         select: { studentId: true, occurrence: { select: { date: true } } },
       }),
+      classOpinionsReceivedToday(prisma, workspaceId, today),
     ]);
 
     const students = studentRecords.map((record) => ({ ...record, student: studentData(record.data) }));
@@ -378,6 +380,7 @@ export async function GET() {
       income,
       priorities,
       attentionToday: {
+        opinionsToday,
         attentionCount: paymentAttention.attentionCount,
         overdueCount: paymentAttention.overdueCount,
         dueSoonCount: dueSoonThreeDaysCount,

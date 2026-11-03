@@ -157,14 +157,16 @@ function AttentionToday({ data }: { data: DashboardData["attentionToday"] }) {
   const quotaCount = data.attentionCount;
   const quotaTitle = data.overdueCount && data.dueSoonCount ? `${quotaCount} cuotas requieren atención` : data.overdueCount ? `${data.overdueCount} ${data.overdueCount === 1 ? "cuota vencida" : "cuotas vencidas"}` : `${data.dueSoonCount} ${data.dueSoonCount === 1 ? "cuota por vencer" : "cuotas por vencer"}`;
   const quotaSubtitle = [data.overdueCount ? `${data.overdueCount} vencida${data.overdueCount === 1 ? "" : "s"}` : "", data.dueSoonCount ? `${data.dueSoonCount} por vencer` : ""].filter(Boolean).join(" · ");
+  const opinions = data.opinionsToday;
   const rows = [
+    opinions?.total ? { id: "opinions", title: `${opinions.total} opiniones recibidas hoy · ${opinions.improve} para mejorar`, subtitle: "Ver opiniones de clases", href: "/clases?opiniones=hoy#opiniones", tone: "warning", icon: <span aria-hidden>💬</span> } : null,
     quotaCount ? { id: "quotas", title: quotaTitle, subtitle: quotaSubtitle, href: "/pagos", tone: "danger", icon: <BmPaymentIcon size={18}/> } : null,
     data.lowActivityStudentCount ? { id: "activity", title: `${data.lowActivityStudentCount} ${data.lowActivityStudentCount === 1 ? "alumno con baja actividad" : "alumnos con baja actividad"}`, subtitle: "Sin asistencias en los últimos 7 días", href: "/asistencias?view=low-activity", tone: "warning", icon: <BmProgressIcon size={18}/> } : null,
     data.completedWorkoutCount ? { id: "workouts", title: `${data.completedWorkoutCount} ${data.completedWorkoutCount === 1 ? "entrenamiento completado" : "entrenamientos completados"}`, subtitle: completedWorkoutPrioritySubtitle(data.completedWorkouts), href: completedWorkoutPriorityHref(data.completedWorkouts), tone: "gold", icon: <BmRoutineIcon size={18}/> } : null,
     data.registeredPaymentCount ? { id: "payments", title: `${money(data.registeredPaymentTotal)} registrados hoy`, subtitle: `${data.registeredPaymentCount} ${data.registeredPaymentCount === 1 ? "pago" : "pagos"}`, href: "/resumen-mensual", tone: "positive", icon: <BmCheckIcon size={18}/> } : null,
     ...data.birthdays.map((birthday) => ({ id: `birthday-${birthday.studentId}`, title: `Cumpleaños de ${birthday.studentName}`, subtitle: `${birthday.studentName} cumple años hoy.`, href: `/alumnos?studentId=${encodeURIComponent(birthday.studentId)}`, tone: "gold", icon: <span aria-hidden>🎂</span> })),
   ].filter((row): row is NonNullable<typeof row> => Boolean(row));
-  const hasPriority = quotaCount > 0 || data.lowActivityStudentCount > 0 || data.completedWorkoutCount > 0 || data.birthdayCount > 0;
+  const hasPriority = (opinions?.total ?? 0) > 0 || quotaCount > 0 || data.lowActivityStudentCount > 0 || data.completedWorkoutCount > 0 || data.birthdayCount > 0;
   const visibleRows = rows.filter((row) => hasPriority || row.id === "payments");
   const tones: Record<string, string> = { danger: "bg-red-400/10 text-red-300", warning: "bg-orange-400/10 text-orange-300", gold: "bg-yellow-400/10 text-[var(--brand-text)]", positive: "bg-emerald-400/10 text-emerald-300" };
   return <Panel title="ATENCIÓN HOY" subtitle="Prioridades de gestión">

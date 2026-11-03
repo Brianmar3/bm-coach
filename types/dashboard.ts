@@ -45,6 +45,7 @@ export type DashboardData = {
   income: Array<{ date: string; label: string; amount: number }>;
   priorities: DashboardPriority[];
   attentionToday: {
+    opinionsToday?: { total: number; improve: number };
     attentionCount: number;
     overdueCount: number;
     dueSoonCount: number;
