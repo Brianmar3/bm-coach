@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DashboardFloatingActions } from "@/componentes/dashboard-floating-actions";
 import { useBrowserStore } from "@/lib/browser-store";
 import { RANKING_PAGE_HREF } from "@/lib/ranking-navigation";
@@ -187,13 +187,19 @@ function TodayClasses({ items, total }: { items: DashboardData["todayClasses"]; 
 
 function PaymentsPanel({ data, metrics }: { data: DashboardData["income"]; metrics: DashboardData["metrics"] }) {
   const max = Math.max(...data.map((item) => item.amount), 1);
-  return <Panel title="Cobros" subtitle="Resumen del mes actual" action={<SectionLink href="/pagos">Ver pagos</SectionLink>}>
-    <div className="mt-3 grid grid-cols-3 gap-2">
-      <CompactMetric label="Cobrado" value={money(metrics.monthIncome)} tone="text-emerald-300" />
-      <CompactMetric label="Pendiente" value={money(metrics.pendingAmount)} tone="text-[var(--brand-text)]" />
-      <CompactMetric label="Vencidas" value={String(metrics.overdueCount)} tone="text-red-300" />
-    </div>
-    <div className="mt-3 flex h-16 items-end gap-1" role="img" aria-label="Cobros diarios del mes">{data.map((item) => <div key={item.date} className="flex h-full min-w-0 flex-1 items-end"><span className="block w-full rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${item.amount ? Math.max(8, (item.amount / max) * 100) : 2}%` }} title={`${item.label}: ${money(item.amount)}`} /></div>)}</div>
+  const [selectedDate, setSelectedDate] = useState("");
+  const selected = data.find(day => day.date === selectedDate);
+  const detail = useRef<HTMLDetailsElement>(null);
+  function selectDay(date: string) { setSelectedDate(date); if (detail.current) detail.current.open = true; }
+  return <Panel title="Cobros" subtitle="Mes actual · fecha efectiva de cobro" action={<SectionLink href="/pagos">Ver pagos</SectionLink>}>
+    <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1"><strong className="text-xl font-bold text-[var(--brand-text)]">{money(metrics.monthIncome)}</strong><span className="text-xs text-[var(--foreground-muted)]">{metrics.monthPaymentCount} pagos registrados</span></div>
+    <div className="mt-3 flex h-24 items-end gap-0.5" role="group" aria-label="Cobros diarios del mes">{data.map(item => <button key={item.date} type="button" aria-label={`${showDate(item.date)}: ${money(item.amount)}`} aria-pressed={selectedDate === item.date} title={`${showDate(item.date)}: ${money(item.amount)}`} onClick={() => selectDay(item.date)} className="group flex h-full min-w-0 flex-1 flex-col justify-end rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-text)]"><span className={`block w-full rounded-t-sm bg-gradient-to-t from-yellow-600/40 to-yellow-400 ${selectedDate === item.date ? "ring-1 ring-[var(--brand-text)]" : "group-hover:brightness-125"}`} style={{ height: `${item.amount ? Math.max(6, (item.amount / max) * 100) : 2}%` }}/></button>)}</div>
+    <div aria-hidden className="mt-1 flex justify-between text-[10px] text-[var(--foreground-muted)]"><span>{data[0]?.label}</span><span>Día del mes</span><span>{data.at(-1)?.label}</span></div>
+    <details ref={detail} className="mt-3 border-t border-[var(--input-border)] pt-2">
+      <summary className="cursor-pointer py-1 text-xs font-semibold text-[var(--foreground-muted)]">Detalle de cobros{selected ? ` · ${showDate(selected.date)}` : " por día"}</summary>
+      <label className="mt-2 flex items-center justify-between gap-2 text-xs text-[var(--foreground-muted)]">Día<select aria-label="Día de cobro" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} className="min-h-9 min-w-0 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-2 text-[var(--foreground)]"><option value="">Seleccionar día</option>{data.map(day => <option key={day.date} value={day.date}>{showDate(day.date)} · {money(day.amount)}</option>)}</select></label>
+      {selected && <><p className="mt-2 text-xs font-semibold text-[var(--brand-text)]">{money(selected.amount)} · {selected.payments?.length ?? 0} pagos</p>{selected.payments?.length ? <ul className="mt-1 divide-y divide-[var(--input-border)]">{selected.payments.map(payment => <li key={payment.id} className="py-2 text-xs"><div className="flex items-baseline justify-between gap-3"><strong className="min-w-0 break-words text-[var(--foreground)]">{payment.studentName}</strong><span className="shrink-0 font-semibold text-[var(--brand-text)]">{money(payment.amount)}</span></div><p className="mt-0.5 text-[var(--foreground-muted)]">Cobro: {showDate(payment.paidDate)} · Cuota: {payment.billingPeriod ? new Date(`${payment.billingPeriod}-01T12:00:00Z`).toLocaleDateString("es-AR", { month: "long", year: "numeric", timeZone: "UTC" }) : "Sin período registrado"}</p></li>)}</ul> : <p role="status" className="py-2 text-xs text-[var(--foreground-muted)]">Sin cobros en este día.</p>}</>}
+    </details>
   </Panel>;
 }
 
@@ -216,10 +222,9 @@ function RecentStudents({ items }: { items: DashboardData["recentStudents"] }) {
 function AttendancePanel({ data, summary }: { data: DashboardData["weeklyAttendance"]; summary: DashboardData["attendanceSummary"] }) {
   const max = Math.max(...data.map((item) => item.present), 1);
   return <Panel title="Actividad semanal" subtitle="Asistencias de lunes a domingo" action={<SectionLink href="/asistencias?view=attendance">Ver detalle</SectionLink>}>
-    <div className="mt-3 grid gap-3">
-      <div className="flex h-24 items-end gap-2" role="img" aria-label="Asistencias de la semana">{data.map((day) => <div key={day.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"><span className="mb-1 text-[11px] font-bold text-zinc-300">{day.present}</span><span className="block w-full max-w-10 rounded-t-sm bg-gradient-to-t from-yellow-600/30 to-yellow-300" style={{ height: `${day.present ? Math.max(8, (day.present / max) * 100) : 2}%` }} /><span className="mt-1 text-[11px] text-[var(--foreground-muted)]">{day.label}</span></div>)}</div>
-      <div className="grid grid-cols-3 gap-2"><CompactMetric label="Promedio" value={`${summary.weeklyAverage}%`} tone="text-emerald-300" /><CompactMetric label="Mejor día" value={summary.bestDay} tone="text-[var(--brand-text)]" /><CompactMetric label="Asistencias" value={String(summary.totalAttendance)} tone="text-sky-300" /></div>
-    </div>
+    <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1"><strong className="text-xl font-bold text-[var(--brand-text)]">{summary.totalAttendance} asistencias</strong><span className="text-xs text-[var(--foreground-muted)]">{summary.weeklyAverage}% sobre registros · Mejor día: {summary.bestDay}</span></div>
+    <div className="mt-3 flex h-24 items-end gap-2" role="img" aria-label={`Asistencias de la semana: ${data.map(day => `${day.label} ${day.present}`).join(", ")}`}>{data.map(day => <div key={day.date} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"><span className="mb-1 text-[11px] font-semibold text-[var(--foreground-muted)]">{day.present}</span><div className="flex min-h-0 w-full flex-1 items-end justify-center"><span className="block w-full max-w-10 rounded-t-sm bg-gradient-to-t from-yellow-600/40 to-yellow-400" style={{ height: `${day.present ? Math.max(6, (day.present / max) * 100) : 2}%` }}/></div></div>)}</div>
+    <div aria-hidden className="mt-1 flex gap-2 text-[10px] text-[var(--foreground-muted)]">{data.map(day => <span key={day.date} className="min-w-0 flex-1 text-center">{day.label}</span>)}</div>
   </Panel>;
 }
 
@@ -231,9 +236,6 @@ function EventsPanel({ events }: { events: DashboardData["upcomingEvents"] }) {
   </Panel>;
 }
 
-function CompactMetric({ label, value, tone }: { label: string; value: string; tone: string }) {
-  return <div className="min-w-0 rounded-xl border border-zinc-800/80 bg-black/25 p-2.5 text-center"><p className="truncate text-[11px] uppercase tracking-wide text-[var(--foreground-muted)] sm:text-[11px]">{label}</p><p className={`mt-1 truncate text-sm font-bold sm:text-base ${tone}`}>{value}</p></div>;
-}
 
 function EmptyState({ text, href, action }: { text: string; href: string; action: string }) {
   return <div className="rounded-xl border border-dashed border-zinc-700 px-4 py-4 text-center"><p className="text-sm text-[var(--foreground-muted)]">{text}</p><Link href={href} className="mt-2 inline-block text-xs font-bold text-[var(--brand-text)]">{action} →</Link></div>;

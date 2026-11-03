@@ -42,7 +42,7 @@ export type DashboardData = {
     attendanceTodayPercentage: number;
     newStudents: number;
   };
-  income: Array<{ date: string; label: string; amount: number }>;
+  income: Array<{ date: string; label: string; amount: number; payments?: Array<{ id: string; studentName: string; amount: number; paidDate: string; billingPeriod: string | null }> }>;
   priorities: DashboardPriority[];
   attentionToday: {
     opinionsToday?: { total: number; improve: number };

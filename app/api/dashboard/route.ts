@@ -98,8 +98,8 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
       }),
       prisma.studentPayment.findMany({
-        where: { student: { workspaceId }, status: "PAGADO", paidDate: { gte: dateKeyToDatabase(previousMonthStart), lt: dateKeyToDatabase(nextMonthStart) } },
-        select: { amount: true, paidDate: true },
+        where: { student: { workspaceId }, status: "PAGADO", paidDate: { gte: argentinaDateTimeBoundary(previousMonthStart), lt: argentinaDateTimeBoundary(nextMonthStart) } },
+        select: { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true },
         orderBy: { paidDate: "asc" },
       }),
       prisma.studentPayment.findMany({
@@ -229,8 +229,8 @@ export async function GET() {
       ? threeDayAccounts.reduce((sum, account) => sum + account.amount, 0)
       : null;
 
-    const currentPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) >= monthStart);
-    const previousPayments = paymentRecords.filter((payment) => payment.paidDate && databaseDateKey(payment.paidDate) < monthStart);
+    const currentPayments = paymentRecords.filter((payment) => payment.paidDate && argentinaDateKey(payment.paidDate) >= monthStart);
+    const previousPayments = paymentRecords.filter((payment) => payment.paidDate && argentinaDateKey(payment.paidDate) < monthStart);
     const monthIncome = currentPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const previousIncome = previousPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const todayPaymentSummary = registeredTodaySummary(todayPaymentRecords.map((payment): TraceablePayment => ({
@@ -294,15 +294,19 @@ export async function GET() {
       || left.studentName.localeCompare(right.studentName, "es"),
     );
     const incomeByDate = new Map<string, number>();
+    const paymentsByDate = new Map<string, NonNullable<DashboardData["income"][number]["payments"]>>();
     for (const payment of currentPayments) {
       if (!payment.paidDate) continue;
-      const key = databaseDateKey(payment.paidDate);
+      const key = argentinaDateKey(payment.paidDate);
       incomeByDate.set(key, (incomeByDate.get(key) ?? 0) + Number(payment.amount));
+      const rows = paymentsByDate.get(key) ?? [];
+      rows.push({ id: payment.id, studentName: namesByStudent.get(payment.studentId) ?? "Alumno", amount: Number(payment.amount), paidDate: key, billingPeriod: payment.billingPeriod ? databaseDateKey(payment.billingPeriod).slice(0, 7) : null });
+      paymentsByDate.set(key, rows);
     }
     const elapsedDays = Number(today.slice(8, 10));
     const income = Array.from({ length: elapsedDays }, (_, index) => {
       const date = addDays(monthStart, index);
-      return { date, label: String(index + 1), amount: incomeByDate.get(date) ?? 0 };
+      return { date, label: String(index + 1), amount: incomeByDate.get(date) ?? 0, payments: paymentsByDate.get(date) ?? [] };
     });
 
     const attendanceTodayBySchedule = new Map(todayAttendances.map((item) => [item.scheduleId ?? "", item._count._all]));
