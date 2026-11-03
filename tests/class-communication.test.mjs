@@ -205,13 +205,14 @@ const Reactions = ui("componentes/class-confirmation-reactions.tsx").ClassConfir
 const Invitation = ui("componentes/class-feedback-invitation.tsx").ClassFeedbackInvitation;
 const Panel = ui("componentes/class-opinions-panel.tsx").ClassOpinionsPanel;
 
-test("reacciones UI editables mediante botones accesibles sin abrir otra notificación", async () => {
+for (const width of [390, 1280]) test(`${width}px reacciones UI editables mediante botones accesibles sin abrir otra notificación`, async () => {
+  window.innerWidth = width;
   const calls = []; globalThis.fetch = async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return { ok: true, json: async () => JSON.parse(options.body) }; };
   function View() { const [reaction, setReaction] = React.useState(null); return h(Reactions, { notificationId: "notice", reaction, onChange: setReaction }); }
   render(h(View)); fireEvent.click(screen.getByRole("button", { name: "👍 Recibido" }));
   await waitFor(() => assert.equal(screen.getByRole("button", { name: "👍 Recibido" }).getAttribute("aria-pressed"), "true"));
-  fireEvent.click(screen.getByRole("button", { name: "🙌 Gracias por avisar" }));
-  await waitFor(() => assert.equal(screen.getByRole("button", { name: "🙌 Gracias por avisar" }).getAttribute("aria-pressed"), "true"));
+  fireEvent.click(screen.getByRole("button", { name: "🙌 Gracias" }));
+  await waitFor(() => assert.equal(screen.getByRole("button", { name: "🙌 Gracias" }).getAttribute("aria-pressed"), "true"));
   assert.equal(calls.length, 2); assert.ok(calls.every(call => call.url === "/api/admin/notifications/notice/reaction"));
 });
 
