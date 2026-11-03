@@ -366,3 +366,33 @@ test("una invitación vence mientras el portal sigue abierto sin usar la hora de
  render(h(Invitation)); await screen.findByRole("region",{name:"Opinión de tu clase"});
  await waitFor(()=>assert.ok(screen.queryByRole("region",{name:"Opinión de tu clase"})===null));
 });
+
+
+for (const width of [390,1280]) for (const theme of ["light","dark"]) test(`${width}px ${theme}: filas compactas, comentario desplegable, filtros y paginación conservados`,async()=>{
+ window.innerWidth=width; document.documentElement.dataset.theme=theme;
+ const rows=Array.from({length:35},(_,i)=>attendance({id:"compact-"+i,studentId:"student-"+i,student:{workspaceId:"bm",data:{firstName:"Alumno",lastName:String(i)}},classRating:i===34?"IMPROVE":"GOOD",classComment:i===34?"Comentario completo de prueba\nSegunda línea":"",classFeedbackAt:new Date()}));
+ const db=database(rows), requests=[];
+ globalThis.fetch=async url=>{requests.push(url);return {ok:true,json:async()=>classOpinions(db,"bm",feedbackReportFilter(new URL(url,window.location.origin).searchParams))};};
+ const view=render(h(Panel)); fireEvent.click(screen.getByText("Opiniones"));
+ const name=await screen.findByText("Alumno 34"), summary=name.closest("summary"), detail=summary.closest("details");
+ assert.equal(detail.open,false);assert.ok(screen.getByLabelText("Con comentario"));
+ assert.equal(view.container.querySelector('li').textContent.includes("Alumno 34"),true);
+ assert.ok(summary.textContent.includes("3/11/2026 · 09:00"));assert.ok(summary.textContent.includes("💬 A mejorar"));
+ fireEvent.click(summary);assert.equal(detail.open,true);assert.ok(screen.getByText(/Comentario completo de prueba/));
+ fireEvent.click(summary);assert.equal(detail.open,false);
+ assert.equal(view.container.querySelectorAll('article').length,0);
+ fireEvent.click(screen.getByRole("button",{name:"Con comentarios",exact:true}));
+ await waitFor(()=>assert.ok(requests.at(-1).includes("quick=comments")));
+ await screen.findByText(/1 respuestas · Privadas/);
+ assert.ok(screen.getByText("💪 Buena: 34"));
+ fireEvent.click(screen.getByRole("button",{name:"A mejorar",exact:true}));
+ await waitFor(()=>assert.ok(requests.at(-1).includes("quick=improve")));
+ await screen.findByText("Alumno 34");
+ fireEvent.click(screen.getByRole("button",{name:"Todas",exact:true}));
+ await screen.findByText(/35 respuestas · Privadas/);
+ fireEvent.click(screen.getByRole("button",{name:"Siguiente"}));
+ await screen.findByText("2 / 2");assert.equal(screen.queryByText("Alumno 34"),null);
+ assert.ok(requests.at(-1).includes("page=2"));
+ fireEvent.click(screen.getByRole("button",{name:"Anterior"}));
+ await screen.findByText("1 / 2");await screen.findByText("Alumno 34");
+});
