@@ -100,8 +100,15 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
   const tomorrowKey = tomorrow.toISOString().slice(0, 10);
   const paymentSelection = { id: true, studentId: true, amount: true, paidDate: true, billingPeriod: true, method: true, status: true, createdAt: true } as const;
 
-  const [students, payments, todayPayments, obligations, attendances, evaluations, workouts, statusHistory, memberships] = await Promise.all([
+  const [students, payments, periodPayments, todayPayments, obligations, attendances, evaluations, workouts, statusHistory, memberships] = await Promise.all([
     prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true, serviceType: true } }),
+    // Cash receipts use the actual payment instant in the business time zone.
+    prisma.studentPayment.findMany({
+      where: { student: { workspaceId }, paidDate: { gte: bounds.startInstant, lt: bounds.endInstant } },
+      select: paymentSelection,
+      orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }],
+    }),
+    // Service-period settlement remains independent from cash receipts.
     prisma.studentPayment.findMany({
       where: { student: { workspaceId }, billingPeriod: bounds.startDate },
       select: paymentSelection,
@@ -151,23 +158,25 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
     amount: Number(payment.amount),
     status: payment.status,
     billingPeriod: payment.billingPeriod ? databaseDateKey(payment.billingPeriod) : null,
-    paidDate: payment.paidDate ? databaseDateKey(payment.paidDate) : null,
+    paidDate: payment.paidDate ? argentinaDateKey(payment.paidDate) : null,
     createdAt: payment.createdAt.toISOString(),
     method: payment.method,
   });
   const traceablePayments = payments.map(serializeTraceablePayment);
   const traceableTodayPayments = todayPayments.map(serializeTraceablePayment);
   const validPayments = payments.filter((payment) => payment.status === "PAGADO");
+  const validPeriodPayments = periodPayments.filter((payment) => payment.status === "PAGADO");
   const collectedTotal = validPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
   const expectedTotal = obligations.length ? obligations.reduce((sum, item) => sum + Number(item.expectedAmount), 0) : null;
   const validPaidByStudent = new Map<string, number>();
-  validPayments.forEach((payment) => validPaidByStudent.set(payment.studentId, (validPaidByStudent.get(payment.studentId) ?? 0) + Number(payment.amount)));
+  validPeriodPayments.forEach((payment) => validPaidByStudent.set(payment.studentId, (validPaidByStudent.get(payment.studentId) ?? 0) + Number(payment.amount)));
   const reconciliation = obligations.length ? reconcileMonthlyFinances(
-    traceablePayments,
+    periodPayments.map(serializeTraceablePayment),
     obligations.map((item) => ({ studentId: item.studentId, expectedAmount: Number(item.expectedAmount) })),
   ) : null;
   const pendingTotal = reconciliation?.pendingTotal ?? null;
-  const collectionPercentage = expectedTotal === null || expectedTotal <= 0 ? null : Math.round((collectedTotal / expectedTotal) * 1000) / 10;
+  const periodPaidTotal = validPeriodPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const collectionPercentage = expectedTotal === null || expectedTotal <= 0 ? null : Math.round((periodPaidTotal / expectedTotal) * 1000) / 10;
   const present = attendances.filter((item) => item.status === "PRESENT").length;
   const absent = attendances.filter((item) => item.status === "ABSENT").length;
   const justified = attendances.filter((item) => item.status === "JUSTIFIED").length;
@@ -227,7 +236,7 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
       reason: item.monthlyAmount === null ? "No hay un importe guardado en este tramo histórico." : "El importe histórico no es mayor que cero.",
     }));
   if (membershipsWithoutAmount.length) warnings.add(`${membershipsWithoutAmount.length} membresías activas no tienen un importe histórico válido.`);
-  const paymentsWithoutDate = payments.filter((item) => item.status === "PAGADO" && !item.paidDate).length;
+  const paymentsWithoutDate = periodPayments.filter((item) => item.status === "PAGADO" && !item.paidDate).length;
   if (paymentsWithoutDate) warnings.add(`${paymentsWithoutDate} pagos válidos no tienen fecha real de pago.`);
   const activityWithoutObligation = [...activityIds].filter((studentId) => !obligationByStudent.has(studentId)).map((studentId) => {
     const student = studentById.get(studentId);
@@ -256,6 +265,7 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
     const membership = membershipByStudent.get(studentId);
     const studentPayments = payments.filter((item) => item.studentId === studentId);
     const studentValidPayments = studentPayments.filter((item) => item.status === "PAGADO");
+    const studentPeriodPayments = periodPayments.filter((item) => item.studentId === studentId);
     const studentAttendances = attendances.filter((item) => item.studentId === studentId);
     const enrollment = events.find((item) => item.studentId === studentId && item.type === "ENROLLMENT");
     const deactivation = events.find((item) => item.studentId === studentId && item.type === "DEACTIVATION");
@@ -264,15 +274,16 @@ export async function buildMonthlySummary(selection: MonthSelection, workspaceId
     if (!obligation && !membership) rowWarnings.push("Plan, servicio y frecuencia históricos no disponibles.");
     const expectedAmount = obligation ? Number(obligation.expectedAmount) : null;
     const collectedAmount = studentValidPayments.reduce((sum, item) => sum + Number(item.amount), 0);
-    const liveStatus = obligation ? obligationStatus(Number(obligation.expectedAmount), collectedAmount, databaseDateKey(obligation.dueDate), argentinaDateKey()) as MonthlyObligationStatus : null;
+    const settledAmount = validPaidByStudent.get(studentId) ?? 0;
+    const liveStatus = obligation ? obligationStatus(Number(obligation.expectedAmount), settledAmount, databaseDateKey(obligation.dueDate), argentinaDateKey()) as MonthlyObligationStatus : null;
     return {
       studentId,
       studentName: obligation?.studentNameSnapshot ?? (student ? studentName(student.data) : "Alumno"),
       collectedAmount,
       expectedAmount,
-      balance: expectedAmount === null ? null : Math.max(expectedAmount - collectedAmount, 0),
-      paymentStatus: paymentLabel(liveStatus, studentValidPayments.length > 0, studentPayments.length > 0 && studentValidPayments.length === 0),
-      paymentDates: studentValidPayments.flatMap((item) => item.paidDate ? [databaseDateKey(item.paidDate)] : []),
+      balance: expectedAmount === null ? null : Math.max(expectedAmount - settledAmount, 0),
+      paymentStatus: paymentLabel(liveStatus, settledAmount > 0, studentPeriodPayments.length > 0 && studentPeriodPayments.every((item) => item.status === "ANULADO")),
+      paymentDates: studentValidPayments.flatMap((item) => item.paidDate ? [argentinaDateKey(item.paidDate)] : []),
       paymentMethods: [...new Set(studentValidPayments.map((item) => item.method).filter(Boolean))],
       attendancePresent: studentAttendances.filter((item) => item.status === "PRESENT").length,
       attendanceAbsent: studentAttendances.filter((item) => item.status === "ABSENT").length,

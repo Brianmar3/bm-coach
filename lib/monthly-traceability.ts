@@ -80,7 +80,7 @@ export function registeredTodaySummary(
     const registeredKey = argentinaDateKey(new Date(payment.createdAt));
     return registeredKey >= todayKey && registeredKey < tomorrowKey;
   });
-  const impacting = registered.filter((payment) => periodMonthKey(payment.billingPeriod) === selectedMonthKey);
+  const impacting = registered.filter((payment) => periodMonthKey(payment.paidDate) === selectedMonthKey);
   return {
     dateKey: todayKey,
     isCurrentPeriod: selectedMonthKey === todayKey.slice(0, 7),
@@ -114,7 +114,7 @@ export function weeklyCollections(
   studentNames: Map<string, string>,
   now = new Date(),
 ) {
-  const valid = uniquePayments(payments).filter((payment) => payment.status === "PAGADO" && periodMonthKey(payment.billingPeriod) === selectedMonthKey);
+  const valid = uniquePayments(payments).filter((payment) => payment.status === "PAGADO" && periodMonthKey(payment.paidDate) === selectedMonthKey);
   const lastDay = daysInMonth(selectedMonthKey);
   const monthLabel = shortMonth(selectedMonthKey);
   const currentKey = argentinaDateKey(now);

@@ -202,7 +202,7 @@ function ReconciliationPanel({ data }: { data: MonthlySummaryData }) {
   if (!item) return null;
   const hasDifference = item.unreconciledCollected > 0;
   return <section className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-xs text-[var(--foreground-muted)] sm:flex sm:items-center sm:justify-between sm:gap-4">
-    <p className="leading-relaxed"><strong className="text-zinc-200">Cómo se reconcilia:</strong> de {money(item.collectedTotal)} cobrados, {money(item.appliedToObligations)} se aplican a obligaciones. El saldo de {money(item.pendingTotal)} se calcula alumno por alumno, por eso los excedentes no compensan deudas ajenas.</p>
+    <p className="leading-relaxed"><strong className="text-zinc-200">Cómo se reconcilia:</strong> de {money(item.collectedTotal)} abonados a cuotas de este período, {money(item.appliedToObligations)} se aplican a obligaciones. El saldo de {money(item.pendingTotal)} se calcula alumno por alumno, por eso los excedentes no compensan deudas ajenas. Total cobrado y cobros semanales se agrupan por fecha real del cobro, aunque la cuota corresponda a otro mes.</p>
     {hasDifference && <div className="mt-2 shrink-0 border-t border-zinc-800 pt-2 sm:mt-0 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"><p>{money(item.paymentsWithoutObligation)} sin obligación</p><p>{money(item.overpaymentsOnObligations)} por encima de obligaciones</p></div>}
   </section>;
 }

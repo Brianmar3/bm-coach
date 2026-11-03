@@ -6,7 +6,7 @@ import {
   argentinaDateKey,
   argentinaMonthBounds,
   databaseDateKey,
-  dateKeyToDatabase,
+  argentinaDateTimeBoundary,
   paymentAccountStatus,
 } from "@/lib/payment-dates";
 import type { Payment, PaymentDashboard, PaymentStatus, PaymentStudentAccount, PortalPaymentAccount, Student } from "@/types/gestion";
@@ -46,7 +46,7 @@ export function serializePayment(record: PaymentWithStudent): Payment {
     concept: record.concept,
     billingPeriod: record.billingPeriod ? databaseDateKey(record.billingPeriod) : "",
     dueDate: databaseDateKey(record.dueDate),
-    paidDate: record.paidDate ? databaseDateKey(record.paidDate) : "",
+    paidDate: record.paidDate ? argentinaDateKey(record.paidDate) : "",
     method: record.method,
     status: paymentStatus(record.status),
     notes: record.notes,
@@ -76,7 +76,7 @@ export function portalPaymentAccount(student: Student, payments: PaymentAccountR
     monthlyFee,
     nextDueDate,
     plan: student.plan ?? "",
-    lastPaymentDate: lastPayment?.paidDate ? databaseDateKey(lastPayment.paidDate) : "",
+    lastPaymentDate: lastPayment?.paidDate ? argentinaDateKey(lastPayment.paidDate) : "",
     lastPaymentAmount: lastPayment ? Number(lastPayment.amount) : null,
   };
 }
@@ -85,8 +85,8 @@ export async function paymentDashboard(): Promise<PaymentDashboard> {
   const { workspaceId } = await requireTrainerWorkspace();
   const asOf = argentinaDateKey();
   const { monthStart, nextMonthStart } = argentinaMonthBounds(asOf);
-  const start = dateKeyToDatabase(monthStart);
-  const end = dateKeyToDatabase(nextMonthStart);
+  const start = argentinaDateTimeBoundary(monthStart);
+  const end = argentinaDateTimeBoundary(nextMonthStart);
   const [records, monthAggregate] = await Promise.all([
     prisma.studentRecord.findMany({
       where: { AND: [coachedStudentsWhere], workspaceId },
@@ -120,7 +120,7 @@ export async function paymentDashboard(): Promise<PaymentDashboard> {
         phone: studentPhone(student),
         paymentCount: validPayments.length,
         paidThisMonth: validPayments.some((payment) => payment.paidDate && payment.paidDate >= start && payment.paidDate < end),
-        lastPaymentDate: lastPayment?.paidDate ? databaseDateKey(lastPayment.paidDate) : "",
+        lastPaymentDate: lastPayment?.paidDate ? argentinaDateKey(lastPayment.paidDate) : "",
         lastPaymentAmount: lastPayment ? Number(lastPayment.amount) : null,
         nextDueDate: student.dueDate ?? "",
         status,

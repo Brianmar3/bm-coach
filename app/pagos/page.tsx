@@ -11,7 +11,7 @@ import { useComboboxNavigation } from "@/componentes/use-combobox-navigation";
 import { useMenuNavigation } from "@/componentes/use-result-navigation";
 import { KeyboardDialog, useDialogKeyboard } from "@/componentes/keyboard-dialog";
 import { useEnterFieldNavigation } from "@/componentes/use-trainer-keyboard-interactions";
-import { addMonthsToDateKey } from "@/lib/payment-dates";
+import { addMonthsToDateKey, argentinaDateKey } from "@/lib/payment-dates";
 import { apiRequest } from "@/lib/client-api";
 import { actionMenuPosition } from "@/lib/action-menu-position";
 import { paymentWhatsappUrl } from "@/lib/payment-whatsapp";
@@ -113,7 +113,7 @@ export default function PagosPage() {
         const params = new URLSearchParams(window.location.search);
         if (params.get("accion") === "nuevo") {
           const account = dashboard.students.find((item) => item.studentId === params.get("studentId"));
-          const paidDate = dashboard.asOf;
+          const paidDate = argentinaDateKey();
           setForm({ studentId: account?.studentId ?? "", amount: account?.monthlyFee ?? 0, paidDate, billingPeriod: currentPeriod(paidDate), method: "Transferencia", dueDate: addMonthsToDateKey(account?.nextDueDate || paidDate), notes: "", requestKey: crypto.randomUUID(), mode: "create" });
         }
       })
@@ -137,7 +137,7 @@ export default function PagosPage() {
   }, [data.students, filter, query]);
 
   function blankForm(account?: PaymentStudentAccount, mode: PaymentForm["mode"] = "create"): PaymentForm {
-    const paidDate = data.asOf;
+    const paidDate = argentinaDateKey();
     return {
       studentId: account?.studentId ?? "",
       amount: account?.monthlyFee ?? 0,

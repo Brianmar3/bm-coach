@@ -169,13 +169,13 @@ test("fecha efectiva de hoy no convierte en registrado hoy un pago creado ayer",
   assert.equal(result.registeredTotal, 0);
 });
 
-test("un pago creado hoy para julio aparece hoy pero no impacta agosto", () => {
+test("un cobro de agosto para cuota de julio impacta los ingresos de agosto", () => {
   const result = registeredTodaySummary([
     payment({ id: "a", amount: 30000, createdAt: "2026-08-12T15:00:00.000Z", billingPeriod: "2026-07-01" }),
   ], "2026-08", 100000, new Map(), new Date("2026-08-12T16:00:00.000Z"));
   assert.equal(result.registeredTotal, 30000);
-  assert.equal(result.selectedPeriodImpactTotal, 0);
-  assert.equal(result.totalBeforeToday, 100000);
+  assert.equal(result.selectedPeriodImpactTotal, 30000);
+  assert.equal(result.totalBeforeToday, 70000);
 });
 
 test("cobros semanales reconcilian exactamente con el total del período", () => {
