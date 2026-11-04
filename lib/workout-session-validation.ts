@@ -4,6 +4,11 @@ import { hasBlockActivity, validateWorkoutBlock } from "./training-blocks.ts";
 
 export const GENERAL_FEELINGS = ["Muy buena", "Buena", "Normal", "Difícil", "Muy difícil"] as const;
 export type PortalGeneralFeeling = typeof GENERAL_FEELINGS[number];
+export const WORKOUT_MAX_DURATION_MINUTES = 1440;
+export function workoutDurationError(minutes: number | null) {
+  return minutes !== null && (!Number.isInteger(minutes) || minutes < 1 || minutes > WORKOUT_MAX_DURATION_MINUTES)
+    ? `La duración debe estar entre 1 y ${WORKOUT_MAX_DURATION_MINUTES} minutos.` : null;
+}
 
 function rating(value: number | null | undefined) {
   return value == null || (Number.isInteger(value) && value >= 1 && value <= 5);
@@ -17,7 +22,8 @@ export function resolveGeneralFeeling(input: Pick<PortalWorkoutSession, "general
 
 export function validateWorkoutSessionInput(input: PortalWorkoutSession) {
   if (!input.routineId || !input.dayId || !isDateKey(input.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.startTime)) return "Completá rutina, día, fecha y hora.";
-  if (input.durationMinutes !== null && (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 1 || input.durationMinutes > 1440)) return "La duración debe estar entre 1 y 1440 minutos.";
+  const durationError = workoutDurationError(input.durationMinutes);
+  if (durationError) return durationError;
   if (![input.energyBefore, input.difficulty, input.energyAfter].every(rating)) return "Las escalas históricas de energía y dificultad deben estar entre 1 y 5.";
   if (input.hasPain && !input.painDetails.trim()) return "Contanos dónde sentís dolor o molestia.";
   if (!Array.isArray(input.exercises)) return "Los ejercicios no son válidos.";

@@ -16,7 +16,7 @@ test("finalizar cancela autosave pendiente y bloquea nuevas ejecuciones", () => 
   assert.match(completionFlow, /sessionFinalizingRef\.current = true;\s*autosaveAbortRef\.current\?\.abort\(\)/);
   assert.match(completionFlow, /if \(sessionFinalizingRef\.current\) return;/);
   assert.match(completionFlow, /sessionFinalizingRef\.current \|\| !started/);
-  assert.ok((completionFlow.match(/if \(!draft \|\| sessionFinalizingRef\.current\) return;/g) ?? []).length >= 3);
+  assert.ok((completionFlow.match(/if \(!draft \|\| sessionFinalizingRef\.current[^;\n]*return;/g) ?? []).length >= 3);
 });
 
 test("el éxito no reconstruye un borrador desde datos obsoletos", () => {
