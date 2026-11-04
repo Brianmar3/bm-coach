@@ -1,4 +1,5 @@
 "use client";
+import { WORKOUT_MAX_DURATION_MINUTES, workoutDurationError } from "@/lib/workout-session-validation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { hydrateOfflineTraining, offlineTrainingState, offlineWorkoutData, refreshOfflineTraining, subscribeOfflineTraining, logoutOfflineTraining, forgetOfflineTrainingMemory } from "@/lib/offline-training-client";
 import { workspaceBrandingVariables } from "@/lib/workspace-branding";
@@ -26,7 +27,7 @@ export function OfflineTrainingBridge() {
     if (channel) channel.onmessage = (event) => { if (event.data === "logout") forgetOfflineTrainingMemory(); void hydrateOfflineTraining().then(update); };
     return () => { unsubscribe(); window.removeEventListener("online", refresh); window.removeEventListener("offline", update); document.removeEventListener("visibilitychange", visible); window.clearInterval(interval); channel?.close(); };
   }, []);
-  if (!state?.snapshot || (online && !state.pending)) return null;
+  if (!state?.snapshot || (online && !state.pending) || (online && state.error === workoutDurationError(WORKOUT_MAX_DURATION_MINUTES + 1))) return null;
   return <aside role="status" className="mx-auto mb-2 flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-[var(--foreground-muted)]">
     <span className="inline-flex items-center gap-1.5">{!online && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m3 3 18 18M2 8a16 16 0 0 1 3-2M9 4a16 16 0 0 1 13 4M5 12a11 11 0 0 1 4-2M14 10a11 11 0 0 1 5 2M8 16a6 6 0 0 1 5-1" /><circle cx="12" cy="20" r="1" /></svg>}{!online ? "Modo sin conexión" : "Pendiente de sincronización"}</span>
     {!online && state.error.includes("guardar") && <span>{state.error}</span>}

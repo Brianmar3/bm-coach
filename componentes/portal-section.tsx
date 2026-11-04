@@ -1,6 +1,6 @@
 "use client";
 import { WorkoutFinishDuration } from "@/componentes/workout-finish-duration";
-import { workoutDurationError } from "@/lib/workout-session-validation";
+import { WORKOUT_MAX_DURATION_MINUTES, workoutDurationError } from "@/lib/workout-session-validation";
 
 import { useDialogKeyboard, KeyboardDialog } from "@/componentes/keyboard-dialog";
 
@@ -681,6 +681,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   const exerciseHeaderRefs = useRef(new Map<string, HTMLButtonElement>());
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [finishError, setFinishError] = useState("");
   const selectedDay = trainingDays.find((day) => day.id === selectedDayId);
   const focusViewportActive = Boolean(focusExerciseId && draft && !completionSuccess);
   const focusKeyboard = useDialogKeyboard(focusRootRef, focusViewportActive && !finalOpen, exitFocus, { priority: 60, autoFocus: false });
@@ -933,6 +934,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   useEffect(() => {
     if (sessionFinalizingRef.current || !started || !draft || draft.status === "finalizado") return;
     persistDraft(draft);
+    if (workoutDurationError(draft.durationMinutes)) return;
     const signature = JSON.stringify(draft);
     if (signature === autosaveSignature.current) return;
     const controller = new AbortController();
@@ -952,15 +954,16 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
   }, [data.profile.id, draft, started, storageKey, persistDraft, requestWorkout]);
   async function save(finalize = false) {
     if (!draft || saveLockRef.current) return false;
+    const reportSaveError = (message: string) => { if (finalize || finalOpen) setFinishError(message); else setError(message); };
     const durationError = workoutDurationError(draft.durationMinutes);
-    if (durationError || (finalize && draft.durationMinutes === null)) { setError(durationError ?? "Para finalizar, completá la duración."); return false; }
+    if (durationError || (finalize && draft.durationMinutes === null)) { reportSaveError(durationError ?? "Para finalizar, completá la duración."); return false; }
     saveLockRef.current = true;
     if (finalize) {
       sessionFinalizingRef.current = true;
       autosaveAbortRef.current?.abort();
       autosaveAbortRef.current = null;
     }
-    setSaving(true); setSavingAction(finalize ? "final" : "draft"); setError(""); setMessage("");
+    setSaving(true); setSavingAction(finalize ? "final" : "draft"); setFinishError(""); setError(""); setMessage("");
     try {
       const duration = draft.durationMinutes;
       const finalComment = finalize && sensation ? `Sensación general: ${sensation}${draft.finalComment.trim() ? `\n${draft.finalComment.trim()}` : ""}` : draft.finalComment;
@@ -989,7 +992,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
       return true;
     } catch (value) {
       if (finalize) sessionFinalizingRef.current = false;
-      setError(value instanceof Error ? value.message : "No se pudo guardar.");
+      reportSaveError(value instanceof Error ? value.message : "No se pudo guardar.");
       return false;
     }
     finally { saveLockRef.current = false; setSaving(false); setSavingAction(null); }
@@ -1085,7 +1088,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
     <div className="portal-routine-enter mb-4 flex items-center gap-3 px-1"><BmSlidersIcon size={20} className="text-[var(--brand-text)]" /><h2 className="shrink-0 text-sm font-black uppercase tracking-[.2em] text-[var(--brand-text)]">Recorrido de hoy</h2><span className="h-px flex-1 bg-gradient-to-r from-yellow-400/40 to-transparent" /></div>
     </div>
     {completionSuccess && <div role="status" aria-live="polite" className="fixed inset-x-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[100] mx-auto max-w-md rounded-xl border border-emerald-400/40 bg-zinc-950 px-4 py-3 text-center font-semibold text-emerald-200 shadow-2xl">Entrenamiento guardado correctamente</div>}
-    {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-[var(--foreground-muted)]">Preparando ejercicios…</p>}
+    {message && <p className="mb-4 rounded-xl bg-emerald-400/10 p-3 text-emerald-200">{message}</p>}{error && !finalOpen && error !== workoutDurationError(WORKOUT_MAX_DURATION_MINUTES + 1) && <p className="mb-4 rounded-xl bg-red-400/10 p-3 text-red-200">{error}</p>}{!draft && !completionSuccess && <p className="rounded-xl bg-zinc-900 p-4 text-sm text-[var(--foreground-muted)]">Preparando ejercicios…</p>}
     <RoutineOverlay open={warmupOpen} onClose={() => setWarmupOpen(false)} labelledBy="warmup-title"><header className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-800 p-4 sm:p-5"><div className="min-w-0"><h2 id="warmup-title" className="text-lg font-black">Entrada en calor</h2><p className="mt-1 text-sm text-[var(--brand-text)]">Día {selectedDay.dayNumber} · {selectedDay.objective || selectedDay.name}</p></div><button type="button" onClick={() => setWarmupOpen(false)} aria-label="Cerrar entrada en calor" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-800 text-[var(--foreground-muted)] outline-none hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300"><BmCloseIcon size={22} /></button></header><div className="min-h-0 overflow-y-auto p-4 sm:p-5"><p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-200">{selectedDay.warmup}</p><button type="button" onClick={() => setWarmupOpen(false)} className="mt-5 min-h-11 w-full rounded-xl border border-zinc-700 px-4 text-sm font-bold text-zinc-200">Cerrar</button></div></RoutineOverlay>
     <div className="portal-routine-timeline" hidden={focused}>{draft && conditioningBlocks.map((programmed) => {
       const block = (draft.blocks ?? []).find((item) => item.blockId === programmed.id);
@@ -1134,7 +1137,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
       {focusReadyToClose && <p role="status" className="workout-focus-completed"><BmCheckIcon size={20} />Entrenamiento completado</p>}
       {(!focused || focusReadyToClose) && <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 p-3 max-[340px]:grid-cols-1 md:ml-auto md:flex md:max-w-xl md:justify-end"><button type="button" disabled={saving || !started} onClick={() => save(false)} className="min-h-11 min-w-0 rounded-xl border border-yellow-400/40 px-3 py-2.5 text-xs font-bold text-[var(--brand-text)] outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 disabled:opacity-50 md:text-sm">{savingAction === "draft" ? "Guardando…" : "Guardar progreso"}</button><button type="button" disabled={saving || !started} onClick={openFinalSummary} className="min-h-11 min-w-0 rounded-xl bg-yellow-400 px-3 py-2.5 text-xs font-black text-zinc-950 outline-none focus-visible:ring-2 focus-visible:ring-yellow-100 disabled:opacity-50 md:text-sm">Finalizar entrenamiento</button></div>}
       {!focused && !selfService && hasPersonalizedService(data.profile.serviceType) && <div className="mt-5 border-t border-zinc-800 pt-5"><PortalActionCard href="/portal/progreso" ariaLabel="Ver mi progreso" title="Ver mi progreso" subtitle="Historial, evolución y avances" icon={<BmProgressIcon size={20} />} /></div>}
-      <RoutineOverlay open={finalOpen} onClose={() => { if (!saving) setFinalOpen(false); }} labelledBy="workout-summary-title" maxWidth="max-w-xl" closeOnBackdrop={!saving}><header className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-800 p-4"><div><h2 id="workout-summary-title" className="text-xl font-bold">Finalizar entrenamiento</h2><p className="mt-1 text-sm text-[var(--foreground-muted)]">{completedTotal} de {totalSets} series · Sin guardar</p></div><button type="button" onClick={() => setFinalOpen(false)} disabled={saving} aria-label="Cerrar finalización" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-700 text-[var(--foreground-muted)] outline-none hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300 disabled:opacity-50"><BmCloseIcon size={22} /></button></header><div className="min-h-0 overflow-y-auto p-4"><WorkoutFinishDuration minutes={draft.durationMinutes} disabled={saving} onChange={minutes => { setDraft(current => current ? { ...current, durationMinutes: minutes } : current); setError(""); }} />{error && <p role="alert" className="mb-3 text-sm text-red-400">{error}</p>}
+      <RoutineOverlay open={finalOpen} onClose={() => { if (!saving) setFinalOpen(false); }} labelledBy="workout-summary-title" maxWidth="max-w-xl" closeOnBackdrop={!saving}><header className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-800 p-4"><div><h2 id="workout-summary-title" className="text-xl font-bold">Finalizar entrenamiento</h2><p className="mt-1 text-sm text-[var(--foreground-muted)]">{completedTotal} de {totalSets} series · Sin guardar</p></div><button type="button" onClick={() => setFinalOpen(false)} disabled={saving} aria-label="Cerrar finalización" className="grid size-10 shrink-0 place-items-center rounded-xl border border-zinc-700 text-[var(--foreground-muted)] outline-none hover:bg-zinc-800 hover:text-white focus-visible:ring-2 focus-visible:ring-yellow-300 disabled:opacity-50"><BmCloseIcon size={22} /></button></header><div className="min-h-0 overflow-y-auto p-4"><WorkoutFinishDuration minutes={draft.durationMinutes} disabled={saving} onChange={minutes => { setDraft(current => current ? { ...current, durationMinutes: minutes } : current); setFinishError(""); setError(""); }} />{(finishError || error) && <p role="alert" className="mb-3 text-sm text-red-400">{finishError || error}</p>}{(!incomplete || allowIncomplete) && (!sensation || (draft.hasPain && (!painLocation.trim() || painIntensity === null))) && <p role="status" className="mb-3 text-xs text-[var(--foreground-muted)]">Para guardar, completá: {[!sensation ? "sensación general" : "", draft.hasPain && !painLocation.trim() ? "zona de la molestia" : "", draft.hasPain && painIntensity === null ? "intensidad de la molestia" : ""].filter(Boolean).join(", ")}.</p>}
         {incomplete && !allowIncomplete ? <div className="portal-finish-warning text-sm"><p className="font-semibold text-orange-200">Todavía quedan ejercicios o series sin completar.</p><div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap"><button onClick={() => setFinalOpen(false)} className="rounded-lg bg-zinc-800 px-3 py-2 text-sm">Continuar entrenando</button><button onClick={() => { void save(false).then(saved => { if (saved) setFinalOpen(false); }); }} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-[var(--brand-text)]">Guardar para continuar después</button><button onClick={() => setAllowIncomplete(true)} className="rounded-lg bg-orange-300 px-3 py-2 text-sm font-bold text-zinc-950">Finalizar igualmente</button></div></div> : <div className="space-y-3"><Field label="Sensación general"><select value={sensation} onChange={(event) => setSensation(event.target.value)} className={`${portalInput} mt-1`}><option value="">Seleccionar</option><option>Muy buena</option><option>Buena</option><option>Normal</option><option>Difícil</option><option>Muy difícil</option></select></Field><label className="flex min-w-0 items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/[.05] p-3.5 text-red-100"><input type="checkbox" checked={draft.hasPain} onChange={(event) => setDraft({ ...draft, hasPain: event.target.checked })} className="mt-0.5 h-5 w-5 shrink-0 accent-red-400" /><span className="min-w-0"><strong className="block text-sm font-semibold">Dolor o molestias</strong><small className="mt-1 block text-xs font-normal leading-relaxed text-[var(--foreground-muted)]">Marcá esta opción si sentiste dolor durante la sesión.</small></span></label>{draft.hasPain && <div className="grid gap-3 sm:grid-cols-2"><Field label="Zona"><input value={painLocation} onChange={(event) => setPainLocation(event.target.value)} className={`${portalInput} mt-1`} /></Field><Field label="Intensidad (1 a 10)"><input type="number" min="1" max="10" value={painIntensity ?? ""} onChange={(event) => setPainIntensity(event.target.value ? Number(event.target.value) : null)} className={`${portalInput} mt-1`} /></Field><Field label="Comentario"><textarea value={draft.painDetails} onChange={(event) => setDraft({ ...draft, painDetails: event.target.value })} rows={2} className={`${portalInput} mt-1 sm:col-span-2`} /></Field></div>}<Field label="Comentario final (opcional)"><textarea value={draft.finalComment} onChange={(event) => setDraft({ ...draft, finalComment: event.target.value })} rows={2} className={`${portalInput} mt-1`} /></Field><button disabled={saving || Boolean(workoutDurationError(draft.durationMinutes)) || draft.durationMinutes === null || !sensation || (draft.hasPain && (!painLocation.trim() || painIntensity === null))} onClick={() => save(true)} className="w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950 disabled:opacity-50">{savingAction === "final" ? "Finalizando…" : "Confirmar y finalizar"}</button></div>}
       </div></RoutineOverlay></>}
     </div>

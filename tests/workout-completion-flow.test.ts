@@ -32,7 +32,7 @@ test("el cierre limpia errores y muestra un único feedback de éxito", () => {
 
 test("un error real de cierre vuelve a habilitar el flujo y se informa", () => {
   assert.match(completionFlow, /if \(finalize\) sessionFinalizingRef\.current = false;/);
-  assert.match(completionFlow, /setError\(value instanceof Error \? value\.message/);
+  assert.match(completionFlow, /reportSaveError\(value instanceof Error \? value\.message/);
 });
 
 test("la protección backend de sesiones finalizadas permanece intacta", () => {
