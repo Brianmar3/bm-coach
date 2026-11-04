@@ -271,7 +271,7 @@ export async function POST(request: Request) {
         energyBefore: input.energyBefore ?? null,
         difficulty: input.difficulty ?? null,
         energyAfter: input.energyAfter ?? null,
-        finalComment: input.finalComment.trim(),
+        finalComment: input.status === "finalizado" ? input.finalComment : input.finalComment.trim(),
         hasPain: input.hasPain,
         painDetails: input.painDetails.trim(),
         status: input.status === "finalizado" ? "COMPLETED" as const : input.status === "en_progreso" ? "IN_PROGRESS" as const : "PENDING" as const,

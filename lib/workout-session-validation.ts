@@ -25,7 +25,6 @@ export function validateWorkoutSessionInput(input: PortalWorkoutSession) {
   const durationError = workoutDurationError(input.durationMinutes);
   if (durationError) return durationError;
   if (![input.energyBefore, input.difficulty, input.energyAfter].every(rating)) return "Las escalas históricas de energía y dificultad deben estar entre 1 y 5.";
-  if (input.hasPain && !input.painDetails.trim()) return "Contanos dónde sentís dolor o molestia.";
   if (!Array.isArray(input.exercises)) return "Los ejercicios no son válidos.";
   if (input.status === "finalizado" && input.durationMinutes === null) return "Para finalizar, completá la duración.";
   if (input.status === "finalizado" && input.generalFeeling != null && String(input.generalFeeling) !== "" && !GENERAL_FEELINGS.includes(input.generalFeeling)) return "Seleccioná una sensación general válida.";
