@@ -48,7 +48,7 @@ function serializeOccurrence(occurrence: Prisma.ClassOccurrenceGetPayload<{ incl
     statusLabel: full && response !== "GOING" ? "Cupo completo" : occurrenceStatusLabel(occurrence.status, started, ended),
     capacity: occurrence.capacityOverride,
     confirmedCount,
-    response,
+    response: ownResponse,
     canRespond: occurrence.status === "SCHEDULED" && !started && (!full || response === "GOING"),
     strengthAvailable: false,
     strengthBlock: null,

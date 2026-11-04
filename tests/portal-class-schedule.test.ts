@@ -366,7 +366,7 @@ test("confirmar asistencia conserva endpoint, payload y protección de doble toq
   assert.match(source, /body: JSON\.stringify\(\{ occurrenceId: item\.id, response: value \}\)/);
   assert.match(source, /onClick=\{\(\) => respond\(item, "GOING"\)\}/);
   assert.match(source, /onClick=\{\(\) => respond\(item, "NOT_GOING"\)\}/);
-  assert.match(source, /if \(responseInFlight\.current\) return/);
+  assert.match(source, /if \(responseInFlight\.current \|\| !item.canRespond \|\| item.response === value\) return/);
   assert.match(source, /responseInFlight\.current = true/);
   assert.match(source, /responseInFlight\.current = false/);
   assert.equal(source.match(/disabled=\{saving\}/g)?.length, 3);
@@ -381,7 +381,7 @@ test("Inicio conserva el dorado como acento sin botones ni superficies dominante
   const responseButtons = classes.slice(classes.indexOf("function ResponseButtons"));
   const quickLogButton = quickLog.slice(quickLog.indexOf("export function QuickNoteButton"), quickLog.indexOf("function GuidedQuickLogForm"));
   assert.doesNotMatch(responseButtons, /"bg-yellow-400 text-zinc-950 hover:bg-yellow-300"/);
-  assert.match(responseButtons, /<BmCheckIcon size=\{17\} \/> Asistiré/);
+  assert.match(responseButtons, /item.response === "GOING" \? "Confirmado" : "Asistiré"/);
   assert.match(responseButtons, /border-zinc-700 bg-zinc-950/);
   const quickLogTriggerStyles = quickLogButton.slice(quickLogButton.indexOf("const className"), quickLogButton.indexOf("return <Link"));
   assert.doesNotMatch(quickLogTriggerStyles, /\bfixed\b|portal-quick-note-bottom/);

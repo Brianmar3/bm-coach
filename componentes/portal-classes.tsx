@@ -79,11 +79,15 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
   const [savingId, setSavingId] = useState("");
   const [confirmedId, setConfirmedId] = useState("");
   const responseInFlight = useRef(false);
+  const responseRevision = useRef(0);
+  const loadSequence = useRef(0);
   const confirmationTimer = useRef<number | null>(null);
   const [showWeek, setShowWeek] = useState(false);
   const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
   const load = useCallback(async (signal?: AbortSignal) => {
+    const revision = responseRevision.current;
+    const sequence = ++loadSequence.current;
     const response = await fetch(endpoint, { cache: "no-store", signal });
     const body = (await response.json()) as ClassData & { error?: string };
     if (response.status === 401) {
@@ -92,6 +96,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
     }
     if (!response.ok)
       throw new Error(body.error ?? "No se pudieron cargar las clases.");
+    if (signal?.aborted || revision !== responseRevision.current || sequence !== loadSequence.current) return;
     setData(body);
     setError("");
   }, [endpoint]);
@@ -131,7 +136,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
     item: PortalClassOccurrence,
     value: "GOING" | "NOT_GOING",
   ) {
-    if (responseInFlight.current) return;
+    if (responseInFlight.current || !item.canRespond || item.response === value) return;
     responseInFlight.current = true;
     setSavingId(item.id);
     setError("");
@@ -148,8 +153,10 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
       };
       if (!response.ok)
         throw new Error(body.error ?? "No se pudo guardar.");
+      responseRevision.current++;
+      setData(current => current ? { ...current, occurrences: current.occurrences.map(occurrence => occurrence.id === item.id ? { ...occurrence, response: value } : occurrence) } : current);
       setNotice(body.message ?? "Respuesta guardada.");
-      await load();
+      await load().catch(() => setError("Tu respuesta se guardó, pero no se pudieron actualizar las clases. Volvé a intentar actualizar la página."));
       if (value === "GOING") {
         setConfirmedId(item.id);
         if (confirmationTimer.current !== null) window.clearTimeout(confirmationTimer.current);
@@ -396,7 +403,8 @@ function CompactClassRow({
         <p className="mt-0.5 truncate text-[10px] text-zinc-400 sm:text-xs">{discipline}</p>
       </div>
       <span className={`hidden shrink-0 text-[9px] font-bold sm:inline ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</span>
-      {item.canRespond ? <button type="button" disabled={saving} onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-11 shrink-0 rounded-xl border px-3 text-[10px] font-black transition disabled:opacity-50 sm:min-h-12 sm:px-4 sm:text-xs ${item.response === "GOING" ? "border-yellow-300/55 bg-yellow-400/[.08] text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-yellow-400/35 bg-zinc-950 text-yellow-200 hover:border-yellow-300/60"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
+      {item.canRespond ? <button type="button" disabled={saving} aria-pressed={item.response === "GOING"}
+        onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-11 shrink-0 rounded-xl border px-3 text-[10px] font-black transition disabled:opacity-50 sm:min-h-12 sm:px-4 sm:text-xs ${item.response === "GOING" ? "border-yellow-300/55 bg-yellow-400/[.08] text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-yellow-400/35 bg-zinc-950 text-yellow-200 hover:border-yellow-300/60"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
     </article>
   );
 }
@@ -461,18 +469,20 @@ function ResponseButtons({
       <button
         type="button"
         disabled={saving}
+        aria-pressed={item.response === "GOING"}
         onClick={() => respond(item, "GOING")}
-        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-12 rounded-xl px-3 py-2 text-xs"} inline-flex items-center justify-center gap-2 border font-black transition active:scale-[.98] disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-300 bg-gradient-to-r from-amber-400 to-yellow-300 text-zinc-950 shadow-[0_8px_25px_rgba(250,204,21,.14)]" : "border-zinc-700 bg-zinc-950/70 text-zinc-200 hover:border-yellow-400/25 hover:bg-white/[.03]"}`}
+        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-12 rounded-xl px-3 py-2 text-xs"} inline-flex items-center justify-center gap-2 border font-black transition active:scale-[.98] disabled:opacity-50 ${item.response === "GOING" ? "border-yellow-500 bg-yellow-400 text-zinc-950" : "border-zinc-700 bg-zinc-950/70 text-zinc-200 hover:border-yellow-400/25 hover:bg-white/[.03]"}`}
       >
-        <BmCheckIcon size={17} /> Asistiré
+        <BmCheckIcon size={17} className="shrink-0" /><span>{item.response === "GOING" ? "Confirmado" : "Asistiré"}</span>
       </button>
       <button
         type="button"
         disabled={saving}
+        aria-pressed={item.response === "NOT_GOING"}
         onClick={() => respond(item, "NOT_GOING")}
-        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-12 rounded-xl px-3 py-2 text-xs"} inline-flex items-center justify-center gap-2 border font-bold transition active:scale-[.98] disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-red-400/50 bg-red-400/[.08] text-red-200" : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-zinc-500"}`}
+        className={`${compact ? "min-h-10 rounded-lg px-2 py-1 text-[10px]" : "min-h-12 rounded-xl px-3 py-2 text-xs"} inline-flex items-center justify-center gap-2 border font-bold transition active:scale-[.98] disabled:opacity-50 ${item.response === "NOT_GOING" ? "border-yellow-500 bg-yellow-400 text-zinc-950" : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-zinc-500"}`}
       >
-        <BmCloseIcon size={17} /> No asistiré
+        {item.response === "NOT_GOING" ? <BmCheckIcon size={17} className="shrink-0" /> : <BmCloseIcon size={17} className="shrink-0" />}<span>{item.response === "NOT_GOING" ? "No asistiré confirmado" : "No asistiré"}</span>
       </button>
     </div>
   );
