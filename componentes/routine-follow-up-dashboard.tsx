@@ -67,10 +67,9 @@ export function RoutineFollowUpDashboard({ initialStudentId = "", initialSession
 
   useEffect(() => {
     if (initialNavigationHandled.current || !initialStudentId || !students.length) return;
-    initialNavigationHandled.current = true;
     const student = students.find((item) => item.studentId === initialStudentId);
     if (!student) return;
-    const timer = window.setTimeout(() => void openStudent(student, initialSessionId || initialSessionIds.length ? "sesiones" : "resumen", initialSessionId), 0);
+    const timer = window.setTimeout(() => { initialNavigationHandled.current = true; void openStudent(student, initialSessionId || initialSessionIds.length ? "sesiones" : "resumen", initialSessionId); }, 0);
     return () => window.clearTimeout(timer);
   }, [initialSessionId, initialSessionIds, initialStudentId, openStudent, students]);
   const closeDetail = useCallback(() => { setSelectedStudent(null); setDetail(null); setSelectedSession(null); window.setTimeout(() => openerRef.current?.focus(), 0); }, []);

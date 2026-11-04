@@ -9,7 +9,7 @@ export type DashboardCompletedWorkout = {
 };
 
 export function completedWorkoutPriorityHref(workouts: DashboardCompletedWorkout[]) {
-  const params = new URLSearchParams({ tab: "seguimiento" });
+  const params = new URLSearchParams();
   if (workouts.length === 1) {
     params.set("studentId", workouts[0].studentId);
     params.set("sessionId", workouts[0].sessionId);
@@ -19,7 +19,7 @@ export function completedWorkoutPriorityHref(workouts: DashboardCompletedWorkout
     else params.set("studentIds", studentIds.join(","));
     params.set("sessionIds", workouts.map((item) => item.sessionId).join(","));
   }
-  return `/rutinas?${params.toString()}`;
+  return `/seguimiento?${params.toString()}`;
 }
 
 export function completedWorkoutPrioritySubtitle(workouts: DashboardCompletedWorkout[]) {

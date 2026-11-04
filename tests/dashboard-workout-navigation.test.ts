@@ -16,8 +16,8 @@ const workout = (sessionId: string, studentId: string, studentName = "Delfi Damn
 test("un solo entrenamiento navega al seguimiento de esa sesión", () => {
   const href = completedWorkoutPriorityHref([workout("session-1", "student-1")]);
   const url = new URL(href, "https://bm.test");
-  assert.equal(url.pathname, "/rutinas");
-  assert.equal(url.searchParams.get("tab"), "seguimiento");
+  assert.equal(url.pathname, "/seguimiento");
+  assert.equal(url.searchParams.get("tab"), null);
   assert.equal(url.searchParams.get("studentId"), "student-1");
   assert.equal(url.searchParams.get("sessionId"), "session-1");
 });
