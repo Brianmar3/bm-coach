@@ -61,9 +61,9 @@ test("sesiones históricas con escalas antiguas siguen siendo válidas", () => {
   assert.equal(validateWorkoutSessionInput(validSession({ energyBefore: 3, energyAfter: 4, difficulty: 5 })), null);
 });
 
-test("exige una sensación general válida y acepta el formato histórico", () => {
+test("sensación opcional y compatibilidad con el formato histórico", () => {
   assert.equal(validateWorkoutSessionInput(validSession({ generalFeeling: undefined, finalComment: "Sensación general: Normal" })), null);
-  assert.match(validateWorkoutSessionInput(validSession({ generalFeeling: undefined, finalComment: "Sin sensación" })) ?? "", /sensación general válida/);
+  assert.equal(validateWorkoutSessionInput(validSession({ generalFeeling: undefined, finalComment: "Sin sensación" })), null);
 });
 
 test("la semana argentina comienza el lunes a las 00:00", () => {

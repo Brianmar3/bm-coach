@@ -28,7 +28,7 @@ export function validateWorkoutSessionInput(input: PortalWorkoutSession) {
   if (input.hasPain && !input.painDetails.trim()) return "Contanos dónde sentís dolor o molestia.";
   if (!Array.isArray(input.exercises)) return "Los ejercicios no son válidos.";
   if (input.status === "finalizado" && input.durationMinutes === null) return "Para finalizar, completá la duración.";
-  if (input.status === "finalizado" && !resolveGeneralFeeling(input)) return "Para finalizar, seleccioná una sensación general válida.";
+  if (input.status === "finalizado" && input.generalFeeling != null && String(input.generalFeeling) !== "" && !GENERAL_FEELINGS.includes(input.generalFeeling)) return "Seleccioná una sensación general válida.";
   const blockActivity = (input.blocks ?? []).some(hasBlockActivity);
   if (input.status === "finalizado" && !input.exercises.some((exercise) => exercise.sets.some((set) => set.completed)) && !blockActivity) return "Registrá actividad en al menos un bloque antes de finalizar.";
   if (input.finalComment.length > 2000 || input.painDetails.length > 1000) return "El comentario es demasiado extenso.";

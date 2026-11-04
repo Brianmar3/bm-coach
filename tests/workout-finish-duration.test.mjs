@@ -21,9 +21,9 @@ for(const width of [390,1280])for(const theme of ['light','dark'])test(`${width}
  fireEvent.click(screen.getByRole('button',{name:'Listo'}));assert.equal(screen.queryByRole('spinbutton'),null);
 });
 const source=readFileSync('componentes/portal-section.tsx','utf8');const saveSource=source.slice(source.indexOf('  async function save(finalize = false)'),source.indexOf('  function openFinalSummary()'));
-function saveHarness(draft,fail=false){const calls=[];const bindings={draft,saveLockRef:{current:false},workoutDurationError,sessionFinalizingRef:{current:false},autosaveAbortRef:{current:null},sensation:'Buena',painLocation:'',painIntensity:null,error:'',finishError:'',finalOpen:true,setFinishError:value=>bindings.finishError=value,setSaving:()=>{},setSavingAction:()=>{},setError:value=>bindings.error=value,setMessage:()=>{},requestWorkout:async(_url,options)=>{calls.push(JSON.parse(options.body));if(fail)throw new Error('Servidor: sesión no disponible');return{id:'saved'};},announceNewAchievements:()=>{},storageKey:()=> 'test-workout',autosaveSignature:{current:''},setStarted:()=>{},setFinalOpen:()=>{},setDraft:value=>bindings.draft=value,setCompletionSuccess:()=>{},selfService:false,window:{localStorage:{removeItem:()=>{}},setTimeout:()=>{}}};const code=ts.transpileModule(saveSource+'\nreturn save;',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;return {bindings,calls,save:new Function('bindings','with(bindings){'+code+'}')(bindings)};}
+function saveHarness(draft,fail=false){const calls=[];const bindings={draft:{...draft,status:"en_progreso"},saveLockRef:{current:false},workoutDurationError,sessionFinalizingRef:{current:false},autosaveAbortRef:{current:null},sensation:'Buena',painLocation:'',painIntensity:null,error:'',finishError:'',finalOpen:true,setFinishError:value=>bindings.finishError=value,setSaving:()=>{},setSavingAction:()=>{},setError:value=>bindings.error=value,setMessage:()=>{},requestWorkout:async(_url,options)=>{calls.push(JSON.parse(options.body));if(fail)throw new Error('Servidor: sesión no disponible');return{id:'saved'};},announceNewAchievements:()=>{},storageKey:()=> 'test-workout',autosaveSignature:{current:''},setStarted:()=>{},setFinalOpen:()=>{},setDraft:value=>bindings.draft=value,setCompletionSuccess:()=>{},selfService:false,window:{localStorage:{removeItem:()=>{}},setTimeout:()=>{}}};const code=ts.transpileModule(saveSource+'\nreturn save;',{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;return {bindings,calls,save:new Function('bindings','with(bindings){'+code+'}')(bindings)};}
 test('1523 min se rechaza; corregir a 45 permite guardar conservando ejercicios y comentario',async()=>{const harness=saveHarness(session(1523));assert.equal(await harness.save(true),false);assert.equal(harness.calls.length,0);harness.bindings.draft={...harness.bindings.draft,durationMinutes:45};assert.equal(await harness.save(true),true);assert.equal(harness.calls[0].durationMinutes,45);assert.deepEqual(harness.calls[0].exercises,session().exercises);assert.ok(harness.calls[0].finalComment.includes('Mi comentario'));});
-test('error servidor mantiene todos los datos y permite reintentar',async()=>{const initial=session();const harness=saveHarness(initial,true);assert.equal(await harness.save(true),false);assert.deepEqual(harness.bindings.draft,initial);assert.equal(harness.bindings.finishError,'Servidor: sesión no disponible');assert.equal(harness.bindings.error,'');assert.equal(harness.bindings.saveLockRef.current,false);assert.equal(harness.bindings.sessionFinalizingRef.current,false);});
+test('error servidor mantiene todos los datos y permite reintentar',async()=>{const initial={...session(),status:"en_progreso"};const harness=saveHarness(initial,true);assert.equal(await harness.save(true),false);assert.deepEqual(harness.bindings.draft,initial);assert.equal(harness.bindings.finishError,'Servidor: sesión no disponible');assert.equal(harness.bindings.error,'');assert.equal(harness.bindings.saveLockRef.current,false);assert.equal(harness.bindings.sessionFinalizingRef.current,false);});
 test('duración ausente no finaliza y la interfaz conserva el motivo del servidor dentro del diálogo',async()=>{const harness=saveHarness(session(null));assert.equal(await harness.save(true),false);assert.equal(harness.calls.length,0);const summary=source.slice(source.indexOf('<RoutineOverlay open={finalOpen}'),source.indexOf('</RoutineOverlay>',source.indexOf('<RoutineOverlay open={finalOpen}')));assert.match(summary,/\(finishError \|\| error\) && <p role="alert"/);assert.doesNotMatch(summary,/save\(false\); setFinalOpen\(false\)/);});
 
 
@@ -52,4 +52,23 @@ test('Home y rutina no publican el error de duración de la cola; otros avisos d
  const Bridge=new Function('require','offlineTrainingState','subscribeOfflineTraining','refreshOfflineTraining','forgetOfflineTrainingMemory','hydrateOfflineTraining','WORKOUT_MAX_DURATION_MINUTES','workoutDurationError','const exports={};'+bridgeCode)(require,()=>pending,()=>()=>{},async()=>{},()=>{},async()=>{},WORKOUT_MAX_DURATION_MINUTES,workoutDurationError);
  const view=render(h(Bridge));assert.equal(screen.queryByText('Pendiente de sincronización'),null);assert.equal(screen.queryByText(pending.error),null);view.unmount();
  pending.error='Sin conexión con el servidor';render(h(Bridge));assert.ok(await screen.findByText('Pendiente de sincronización'));assert.ok(screen.getByText(pending.error));
+});
+
+
+for (const sensation of ["", "Buena"]) test(`guardado con sensación ${sensation || "sin seleccionar"}: no inventa valor y mantiene la sesión guardada sin duplicados`,async()=>{
+ const harness=saveHarness(session());harness.bindings.sensation=sensation;
+ assert.equal(await harness.save(true),true);
+ const payload=harness.calls[0];assert.equal(validateWorkoutSessionInput(payload),null);
+ assert.equal(payload.generalFeeling,sensation||undefined);
+ assert.equal(payload.finalComment.includes('Sensación general:'),Boolean(sensation));
+ assert.equal(harness.bindings.draft.status,'finalizado');assert.equal(harness.bindings.draft.id,'saved');assert.deepEqual(harness.bindings.draft.exercises,session().exercises);
+ assert.equal(await harness.save(true),false);assert.equal(harness.calls.length,1);assert.equal(harness.bindings.finishError,'');
+});
+test('sensación ausente se acepta en servidor; valor inválido y duración fuera del límite siguen rechazados',()=>{
+ for (const generalFeeling of [undefined,null,''])assert.equal(validateWorkoutSessionInput({...session(),generalFeeling,finalComment:'Comentario libre'}),null);
+ assert.ok(validateWorkoutSessionInput({...session(),generalFeeling:'Inventada'}));
+ assert.ok(validateWorkoutSessionInput({...session(),generalFeeling:undefined,durationMinutes:1441}));
+ assert.match(source,/const dayStateLabel = completionSuccess \? "Finalizado"/);
+ const summary=source.slice(source.indexOf('<RoutineOverlay open={finalOpen}'),source.indexOf('</RoutineOverlay>',source.indexOf('<RoutineOverlay open={finalOpen}')));
+ assert.match(summary,/Sensación general \(opcional\)/);assert.doesNotMatch(summary,/!sensation/);
 });
