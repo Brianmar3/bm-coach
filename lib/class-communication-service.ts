@@ -68,11 +68,14 @@ export async function reactToConfirmation(tx: Prisma.TransactionClient, workspac
   const notification = await tx.trainerNotification.findFirst({ where: { id, workspaceId, type: "CLASS_RESPONSE", student: { workspaceId }, occurrence: { workspaceId } }, include: { occurrence: true } });
   if (!notification?.studentId || !notification.occurrence || !notification.response) return null;
   const label = CLASS_REACTIONS.find(item => item.value === reaction)!.label;
-  await tx.trainerNotification.update({ where: { id: notification.id }, data: { reaction, reactedAt: new Date() } });
+  const now = new Date();
+  const readAt = notification.readAt ?? now;
+  await tx.trainerNotification.update({ where: { id: notification.id }, data: { reaction, reactedAt: now, readAt } });
   const message = `${label}. Tu entrenador respondió a tu confirmación de ${notification.response === "GOING" ? "asistencia" : "inasistencia"} a ${occurrenceClassName(notification.occurrence)} del ${databaseDateKey(notification.occurrence.date)} a las ${notification.occurrence.startTime}.`;
   // Reuse one inbox item per confirmation. Changing a reaction never starts a conversation or sends push.
   await tx.studentNotification.upsert({ where: { eventKey: `class-reaction:${notification.id}` }, create: { studentId: notification.studentId, type: "FEEDBACK", eventKey: `class-reaction:${notification.id}`, title: "Respuesta de tu entrenador", message, url: "/portal/clases" }, update: { message } });
-  return { reaction };
+  const unreadCount = await tx.trainerNotification.count({ where: { workspaceId, readAt: null } });
+  return { reaction, readAt: readAt.toISOString(), unreadCount };
 }
 
 export function feedbackReportFilter(params: URLSearchParams) {

@@ -61,16 +61,21 @@ function NotificationCenter({ audience }: { audience: Audience }) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<HeaderNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const reactionRevision = useRef(0);
+  const notificationRequest = useRef(0);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const visibleDeleteConfirmation = open && confirmingDelete;
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
   const loadNotifications = useCallback(async () => {
+    const revision = reactionRevision.current;
+    const request = ++notificationRequest.current;
     try {
       const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) return;
       const data = (await response.json()) as NotificationsResponse;
+      if (revision !== reactionRevision.current || request !== notificationRequest.current) return;
       setNotifications(data.notifications);
       setUnreadCount(data.unreadCount);
     } finally {
@@ -361,7 +366,13 @@ function NotificationCenter({ audience }: { audience: Audience }) {
                             </span>
                           </span>
                         </button>
-                        {audience === "trainer" && notification.type === "CLASS_RESPONSE" && notification.studentId && notification.occurrenceId && notification.response && <ClassConfirmationReactions notificationId={notification.id} reaction={notification.reaction} onChange={reaction => setNotifications(current => current.map(item => item.id === notification.id ? { ...item, reaction } : item))}/>}
+                        {audience === "trainer" && notification.type === "CLASS_RESPONSE" && notification.studentId && notification.occurrenceId && notification.response && <ClassConfirmationReactions notificationId={notification.id} reaction={notification.reaction} onChange={(reaction, receipt) => {
+                          reactionRevision.current++;
+                          setNotifications(current => current.map(item => item.id === notification.id ? { ...item, reaction, readAt: receipt.readAt } : item));
+                          setUnreadCount(receipt.unreadCount);
+                          // Reconcile concurrent actions without allowing an older poll to undo this receipt.
+                          void loadNotifications().catch(() => undefined);
+                        }}/>}
                       </li>
                     ))}
                   </ul>

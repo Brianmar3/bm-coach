@@ -2,14 +2,15 @@
 import { useRef, useState } from "react";
 import { CLASS_REACTIONS, type ClassReaction } from "@/lib/class-communication";
 
-export function ClassConfirmationReactions({ notificationId, reaction, onChange }: { notificationId: string; reaction?: string | null; onChange: (reaction: ClassReaction) => void }) {
+export function ClassConfirmationReactions({ notificationId, reaction, onChange }: { notificationId: string; reaction?: string | null; onChange: (reaction: ClassReaction, receipt: { readAt: string; unreadCount: number }) => void }) {
   const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const inFlight = useRef(false);
   async function select(value: ClassReaction) {
     if (inFlight.current) return; inFlight.current = true; setSaving(true); setError("");
     try {
       const response = await fetch(`/api/admin/notifications/${encodeURIComponent(notificationId)}/reaction`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reaction: value }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "No se pudo guardar la reacción.");
-      onChange(body.reaction);
+      if (!CLASS_REACTIONS.some(item => item.value === body.reaction) || typeof body.readAt !== "string" || !Number.isFinite(Date.parse(body.readAt)) || !Number.isSafeInteger(body.unreadCount) || body.unreadCount < 0) throw new Error("No se pudo confirmar el estado de la notificación.");
+      onChange(body.reaction, { readAt: body.readAt, unreadCount: body.unreadCount });
     } catch (failure) { setError(failure instanceof Error ? failure.message : "No se pudo guardar la reacción."); }
     finally { inFlight.current = false; setSaving(false); }
   }

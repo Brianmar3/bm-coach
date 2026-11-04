@@ -129,9 +129,9 @@ test("validaciones de opinión y filtros rechazan valores no permitidos", () => 
 
 function reactionDatabase() {
   const notices = new Map(); const writes = [];
-  const row = { id: "notice", workspaceId: "bm", type: "CLASS_RESPONSE", studentId: "a", student: { workspaceId: "bm" }, occurrenceId: "class-a", occurrence, response: "NOT_GOING" };
+  const row = { id: "notice", workspaceId: "bm", type: "CLASS_RESPONSE", studentId: "a", student: { workspaceId: "bm" }, occurrenceId: "class-a", occurrence, response: "NOT_GOING", readAt: null };
   return { row, notices, writes,
-    trainerNotification: { findFirst: async ({ where }) => matches(row, where) ? row : null, update: async ({ data }) => { writes.push(data); Object.assign(row, data); return row; } },
+    trainerNotification: { count: async ({ where }) => matches(row, where) ? 1 : 0, findFirst: async ({ where }) => matches(row, where) ? row : null, update: async ({ data }) => { writes.push(data); Object.assign(row, data); return row; } },
     studentNotification: { upsert: async ({ where, create, update }) => { const found = notices.get(where.eventKey); if (found) Object.assign(found, update); else notices.set(where.eventKey, { ...create, readAt: null }); } },
   };
 }
@@ -141,7 +141,7 @@ test("reacción por confirmación visible para el alumno correcto; cambiarla act
   assert.equal(db.notices.size, 1); const notice = [...db.notices.values()][0];
   assert.equal(notice.studentId, "a"); assert.equal(notice.type, "FEEDBACK"); assert.equal(notice.url, "/portal/clases");
   assert.match(notice.message, /💪 Nos vemos/); assert.match(notice.message, /inasistencia/);
-  assert.equal(db.row.response, "NOT_GOING"); assert.ok(db.writes.every(write => Object.keys(write).sort().join(",") === "reactedAt,reaction"));
+  assert.equal(db.row.response, "NOT_GOING"); assert.ok(db.writes.every(write => Object.keys(write).sort().join(",") === "reactedAt,reaction,readAt"));
   assert.equal(await reactToConfirmation(db, "foreign", "notice", "THANKS"), null);
   db.row.type = "WORKOUT_COMPLETED"; assert.equal(await reactToConfirmation(db, "bm", "notice", "THANKS"), null);
 });
@@ -202,7 +202,7 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https
 for (const key of ["window", "document", "navigator", "HTMLElement", "Element", "Node", "HTMLInputElement", "Event", "getComputedStyle", "requestAnimationFrame", "cancelAnimationFrame"]) Object.defineProperty(globalThis, key, { configurable: true, value: ["getComputedStyle", "requestAnimationFrame", "cancelAnimationFrame"].includes(key) ? dom.window[key].bind(dom.window) : dom.window[key] });
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require("react"); const h = React.createElement;
-const { render, screen, fireEvent, cleanup, waitFor } = require("@testing-library/react");
+const { render, screen, fireEvent, cleanup, waitFor, act } = require("@testing-library/react");
 const originalFetch = globalThis.fetch; afterEach(() => { cleanup(); globalThis.fetch = originalFetch; });
 const ui = loader({ "@/componentes/module-shell": { inputClass: "input" } });
 const Reactions = ui("componentes/class-confirmation-reactions.tsx").ClassConfirmationReactions;
@@ -211,7 +211,7 @@ const Panel = ui("componentes/class-opinions-panel.tsx").ClassOpinionsPanel;
 
 for (const width of [390, 1280]) test(`${width}px reacciones UI editables mediante botones accesibles sin abrir otra notificación`, async () => {
   window.innerWidth = width;
-  const calls = []; globalThis.fetch = async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return { ok: true, json: async () => JSON.parse(options.body) }; };
+  const calls = []; globalThis.fetch = async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return { ok: true, json: async () => ({...JSON.parse(options.body), readAt: new Date().toISOString(), unreadCount: 0}) }; };
   function View() { const [reaction, setReaction] = React.useState(null); return h(Reactions, { notificationId: "notice", reaction, onChange: setReaction }); }
   render(h(View)); fireEvent.click(screen.getByRole("button", { name: "👍 Recibido" }));
   await waitFor(() => assert.equal(screen.getByRole("button", { name: "👍 Recibido" }).getAttribute("aria-pressed"), "true"));
@@ -395,4 +395,40 @@ for (const width of [390,1280]) for (const theme of ["light","dark"]) test(`${wi
  assert.ok(requests.at(-1).includes("page=2"));
  fireEvent.click(screen.getByRole("button",{name:"Anterior"}));
  await screen.findByText("1 / 2");await screen.findByText("Alumno 34");
+});
+
+
+test('reaccionar marca únicamente la confirmación como leída y cambiarla conserva el timestamp',async()=>{
+ const db=reactionDatabase();const result=await reactToConfirmation(db,'bm','notice','RECEIVED');
+ assert.equal(result.unreadCount,0);assert.ok(result.readAt);assert.equal(db.row.readAt.toISOString(),result.readAt);
+ const original=db.row.readAt;await reactToConfirmation(db,'bm','notice','THANKS');assert.equal(db.row.readAt,original);assert.equal(db.notices.size,1);
+ const old=new Date('2026-11-01T12:00:00Z');db.row.readAt=old;await reactToConfirmation(db,'bm','notice','SEE_YOU');assert.equal(db.row.readAt,old);
+ const writes=db.writes.length;assert.equal(await reactToConfirmation(db,'foreign','notice','THANKS'),null);assert.equal(db.writes.length,writes);
+});
+test('la UI confirma lectura sólo después del servidor y mantiene reacción ante un rechazo',async()=>{
+ const receipts=[];globalThis.fetch=async()=>({ok:false,json:async()=>({error:'Operación rechazada'})});
+ render(h(Reactions,{notificationId:'notice',reaction:'RECEIVED',onChange:(...args)=>receipts.push(args)}));
+ fireEvent.click(screen.getByRole('button',{name:'🙌 Gracias'}));await screen.findByText('Operación rechazada');assert.equal(receipts.length,0);assert.equal(screen.getByRole('button',{name:'👍 Recibido'}).getAttribute('aria-pressed'),'true');
+ globalThis.fetch=async()=>({ok:true,json:async()=>({reaction:'THANKS',readAt:'2026-11-04T15:00:00Z',unreadCount:2})});
+ fireEvent.click(screen.getByRole('button',{name:'🙌 Gracias'}));await waitFor(()=>assert.equal(receipts.length,1));assert.deepEqual(receipts[0],['THANKS',{readAt:'2026-11-04T15:00:00Z',unreadCount:2}]);
+});
+
+
+test('centro actualiza contador y lectura tras reaccionar; una consulta anterior no revierte el estado',async()=>{
+ const Center=loader({'next/navigation':{usePathname:()=>'/dashboard',useRouter:()=>({push:()=>{}})}})('componentes/admin-notification-center.tsx').AdminNotificationCenter;
+ const notice={id:'notice',type:'CLASS_RESPONSE',title:'Asistencia confirmada',message:'Ana confirmó',url:'/clases',response:'GOING',studentId:'a',occurrenceId:'class-a',readAt:null,createdAt:'2026-11-03T10:00:00Z',reaction:null};
+ const other={...notice,id:'other',type:'OTHER',title:'Otra notificación',studentId:null,occurrenceId:null};let list=[notice,other],count=2;let stale;
+ let hold=false;
+ globalThis.fetch=async (_url,options={})=>{
+  if(options.method==='PUT'){list=[{...notice,reaction:'THANKS',readAt:'2026-11-03T15:00:00Z'},other];count=1;return{ok:true,json:async()=>({reaction:'THANKS',readAt:'2026-11-03T15:00:00Z',unreadCount:1})};}
+  if(hold){hold=false;return new Promise(resolve=>stale=()=>resolve({ok:true,json:async()=>({notifications:[notice,other],unreadCount:2})}));}
+  return{ok:true,json:async()=>({notifications:list,unreadCount:count})};
+ };
+ render(h(Center));const trigger=await screen.findByRole('button',{name:'Notificaciones, 2 sin leer'});fireEvent.click(trigger);
+ await screen.findByText('🙌 Gracias');
+ hold=true;fireEvent.focus(window);await waitFor(()=>assert.ok(stale));
+ fireEvent.click(screen.getByText('🙌 Gracias'));
+ await screen.findByRole('button',{name:'Notificaciones, 1 sin leer'});
+ assert.equal(screen.getByText('🙌 Gracias').getAttribute('aria-pressed'),'true');
+ await act(async()=>{stale();await new Promise(resolve=>setTimeout(resolve,30));});assert.ok(screen.getByRole('button',{name:'Notificaciones, 1 sin leer'}));assert.equal(other.readAt,null);
 });
