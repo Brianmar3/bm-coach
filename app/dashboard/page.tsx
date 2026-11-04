@@ -117,7 +117,7 @@ function DashboardContent({ data }: { data: DashboardData }) {
 
     <AttentionToday data={data.attentionToday} />
 
-    <section className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+    <section className="grid items-start gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
       <TodayClasses items={data.todayClasses} total={metrics.classesToday} />
       <PaymentsPanel data={data.income} metrics={metrics} />
     </section>
@@ -198,7 +198,7 @@ function PaymentsPanel({ data, metrics }: { data: DashboardData["income"]; metri
     <details ref={detail} className="mt-3 border-t border-[var(--input-border)] pt-2">
       <summary className="cursor-pointer py-1 text-xs font-semibold text-[var(--foreground-muted)]">Detalle de cobros{selected ? ` · ${showDate(selected.date)}` : " por día"}</summary>
       <label className="mt-2 flex items-center justify-between gap-2 text-xs text-[var(--foreground-muted)]">Día<select aria-label="Día de cobro" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} className="min-h-9 min-w-0 rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-2 text-[var(--foreground)]"><option value="">Seleccionar día</option>{data.map(day => <option key={day.date} value={day.date}>{showDate(day.date)} · {money(day.amount)}</option>)}</select></label>
-      {selected && <><p className="mt-2 text-xs font-semibold text-[var(--brand-text)]">{money(selected.amount)} · {selected.payments?.length ?? 0} pagos</p>{selected.payments?.length ? <ul className="mt-1 divide-y divide-[var(--input-border)]">{selected.payments.map(payment => <li key={payment.id} className="py-2 text-xs"><div className="flex items-baseline justify-between gap-3"><strong className="min-w-0 break-words text-[var(--foreground)]">{payment.studentName}</strong><span className="shrink-0 font-semibold text-[var(--brand-text)]">{money(payment.amount)}</span></div><p className="mt-0.5 text-[var(--foreground-muted)]">Cobro: {showDate(payment.paidDate)} · Cuota: {payment.billingPeriod ? new Date(`${payment.billingPeriod}-01T12:00:00Z`).toLocaleDateString("es-AR", { month: "long", year: "numeric", timeZone: "UTC" }) : "Sin período registrado"}</p></li>)}</ul> : <p role="status" className="py-2 text-xs text-[var(--foreground-muted)]">Sin cobros en este día.</p>}</>}
+      {selected && <><p className="mt-2 text-xs font-semibold text-[var(--brand-text)]">{money(selected.amount)} · {selected.payments?.length ?? 0} pagos</p>{selected.payments?.length ? <ul aria-label="Pagos del día seleccionado" tabIndex={0} className="mt-1 max-h-48 overflow-x-hidden overflow-y-auto overscroll-contain divide-y divide-[var(--input-border)] [scrollbar-gutter:stable] focus-visible:outline-2 focus-visible:outline-[var(--brand-text)]">{selected.payments.map(payment => <li key={payment.id} className="py-2 text-xs"><div className="flex items-baseline justify-between gap-3"><strong className="min-w-0 break-words text-[var(--foreground)]">{payment.studentName}</strong><span className="shrink-0 font-semibold text-[var(--brand-text)]">{money(payment.amount)}</span></div><p className="mt-0.5 text-[var(--foreground-muted)]">Cobro: {showDate(payment.paidDate)} · Cuota: {payment.billingPeriod ? new Date(`${payment.billingPeriod}-01T12:00:00Z`).toLocaleDateString("es-AR", { month: "long", year: "numeric", timeZone: "UTC" }) : "Sin período registrado"}</p></li>)}</ul> : <p role="status" className="py-2 text-xs text-[var(--foreground-muted)]">Sin cobros en este día.</p>}</>}
     </details>
   </Panel>;
 }

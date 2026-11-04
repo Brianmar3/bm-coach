@@ -47,3 +47,17 @@ test('API mantiene ámbito workspace y separa mes efectivo de período de cuota 
  const result=build(records,'2026-11-01','2026-11-03',new Map([['s','Ana']]),argentinaDateKey,databaseDateKey,(key,n)=>{const date=new Date(key+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+n);return databaseDateKey(date);});
  assert.equal(result.monthIncome,40000);assert.equal(result.currentPayments.length,1);assert.equal(result.income[0].amount,40000);assert.equal(result.income[0].payments[0].billingPeriod,'2026-10');assert.equal(result.income[1].amount,0);assert.deepEqual(result.income[1].payments,[]);
 });
+
+
+for(const width of [390,1280])for(const count of [2,20])test(`${width}px detalle con ${count} pagos: lista acotada, todos los pagos disponibles y cierre conservado`,()=>{
+ window.innerWidth=width;
+ const payments=Array.from({length:count},(_,i)=>({id:String(i),studentName:'Alumno '+i,amount:30000,paidDate:'2026-11-01',billingPeriod:'2026-11'}));
+ const {container}=render(h(PaymentsPanel,{data:[{date:'2026-11-01',label:'1',amount:count*30000,payments}],metrics:{monthIncome:count*30000,monthPaymentCount:count}}));
+ assert.equal(container.querySelector('details').open,false);
+ fireEvent.click(screen.getByRole('button',{name:/01.?nov/}));
+ const list=screen.getByRole('list',{name:'Pagos del día seleccionado'});
+ assert.equal(list.children.length,count);
+ assert.ok(list.classList.contains('max-h-48'));assert.ok(list.classList.contains('overflow-y-auto'));assert.ok(list.classList.contains('overflow-x-hidden'));
+ assert.equal(list.tabIndex,0);assert.ok(screen.getByText('Alumno '+(count-1)));
+ fireEvent.click(container.querySelector('summary'));assert.equal(container.querySelector('details').open,false);
+});
