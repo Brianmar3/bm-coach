@@ -43,6 +43,7 @@ function matches(row, where) {
     if (expected && typeof expected === "object") {
       if ("not" in expected) return actual !== expected.not && (!expected.notIn || !expected.notIn.includes(actual));
       if ("notIn" in expected) return !expected.notIn.includes(actual);
+      if ("in" in expected) return expected.in.includes(actual);
       if (["gte", "lte", "lt", "gt", "contains"].some(key => key in expected)) return (!Object.hasOwn(expected, "gt") || actual > expected.gt) && (!Object.hasOwn(expected, "gte") || actual >= expected.gte) && (!Object.hasOwn(expected, "lte") || actual <= expected.lte) && (!Object.hasOwn(expected, "lt") || actual < expected.lt) && (!Object.hasOwn(expected, "contains") || String(actual).toLowerCase().includes(expected.contains.toLowerCase()));
       return actual && matches(actual, expected);
     }
@@ -108,18 +109,6 @@ test("opinar no cambia la cronología ni la sesión efectiva de asistencias anti
   assert.equal(await submitClassFeedback(database([first]), "a", "bm", feedbackInput({ occurrenceId: "class-a", rating: "GOOD" })), true);
   assert.equal(first.updatedAt, timestamp);
   assert.equal(effectiveOccurrenceId(effectiveSessionForStudentsOnDate(sessions()), "a", "2026-11-03"), "class-b");
-});
-
-test("las opiniones se agregan por clase real, fecha y workspace y se paginan", async () => {
-  const rows = [attendance({ classRating: "EXCELLENT", classFeedbackAt: new Date(), classComment: "Me gustó" }), attendance({ id: "b", studentId: "b", student: { workspaceId: "bm", data: { firstName: "Bruno" } }, classRating: "GOOD", classFeedbackAt: new Date() }), attendance({ id: "foreign", classRating: "IMPROVE", classFeedbackAt: new Date(), occurrence: { ...occurrence, workspaceId: "other" } })];
-  const filter = feedbackReportFilter(new URLSearchParams("from=2026-11-01&to=2026-11-03&class=funcional"));
-  const result = await classOpinions(database(rows), "bm", filter);
-  assert.equal(result.total, 2); assert.equal(result.classes[0].count, 2);
-  assert.deepEqual(result.classes[0].distribution, { EXCELLENT: 1, GOOD: 1, IMPROVE: 0 });
-  assert.deepEqual(result.classes[0].opinions.map(item => item.studentName), ["Bruno", "Ana Pérez"]);
-  assert.equal((await classOpinions(database(rows), "bm", { ...filter, q: "GAP" })).total, 0);
-  const many = database(Array.from({ length: 35 }, (_, index) => attendance({ id: String(index), classRating: "GOOD", classFeedbackAt: new Date() })));
-  const page = await classOpinions(many, "bm", { ...filter, page: 2 }); assert.equal(page.classes[0].count, 35); assert.equal(page.classes[0].opinions.length, 5);
 });
 
 test("validaciones de opinión y filtros rechazan valores no permitidos", () => {
@@ -249,55 +238,12 @@ test("una invitación respondida en otro dispositivo se retira si el envío devu
   await waitFor(() => assert.ok(screen.queryByRole("region", { name: "Opinión de tu clase" }) === null));
 });
 
-for (const width of [390, 1280]) test(`${width}px panel de Clases muestra distribución/comentarios y filtra por fecha/clase`, async () => {
-  window.innerWidth = width;
-  const db = database([attendance({ classRating: "EXCELLENT", classFeedbackAt: new Date(), classComment: "Excelente ambiente" })]);
-  const requests = []; globalThis.fetch = async url => { requests.push(url); return { ok: true, json: async () => classOpinions(db, "bm", feedbackReportFilter(new URL(url, window.location.origin).searchParams)) }; };
-  render(h(Panel)); fireEvent.click(screen.getByText("Opiniones"));
-  await screen.findByText("Excelente ambiente"); assert.ok(screen.getByText(/Ana Pérez/)); assert.ok(screen.getByText("🔥 Excelente: 1"));
-  fireEvent.change(screen.getByLabelText("Clase"), { target: { value: "GAP" } }); fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-11-01" } }); fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "2026-11-03" } });
-  fireEvent.submit(screen.getByRole("button", { name: "Aplicar filtros" }).closest("form")); await screen.findByText("Todavía no hay opiniones para estos filtros.");
-  assert.ok(requests.at(-1).includes("class=GAP"));
-});
-
-
-test("filtros rápidos mantienen resumen completo y priorizan A mejorar antes de paginar", async () => {
- const rows = Array.from({length: 32}, (_, i) => attendance({id: String(i), classRating: i === 31 ? "IMPROVE" : "EXCELLENT", classComment: i === 31 ? "Cambiar ritmo" : "", classFeedbackAt: new Date("2026-11-03T15:00:00Z")}));
- const filter = feedbackReportFilter(new URLSearchParams());
- const all = await classOpinions(database(rows), "bm", filter);
- assert.equal(all.total, 32); assert.equal(all.classes[0].opinions[0].rating, "IMPROVE");
- for (const quick of ["improve", "comments"]) {
-  const report = await classOpinions(database(rows), "bm", {...filter, quick});
-  assert.equal(report.total, 1); assert.equal(report.classes[0].count, 32); assert.equal(report.classes[0].opinions[0].id, "31");
- }
- assert.throws(() => feedbackReportFilter(new URLSearchParams("quick=invalid")));
-});
-
 test("recepción hoy usa límites argentinos y aísla workspaces, incluso para clases anteriores", async () => {
  const row = (id, at, patch={}) => attendance({id, classRating: "IMPROVE", classFeedbackAt: new Date(at), occurrence: {...occurrence, date: new Date("2026-10-01T00:00:00Z")}, ...patch});
  const db = database([row("before", "2026-11-03T02:59:59Z"), row("first", "2026-11-03T03:00:00Z"), row("last", "2026-11-04T02:59:59Z", {classRating:"GOOD"}), row("after", "2026-11-04T03:00:00Z"), row("foreign", "2026-11-03T15:00:00Z", {student: {workspaceId:"other",data:{}}})]);
  assert.deepEqual(await classOpinionsReceivedToday(db, "bm"), {total:2, improve:1});
  const report = await classOpinions(db, "bm", feedbackReportFilter(new URLSearchParams("receivedOn=2026-11-03")));
- assert.equal(report.total,2); assert.equal(report.classes[0].date,"2026-10-01");
-});
-
-
-test("filtros rápidos son accesibles y el enlace del dashboard abre Opiniones recibidas hoy", async () => {
- const requests=[];
- window.history.replaceState({}, "", "/clases?opiniones=hoy#opiniones");
- globalThis.fetch = async url => {requests.push(url);return {ok:true,json:async()=>({total:0,page:1,pages:1,classes:[]})};};
- render(h(Panel));
- await screen.findByRole("button", {name:"Con comentarios"});
- await waitFor(()=>assert.ok(requests.length));
- assert.ok(requests[0].includes("receivedOn="));
- fireEvent.click(screen.getByRole("button", {name:"A mejorar",exact:true}));
- await waitFor(()=>assert.ok(requests.at(-1).includes("quick=improve")));
- assert.equal(screen.getByRole("button", {name:"A mejorar",exact:true}).getAttribute("aria-pressed"),"true");
- fireEvent.click(screen.getByRole("button", {name:"Con comentarios"}));
- await waitFor(()=>assert.ok(requests.at(-1).includes("quick=comments")));
- fireEvent.click(screen.getByRole("button", {name:"Todas"}));
- await waitFor(()=>assert.ok(requests.at(-1).includes("quick=all")));
- window.history.replaceState({}, "", "/");
+ assert.equal(report.total,2); assert.equal(report.comments.length,0);
 });
 
 
@@ -368,36 +314,6 @@ test("una invitación vence mientras el portal sigue abierto sin usar la hora de
 });
 
 
-for (const width of [390,1280]) for (const theme of ["light","dark"]) test(`${width}px ${theme}: filas compactas, comentario desplegable, filtros y paginación conservados`,async()=>{
- window.innerWidth=width; document.documentElement.dataset.theme=theme;
- const rows=Array.from({length:35},(_,i)=>attendance({id:"compact-"+i,studentId:"student-"+i,student:{workspaceId:"bm",data:{firstName:"Alumno",lastName:String(i)}},classRating:i===34?"IMPROVE":"GOOD",classComment:i===34?"Comentario completo de prueba\nSegunda línea":"",classFeedbackAt:new Date()}));
- const db=database(rows), requests=[];
- globalThis.fetch=async url=>{requests.push(url);return {ok:true,json:async()=>classOpinions(db,"bm",feedbackReportFilter(new URL(url,window.location.origin).searchParams))};};
- const view=render(h(Panel)); fireEvent.click(screen.getByText("Opiniones"));
- const name=await screen.findByText("Alumno 34"), summary=name.closest("summary"), detail=summary.closest("details");
- assert.equal(detail.open,false);assert.ok(screen.getByLabelText("Con comentario"));
- assert.equal(view.container.querySelector('li').textContent.includes("Alumno 34"),true);
- assert.ok(summary.textContent.includes("3/11/2026 · 09:00"));assert.ok(summary.textContent.includes("💬 A mejorar"));
- fireEvent.click(summary);assert.equal(detail.open,true);assert.ok(screen.getByText(/Comentario completo de prueba/));
- fireEvent.click(summary);assert.equal(detail.open,false);
- assert.equal(view.container.querySelectorAll('article').length,0);
- fireEvent.click(screen.getByRole("button",{name:"Con comentarios",exact:true}));
- await waitFor(()=>assert.ok(requests.at(-1).includes("quick=comments")));
- await screen.findByText(/1 respuestas · Privadas/);
- assert.ok(screen.getByText("💪 Buena: 34"));
- fireEvent.click(screen.getByRole("button",{name:"A mejorar",exact:true}));
- await waitFor(()=>assert.ok(requests.at(-1).includes("quick=improve")));
- await screen.findByText("Alumno 34");
- fireEvent.click(screen.getByRole("button",{name:"Todas",exact:true}));
- await screen.findByText(/35 respuestas · Privadas/);
- fireEvent.click(screen.getByRole("button",{name:"Siguiente"}));
- await screen.findByText("2 / 2");assert.equal(screen.queryByText("Alumno 34"),null);
- assert.ok(requests.at(-1).includes("page=2"));
- fireEvent.click(screen.getByRole("button",{name:"Anterior"}));
- await screen.findByText("1 / 2");await screen.findByText("Alumno 34");
-});
-
-
 test('reaccionar marca únicamente la confirmación como leída y cambiarla conserva el timestamp',async()=>{
  const db=reactionDatabase();const result=await reactToConfirmation(db,'bm','notice','RECEIVED');
  assert.equal(result.unreadCount,0);assert.ok(result.readAt);assert.equal(db.row.readAt.toISOString(),result.readAt);
@@ -431,4 +347,43 @@ test('centro actualiza contador y lectura tras reaccionar; una consulta anterior
  await screen.findByRole('button',{name:'Notificaciones, 1 sin leer'});
  assert.equal(screen.getByText('🙌 Gracias').getAttribute('aria-pressed'),'true');
  await act(async()=>{stale();await new Promise(resolve=>setTimeout(resolve,30));});assert.ok(screen.getByRole('button',{name:'Notificaciones, 1 sin leer'}));assert.equal(other.readAt,null);
+});
+
+
+for (const size of [30,100,300]) test('resumen global con '+size+' opiniones; sólo comentarios y paginación independiente',async()=>{
+ const rows=Array.from({length:size},(_,i)=>attendance({id:'opinion-'+i,classRating:['EXCELLENT','GOOD','IMPROVE'][i%3],classComment:i%2===0?'Comentario '+i:'',classFeedbackAt:new Date()}));
+ const foreign=attendance({id:'foreign',student:{workspaceId:'other',data:{}},classRating:'IMPROVE',classComment:'No visible',classFeedbackAt:new Date()});
+ const db=database([...rows,foreign]);const filter=feedbackReportFilter(new URLSearchParams('class=funcional'));
+ const report=await classOpinions(db,'bm',filter);
+ const improve=rows.filter(row=>row.classRating==='IMPROVE'&&row.classComment);
+ assert.equal(report.total,size);assert.deepEqual(report.distribution,{EXCELLENT:Math.ceil(size/3),GOOD:Math.floor((size+1)/3),IMPROVE:Math.floor(size/3)});assert.equal(report.commentTotal,improve.length);assert.equal(report.comments.length,Math.min(30,improve.length));assert.ok(report.comments.every(row=>row.rating==='IMPROVE'&&row.comment));assert.equal(JSON.stringify(report).includes('Ana Pérez'),false);
+ const second=await classOpinions(db,'bm',{...filter,page:2});assert.equal(second.total,size);assert.deepEqual(second.distribution,report.distribution);assert.ok(second.comments.length<=30);assert.equal(second.page,Math.min(2,report.pages));
+ if(report.pages>1)assert.ok(!second.comments.some(row=>report.comments.some(first=>first.id===row.id)));
+ const positive=await classOpinions(db,'bm',{...filter,comments:'positive'});assert.equal(positive.total,size);assert.equal(positive.commentTotal,rows.filter(row=>row.classRating!=='IMPROVE'&&row.classComment).length);assert.ok(positive.comments.every(row=>['GOOD','EXCELLENT'].includes(row.rating)&&row.comment));
+ assert.equal((await classOpinions(db,'bm',{...filter,q:'GAP'})).total,0);assert.equal((await classOpinions(db,'bm',{...filter,from:'2026-10-01',to:'2026-10-31'})).total,0);
+ assert.throws(()=>feedbackReportFilter(new URLSearchParams('comments=invalid')));
+});
+for(const width of [390,1280])for(const theme of ['light','dark'])test(width+'px '+theme+': resumen, comentarios útiles sin nombres y positivos bajo demanda',async()=>{
+ window.innerWidth=width;document.documentElement.dataset.theme=theme;
+ const rows=Array.from({length:100},(_,i)=>attendance({id:'comment-'+i,classRating:i<65?'IMPROVE':i<85?'EXCELLENT':'GOOD',classComment:i<60?'Mejorar '+i:i===65?'Muy buena clase':'',classFeedbackAt:new Date()}));
+ const db=database(rows),requests=[];
+ globalThis.fetch=async url=>{requests.push(url);return{ok:true,json:async()=>classOpinions(db,'bm',feedbackReportFilter(new URL(url,window.location.origin).searchParams))};};
+ render(h(Panel));fireEvent.click(screen.getByText('Opiniones'));
+ await screen.findByText('100 valoraciones del período');assert.equal(screen.queryByText('Ana Pérez'),null);assert.ok(screen.getByLabelText('Resumen de valoraciones').textContent.includes('💬 A mejorar: 65'));
+ assert.ok(screen.getByText('Mejorar 0'));assert.ok(screen.queryByText('Muy buena clase')===null);assert.equal(requests.some(url=>url.includes('comments=positive')),false);
+ fireEvent.click(screen.getByText('Ver otros comentarios'));await screen.findByText('Muy buena clase');assert.ok(requests.at(-1).includes('comments=positive'));
+ fireEvent.click(screen.getByText('Ver otros comentarios'));await waitFor(()=>assert.ok(screen.queryByText('Muy buena clase')===null));
+ fireEvent.click(screen.getByRole('button',{name:'Siguiente'}));await screen.findByText('2 / 2');assert.ok(screen.getByText('Mejorar 30'));assert.ok(screen.getByText('100 valoraciones del período'));assert.equal(screen.queryByText('Mejorar 0'),null);
+ fireEvent.change(screen.getByLabelText('Clase'),{target:{value:'GAP'}});fireEvent.submit(screen.getByRole('button',{name:'Aplicar filtros'}).closest('form'));await screen.findByText('0 valoraciones del período');assert.ok(screen.getByText('Sin comentarios para mejorar en este período.'));assert.ok(requests.at(-1).includes('class=GAP'));assert.equal(new URL(requests.at(-1),window.location.origin).searchParams.has('page'),false);
+});
+test('acceso recibido hoy conserva el filtro al abrir comentarios positivos',async()=>{
+ window.history.replaceState({},'', '/clases?opiniones=hoy#opiniones');const requests=[];globalThis.fetch=async url=>{requests.push(url);return{ok:true,json:async()=>({total:0,distribution:{},commentTotal:0,page:1,pages:1,comments:[]})};};
+ render(h(Panel));await screen.findByText('0 valoraciones del período');assert.ok(requests[0].includes('receivedOn='));fireEvent.click(screen.getByText('Ver otros comentarios'));await screen.findByText('Sin otros comentarios para estos filtros.');assert.ok(requests.at(-1).includes('receivedOn='));assert.ok(requests.at(-1).includes('comments=positive'));window.history.replaceState({},'', '/');
+});
+
+
+test('valoraciones sin comentario se acumulan sin filas vacías ni datos de alumno',async()=>{
+ const rows=['IMPROVE','GOOD','EXCELLENT'].map((classRating,i)=>attendance({id:String(i),classRating,classComment:i===0?null:'',classFeedbackAt:new Date()}));const db=database(rows),original=db.classOccurrenceAttendance.findMany;
+ db.classOccurrenceAttendance.findMany=async args=>{assert.equal(args.select.student,undefined);assert.equal(args.include,undefined);return original(args);};
+ const report=await classOpinions(db,'bm',feedbackReportFilter(new URLSearchParams()));assert.equal(report.total,3);assert.deepEqual(report.distribution,{EXCELLENT:1,GOOD:1,IMPROVE:1});assert.equal(report.commentTotal,0);assert.deepEqual(report.comments,[]);
 });

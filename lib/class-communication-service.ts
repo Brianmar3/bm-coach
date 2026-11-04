@@ -84,39 +84,43 @@ export function feedbackReportFilter(params: URLSearchParams) {
   const to = params.get("to") ?? today;
   const q = (params.get("class") ?? "").trim();
   const page = Number(params.get("page") ?? 1);
-  const quick = params.get("quick") ?? "all";
   const receivedOn = params.get("receivedOn") ?? "";
-  if (!["all", "improve", "comments"].includes(quick) || (receivedOn && !isDateKey(receivedOn))) throw new Error("Seleccioná filtros válidos.");
+  const comments = params.get("comments") ?? "improve";
+  if (!["improve", "positive"].includes(comments)) throw new Error("Seleccioná filtros válidos.");
+  if (receivedOn && !isDateKey(receivedOn)) throw new Error("Seleccioná filtros válidos.");
   if (!isDateKey(from) || !isDateKey(to) || from > to || q.length > 120 || !Number.isSafeInteger(page) || page < 1) throw new Error("Seleccioná fechas y filtros válidos.");
-  return { from, to, q, page, quick, receivedOn };
+  return { from, to, q, page, receivedOn, comments };
 }
 
 export async function classOpinions(db: Db, workspaceId: string, filter: ReturnType<typeof feedbackReportFilter>) {
   const where: Prisma.ClassOccurrenceAttendanceWhereInput = {
-    student: { workspaceId }, actualAttendance: "PRESENT", classRating: { not: null }, classFeedbackAt: { not: null },
-    occurrence: { AND: [endedClasses(workspaceId), { date: { gte: new Date(filter.from + "T00:00:00Z"), lte: new Date(filter.to + "T00:00:00Z") } }, ...(filter.q ? [{ OR: [{ classNameSnapshot: { contains: filter.q, mode: "insensitive" as const } }, { categorySnapshot: { contains: filter.q, mode: "insensitive" as const } }] }] : [])] },
+    student: { workspaceId }, actualAttendance: "PRESENT", classRating: { not: null },
+    classFeedbackAt: filter.receivedOn ? receivedDayBounds(filter.receivedOn) : { not: null },
+    occurrence: { AND: [endedClasses(workspaceId),
+      ...(!filter.receivedOn ? [{ date: { gte: new Date(filter.from + "T00:00:00Z"), lte: new Date(filter.to + "T00:00:00Z") } }] : []),
+      ...(filter.q ? [{ OR: [{ classNameSnapshot: { contains: filter.q, mode: "insensitive" as const } }, { categorySnapshot: { contains: filter.q, mode: "insensitive" as const } }] }] : []),
+    ] },
   };
-  if (filter.receivedOn) {
-    where.classFeedbackAt = receivedDayBounds(filter.receivedOn);
-    where.occurrence = endedClasses(workspaceId);
-  }
-  const filteredWhere = { ...where, ...(filter.quick === "improve" ? { classRating: "IMPROVE" } : {}), ...(filter.quick === "comments" ? { classComment: { not: null, notIn: [""] } } : {}) };
-  const [total, groups] = await Promise.all([
-    db.classOccurrenceAttendance.count({ where: filteredWhere }),
-    db.classOccurrenceAttendance.groupBy({ by: ["occurrenceId", "classRating"], where, _count: { _all: true } }),
+  const commentsWhere: Prisma.ClassOccurrenceAttendanceWhereInput = { ...where,
+    classRating: filter.comments === "positive" ? { in: ["EXCELLENT", "GOOD"] } : "IMPROVE",
+    classComment: { not: null, notIn: [""] },
+  };
+  const [groups, commentTotal] = await Promise.all([
+    db.classOccurrenceAttendance.groupBy({ by: ["classRating"], where, _count: { _all: true } }),
+    db.classOccurrenceAttendance.count({ where: commentsWhere }),
   ]);
-  const pages = Math.max(1, Math.ceil(total / 30)); const page = Math.min(filter.page, pages);
-  // These stored string values sort IMPROVE, GOOD, EXCELLENT in descending order, before pagination.
-  const rows = await db.classOccurrenceAttendance.findMany({ where: filteredWhere, include: { occurrence: true, student: { select: { data: true } } }, orderBy: [{ classRating: "desc" }, { classFeedbackAt: "desc" }, { id: "asc" }], take: 30, skip: (page - 1) * 30 });
-  const classes = [...new Map(rows.map(row => [row.occurrenceId, row.occurrence])).values()].map(occurrence => {
-    const distribution = { EXCELLENT: 0, GOOD: 0, IMPROVE: 0 };
-    for (const group of groups.filter(item => item.occurrenceId === occurrence.id)) if (group.classRating && group.classRating in distribution) distribution[group.classRating as keyof typeof distribution] += group._count._all;
-    return { id: occurrence.id, date: databaseDateKey(occurrence.date), className: occurrenceClassName(occurrence), startTime: occurrence.startTime, distribution, count: Object.values(distribution).reduce((sum, count) => sum + count, 0), opinions: rows.filter(row => row.occurrenceId === occurrence.id).map(row => {
-      const data = row.student.data as Record<string, unknown>;
-      return { id: row.id, studentName: [data.firstName, data.lastName].filter(Boolean).join(" ") || "Alumno", rating: row.classRating, comment: row.classComment ?? "" };
-    }) };
+  const distribution = { EXCELLENT: 0, GOOD: 0, IMPROVE: 0 };
+  for (const group of groups) if (group.classRating && group.classRating in distribution) distribution[group.classRating as keyof typeof distribution] += group._count._all;
+  const total = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+  const pages = Math.max(1, Math.ceil(commentTotal / 30)), page = Math.min(filter.page, pages);
+  const rows = await db.classOccurrenceAttendance.findMany({ where: commentsWhere,
+    select: { id: true, classRating: true, classComment: true, occurrence: { select: { date: true, startTime: true, classNameSnapshot: true, categorySnapshot: true, status: true } } },
+    orderBy: [{ classFeedbackAt: "desc" }, { id: "asc" }], take: 30, skip: (page - 1) * 30,
   });
-  return { classes, total, page, pages };
+  return { total, distribution, commentTotal, page, pages, comments: rows.map(row => ({ id: row.id,
+    className: occurrenceClassName(row.occurrence), date: databaseDateKey(row.occurrence.date), startTime: row.occurrence.startTime,
+    rating: row.classRating, comment: row.classComment!,
+  })) };
 }
 
 function receivedDayBounds(today: string) {
