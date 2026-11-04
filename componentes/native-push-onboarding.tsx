@@ -1,5 +1,8 @@
 "use client";
 
+import { createPortal } from "react-dom";
+import { KeyboardDialog } from "@/componentes/keyboard-dialog";
+import { BmBellIcon, BmCheckIcon, BmCloseIcon } from "@/componentes/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   checkNativePushPermissions,
@@ -12,6 +15,8 @@ import {
   type NativePushAudience,
   type NativePushEnvironment,
 } from "@/lib/native-push-client";
+
+let onboardingOwner: symbol | null = null;
 
 const REMIND_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -40,8 +45,20 @@ export function NativePushOnboarding({ audience }: { audience: NativePushAudienc
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const registered = useRef(false);
+  const owner = useRef(Symbol("native-push-onboarding"));
+  const interacting = useRef(false);
+  const reconciling = useRef(false);
+
+  useEffect(() => {
+    const currentOwner = owner.current;
+    return () => { if (onboardingOwner === currentOwner) onboardingOwner = null; };
+  }, []);
 
   const reconcile = useCallback(async () => {
+    if (interacting.current || reconciling.current || (onboardingOwner && onboardingOwner !== owner.current)) return;
+    onboardingOwner = owner.current;
+    reconciling.current = true;
+    try {
     const detected = environment ?? await getNativePushEnvironment();
     if (!detected) return;
     setEnvironment(detected);
@@ -63,6 +80,8 @@ export function NativePushOnboarding({ audience }: { audience: NativePushAudienc
         registered.current = true;
         await registerNativePushDevice(audience, detected).catch(() => {
           registered.current = false;
+          setMessage("El permiso está concedido, pero no pudimos registrar este dispositivo. Revisá la conexión y reintentá.");
+          setMode("prompt");
         });
       }
       return;
@@ -72,7 +91,8 @@ export function NativePushOnboarding({ audience }: { audience: NativePushAudienc
       setMode("hidden");
       return;
     }
-    setMode(state === "blocked" ? "blocked" : "prompt");
+    if (!interacting.current) setMode(state === "blocked" ? "blocked" : "prompt");
+    } finally { reconciling.current = false; }
   }, [audience, environment]);
 
   useEffect(() => {
@@ -93,10 +113,12 @@ export function NativePushOnboarding({ audience }: { audience: NativePushAudienc
   }, [reconcile]);
 
   async function activate() {
-    if (!environment) return;
+    if (!environment || interacting.current) return;
+    interacting.current = true;
     setBusy(true);
     setMessage("");
     const key = decisionKey(audience, environment.appId);
+    let activated = false;
     try {
       let permission = await checkNativePushPermissions();
       if (nativePermissionState(permission) === "blocked") {
@@ -113,23 +135,28 @@ export function NativePushOnboarding({ audience }: { audience: NativePushAudienc
           key,
           nativePermissionState(permission) === "blocked" ? "blocked" : "denied",
         );
-        setMode("hidden");
+        setMode("blocked");
+        setMessage("No se concedió el permiso. Podés activarlo más adelante desde la configuración del dispositivo.");
         return;
       }
-      await registerNativePushDevice(audience, environment);
+      const registration = await registerNativePushDevice(audience, environment);
+      if (!registration.token?.trim() || (await checkNativePushPermissions()).receive !== "granted") throw new Error("NOTIFICATIONS_NOT_ENABLED");
       registered.current = true;
       localStorage.removeItem(key);
+      activated = true;
       setMode("success");
-      window.setTimeout(() => setMode("hidden"), 1800);
+
     } catch {
       setMessage("No pudimos activar las notificaciones. Revisá tu conexión e intentá nuevamente.");
     } finally {
+      if (!activated) interacting.current = false;
       setBusy(false);
     }
   }
 
   function dismiss() {
-    if (environment) {
+    if (busy) return;
+    if (mode !== "success" && environment) {
       saveDecision(
         decisionKey(audience, environment.appId),
         mode === "blocked" ? "blocked" : "later",
@@ -138,27 +165,34 @@ export function NativePushOnboarding({ audience }: { audience: NativePushAudienc
     setMode("hidden");
   }
 
+  useEffect(() => {
+    if (mode === "hidden") return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [mode]);
+  useEffect(() => {
+    if (mode !== "success") return;
+    // Keep foreground reconciliation from dismissing the verified celebration.
+    interacting.current = true;
+    const timer = window.setTimeout(() => { interacting.current = false; setMode("hidden"); }, 4000);
+    return () => { window.clearTimeout(timer); interacting.current = false; };
+  }, [mode]);
+
   if (mode === "hidden") return null;
-  return (
-    <div className="fixed inset-0 z-[100] grid place-items-end bg-black/70 p-4 backdrop-blur-sm sm:place-items-center" role="presentation">
-      <section role="dialog" aria-modal="true" aria-labelledby="native-push-title" className="w-full max-w-md rounded-3xl border border-yellow-400/35 bg-zinc-950 p-5 text-white shadow-2xl shadow-yellow-400/10">
-        <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-yellow-400/15 text-2xl text-yellow-300" aria-hidden="true">●</div>
-        <h2 id="native-push-title" className="text-xl font-bold">
-          {mode === "success" ? "Notificaciones activadas" : "Activá las notificaciones"}
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-          {mode === "success"
-            ? "Listo. Este dispositivo ya puede recibir avisos de BM Training."
-            : "Recibí avisos de clases, entrenamientos, vencimientos y novedades de tu entrenador."}
-        </p>
-        {message && <p role="status" className="mt-3 text-sm text-yellow-200">{message}</p>}
-        {mode !== "success" && <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
-          <button type="button" disabled={busy} onClick={activate} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 disabled:opacity-50">
-            {busy ? "Comprobando…" : mode === "blocked" ? "Activar desde configuración" : "Activar notificaciones"}
-          </button>
-          <button type="button" disabled={busy} onClick={dismiss} className="rounded-xl border border-zinc-700 px-4 py-3 text-sm font-semibold text-zinc-300 disabled:opacity-50">Ahora no</button>
-        </div>}
-      </section>
-    </div>
+  return createPortal(
+    <div className="fixed inset-0 z-[220] grid place-items-center overflow-y-auto bg-black/55 px-5 py-[max(1.25rem,env(safe-area-inset-top),env(safe-area-inset-bottom))] backdrop-blur-sm" role="presentation">
+      <KeyboardDialog as="section" onClose={dismiss} dismissible={!busy} priority={110} aria-labelledby="native-push-title" aria-describedby="native-push-description" className="onboarding-enter relative my-auto w-full max-w-sm rounded-3xl border border-yellow-500/35 bg-[var(--surface,#111)] p-6 text-center text-[var(--foreground)] shadow-2xl outline-none motion-reduce:animate-none sm:p-7">
+        <button type="button" disabled={busy} onClick={dismiss} aria-label="Cerrar aviso de notificaciones" className="absolute right-2 top-2 grid size-10 place-items-center rounded-full text-[var(--foreground-muted)] hover:bg-[var(--surface-soft)] focus-visible:outline-2 focus-visible:outline-[var(--brand-text)] disabled:opacity-40"><BmCloseIcon size={18}/></button>
+        <div className="relative mx-auto mb-4 grid size-16 place-items-center rounded-2xl border border-yellow-500/25 bg-yellow-400/10 text-[var(--brand-text)]" aria-hidden="true"><BmBellIcon size={32}/>{mode === "success" && <span className="absolute -bottom-1 -right-1 grid size-6 place-items-center rounded-full border-2 border-[var(--surface,#111)] bg-yellow-400 text-zinc-950"><BmCheckIcon size={15}/></span>}</div>
+        <h2 id="native-push-title" className="text-xl font-bold leading-tight">{mode === "success" ? "¡Notificaciones activadas!" : "Activá las notificaciones"}</h2>
+        <p id="native-push-description" className="mt-3 text-sm leading-relaxed text-[var(--foreground-muted)]">{mode === "success" ? "Listo, ahora vas a recibir tus avisos importantes" : "Recibí avisos de tus clases, entrenamientos y novedades importantes"}</p>
+        {mode === "blocked" && <p role="status" className="mt-3 text-xs leading-relaxed text-[var(--foreground-muted)]">El permiso está desactivado. Podés habilitarlo desde la configuración del dispositivo.</p>}
+        {message && <p role="status" className="mt-3 text-xs leading-relaxed text-[var(--foreground)]">{message}</p>}
+        <div className="mt-5 flex flex-col gap-1">
+          {mode === "success" ? <button type="button" onClick={dismiss} className="min-h-11 rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-400">Entendido</button> : <><button type="button" disabled={busy} onClick={activate} className="min-h-11 rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-400 disabled:opacity-50">{busy ? "Comprobando…" : mode === "blocked" ? "Activar desde configuración" : "Activar notificaciones"}</button><button type="button" disabled={busy} onClick={dismiss} className="min-h-11 rounded-xl px-4 text-sm text-[var(--foreground-muted)] focus-visible:outline-2 focus-visible:outline-[var(--brand-text)] disabled:opacity-50">Ahora no</button></>}
+        </div>
+      </KeyboardDialog>
+    </div>, document.body,
   );
 }
