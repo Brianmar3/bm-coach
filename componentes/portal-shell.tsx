@@ -137,7 +137,7 @@ export function PortalShell({
   };
 
   return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider><AchievementCelebration key={studentId} isHome={isHome} achievementsHref={serviceType === "PERSONALIZED" ? "/portal/progreso" : "/portal/puntos"}>
-    <div className={`workspace-brand ${isHome ? "" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties} onClickCapture={(event) => {
+    <div className={`workspace-brand ${isHome ? "portal-home-shell flex min-h-dvh flex-col" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties} onClickCapture={(event) => {
       if (navigator.onLine || serviceType === "CLASSES" || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const link = (event.target as Element).closest("a");
       if (!link) return;

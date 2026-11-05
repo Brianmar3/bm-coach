@@ -61,11 +61,11 @@ test("no contiene atribuciones a autores o títulos de libros", () => {
   assert.doesNotMatch(content, /James Clear|Marco Aurelio|Séneca|Epicteto|Hábitos Atómicos|Meditaciones/i);
 });
 
-test("tarjeta horizontal compacta sin íconos, reflexión ni truncado", () => {
-  const card = portalSource.slice(portalSource.indexOf('<section aria-label="Enfoque de hoy"'), portalSource.indexOf("</section>", portalSource.indexOf('<section aria-label="Enfoque de hoy"')));
-  assert.match(card, /flex min-w-0 items-center/);
-  assert.match(card, /py-3/);
-  assert.match(card, /dailyFocus.title/);
-  assert.match(card, /break-words/);
-  assert.doesNotMatch(card, /<svg|<Bm|reflection|focus-lines|focus-quote|truncate|line-clamp|min-h-/);
+test("la frase diaria vive debajo del saludo sin tarjeta ni título independientes", () => {
+  const home = portalSource.slice(portalSource.indexOf("function PortalOverview"), portalSource.indexOf("function eventDateLabel"));
+  assert.match(home, /<h1[\s\S]*?<\/h1>\s*<p[^>]*>\{dailyFocus.title\}<\/p>/);
+  assert.doesNotMatch(home, /Enfoque de hoy|Vamos por un día|Hoy avanzás una parte/);
+  assert.ok(home.indexOf("<PortalHeroFrame>") < home.indexOf("<WeeklyObjectiveCard"));
+  assert.ok(home.indexOf("<WeeklyObjectiveCard") < home.indexOf("portal-home-main-card"));
+  assert.ok(home.indexOf("portal-home-main-card") < home.indexOf("<HomeQuickStats"));
 });

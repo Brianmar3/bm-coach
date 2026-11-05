@@ -1930,3 +1930,30 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
   outline-offset: -2px;
   background-color: color-mix(in srgb, var(--brand-text, #facc15) 12%, transparent);
 }
+
+/* Only the student Home shares the remaining viewport space between its cards.
+   The header stays in flow; main padding already reserves the mobile navigation. */
+.portal-home-shell > .portal-nav-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+}
+.portal-home-layout > * { flex-shrink: 0; }
+.portal-home-layout > .portal-home-hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-grow: .25;
+}
+.portal-home-layout > [aria-label="Resumen del alumno"] { flex-grow: .2; }
+.portal-home-main-card {
+  display: grid;
+  flex-grow: 1;
+  min-width: 0;
+}
+.portal-home-main-card > section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}

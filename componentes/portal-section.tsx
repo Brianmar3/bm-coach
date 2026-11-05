@@ -191,20 +191,19 @@ function PortalOverview({ data }: { data: PortalData }) {
   const routineFocused = data.profile.serviceType === "PERSONALIZED";
   const showRoutineHomeCard = hasPersonalizedService(data.profile.serviceType) && (routineFocused || Boolean(data.routine));
   const homePlan = showRoutineHomeCard ? personalizedHomePlan(data) : null;
-  return <div className="portal-home-sequence mx-auto max-w-5xl space-y-4">
+  return <div className="portal-home-layout portal-home-sequence mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4">
     <PortalHeroFrame>
       <span aria-hidden="true" className="portal-home-light-sweep" />
       <div className={`relative ${groupClassesEnabled && !routineFocused ? "min-h-[7.5rem] pr-[5.6rem] min-[390px]:pr-[6.4rem] sm:min-h-[9rem] sm:pr-36" : "min-h-[7rem] sm:min-h-[9rem]"}`}>
         <p className="flex items-center gap-2.5 text-xs text-[var(--foreground-muted)] sm:text-sm"><BmCalendarIcon size={19} className="shrink-0 text-[var(--brand-text)]" />{todayLabel}</p>
         <h1 className="mt-4 text-[clamp(1.85rem,8vw,3.15rem)] font-black leading-none tracking-[-.045em] text-zinc-50 sm:mt-7">¡Hola, <span className="text-[var(--brand-text)]">{data.profile.firstName}</span>!</h1>
-        <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--foreground-muted)] sm:mt-2.5 sm:text-base">{routineFocused ? "Hoy avanzás una parte más de tu plan." : "Vamos por un día más de progreso."}</p>
+        <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--foreground-muted)] sm:mt-2.5 sm:text-base">{dailyFocus.title}</p>
         {groupClassesEnabled && <MonthlyAttendanceIndicator data={data} />}
       </div>
     </PortalHeroFrame>
     <PortalEventAnnouncement events={data.events} studentId={data.profile.id} />
-    <section aria-label="Enfoque de hoy" className="portal-home-enter portal-home-focus flex min-w-0 items-center gap-3 rounded-[26px] border border-[var(--input-border)] bg-[var(--surface)] px-4 py-3 sm:px-5"><h2 className="shrink-0 text-[10px] font-bold uppercase tracking-[.12em] text-[var(--brand-text)] sm:text-xs">Enfoque de hoy</h2><span aria-hidden="true" className="shrink-0 text-[var(--brand-text)]">|</span><p className="min-w-0 text-sm leading-snug break-words text-[var(--foreground)]">{dailyFocus.title}</p></section>
     {groupClassesEnabled && !weeklyCelebrated && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
-    <div className="portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
+    <div className="portal-home-main-card portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
     <HomeQuickStats data={data} />
   </div>;
 }

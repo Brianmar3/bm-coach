@@ -93,7 +93,7 @@ test("los CTA conservan sus rutas y el acceso rápido central conserva su compon
 });
 
 test("la Home premium conserva ornamentos acotados y usa la manzana oficial", () => {
-  assert.match(home, /portal-home-focus flex min-w-0 items-center/);
+  assert.match(home, /portal-home-layout/);
   assert.match(home, /portal-home-stat/);
   assert.match(styles, /\.portal-home-hero::after/);
   assert.match(styles, /\.portal-home-focus-lines/);
@@ -110,4 +110,11 @@ test("la Home premium mantiene una densidad compacta en mobile", () => {
   assert.match(home, /min-\[390px\]:size-\[86px\]/);
   assert.match(classes, /mt-3 space-y-2/);
   assert.match(classes, /min-h-11 shrink-0/);
+});
+
+test("solo Home distribuye el viewport dinámico sin alturas fijas ni recortar el scroll", () => {
+  assert.match(shell, /isHome \? "portal-home-shell flex min-h-dvh flex-col"/);
+  assert.match(styles, /\.portal-home-shell > \.portal-nav-content/);
+  assert.match(styles, /\.portal-home-main-card \{[^}]*flex-grow: 1;/);
+  assert.match(home, /flex-1 flex-col gap-4/);
 });
