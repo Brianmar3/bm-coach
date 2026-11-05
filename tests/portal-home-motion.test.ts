@@ -77,7 +77,7 @@ test("el objetivo semanal es compacto y su celebración no queda en loop", () =>
 
 test("la confirmación visual de asistencia ocurre después de guardar y recargar", () => {
   const saved = classes.indexOf("setNotice(body.message");
-  const reloaded = classes.indexOf("await load();", saved);
+  const reloaded = classes.indexOf("await load()", saved);
   const confirmed = classes.indexOf("setConfirmedId(item.id)", saved);
   assert.ok(saved >= 0 && reloaded > saved && confirmed > reloaded);
   assert.match(classes, /value === "GOING"/);
@@ -93,7 +93,7 @@ test("los CTA conservan sus rutas y el acceso rápido central conserva su compon
 });
 
 test("la Home premium conserva ornamentos acotados y usa la manzana oficial", () => {
-  assert.match(home, /portal-home-focus-lines/);
+  assert.match(home, /portal-home-focus flex min-w-0 items-center/);
   assert.match(home, /portal-home-stat/);
   assert.match(styles, /\.portal-home-hero::after/);
   assert.match(styles, /\.portal-home-focus-lines/);

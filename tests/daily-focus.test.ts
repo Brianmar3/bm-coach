@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   argentinaDailyFocusDateKey,
-  DAILY_FOCUS_CATEGORIES,
   DAILY_FOCUS_MESSAGES,
   DAILY_FOCUS_TIME_ZONE,
   dailyFocusForDate,
@@ -19,20 +18,12 @@ function addDays(dateKey: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-test("la biblioteca principal contiene exactamente las 78 entradas completas", () => {
-  assert.equal(DAILY_FOCUS_MESSAGES.length, 78);
-  for (const message of DAILY_FOCUS_MESSAGES) {
-    assert.ok(message.title.trim());
-    assert.ok(message.reflection.trim());
-    assert.ok(message.title.length <= 120);
-    assert.ok(message.reflection.length >= 20 && message.reflection.length <= 180);
-  }
-});
-
-test("todas las categorías están normalizadas y representadas", () => {
-  const valid = new Set(DAILY_FOCUS_CATEGORIES);
-  for (const message of DAILY_FOCUS_MESSAGES) assert.ok(valid.has(message.category));
-  assert.deepEqual([...new Set(DAILY_FOCUS_MESSAGES.map((message) => message.category))], [...DAILY_FOCUS_CATEGORIES]);
+test("colección de 20 frases cortas y únicas", () => {
+  assert.equal(DAILY_FOCUS_MESSAGES.length, 20);
+  assert.equal(new Set(DAILY_FOCUS_MESSAGES.map(message => message.title)).size, 20);
+  assert.equal(DAILY_FOCUS_MESSAGES[0].title, "Cada entrenamiento cuenta.");
+  assert.equal(DAILY_FOCUS_MESSAGES[19].title, "El cambio empieza con acción.");
+  for (const message of DAILY_FOCUS_MESSAGES) assert.ok(message.title.length > 0 && message.title.length < 50);
 });
 
 test("la misma fecha conserva el mensaje y el día siguiente avanza", () => {
@@ -42,9 +33,9 @@ test("la misma fecha conserva el mensaje y el día siguiente avanza", () => {
 
 test("recorre el ciclo completo antes de repetir", () => {
   const start = "2026-01-01";
-  const cycle = Array.from({ length: 78 }, (_, index) => dailyFocusForDate(addDays(start, index)));
-  assert.equal(new Set(cycle).size, 78);
-  assert.strictEqual(dailyFocusForDate(addDays(start, 78)), cycle[0]);
+  const cycle = Array.from({ length: 20 }, (_, index) => dailyFocusForDate(addDays(start, index)));
+  assert.equal(new Set(cycle).size, 20);
+  assert.strictEqual(dailyFocusForDate(addDays(start, 20)), cycle[0]);
 });
 
 test("la fecha diaria usa America/Argentina/Buenos_Aires", () => {
@@ -66,15 +57,15 @@ test("la rotación es determinística, no persiste y deja fuera la biblioteca an
 });
 
 test("no contiene atribuciones a autores o títulos de libros", () => {
-  const content = DAILY_FOCUS_MESSAGES.map((message) => `${message.title} ${message.reflection}`).join(" ");
+  const content = DAILY_FOCUS_MESSAGES.map((message) => message.title).join(" ");
   assert.doesNotMatch(content, /James Clear|Marco Aurelio|Séneca|Epicteto|Hábitos Atómicos|Meditaciones/i);
 });
 
-test("el bloque móvil muestra título y reflexión sin desbordes ni altura excesiva", () => {
-  assert.match(portalSource, /dailyFocus\.title/);
-  assert.match(portalSource, /dailyFocus\.reflection/);
-  assert.match(portalSource, /line-clamp-2 break-words/);
-  assert.match(portalSource, /min-w-0/);
-  assert.match(portalSource, /overflow-hidden/);
-  assert.doesNotMatch(portalSource, /dailyFocus\.category/);
+test("tarjeta horizontal compacta sin íconos, reflexión ni truncado", () => {
+  const card = portalSource.slice(portalSource.indexOf('<section aria-label="Enfoque de hoy"'), portalSource.indexOf("</section>", portalSource.indexOf('<section aria-label="Enfoque de hoy"')));
+  assert.match(card, /flex min-w-0 items-center/);
+  assert.match(card, /py-3/);
+  assert.match(card, /dailyFocus.title/);
+  assert.match(card, /break-words/);
+  assert.doesNotMatch(card, /<svg|<Bm|reflection|focus-lines|focus-quote|truncate|line-clamp|min-h-/);
 });
