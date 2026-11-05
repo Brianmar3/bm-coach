@@ -14,9 +14,9 @@ test("Personalizado prioriza la rutina, Mixto lo hace con plan activo y Clases c
   assert.match(overview, /groupClassesEnabled && <PortalClasses compact/);
 });
 
-test("Enfoque de hoy aparece antes de Tu rutina de hoy", () => {
-  assert.ok(overview.indexOf("Enfoque de hoy") < overview.indexOf("<RoutineHomeCard"));
-  assert.match(overview, /Tu rutina de hoy/);
+test("la frase diaria se integra al saludo antes de la sesión", () => {
+  assert.ok(overview.indexOf("dailyFocus.title") < overview.indexOf("<RoutineHomeCard"));
+  assert.match(overview, /Tu próxima sesión/);
   assert.doesNotMatch(overview, /Último entrenamiento/);
 });
 
@@ -26,15 +26,15 @@ test("la tarjeta usa rutina, día, sesiones y progreso semanal reales", () => {
   assert.match(overview, /sessionBelongsToWeek/);
   assert.match(overview, /completedDayIds\.size/);
   assert.match(overview, /trainingDays\.length/);
-  assert.match(overview, /Progreso semanal del plan/);
-  assert.match(overview, /sesiones completadas esta semana/);
+  assert.match(overview, /ejercicios programados/);
+  assert.match(overview, /plan.estimatedMinutes/);
 });
 
 test("los fallbacks son claros y la acción permanece dentro del portal", () => {
-  assert.match(overview, /Tu plan está listo para continuar/);
-  assert.match(overview, /Continuá desde tu planificación activa/);
+  assert.match(overview, /Sin rutina asignada/);
+  assert.match(overview, /Cuando tu entrenador complete la planificación/);
   assert.match(overview, /href="\/portal\/rutina"/);
-  assert.match(overview, /Empezar rutina/);
+  assert.match(overview, /Ver entrenamiento/);
   assert.match(overview, /Continuar rutina/);
   assert.match(overview, /Ver rutina/);
 });
@@ -44,8 +44,8 @@ test("la mejora visual permanece compacta, usa BM Icons y un CTA completo", () =
   assert.match(card, /Personalizado/);
   assert.match(card, /BmDumbbellIcon/);
   assert.match(card, /BmPlayIcon/);
-  assert.match(card, /Tu entrenamiento está listo/);
-  assert.match(card, /Continuá tu entrenamiento/);
+  assert.match(card, /plan.title/);
+  assert.match(card, /Tu sesión en curso/);
   assert.match(card, /min-h-12 w-full/);
   assert.match(card, /px-4/);
   assert.doesNotMatch(card, /min-h-\[(?:1[0-9]|[2-9][0-9])rem\]/);
@@ -53,7 +53,7 @@ test("la mejora visual permanece compacta, usa BM Icons y un CTA completo", () =
 });
 
 test("el objetivo semanal reutiliza la misión real sólo para servicios con clases", () => {
-  assert.match(overview, /groupClassesEnabled && data\.home\.weeklyMission/);
+  assert.match(overview, /groupClassesEnabled && !weeklyCelebrated && data\.home\.weeklyMission/);
   assert.match(overview, /<WeeklyObjectiveCard mission=\{data\.home\.weeklyMission\}/);
   assert.match(overview, /mission\.progress/);
   assert.match(overview, /mission\.target/);
@@ -65,14 +65,10 @@ test("el objetivo semanal reutiliza la misión real sólo para servicios con cla
   assert.doesNotMatch(overview, /Confirmadas/);
 });
 
-test("la celebración semanal responde sólo a la transición real del mismo objetivo", () => {
-  assert.match(overview, /previousMission = useRef\(\{ id: mission\.id, state: mission\.state, progress: mission\.progress/);
-  assert.match(overview, /if \(previous\.id !== mission\.id\) return/);
-  assert.match(overview, /previous\.state !== "COMPLETED" && mission\.state === "COMPLETED"/);
-  assert.match(overview, /bm:weekly-mission-celebrated:/);
-  assert.match(overview, /setCelebrating\(true\)/);
-  assert.match(overview, /setTimeout\(\(\) => setCelebrating\(false\), 1200\)/);
-  assert.doesNotMatch(overview, /completed \? "portal-home-objective-celebrating"/);
+test("la celebración semanal conserva el servicio compartido y no se modifica desde la tarjeta", () => {
+  assert.match(overview, /useWeeklyMissionCelebration\(data.home.weeklyMission\)/);
+  assert.match(overview, /previousMission = useRef/);
+  assert.match(overview, /if \(previous.id !== mission.id\) return/);
 });
 
 test("el resumen conserva sólo Tu cuota y Tus puntos con datos reales", () => {
