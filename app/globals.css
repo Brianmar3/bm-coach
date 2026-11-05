@@ -1957,3 +1957,13 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
   flex-direction: column;
   justify-content: center;
 }
+
+/* Personalized Home follows content height, rather than filling cards with blank space. */
+.portal-home-personalized { flex-grow: 0; gap: .75rem; }
+.portal-home-personalized > .portal-home-hero,
+.portal-home-personalized > .portal-home-main-card,
+.portal-home-personalized > [aria-label="Resumen del alumno"] { flex-grow: 0; }
+.portal-home-personalized > .portal-home-hero > .relative { min-height: 0; }
+.portal-home-personalized > .portal-home-hero { padding-block: 1rem; }
+.portal-home-personalized .portal-home-main-card > section { justify-content: flex-start; }
+.portal-home-personalized .portal-home-main-card .my-5 { margin-block: .75rem; }

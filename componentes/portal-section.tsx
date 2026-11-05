@@ -1,4 +1,5 @@
 "use client";
+import { HomeLoadEvolution } from "@/componentes/home-load-evolution";
 import { createBmIcon } from "@/componentes/icons/bm-premium/icon";
 import { WorkoutFinishDuration } from "@/componentes/workout-finish-duration";
 import { WORKOUT_MAX_DURATION_MINUTES, workoutDurationError } from "@/lib/workout-session-validation";
@@ -191,7 +192,7 @@ function PortalOverview({ data }: { data: PortalData }) {
   const routineFocused = data.profile.serviceType === "PERSONALIZED";
   const showRoutineHomeCard = hasPersonalizedService(data.profile.serviceType) && (routineFocused || Boolean(data.routine));
   const homePlan = showRoutineHomeCard ? personalizedHomePlan(data) : null;
-  return <div className="portal-home-layout portal-home-sequence mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4">
+  return <div className={`portal-home-layout portal-home-sequence mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 ${routineFocused ? "portal-home-personalized" : ""}`}>
     <PortalHeroFrame>
       <span aria-hidden="true" className="portal-home-light-sweep" />
       <div className={`relative ${groupClassesEnabled && !routineFocused ? "min-h-[7.5rem] pr-[5.6rem] min-[390px]:pr-[6.4rem] sm:min-h-[9rem] sm:pr-36" : "min-h-[7rem] sm:min-h-[9rem]"}`}>
@@ -204,6 +205,7 @@ function PortalOverview({ data }: { data: PortalData }) {
     <PortalEventAnnouncement events={data.events} studentId={data.profile.id} />
     {groupClassesEnabled && !weeklyCelebrated && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
     <div className="portal-home-main-card portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
+    {routineFocused && <HomeLoadEvolution sessions={data.workoutSessions} />}
     <HomeQuickStats data={data} />
   </div>;
 }
