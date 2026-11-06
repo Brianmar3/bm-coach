@@ -3,7 +3,8 @@ import "server-only";
 import { Prisma, type StudentPayment } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { argentinaDateKey } from "@/lib/payment-dates";
-import { currentArgentinaMonth, monthDatabaseBounds } from "@/lib/monthly-period";
+import { resolveStudentPaymentReminders } from "@/lib/payment-reminder-state";
+import { databaseDateKey } from "@/lib/payment-dates";
 import {
   ON_TIME_PAYMENT_POINTS,
   onTimePaymentPointEventKey,
@@ -88,6 +89,7 @@ export async function persistPaymentConfirmation(
       update: { active: true, invalidatedAt: null },
     });
   }
+  await resolveStudentPaymentReminders(transaction, payment.studentId);
   return { onTime, awardsPoints, message };
 }
 
@@ -110,6 +112,8 @@ export async function sendPaymentConfirmationPush(
 }
 
 export type CreatedPaymentReminder = {
+  obligationId: string;
+  dueDate: string;
   studentId: string;
   eventKey: string;
   title: string;
@@ -125,10 +129,10 @@ function reminderContent(kind: PaymentReminderKind, dueDate: Date, balance: numb
 }
 
 export async function createPaymentReminders(today = argentinaDateKey()) {
-  const bounds = monthDatabaseBounds(currentArgentinaMonth(new Date(`${today}T12:00:00.000Z`)));
+  const next = new Date(`${today}T00:00:00Z`); next.setUTCDate(next.getUTCDate() + 3);
   const obligations = await prisma.monthlyStudentObligation.findMany({
     where: {
-      period: bounds.startDate,
+      dueDate: { in: [new Date(`${today}T00:00:00Z`), next] },
       status: { in: ["PENDING", "PARTIAL", "OVERDUE"] },
       balance: { gt: 0 },
     },
@@ -137,39 +141,32 @@ export async function createPaymentReminders(today = argentinaDateKey()) {
   });
   if (!obligations.length) return [];
   const paid = await prisma.studentPayment.groupBy({
-    by: ["studentId"],
+    by: ["studentId", "billingPeriod"],
     where: {
-      billingPeriod: bounds.startDate,
+      billingPeriod: { in: obligations.map(item => item.period) },
       status: "PAGADO",
       studentId: { in: obligations.map((item) => item.studentId) },
     },
     _sum: { amount: true },
   });
-  const paidByStudent = new Map(paid.map((item) => [item.studentId, Number(item._sum.amount ?? 0)]));
+  const paidByStudent = new Map(paid.map((item) => [`${item.studentId}:${item.billingPeriod ? databaseDateKey(item.billingPeriod) : ""}`, Number(item._sum.amount ?? 0)]));
   const created: CreatedPaymentReminder[] = [];
   for (const obligation of obligations) {
     if (storedStudent(obligation.student.data).status === "inactivo") continue;
     const balance = Math.max(
-      Number(obligation.expectedAmount) - (paidByStudent.get(obligation.studentId) ?? 0),
+      Number(obligation.expectedAmount) - (paidByStudent.get(`${obligation.studentId}:${databaseDateKey(obligation.period)}`) ?? 0),
       0,
     );
     if (balance <= 0) continue;
     const kind = paymentReminderKind(obligation.dueDate, today);
     if (!kind) continue;
-    const eventKey = paymentReminderEventKey(obligation.id, kind);
+    const eventKey = paymentReminderEventKey(obligation.id, kind, databaseDateKey(obligation.dueDate));
+    const legacy = await prisma.studentNotification.findUnique({ where: { eventKey: paymentReminderEventKey(obligation.id, kind) } });
+    if (legacy && legacy.title !== "Recordatorio resuelto" && legacy.message.includes(formatDate(obligation.dueDate))) continue;
     const content = reminderContent(kind, obligation.dueDate, balance);
     try {
-      await prisma.studentNotification.create({
-        data: {
-          studentId: obligation.studentId,
-          type: "PAYMENT",
-          eventKey,
-          title: content.title,
-          message: content.message,
-          url: PAYMENT_PORTAL_URL,
-        },
-      });
-      created.push({ studentId: obligation.studentId, eventKey, ...content });
+      const queued = Boolean(await prisma.studentNotification.create({ data: { studentId: obligation.studentId, type: "PAYMENT", eventKey, ...content, url: PAYMENT_PORTAL_URL } }));
+      if (queued) created.push({ obligationId: obligation.id, dueDate: databaseDateKey(obligation.dueDate), studentId: obligation.studentId, eventKey, ...content });
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
     }
@@ -183,5 +180,10 @@ export async function sendPaymentReminderPush(reminder: CreatedPaymentReminder) 
     body: reminder.message,
     url: PAYMENT_PORTAL_URL,
     tag: reminder.eventKey,
+  }, async () => {
+    const obligation = await prisma.monthlyStudentObligation.findFirst({ where: { id: reminder.obligationId, studentId: reminder.studentId }, include: { student: { select: { data: true } } } });
+    if (!obligation || obligation.status === "VOID" || databaseDateKey(obligation.dueDate) !== reminder.dueDate || storedStudent(obligation.student.data).status === "inactivo" || !paymentReminderKind(obligation.dueDate, argentinaDateKey())) return false;
+    const paid = await prisma.studentPayment.aggregate({ where: { studentId: reminder.studentId, billingPeriod: obligation.period, status: "PAGADO" }, _sum: { amount: true } });
+    return Number(obligation.expectedAmount) > Number(paid._sum.amount ?? 0);
   });
 }

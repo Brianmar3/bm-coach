@@ -1,4 +1,5 @@
 import "server-only";
+import { hasMatchingPaymentObligation, resolveStudentPaymentReminders } from "@/lib/payment-reminder-state";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -59,19 +60,12 @@ export async function createServiceExpirationReminders(
       hasNativePushDevice: record.nativePushDevices.length > 0,
       today,
     });
+    await resolveStudentPaymentReminders(prisma, record.id);
     if (!candidate) continue;
+    if (await hasMatchingPaymentObligation(prisma, record.id, candidate.dueDate)) continue;
     try {
-      await prisma.studentNotification.create({
-        data: {
-          studentId: candidate.studentId,
-          type: "REMINDER",
-          eventKey: candidate.eventKey,
-          title: candidate.title,
-          message: candidate.message,
-          url: SERVICE_PORTAL_URL,
-        },
-      });
-      created.push(candidate);
+      const queued = Boolean(await prisma.studentNotification.create({ data: { studentId: candidate.studentId, type: "REMINDER", eventKey: candidate.eventKey, title: candidate.title, message: candidate.message, url: SERVICE_PORTAL_URL } }));
+      if (queued) created.push(candidate);
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
     }
@@ -102,11 +96,12 @@ export async function sendServiceExpirationReminder(
     today,
   });
   if (!current || current.eventKey !== reminder.eventKey) return false;
-  await sendStudentNativePush(reminder.studentId, {
+  if (await hasMatchingPaymentObligation(prisma, record.id, current.dueDate)) return false;
+  const result = await sendStudentNativePush(reminder.studentId, {
     title: reminder.title,
     body: reminder.message,
     url: SERVICE_PORTAL_URL,
     tag: reminder.eventKey,
   });
-  return true;
+  return result;
 }

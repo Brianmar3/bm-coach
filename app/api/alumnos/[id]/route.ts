@@ -1,3 +1,4 @@
+import { resolveStudentPaymentReminders } from "@/lib/payment-reminder-state";
 import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
@@ -50,6 +51,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
         where: { id, workspaceId, AND: [coachedStudentsWhere] },
         data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: { ...(current.data as Prisma.JsonObject), ...studentJsonData(input) } },
       });
+      await resolveStudentPaymentReminders(transaction, id);
       await transaction.weeklyClassAssignment.updateMany({ where: { studentId: id, active: true, scheduleId: { notIn: input.scheduleIds } }, data: { active: false, endedAt: new Date() } });
       for (const schedule of schedules) {
         await transaction.weeklyClassAssignment.upsert({

@@ -23,8 +23,8 @@ export function paymentReminderKind(dueDate: Date | string, today: string): Paym
   return null;
 }
 
-export function paymentReminderEventKey(obligationId: string, kind: PaymentReminderKind) {
-  return `payment-reminder:${obligationId}:${kind.toLocaleLowerCase("en")}`;
+export function paymentReminderEventKey(obligationId: string, kind: PaymentReminderKind, dueDate?: string) {
+  return `payment-reminder:${obligationId}:${dueDate ? dueDate + ":" : ""}${kind.toLocaleLowerCase("en")}`;
 }
 
 export function paymentConfirmationEventKey(paymentId: string) {

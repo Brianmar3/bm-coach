@@ -1,3 +1,4 @@
+import { resolveStudentPaymentReminders } from "@/lib/payment-reminder-state";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { getNotificationDestination } from "@/lib/student-notification-destination";
@@ -11,6 +12,7 @@ export async function GET() {
     return Response.json({ error: "Sesión vencida." }, { status: 401 });
   }
 
+  await resolveStudentPaymentReminders(prisma, session.studentId);
   const [notifications, unreadCount] = await Promise.all([
     prisma.studentNotification.findMany({
       where: { studentId: session.studentId },

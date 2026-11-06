@@ -38,6 +38,8 @@ function privateMasterResponse(response: NextResponse) {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // Vercel cron has no trainer session; the route validates CRON_SECRET itself.
+  if (path === "/api/cron/payment-reminders") return NextResponse.next();
   if (path === "/sw.js" || path === "/manifest.webmanifest" || path === "/portal/manifest.webmanifest" || path.startsWith("/icons/")) return NextResponse.next();
   if (/\.[^/]+$/.test(path)) return NextResponse.next();
   if (path === "/privacidad") return NextResponse.next();

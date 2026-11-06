@@ -70,8 +70,12 @@ async function deliverStudentPush(
 export async function sendStudentPush(
   studentId: string,
   message: StudentPushMessage,
+  stillRelevant?: () => Promise<boolean>,
 ) {
-  after(() => deliverStudentPush(studentId, message));
+  after(async () => {
+    if (stillRelevant && !await stillRelevant()) return;
+    await deliverStudentPush(studentId, message);
+  });
 }
 
 function unlockedAt(value: string) {
