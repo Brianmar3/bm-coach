@@ -159,7 +159,7 @@ function AttentionToday({ data }: { data: DashboardData["attentionToday"] }) {
   const quotaSubtitle = [data.overdueCount ? `${data.overdueCount} vencida${data.overdueCount === 1 ? "" : "s"}` : "", data.dueSoonCount ? `${data.dueSoonCount} por vencer` : ""].filter(Boolean).join(" · ");
   const opinions = data.opinionsToday;
   const rows = [
-    opinions?.total ? { id: "opinions", title: `${opinions.total} opiniones recibidas hoy · ${opinions.improve} para mejorar`, subtitle: "Ver opiniones de clases", href: "/clases?opiniones=hoy#opiniones", tone: "warning", icon: <span aria-hidden>💬</span> } : null,
+    opinions?.total ? { id: "opinions", title: `${opinions.total} opiniones recibidas hoy`, subtitle: "Ver opiniones de clases", href: "/clases?opiniones=hoy#opiniones", tone: "warning", icon: <span aria-hidden>💬</span> } : null,
     quotaCount ? { id: "quotas", title: quotaTitle, subtitle: quotaSubtitle, href: "/pagos", tone: "danger", icon: <BmPaymentIcon size={18}/> } : null,
     data.lowActivityStudentCount ? { id: "activity", title: `${data.lowActivityStudentCount} ${data.lowActivityStudentCount === 1 ? "alumno con baja actividad" : "alumnos con baja actividad"}`, subtitle: "Sin asistencias en los últimos 7 días", href: "/asistencias?view=low-activity", tone: "warning", icon: <BmProgressIcon size={18}/> } : null,
     data.completedWorkoutCount ? { id: "workouts", title: `${data.completedWorkoutCount} ${data.completedWorkoutCount === 1 ? "entrenamiento completado" : "entrenamientos completados"}`, subtitle: completedWorkoutPrioritySubtitle(data.completedWorkouts), href: completedWorkoutPriorityHref(data.completedWorkouts), tone: "gold", icon: <BmRoutineIcon size={18}/> } : null,

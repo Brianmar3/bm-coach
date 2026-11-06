@@ -363,24 +363,28 @@ for (const size of [30,100,300]) test('resumen global con '+size+' opiniones; s�
  assert.equal((await classOpinions(db,'bm',{...filter,q:'GAP'})).total,0);assert.equal((await classOpinions(db,'bm',{...filter,from:'2026-10-01',to:'2026-10-31'})).total,0);
  assert.throws(()=>feedbackReportFilter(new URLSearchParams('comments=invalid')));
 });
-for(const width of [390,1280])for(const theme of ['light','dark'])test(width+'px '+theme+': resumen, comentarios útiles sin nombres y positivos bajo demanda',async()=>{
+for(const width of [390,1280])for(const theme of ['light','dark'])test(width+'px '+theme+': opiniones simplificadas sin filtros ni paginación visible',async()=>{
  window.innerWidth=width;document.documentElement.dataset.theme=theme;
  const rows=Array.from({length:100},(_,i)=>attendance({id:'comment-'+i,classRating:i<65?'IMPROVE':i<85?'EXCELLENT':'GOOD',classComment:i<60?'Mejorar '+i:i===65?'Muy buena clase':'',classFeedbackAt:new Date()}));
  const db=database(rows),requests=[];
  globalThis.fetch=async url=>{requests.push(url);return{ok:true,json:async()=>classOpinions(db,'bm',feedbackReportFilter(new URL(url,window.location.origin).searchParams))};};
  render(h(Panel));fireEvent.click(screen.getByText('Opiniones'));
- await screen.findByText('100 valoraciones del período');assert.equal(screen.queryByText('Ana Pérez'),null);assert.ok(screen.getByLabelText('Resumen de valoraciones').textContent.includes('💬 A mejorar: 65'));
- assert.ok(screen.getByText('Mejorar 0'));assert.ok(screen.queryByText('Muy buena clase')===null);assert.equal(requests.some(url=>url.includes('comments=positive')),false);
- fireEvent.click(screen.getByText('Ver otros comentarios'));await screen.findByText('Muy buena clase');assert.ok(requests.at(-1).includes('comments=positive'));
- fireEvent.click(screen.getByText('Ver otros comentarios'));await waitFor(()=>assert.ok(screen.queryByText('Muy buena clase')===null));
- fireEvent.click(screen.getByRole('button',{name:'Siguiente'}));await screen.findByText('2 / 2');assert.ok(screen.getByText('Mejorar 30'));assert.ok(screen.getByText('100 valoraciones del período'));assert.equal(screen.queryByText('Mejorar 0'),null);
- fireEvent.change(screen.getByLabelText('Clase'),{target:{value:'GAP'}});fireEvent.submit(screen.getByRole('button',{name:'Aplicar filtros'}).closest('form'));await screen.findByText('0 valoraciones del período');assert.ok(screen.getByText('Sin comentarios para mejorar en este período.'));assert.ok(requests.at(-1).includes('class=GAP'));assert.equal(new URL(requests.at(-1),window.location.origin).searchParams.has('page'),false);
+ await screen.findByText('Mejorar 0');assert.ok(screen.queryByText('Ana Pérez')===null);assert.ok(screen.getByLabelText('Resumen de valoraciones').textContent.includes('💬 A mejorar: 65'));
+ for(const label of ['Desde','Hasta','Clase','Aplicar filtros','Siguiente','Anterior','Ver otros comentarios'])assert.ok(screen.queryByText(label)===null);
+ assert.ok(!document.body.textContent.includes('30 por página'));assert.ok(screen.queryByText('Muy buena clase')===null);
+ const list=screen.getByRole('list',{name:'Comentarios A mejorar'});
+ fireEvent.scroll(list);await screen.findByText('Mejorar 30');assert.ok(screen.getByText('Mejorar 0'));assert.ok(requests.at(-1).includes('page=2'));
+ assert.equal(requests.some(url=>url.includes('comments=positive')),false);
 });
-test('acceso recibido hoy conserva el filtro al abrir comentarios positivos',async()=>{
+test('acceso desde Dashboard abre resumen acumulado y estado vacío claro',async()=>{
  window.history.replaceState({},'', '/clases?opiniones=hoy#opiniones');const requests=[];globalThis.fetch=async url=>{requests.push(url);return{ok:true,json:async()=>({total:0,distribution:{},commentTotal:0,page:1,pages:1,comments:[]})};};
- render(h(Panel));await screen.findByText('0 valoraciones del período');assert.ok(requests[0].includes('receivedOn='));fireEvent.click(screen.getByText('Ver otros comentarios'));await screen.findByText('Sin otros comentarios para estos filtros.');assert.ok(requests.at(-1).includes('receivedOn='));assert.ok(requests.at(-1).includes('comments=positive'));window.history.replaceState({},'', '/');
+ render(h(Panel));await screen.findByText('No hay comentarios para mejorar por el momento');assert.ok(requests[0].includes('from=1970-01-01'));assert.ok(!requests[0].includes('receivedOn='));window.history.replaceState({},'', '/');
 });
-
+test('Atención hoy muestra sólo el total principal de opiniones y conserva acceso',()=>{
+ const dashboard=readFileSync(new URL('../app/dashboard/page.tsx',import.meta.url),'utf8');
+ assert.ok(dashboard.includes('opinions.total} opiniones recibidas hoy'));assert.ok(!dashboard.includes('opinions.improve} para mejorar'));
+ assert.ok(dashboard.includes('Ver opiniones de clases'));assert.ok(dashboard.includes('/clases?opiniones=hoy#opiniones'));
+});
 
 test('valoraciones sin comentario se acumulan sin filas vacías ni datos de alumno',async()=>{
  const rows=['IMPROVE','GOOD','EXCELLENT'].map((classRating,i)=>attendance({id:String(i),classRating,classComment:i===0?null:'',classFeedbackAt:new Date()}));const db=database(rows),original=db.classOccurrenceAttendance.findMany;
