@@ -3,7 +3,7 @@ import { StudentPhoto } from "@/componentes/student-photo";
 import type { ReactNode, ComponentType } from "react";
 import type { BmIconProps } from "@/componentes/icons";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
-import { WorkspaceBrandLogo } from "@/componentes/workspace-brand-logo";
+import { AppBrandIdentity } from "@/componentes/app-brand-identity";
 import { DEFAULT_WORKSPACE_BRANDING, type WorkspaceBranding } from "@/lib/workspace-branding";
 import { PortalKeyboardBehavior } from "@/componentes/portal-keyboard-behavior";
 
@@ -20,15 +20,7 @@ export function PortalHeader({ homeHref = "/portal", profileHref = "/portal/perf
             className="flex min-w-0 items-center gap-2 sm:gap-3"
             aria-label={`Ir al inicio de ${branding.displayName}`}
           >
-            <WorkspaceBrandLogo branding={branding} cachedSrc={cachedLogo} className="h-9 w-9 rounded-xl sm:h-11 sm:w-11" compactDefault officialBmMark />
-            <span className="min-w-0">
-              <span className="block max-w-[9rem] truncate text-xs font-black tracking-[.08em] text-white min-[390px]:max-w-[11rem] min-[390px]:text-sm sm:max-w-[16rem] sm:text-base sm:tracking-[.12em]" title={branding.displayName}>
-                {branding.displayName}
-              </span>
-              <span className="block max-w-[8.5rem] text-[8px] leading-tight tracking-wide text-zinc-400 min-[390px]:max-w-[10.5rem] min-[390px]:text-[9px] sm:max-w-none sm:text-[10px]">
-                Gestión, entrenamiento y seguimiento
-              </span>
-            </span>
+            <AppBrandIdentity branding={branding} cachedLogo={cachedLogo} />
           </Link>
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

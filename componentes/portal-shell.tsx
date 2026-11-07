@@ -58,7 +58,7 @@ export function PortalShell({
 }) {
   const pathname = usePathname();
   useEffect(() => {
-    if (serviceType !== "CLASSES" || !studentId) return;
+    if (!studentId) return;
     return trackPortalHomeScroll(window, `bm:portal-home-scroll:${studentId}`, pathname === "/portal");
   }, [pathname, serviceType, studentId]);
   const [currentBranding, setCurrentBranding] = useState(branding);
@@ -154,7 +154,7 @@ export function PortalShell({
     }}>
 
       <NativePushOnboarding audience="student" />
-      <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<>{serviceType === "CLASSES" && isCompetitiveGamificationEligible(serviceType) && <Link href="/portal/ranking" aria-label="Abrir Ranking" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/20 text-yellow-300 transition-colors hover:bg-yellow-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300"><BmTrophyIcon size={22} /></Link>}<StudentNotificationCenter /></>}>
+      <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<>{isCompetitiveGamificationEligible(serviceType) && <Link href="/portal/ranking" aria-label="Abrir Ranking" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/20 text-yellow-300 transition-colors hover:bg-yellow-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300"><BmTrophyIcon size={22} /></Link>}<StudentNotificationCenter /></>}>
         <nav
           aria-label="Navegación del portal"
           className="mx-auto hidden max-w-6xl gap-5 px-5 pb-2 md:flex"
@@ -178,7 +178,7 @@ export function PortalShell({
         </nav>
       </PortalHeader>
 
-      <main key={pathname} className={`portal-nav-content ${serviceType === "CLASSES" ? navigationStyles.enter : "portal-route-enter"} mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12`}>
+      <main key={pathname} className={`portal-nav-content ${navigationStyles.enter} mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12`}>
         {(serviceType === "PERSONALIZED" || serviceType === "MIXED") && <OfflineTrainingBridge />}
         {children}
       </main>

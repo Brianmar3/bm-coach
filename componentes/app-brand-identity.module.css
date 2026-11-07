@@ -1,0 +1,6 @@
+.identity { display: flex; align-items: center; gap: .625rem; min-width: 0; }
+.logo { width: 2.25rem; height: 2.25rem; flex: none; object-fit: contain; }
+.copy { min-width: 0; }
+.name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; line-height: 1.25; font-weight: 800; letter-spacing: .075em; color: var(--foreground); }
+.subtitle { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: .2rem; font-size: .625rem; line-height: 1.35; color: var(--muted, #a1a1aa); letter-spacing: 0; }
+@media (min-width: 640px) { .identity { gap: .75rem; } .logo { width: 2.5rem; height: 2.5rem; } .name { font-size: 1rem; } .subtitle { font-size: .6875rem; } }

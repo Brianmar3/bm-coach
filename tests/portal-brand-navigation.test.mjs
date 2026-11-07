@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {readFileSync} from 'node:fs';
+const source=p=>readFileSync(p,'utf8');
+test('portal y entrenador reutilizan la misma marca sin cambiar el logo',()=>{for(const f of ['componentes/portal-visuals.tsx','componentes/admin-topbar.tsx'])assert.ok(source(f).includes('<AppBrandIdentity branding={branding}'));const s=source('componentes/app-brand-identity.tsx');assert.match(s,/WorkspaceBrandLogo/);assert.match(s,/officialBmMark/);assert.match(s,/branding.displayName/);});
+test('marca reduce el texto antes que las acciones y mantiene tamaños acotados',()=>{const css=source('componentes/app-brand-identity.module.css');assert.match(css,/min-width: 0/);assert.match(css,/white-space: nowrap/);assert.match(css,/text-overflow: ellipsis/);assert.match(css,/flex: none/);assert.doesNotMatch(css,/safe-area|position: absolute|scale/);});
+test('navegación se extiende sin modificar sesiones de entrenamiento',()=>{const s=source('componentes/portal-shell.tsx');assert.ok(s.includes('if (!studentId) return;'));assert.ok(s.includes('trackPortalHomeScroll(window,'));assert.ok(s.includes('offlineTrainingState().snapshot'));assert.ok(s.includes('<OfflineTrainingBridge />'));assert.match(source('componentes/portal-classes-navigation.module.css'),/workout-focus/);});
+test('área segura única y altura de cabecera compatibles con el espacio reservado',()=>{for(const f of ['componentes/portal-visuals.tsx','componentes/admin-topbar.tsx'])assert.ok(source(f).includes('pt-[env(safe-area-inset-top)]'));assert.ok(source('componentes/app-frame.tsx').includes('env(safe-area-inset-top)+4.5rem'));});
