@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { resolvePushUiState, sameApplicationServerKey, type PushUiState } from "@/lib/push-notification-state";
 import { SettingsIcon } from "@/componentes/settings-icons";
+import { activateStudentWebPush, StudentWebPushError } from "@/lib/student-web-push";
 import {
   checkNativePushPermissions,
   createNativePushChannel,
@@ -263,7 +264,7 @@ export function PushNotificationsCard({
         WORKER_SCOPE,
       );
       const subscription = await registration?.pushManager?.getSubscription();
-      const validSubscription = subscription
+      const validSubscription = subscription && (audience !== "student" || subscription.expirationTime == null || subscription.expirationTime > Date.now())
         ? sameApplicationServerKey(
             subscription,
             applicationServerKey(loaded.publicKey),
@@ -357,6 +358,28 @@ export function PushNotificationsCard({
       if (!window.isSecureContext) {
         throw new DOMException("HTTPS requerido", "SecurityError");
       }
+      if (audience === "student") {
+        const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+        if (permission !== "granted") {
+          setState(permission === "denied" ? "blocked" : "inactive");
+          setMessage(permission === "denied" ? "Chrome tiene bloqueadas las notificaciones de este sitio." : "No se concedió el permiso de notificaciones.");
+          return;
+        }
+        const current = await navigator.serviceWorker.getRegistration(WORKER_SCOPE);
+        if (!current?.active) {
+          await navigator.serviceWorker.register(WORKER_URL, { scope: WORKER_SCOPE, updateViaCache: "none" });
+        }
+        const registration = current?.active ? current : await readyRegistration();
+        if (!registration.pushManager) throw new DOMException("PushManager no disponible", "ServiceWorkerError");
+        await activateStudentWebPush(registration.pushManager, applicationServerKey(config.publicKey), (subscription) => fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(subscription.toJSON()),
+        }));
+        setState("active");
+        setMessage("Notificaciones activadas correctamente.");
+        return;
+      }
       await validateWorkerResponse();
       await navigator.serviceWorker.register(WORKER_URL, {
         scope: WORKER_SCOPE,
@@ -409,7 +432,14 @@ export function PushNotificationsCard({
         setMessage(nativeFriendlyError(error, nativeStage));
       } else {
         setState(Notification.permission === "denied" ? "blocked" : "error");
-        setMessage(friendlyError(error));
+        if (error instanceof StudentWebPushError) {
+          console.warn("[BM Training Web Push] activación fallida", { stage: error.stage, status: error.status });
+          setMessage(error.stage === "browser" ? "Chrome no pudo crear la suscripción de este dispositivo. Revisá la conexión y reintentá." :
+            error.status === 401 ? "Tu sesión venció. Volvé a ingresar e intentá nuevamente." :
+            error.status === 409 ? "Esta suscripción pertenece a otra cuenta. Desactivala desde esa cuenta antes de continuar." :
+            error.status === 503 ? "Las notificaciones Web Push todavía no están configuradas." :
+            "Chrome tiene una suscripción, pero BM Training no pudo registrarla. Reintentá en unos minutos.");
+        } else setMessage(friendlyError(error));
       }
     } finally {
       setBusy(false);
