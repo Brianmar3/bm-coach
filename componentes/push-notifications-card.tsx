@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { resolvePushUiState, sameApplicationServerKey, type PushUiState } from "@/lib/push-notification-state";
 import { SettingsIcon } from "@/componentes/settings-icons";
-import { activateStudentWebPush, StudentWebPushError } from "@/lib/student-web-push";
+import { activateStudentWebPush, safePushErrorName, StudentWebPushError } from "@/lib/student-web-push";
 import {
   checkNativePushPermissions,
   createNativePushChannel,
@@ -171,6 +171,7 @@ export function PushNotificationsCard({
   const [state, setState] = useState<PushUiState>("loading");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [webDiagnostics, setWebDiagnostics] = useState<string[]>([]);
   const [config, setConfig] = useState<PushConfig | null>(null);
   const [nativeEnvironment, setNativeEnvironment] =
     useState<NativePushEnvironment | null>(null);
@@ -298,6 +299,13 @@ export function PushNotificationsCard({
     setBusy(true);
     setMessage("");
     let nativeStage: NativePushActivationStage = "permission-check";
+    const diagnoseWeb = audience === "student" && !nativeEnvironment;
+    let webStage = "validar VAPID";
+    const report = (line: string) => setWebDiagnostics((current) => [...current, line]);
+    if (diagnoseWeb) {
+      const standalone = window.matchMedia("(display-mode: standalone)").matches;
+      setWebDiagnostics([`Modo standalone: ${standalone ? "sí" : "no"}`, `Contexto seguro: ${window.isSecureContext ? "sí" : "no"}`]);
+    }
     try {
       if (nativeEnvironment) {
         if (!nativeConfigured) {
@@ -356,26 +364,43 @@ export function PushNotificationsCard({
         throw new Error("VAPID_MISSING");
       }
       if (!window.isSecureContext) {
+        webStage = "comprobar contexto seguro";
         throw new DOMException("HTTPS requerido", "SecurityError");
       }
       if (audience === "student") {
+        const key = applicationServerKey(config.publicKey);
+        report("VAPID: par validado por el servidor y formato aceptado por el cliente");
+        webStage = "comprobar permiso";
         const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+        report(`Permiso: ${permission}`);
         if (permission !== "granted") {
           setState(permission === "denied" ? "blocked" : "inactive");
           setMessage(permission === "denied" ? "Chrome tiene bloqueadas las notificaciones de este sitio." : "No se concedió el permiso de notificaciones.");
           return;
         }
+        webStage = "buscar Service Worker";
         const current = await navigator.serviceWorker.getRegistration(WORKER_SCOPE);
         if (!current?.active) {
+          webStage = "registrar Service Worker";
           await navigator.serviceWorker.register(WORKER_URL, { scope: WORKER_SCOPE, updateViaCache: "none" });
         }
+        webStage = "esperar Service Worker activo";
         const registration = current?.active ? current : await readyRegistration();
+        const expectedScope = new URL(WORKER_SCOPE, window.location.origin).href;
+        const expectedScript = new URL(WORKER_URL, window.location.origin).href;
+        report(`Worker activo: ${registration.active?.state ?? "ausente"}`);
+        report(`Scope esperado: ${registration.scope === expectedScope ? "sí" : "no"}`);
+        report(`Script activo esperado: ${registration.active?.scriptURL === expectedScript ? "sí" : "no"}`);
+        const controller = navigator.serviceWorker.controller;
+        report(`Control de esta página: ${!controller ? "ausente" : controller.scriptURL === expectedScript ? "worker esperado" : "otro worker"}`);
+        webStage = "comprobar PushManager";
         if (!registration.pushManager) throw new DOMException("PushManager no disponible", "ServiceWorkerError");
-        await activateStudentWebPush(registration.pushManager, applicationServerKey(config.publicKey), (subscription) => fetch(endpoint, {
+        await activateStudentWebPush(registration.pushManager, key, (subscription) => fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(subscription.toJSON()),
-        }));
+        }), (previous) => report(`Suscripción anterior: ${previous}`));
+        report("Resultado: suscripción registrada");
         setState("active");
         setMessage("Notificaciones activadas correctamente.");
         return;
@@ -432,14 +457,21 @@ export function PushNotificationsCard({
         setMessage(nativeFriendlyError(error, nativeStage));
       } else {
         setState(Notification.permission === "denied" ? "blocked" : "error");
+        if (diagnoseWeb) {
+          const stage = error instanceof StudentWebPushError ? error.stage : webStage;
+          const name = error instanceof StudentWebPushError ? error.errorName : safePushErrorName(error);
+          const status = error instanceof StudentWebPushError ? error.status : undefined;
+          report(`Fallo: ${stage} · ${status ? `HTTP ${status}` : name}`);
+        }
         if (error instanceof StudentWebPushError) {
           console.warn("[BM Training Web Push] activación fallida", { stage: error.stage, status: error.status });
-          setMessage(error.stage === "browser" ? "Chrome no pudo crear la suscripción de este dispositivo. Revisá la conexión y reintentá." :
+          setMessage(error.stage !== "server" ? `Chrome no pudo completar ${error.stage}. Consultá el diagnóstico.` :
             error.status === 401 ? "Tu sesión venció. Volvé a ingresar e intentá nuevamente." :
             error.status === 409 ? "Esta suscripción pertenece a otra cuenta. Desactivala desde esa cuenta antes de continuar." :
             error.status === 503 ? "Las notificaciones Web Push todavía no están configuradas." :
             "Chrome tiene una suscripción, pero BM Training no pudo registrarla. Reintentá en unos minutos.");
-        } else setMessage(friendlyError(error));
+        } else if (diagnoseWeb) setMessage("No se pudo activar Web Push. Consultá el diagnóstico.");
+        else setMessage(friendlyError(error));
       }
     } finally {
       setBusy(false);
@@ -583,11 +615,22 @@ export function PushNotificationsCard({
             : ""
   );
 
+  const diagnostics = audience === "student" && !nativeEnvironment && (webDiagnostics.length > 0 || config) && (
+    <details className="mt-2 text-xs text-zinc-400">
+      <summary>Diagnóstico Web Push</summary>
+      <ul className="mt-1 space-y-1">
+        {config && <li>VAPID en servidor: {config.configured ? "válida" : "no disponible o inválida"}</li>}
+        {webDiagnostics.map((line) => <li key={line}>{line}</li>)}
+      </ul>
+    </details>
+  );
+
   if (compact) {
     const canToggle = state === "active" || state === "inactive" || state === "error";
     return <div className="rounded-xl border border-white/10 bg-white/[.025] px-4 py-3">
       <div className="flex min-h-8 items-center gap-3"><SettingsIcon name="bell" className="size-6 shrink-0 text-yellow-400" /><span className="min-w-0 flex-1 text-sm">Notificaciones</span><button type="button" role="switch" aria-label={`Notificaciones: ${label}`} aria-checked={state === "active"} disabled={busy || !canToggle} onClick={state === "active" ? deactivate : activate} className={`inline-flex h-7 w-[3.25rem] shrink-0 items-center overflow-hidden rounded-full border p-0.5 transition-colors ${state === "active" ? "border-yellow-300 bg-yellow-400" : "border-zinc-600 bg-zinc-800"} disabled:opacity-50`}><span className={`size-[1.375rem] shrink-0 rounded-full bg-white shadow-sm transition-transform ${state === "active" ? "translate-x-6" : "translate-x-0"}`} /></button></div>
       {(contextualMessage || !canToggle) && <p role="status" className="mt-2 text-[11px] leading-relaxed text-zinc-500">{contextualMessage || label}</p>}
+      {diagnostics}
     </div>;
   }
 
@@ -614,6 +657,7 @@ export function PushNotificationsCard({
         </p>
       )}
 
+      {diagnostics}
       {(state === "inactive" || state === "error" || (state === "blocked" && nativeEnvironment)) && (
         <button
           disabled={busy}
