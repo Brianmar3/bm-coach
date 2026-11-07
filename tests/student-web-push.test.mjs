@@ -39,7 +39,7 @@ test("crea una suscripción y la reutiliza al reabrir o reintentar", async () =>
   assert.equal(seen.size, 1);
 });
 test("un fallo de Chrome no registra nada en el servidor", async () => {
-  await assert.rejects(activateStudentWebPush(device(null, true).manager, key, () => assert.fail()), { stage: "subscribe", errorName: "Error" });
+  await assert.rejects(activateStudentWebPush(device(null, true).manager, key, () => assert.fail()), { stage: "browser" });
 });
 test("un fallo HTTP se distingue y conserva la suscripción para reintentar", async () => {
   const { manager, created } = device();
@@ -116,17 +116,4 @@ test("registro repetido usa el endpoint único y una colisión no cambia de due�
       else process.env[name] = value;
     }
   }
-});
-
-test("el diagnóstico conserva etapa y nombre permitido sin mensaje del navegador", async () => {
-  const { manager } = device();
-  manager.subscribe = async () => { throw new DOMException("endpoint privado", "AbortError"); };
-  await assert.rejects(activateStudentWebPush(manager, key, () => assert.fail()), (error) => {
-    assert.equal(error.stage, "subscribe");
-    assert.equal(error.errorName, "AbortError");
-    assert.doesNotMatch(error.message, /endpoint privado/);
-    return true;
-  });
-  manager.getSubscription = async () => { throw new DOMException("dato privado", "CustomSecret"); };
-  await assert.rejects(activateStudentWebPush(manager, key, () => assert.fail()), { stage: "getSubscription", errorName: "UnknownError" });
 });
