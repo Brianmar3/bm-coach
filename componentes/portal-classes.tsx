@@ -7,6 +7,8 @@ import type { PortalClassOccurrence } from "@/types/classes";
 import type { PortalClassAgendaSummary } from "@/lib/portal-class-schedule";
 import { PortalActionCard } from "@/componentes/portal-action-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
+import { useSaveClassCopy } from "@/componentes/offline-classes";
+import { savedClassAgenda } from "@/lib/offline-classes";
 import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmCloseIcon, BmHistoryIcon, BmRoutineIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
 
 type ClassData = {
@@ -73,6 +75,7 @@ function weeklyScheduleDisplay(label: string) {
 }
 
 export function PortalClasses({ compact = false, showQuickLogAction = false }: { compact?: boolean; showQuickLogAction?: boolean }) {
+  const saveClassCopy = useSaveClassCopy();
   const [data, setData] = useState<ClassData | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -97,9 +100,10 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
     if (!response.ok)
       throw new Error(body.error ?? "No se pudieron cargar las clases.");
     if (signal?.aborted || revision !== responseRevision.current || sequence !== loadSequence.current) return;
+    saveClassCopy(response, () => ({ agenda: savedClassAgenda(body.occurrences, [...body.focus.occurrenceIds, ...body.upcoming.occurrenceIds]) }));
     setData(body);
     setError("");
-  }, [endpoint]);
+  }, [endpoint, saveClassCopy]);
 
   useEffect(() => {
     const controller = new AbortController();

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { offlineScope } from "@/lib/offline-training-types";
 import { after } from "next/server";
 import { argentinaClock, ensureClassOccurrences, occurrenceClassName, occurrenceHasEnded, occurrenceHasStarted, occurrenceStatusLabel } from "@/lib/class-occurrences";
 import { databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
@@ -64,6 +65,10 @@ export async function GET() {
   try {
     const workspaceId = session.credential.student.workspaceId;
     if (!workspaceId) return Response.json({ error: "Workspace pendiente de configurar." }, { status: 403 });
+    const headers = new Headers({ "Cache-Control": "private, no-store" });
+    if (session.credential.student.serviceType === "CLASSES") {
+      headers.set("X-BM-Offline-Scope", offlineScope(session.studentId, workspaceId, session.id));
+    }
     const student = session.credential.student.data as unknown as Student;
     const assignments = await prisma.weeklyClassAssignment.findMany({
       where: { studentId: session.studentId, schedule: { workspaceId } },
@@ -82,7 +87,7 @@ export async function GET() {
         focus: { ...agenda.focus, subtitle: availability.message ?? agenda.focus.subtitle },
         upcoming: agenda.upcoming,
         summary: agenda.summary,
-      });
+      }, { headers });
     }
     const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS, workspaceId);
     const occurrences = await prisma.classOccurrence.findMany({
@@ -110,7 +115,7 @@ export async function GET() {
       focus: agenda.focus,
       upcoming: agenda.upcoming,
       summary: agenda.summary,
-    });
+    }, { headers });
   } catch (error) {
     console.error("No se pudieron cargar las clases del portal", error);
     return Response.json({ error: "No se pudieron cargar las clases y horarios." }, { status: 500 });

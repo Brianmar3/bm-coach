@@ -76,6 +76,8 @@ import type { StudentPointMovement } from "@/types/points";
 import { homePaymentCardCopy } from "@/lib/home-payment-card";
 import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 import { mergePortalRefresh } from "@/lib/portal-weekly-mission-refresh";
+import { useSaveClassCopy } from "@/componentes/offline-classes";
+import { savedClassSummary } from "@/lib/offline-classes";
 
 type Section = "inicio" | "rutina" | "historial" | "entrenamiento" | "comentarios" | "evaluaciones" | "pagos" | "puntos" | "puntos-historial" | "perfil" | "avatar" | "configuracion";
 const money = (value: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
@@ -93,6 +95,7 @@ const billingPeriod = (value: string) => value
   : "";
 
 export function PortalSection({ section, dataEndpoint = "/api/portal/data", selfService = false }: { section: Section; dataEndpoint?: string; selfService?: boolean }) {
+  const saveClassCopy = useSaveClassCopy();
   const [cachedWorkout, setCachedWorkout] = useState<OfflineWorkoutData | null>(null);
   const [offline, setOffline] = useState(false);
   useEffect(() => {
@@ -119,6 +122,9 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
         if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida. Los registros offline siguen guardados."); }
         if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; }
         if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información.");
+        if (!selfService && section === "inicio" && !controller.signal.aborted) {
+          saveClassCopy(response, () => ({ summary: savedClassSummary(body.home) }));
+        }
         return body;
       })
       .then(async (body) => { if (body) { if (!selfService && (section === "rutina" || section === "entrenamiento")) await refreshOfflineTraining(); hasLoadedData.current = true; setError(""); setData((previous) => mergePortalRefresh(previous, body, argentinaDateKey())); } })
@@ -129,7 +135,7 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
       });
     inFlightRefresh.current = request;
     return request;
-  }, [dataEndpoint, dataSection, section, selfService]);
+  }, [dataEndpoint, dataSection, section, selfService, saveClassCopy]);
   useEffect(() => {
     activeController.current?.abort(); inFlightRefresh.current = null; hasLoadedData.current = false;
     const resetTimeout = window.setTimeout(() => {

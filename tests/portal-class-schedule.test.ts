@@ -400,7 +400,9 @@ test("Inicio replica la jerarquía compacta y conecta todos los accesos de la re
   const pointsPage = readFileSync(new URL("../app/portal/(student)/puntos/page.tsx", import.meta.url), "utf8");
   const overview = home.slice(home.indexOf("function PortalOverview"), home.indexOf("function HomeQuickStats"));
   const pointsView = home.slice(home.indexOf("function PointsAndAchievementsView"), home.indexOf("function MonthlyAttendanceIndicator"));
-  assert.match(overview, /Enfoque de hoy/);
+  assert.match(overview, /dailyFocusForInstant\(now\)/);
+  assert.match(overview, /\{dailyFocus\.title\}/);
+  assert.doesNotMatch(overview, /Enfoque de hoy/);
   assert.doesNotMatch(overview, /WeeklyMissionAchievement|Misión semanal|Misión de la semana/);
   assert.match(overview, /<PortalClasses compact/);
   assert.match(overview, /HomeQuickStats/);

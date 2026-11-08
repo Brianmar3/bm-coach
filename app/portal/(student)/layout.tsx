@@ -8,6 +8,7 @@ import type { Student } from "@/types/gestion";
 import { redirect } from "next/navigation";
 import { onboardingIsComplete } from "@/lib/student-onboarding";
 import { loadWorkspaceBranding } from "@/lib/workspace-branding-server";
+import { offlineScope } from "@/lib/offline-training-types";
 
 export default async function StudentPortalLayout({ children }: { children: ReactNode }) {
   const session = await requirePortalPageSession();
@@ -20,5 +21,9 @@ export default async function StudentPortalLayout({ children }: { children: Reac
     establishAchievementBaseline(session.studentId),
     loadWorkspaceBranding(session.credential.student.workspaceId),
   ]);
-  return <PortalShell studentId={session.studentId} branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={studentProfilePhoto(session.studentId, student.profileImageUrl, false, student.avatarPresetId)} serviceType={session.credential.student.serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
+  const { workspaceId, serviceType } = session.credential.student;
+  const classScope = serviceType === "CLASSES" && workspaceId && !session.credential.mustChangePassword
+    ? { key: offlineScope(session.studentId, workspaceId, session.id), expiresAt: session.expiresAt.toISOString() }
+    : undefined;
+  return <PortalShell classScope={classScope} studentId={session.studentId} branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={studentProfilePhoto(session.studentId, student.profileImageUrl, false, student.avatarPresetId)} serviceType={serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
 }

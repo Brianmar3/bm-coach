@@ -10,6 +10,7 @@ import { PortalHeader, PortalNavigationLink, PORTAL_MOBILE_NAV_CLASS } from "@/c
 import { BmHomeIcon, BmRoutineIcon } from "@/componentes/icons";
 import { OfflineRoutineHome } from "@/componentes/portal-section";
 import { readOfflineIdentity, type OfflineIdentityImages } from "@/lib/offline-identity";
+import { OfflineClassesPage } from "@/componentes/offline-classes";
 
 export function OfflineTrainingBridge() {
   const [state, setState] = useState<ReturnType<typeof offlineTrainingState> | null>(null);
@@ -63,8 +64,9 @@ export function OfflineTrainingPage() {
     window.addEventListener("online", reconnect);
     return () => { unsubscribe(); window.removeEventListener("online", reconnect); };
   }, []);
-  if (!loaded) return <p className="p-6">Abriendo tu rutina guardada…</p>;
-  if (!snapshot || !data) return <main className="mx-auto max-w-xl p-6"><h1 className="text-2xl font-bold">Rutina sin conexión</h1><p className="mt-3">{snapshot ? "Conectate para renovar el acceso a la rutina guardada. Tus registros pendientes siguen en este dispositivo." : "Todavía no hay una rutina disponible sin conexión en este dispositivo. Abrí la app con internet para guardarla."}</p><a href="/portal/login" className="mt-4 inline-block min-h-11 py-2">Conectar e ingresar</a></main>;
+  if (!loaded) return <p className="p-6">Buscando información guardada…</p>;
+  if (!snapshot) return <OfflineClassesPage />;
+  if (!data) return <main className="mx-auto max-w-xl p-6"><h1 className="text-2xl font-bold">Rutina sin conexión</h1><p className="mt-3">Conectate para renovar el acceso a la rutina guardada. Tus registros pendientes siguen en este dispositivo.</p><a href="/portal/login" className="mt-4 inline-block min-h-11 py-2">Conectar e ingresar</a></main>;
   return <WorkspaceBrandingValueProvider branding={snapshot.branding}><RestTimerProvider><div className="workspace-brand min-h-screen bg-[var(--background)] text-[var(--foreground)]" style={workspaceBrandingVariables(snapshot.branding.accentColor) as CSSProperties} onClickCapture={(event) => {
     // The public fallback has no authenticated RSC payload. Use ordinary document
     // navigation so the existing service worker can open either habitual route.

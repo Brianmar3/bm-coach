@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { readFileSync } from "node:fs";
 const ts = createRequire(path.join(process.cwd(), "package.json"))("typescript");
 const identityCode = ts.transpileModule(readFileSync("lib/offline-identity.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const storeCode = ts.transpileModule(readFileSync("lib/offline-training-store.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 async function cacheIdentity(page, snapshot, avatar) {
   await page.evaluate(async ({ code, scope, studentId, branding, avatar }) => {
     const exported = {}; new Function("exports", code)(exported);
@@ -37,6 +38,56 @@ async function readRecords(page) {
 (async () => {
   const browser = await chromium.launch({ channel: "msedge", headless: true });
   try {
+    const classes = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await classes.route("**/api/portal/**", (route) => route.fulfill({ status: 401, json: {} }));
+    let classPage = await classes.newPage();
+    const classErrors = [];
+    classPage.on("pageerror", (error) => classErrors.push(error.message));
+    await classPage.goto(`${origin}/portal/offline`);
+    await classPage.getByText("No hay información guardada", { exact: false }).waitFor();
+    await classPage.evaluate(async (code) => {
+      const exported = {};
+      new Function("exports", code)(exported);
+      const store = exported.offlineStore;
+      const expiresAt = new Date(Date.now() + 3600000).toISOString();
+      const savedAt = new Date().toISOString();
+      await store.bindClasses({ key: "student-a/workspace-a/session-a", expiresAt, accountRevision: null }, () => true);
+      await store.saveClasses("student-a/workspace-a/session-a", { summary: { savedAt, attendance: 99, points: 99 } });
+      await store.bindClasses({ key: "student-b/workspace-b/session-b", expiresAt, accountRevision: null }, () => true);
+      await store.bindClasses({ key: "student-a/workspace-a/session-a", expiresAt, accountRevision: null }, () => false);
+      await store.saveClasses("student-a/workspace-a/session-a", { summary: { savedAt, attendance: 99, points: 99 } });
+      if ((await store.classes()).summary) throw new Error("Previous account can still write");
+      await store.saveClasses("student-b/workspace-b/session-b", {
+        summary: { savedAt, attendance: 3, points: 8 },
+        agenda: { savedAt, classes: [{ id: "a", name: "Funcional de prueba", date: "2026-11-09", startTime: "07:00", endTime: "08:00" }] },
+      });
+      const registration = await navigator.serviceWorker.ready;
+      if (!(await caches.match("/portal/offline"))) throw new Error(`Offline shell not prepared by ${registration.scope}`);
+    }, storeCode);
+    await classes.setOffline(true);
+    await classPage.close();
+    classPage = await classes.newPage();
+    classPage.on("pageerror", (error) => classErrors.push(error.message));
+    await classPage.goto(`${origin}/portal/login`);
+    await classPage.getByText("Última información guardada", { exact: false }).waitFor();
+    await classPage.getByText("Funcional de prueba", { exact: true }).waitFor();
+    await classPage.getByText("Asistencias y puntos del mes al guardar", { exact: true }).waitFor();
+    assert.equal(await classPage.getByRole("button", { name: /Asistir|Pagar/ }).count(), 0);
+    assert.equal(await classPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await classPage.getByRole("button", { name: "Reintentar", exact: true }).click();
+    await classPage.getByText("Funcional de prueba", { exact: true }).waitFor();
+    await Promise.all([classPage.waitForNavigation(), classes.setOffline(false)]);
+    await classPage.getByText("Funcional de prueba", { exact: true }).waitFor({ state: "hidden" });
+    await classes.setOffline(true);
+    await classPage.goto(`${origin}/portal/clases`);
+    await classPage.getByText("Funcional de prueba", { exact: true }).waitFor();
+    await classPage.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+    await classPage.getByText("No hay información guardada", { exact: false }).waitFor();
+    assert.equal(await classPage.getByText("Funcional de prueba", { exact: true }).count(), 0);
+    assert.deepEqual(classErrors, []);
+    await classes.close();
+    console.log("CLASSES: offline launch, 390px, retry, reconnect, read-only data, account isolation and logout OK");
+
     for (const serviceType of ["PERSONALIZED", "MIXED"]) {
       const context = await browser.newContext({ viewport: { width: 393, height: 851 }, serviceWorkers: "allow" });
       if (serviceType === "MIXED") await context.addInitScript(() => localStorage.setItem("bm-appearance-v1", "light"));
@@ -76,8 +127,8 @@ async function readRecords(page) {
       assert.ok((await page.locator("header.portal-header img[data-identity-avatar]").getAttribute("src")).startsWith("data:"));
       assert.ok((await page.locator('aside[role="status"]').boundingBox()).height <= 52);
       await page.goto(`${origin}/portal`);
-      await page.getByRole("heading", { name: "Tu entrenamiento está listo", exact: true }).waitFor();
-      await page.getByRole("link", { name: "Empezar rutina", exact: true }).click();
+      await page.getByRole("heading", { name: "Día 1 · Piernas", exact: true }).waitFor();
+      await page.getByRole("link", { name: "Ver entrenamiento", exact: true }).click();
       await page.waitForURL("**/portal/rutina");
       await page.getByText("Modo sin conexión", { exact: true }).waitFor();
       await openExerciseDetails(page);
@@ -105,13 +156,12 @@ async function readRecords(page) {
       assert.equal(persisted.size, 1); assert.equal((await readRecords(page))[0].pending, false);
       await page.getByText("Programa original", { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-      await page.screenshot({ path: path.join(process.cwd(), `.offline-${serviceType.toLowerCase()}.png`), fullPage: true });
       await context.setOffline(true);
       await openExerciseDetails(page);
       await page.getByRole("checkbox").first().check();
       await page.getByRole("button", { name: "Finalizar entrenamiento", exact: true }).click();
       const summary = page.getByRole("dialog", { name: "Finalizar entrenamiento" });
-      await summary.getByRole("combobox").selectOption("Buena");
+      await summary.getByRole("button", { name: "Editar tiempo" }).click();
       await summary.getByRole("spinbutton").fill("35");
       await page.getByRole("button", { name: "Confirmar y finalizar", exact: true }).click();
       await page.getByText("Entrenamiento guardado correctamente", { exact: true }).waitFor();
@@ -128,15 +178,19 @@ async function readRecords(page) {
       if (serviceType === "MIXED") {
         account = "student-b";
         await page.evaluate(() => window.dispatchEvent(new Event("online")));
-        await page.getByText("Todavía no hay una rutina disponible sin conexión en este dispositivo.", { exact: false }).waitFor();
+        await page.getByText("No hay información guardada", { exact: false }).waitFor();
         assert.deepEqual(await readRecords(page), []);
         console.log("Different authenticated student: old snapshot and queue removed");
       } else {
       // Explicit logout removes the snapshot and queue, including when offline.
       await context.setOffline(true); page.once("dialog", (dialog) => dialog.accept());
       await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
-      await page.waitForURL("**/portal/login");
-      await page.getByText("Todavía no hay una rutina disponible sin conexión en este dispositivo.", { exact: false }).waitFor();
+      await page.getByText("No hay información guardada", { exact: false }).waitFor();
+      // Verify persisted logout on a new page, independently of the current redirect.
+      page = await context.newPage();
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(`${origin}/portal/login`);
+      await page.getByText("No hay información guardada", { exact: false }).waitFor();
       assert.deepEqual(await readRecords(page), []);
       }
       assert.deepEqual(errors, []);
@@ -175,10 +229,10 @@ async function readRecords(page) {
     console.log("No identity images cached: clean BM/profile fallbacks, no broken images");
     await noImages.close();
     const empty = await browser.newContext(); let page = await empty.newPage(); await page.goto(`${origin}/portal/offline`);
-    await page.getByText("Todavía no hay una rutina disponible sin conexión en este dispositivo.", { exact: false }).waitFor();
+    await page.getByText("No hay información guardada", { exact: false }).waitFor();
     await page.evaluate(() => navigator.serviceWorker.ready);
     await empty.setOffline(true); await page.close(); page = await empty.newPage(); await page.goto(`${origin}/portal/login`);
-    await page.getByText("Todavía no hay una rutina disponible sin conexión en este dispositivo.", { exact: false }).waitFor();
+    await page.getByText("No hay información guardada", { exact: false }).waitFor();
     console.log("No prior routine: clear empty-state OK"); await empty.close();
     // Fully restart the browser process, preserving its actual IndexedDB and service worker.
     const profile = await mkdtemp(path.join(tmpdir(), "bm-offline-smoke-"));

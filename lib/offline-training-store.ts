@@ -1,4 +1,5 @@
 import type { OfflineTrainingSnapshot, OfflineWorkoutRecord } from "./offline-training-types";
+import type { OfflineClassesSnapshot } from "./offline-classes";
 export const OFFLINE_DB = "bm-training-offline-v1";
 function database(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -17,7 +18,32 @@ async function transaction<T>(store: "state" | "records", mode: IDBTransactionMo
     tx.onerror = tx.onabort = () => { db.close(); reject(tx.error ?? request.error); };
   });
 }
+async function updateClasses(update: (current: OfflineClassesSnapshot | undefined) => OfflineClassesSnapshot | undefined) {
+  const db = await database();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction("state", "readwrite");
+    const store = tx.objectStore("state");
+    const request = store.get("classes");
+    request.onsuccess = () => {
+      const next = update(request.result);
+      if (next) store.put(next, "classes");
+      else store.delete("classes");
+    };
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
+  });
+}
 export const offlineStore = {
+  classes: () => transaction<OfflineClassesSnapshot | undefined>("state", "readonly", (s) => s.get("classes")),
+  bindClasses: (scope: OfflineClassesSnapshot["scope"], isCurrent: () => boolean) =>
+    updateClasses((current) => {
+      if (!isCurrent()) return current;
+      if (current?.scope.key === scope.key && current.scope.accountRevision === scope.accountRevision) return { ...current, scope };
+      return { scope };
+    }),
+  saveClasses: (key: string, data: Pick<OfflineClassesSnapshot, "agenda" | "summary">) =>
+    updateClasses((current) => current?.scope.key === key ? { ...current, ...data } : current),
+  clearClasses: () => updateClasses(() => undefined),
   snapshot: () => transaction<OfflineTrainingSnapshot | undefined>("state", "readonly", (s) => s.get("active")),
   records: () => transaction<OfflineWorkoutRecord[]>("records", "readonly", (s) => s.getAll()),
   putSnapshot: (value: OfflineTrainingSnapshot) => transaction("state", "readwrite", (s) => s.put(value, "active")),

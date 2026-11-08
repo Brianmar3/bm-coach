@@ -14,7 +14,8 @@ let refreshing: Promise<void> | null = null;
 let lastError = "";
 let generation = 0;
 let shellPrepared = false;
-const LOGOUT_PENDING = "bm-offline-logout-pending-v1";
+export const LOGOUT_PENDING = "bm-offline-logout-pending-v1";
+export const OFFLINE_ACCOUNT_REVISION = "bm-offline-account-revision";
 const EVENT = "bm:offline-training";
 function changed() { if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENT)); }
 export function offlineTrainingState() { return { snapshot, pending: records.filter((r) => r.scope === snapshot?.scope && r.pending).length, error: lastError }; }
@@ -32,7 +33,7 @@ export async function logoutOfflineTraining() {
   await finishOfflineLogout().catch(() => {});
   return true;
 }
-async function prepareShell() {
+export async function prepareShell() {
   if (shellPrepared) return;
   if (!("serviceWorker" in navigator)) throw new Error("Este navegador no permite reabrir la rutina sin conexión.");
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -56,6 +57,7 @@ export async function hydrateOfflineTraining() {
 }
 export function forgetOfflineTrainingMemory() { generation++; snapshot = undefined; records = []; lastError = ""; changed(); }
 export async function clearOfflineTraining() {
+  localStorage.setItem(OFFLINE_ACCOUNT_REVISION, crypto.randomUUID());
   forgetOfflineTrainingMemory();
   await writes.catch(() => {}); await offlineStore.clear();
   await clearOfflineIdentity();
@@ -98,6 +100,13 @@ async function verifiedSession(current: OfflineTrainingSnapshot) {
   if (body.mustChangePassword) throw new Error("Actualizá tu contraseña para sincronizar. Los registros siguen guardados.");
 }
 export async function reconcileOfflineLogin(identity?: { studentId: string; workspaceId: string | null }) {
+  localStorage.setItem(OFFLINE_ACCOUNT_REVISION, crypto.randomUUID());
+  await offlineStore.clearClasses().catch(() => {});
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel("bm-offline-training");
+    channel.postMessage("classes-cleared");
+    channel.close();
+  }
   const current = await hydrateOfflineTraining();
   if (current && identity && (current.studentId !== identity.studentId || current.workspaceId !== identity.workspaceId)) { await clearOfflineTraining(); return; }
   if (current) await verifiedSession(current);

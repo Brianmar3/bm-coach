@@ -1,4 +1,5 @@
 import { ownedStudentBlob, studentProfilePhoto } from "@/lib/student-media";
+import { offlineScope } from "@/lib/offline-training-types";
 import { storedHeightToCentimeters } from "@/lib/height";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession } from "@/lib/portal-auth";
@@ -280,7 +281,11 @@ export async function GET(request: Request) {
       },
     };
     if (section === "inicio" || section === "puntos" || section === "puntos-historial") data.weeklyWorkouts = homeInsights.weeklyWorkoutCount;
-    return Response.json(data, { headers: { "Cache-Control": "private, no-store" } });
+    const headers = new Headers({ "Cache-Control": "private, no-store" });
+    if (section === "inicio" && serviceType === "CLASSES" && session.credential.student.workspaceId) {
+      headers.set("X-BM-Offline-Scope", offlineScope(studentId, session.credential.student.workspaceId, session.id));
+    }
+    return Response.json(data, { headers });
   } catch (error) {
     console.error("Error al cargar datos del portal", error);
     return Response.json({ error: "No se pudo cargar tu información desde Neon." }, { status: 500 });

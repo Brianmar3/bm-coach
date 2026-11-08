@@ -1,4 +1,4 @@
-self.__BM_TRAINING_SW_VERSION__ = "push-v10-offline-v2";
+self.__BM_TRAINING_SW_VERSION__ = "push-v10-offline-v3";
 const OFFLINE_CACHE = "bm-public-offline-v1";
 const OFFLINE_SHELL = "/portal/offline";
 const IDENTITY_PUBLIC_ASSETS = ["/bm-training-logo(2).png", "/bm-training-mark.png", "/avatars/bm-shield-v3.webp"];
@@ -50,7 +50,7 @@ self.addEventListener("fetch", (event) => {
   } else if (request.mode === "navigate" && (url.pathname === "/portal" || url.pathname.startsWith("/portal/"))) {
     event.respondWith(fetch(request).catch(async () => {
       const stored = await (await caches.open(OFFLINE_CACHE)).match(OFFLINE_SHELL);
-      return stored ?? new Response('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width"><title>BM Training</title><body style="background:#111;color:#fff;font-family:sans-serif;padding:24px"><h1>Sin conexión</h1><p>Todavía no hay una rutina disponible sin conexión en este dispositivo. Abrí la app con internet para guardarla.</p></body></html>', { headers: { "Content-Type": "text/html; charset=utf-8" } });
+      return stored ?? new Response('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width"><title>BM Training</title><body style="background:#111;color:#fff;font-family:sans-serif;padding:24px"><h1>Sin conexión a internet</h1><p>Conectate para abrir el portal de BM Training.</p><p><a href="/portal" style="color:#e9c660">Reintentar</a></p></body></html>', { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }));
   }
 });

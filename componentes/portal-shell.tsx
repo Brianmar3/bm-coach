@@ -22,6 +22,8 @@ import { workspaceBrandingVariables, type WorkspaceBranding } from "@/lib/worksp
 import { WorkspaceBrandingValueProvider } from "@/componentes/workspace-branding-provider";
 import { NativePushOnboarding } from "@/componentes/native-push-onboarding";
 import { OfflineTrainingBridge } from "@/componentes/offline-training";
+import { OfflineClassesBoundary } from "@/componentes/offline-classes";
+import type { OfflineClassScope } from "@/lib/offline-classes";
 import { hydrateOfflineTraining, offlineTrainingState, subscribeOfflineTraining } from "@/lib/offline-training-client";
 import { saveOfflineIdentity } from "@/lib/offline-identity";
 import { isCompetitiveGamificationEligible } from "@/lib/student-service";
@@ -42,6 +44,7 @@ const allLinks: PortalLink[] = [
 export function PortalShell({
   studentName,
   studentId,
+  classScope,
   profileImageUrl,
   serviceType,
   hasRoutine,
@@ -50,6 +53,7 @@ export function PortalShell({
 }: {
   studentName: string;
   studentId?: string;
+  classScope?: OfflineClassScope;
   profileImageUrl: string;
   serviceType: StudentServiceType;
   hasRoutine: boolean;
@@ -144,7 +148,7 @@ export function PortalShell({
       : "text-zinc-500 hover:text-zinc-200";
   };
 
-  return <WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider><AchievementCelebration key={studentId} isHome={isHome} achievementsHref={serviceType === "PERSONALIZED" ? "/portal/progreso" : "/portal/puntos"}>
+  return <OfflineClassesBoundary scope={classScope}><WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider><AchievementCelebration key={studentId} isHome={isHome} achievementsHref={serviceType === "PERSONALIZED" ? "/portal/progreso" : "/portal/puntos"}>
     <div className={`workspace-brand ${isHome ? "portal-home-shell flex min-h-dvh flex-col" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties} onClickCapture={(event) => {
       if (navigator.onLine || serviceType === "CLASSES" || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const link = (event.target as Element).closest("a");
@@ -202,5 +206,5 @@ export function PortalShell({
         {showNavigationQuickLog && mobileQuickLogIndex === links.length && <QuickNoteButton placement="navigation" />}
       </nav>
     </div>
-  </AchievementCelebration></RestTimerProvider></WorkspaceBrandingValueProvider>;
+  </AchievementCelebration></RestTimerProvider></WorkspaceBrandingValueProvider></OfflineClassesBoundary>;
 }
