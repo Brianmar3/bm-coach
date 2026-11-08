@@ -124,11 +124,13 @@ function applyComparisons(candidates: Candidate[]): UnifiedExerciseRecord[] {
   );
 }
 
-export async function loadUnifiedExerciseRecords(studentId: string) {
+async function loadExerciseCandidates(studentId: string, workspaceId?: string) {
+  const student = workspaceId ? { workspaceId } : undefined;
   const [quickLogs, classLogs, routineSessions] = await Promise.all([
     prisma.quickLog.findMany({
       where: {
         studentId,
+        student,
         type: "PROGRESS",
         metricType: "carga",
         exerciseName: { not: "" },
@@ -139,7 +141,7 @@ export async function loadUnifiedExerciseRecords(studentId: string) {
       include: { feedback: true },
     }),
     prisma.classWorkoutLog.findMany({
-      where: { studentId, status: "COMPLETED" },
+      where: { studentId, student, status: "COMPLETED", occurrence: workspaceId ? { workspaceId } : undefined },
       include: {
         exercises: {
           include: {
@@ -151,7 +153,7 @@ export async function loadUnifiedExerciseRecords(studentId: string) {
       },
     }),
     prisma.workoutSession.findMany({
-      where: { studentId, status: "COMPLETED", hasPain: false },
+      where: { studentId, student, status: "COMPLETED", hasPain: false, routine: workspaceId ? { workspaceId } : undefined },
       include: {
         exercises: {
           include: {
@@ -267,5 +269,13 @@ export async function loadUnifiedExerciseRecords(studentId: string) {
     }
   }
 
-  return applyComparisons(candidates);
+  return candidates;
+}
+
+export async function loadUnifiedExerciseRecords(studentId: string) {
+  return applyComparisons(await loadExerciseCandidates(studentId));
+}
+
+export async function loadScopedExerciseCandidates(studentId: string, workspaceId: string) {
+  return loadExerciseCandidates(studentId, workspaceId);
 }

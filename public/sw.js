@@ -1,4 +1,4 @@
-self.__BM_TRAINING_SW_VERSION__ = "push-v10-offline-v3";
+self.__BM_TRAINING_SW_VERSION__ = "push-v10-offline-v4";
 const OFFLINE_CACHE = "bm-public-offline-v1";
 const OFFLINE_SHELL = "/portal/offline";
 const IDENTITY_PUBLIC_ASSETS = ["/bm-training-logo(2).png", "/bm-training-mark.png", "/avatars/bm-shield-v3.webp"];

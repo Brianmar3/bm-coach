@@ -52,14 +52,21 @@ async function readRecords(page) {
       const expiresAt = new Date(Date.now() + 3600000).toISOString();
       const savedAt = new Date().toISOString();
       await store.bindClasses({ key: "student-a/workspace-a/session-a", expiresAt, accountRevision: null }, () => true);
-      await store.saveClasses("student-a/workspace-a/session-a", { summary: { savedAt, attendance: 99, points: 99 } });
+      await store.saveClasses("student-a/workspace-a/session-a", {
+        summary: { savedAt, attendance: 99, points: 99 },
+        exercises: { savedAt, exercises: [{ key: "private", name: "Ejercicio privado de otra cuenta", date: "2026-11-09", weight: 90, unit: "kg", sets: 2, repetitions: 5 }] },
+      });
       await store.bindClasses({ key: "student-b/workspace-b/session-b", expiresAt, accountRevision: null }, () => true);
       await store.bindClasses({ key: "student-a/workspace-a/session-a", expiresAt, accountRevision: null }, () => false);
       await store.saveClasses("student-a/workspace-a/session-a", { summary: { savedAt, attendance: 99, points: 99 } });
-      if ((await store.classes()).summary) throw new Error("Previous account can still write");
+      if ((await store.classes()).summary || (await store.classes()).exercises) throw new Error("Previous account data was retained");
       await store.saveClasses("student-b/workspace-b/session-b", {
         summary: { savedAt, attendance: 3, points: 8 },
         agenda: { savedAt, classes: [{ id: "a", name: "Funcional de prueba", date: "2026-11-09", startTime: "07:00", endTime: "08:00" }] },
+        exercises: { savedAt, exercises: Array.from({ length: 12 }, (_, index) => ({
+          key: String(index), name: `Ejercicio guardado ${index + 1}`, date: "2026-11-09",
+          weight: 40 + index, unit: "kg", sets: 3, repetitions: 8,
+        })) },
       });
       const registration = await navigator.serviceWorker.ready;
       if (!(await caches.match("/portal/offline"))) throw new Error(`Offline shell not prepared by ${registration.scope}`);
@@ -73,16 +80,36 @@ async function readRecords(page) {
     await classPage.getByText("Funcional de prueba", { exact: true }).waitFor();
     await classPage.getByText("Asistencias y puntos del mes al guardar", { exact: true }).waitFor();
     assert.equal(await classPage.getByRole("button", { name: /Asistir|Pagar/ }).count(), 0);
-    assert.equal(await classPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-    await classPage.getByRole("button", { name: "Reintentar", exact: true }).click();
+    for (const width of [360, 390, 430]) {
+      await classPage.setViewportSize({ width, height: 844 });
+      assert.equal(await classPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    }
+    assert.equal(await classPage.getByText(/^Ejercicio guardado \d+$/).count(), 5);
+    await classPage.getByRole("button", { name: "Ver más ejercicios" }).click();
+    assert.equal(await classPage.getByText(/^Ejercicio guardado \d+$/).count(), 10);
+    await classPage.getByRole("button", { name: "Ver más ejercicios" }).click();
+    assert.equal(await classPage.getByText(/^Ejercicio guardado \d+$/).count(), 12);
+    assert.equal(await classPage.getByText("Ejercicio privado de otra cuenta").count(), 0);
+    await classPage.getByRole("button", { name: "Reintentar conexión", exact: true }).click();
     await classPage.getByText("Funcional de prueba", { exact: true }).waitFor();
     await Promise.all([classPage.waitForNavigation(), classes.setOffline(false)]);
     await classPage.getByText("Funcional de prueba", { exact: true }).waitFor({ state: "hidden" });
     await classes.setOffline(true);
     await classPage.goto(`${origin}/portal/clases`);
     await classPage.getByText("Funcional de prueba", { exact: true }).waitFor();
+    await classPage.evaluate(async (code) => {
+      const exported = {};
+      new Function("exports", code)(exported);
+      await exported.offlineStore.saveClasses("student-b/workspace-b/session-b", {
+        exercises: { savedAt: new Date().toISOString(), exercises: [] },
+      });
+    }, storeCode);
+    await classPage.reload();
+    await classPage.getByText("Todavía no tenés ejercicios registrados", { exact: true }).waitFor();
+    assert.equal(await classPage.getByText(/^Ejercicio guardado \d+$/).count(), 0);
     await classPage.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
     await classPage.getByText("No hay información guardada", { exact: false }).waitFor();
+    assert.equal(await classPage.getByText(/^Ejercicio guardado \d+$/).count(), 0);
     assert.equal(await classPage.getByText("Funcional de prueba", { exact: true }).count(), 0);
     assert.deepEqual(classErrors, []);
     await classes.close();

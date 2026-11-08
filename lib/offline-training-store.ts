@@ -41,7 +41,7 @@ export const offlineStore = {
       if (current?.scope.key === scope.key && current.scope.accountRevision === scope.accountRevision) return { ...current, scope };
       return { scope };
     }),
-  saveClasses: (key: string, data: Pick<OfflineClassesSnapshot, "agenda" | "summary">) =>
+  saveClasses: (key: string, data: Pick<OfflineClassesSnapshot, "agenda" | "summary" | "exercises">) =>
     updateClasses((current) => current?.scope.key === key ? { ...current, ...data } : current),
   clearClasses: () => updateClasses(() => undefined),
   snapshot: () => transaction<OfflineTrainingSnapshot | undefined>("state", "readonly", (s) => s.get("active")),
