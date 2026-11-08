@@ -48,3 +48,16 @@ test("cron bypass is exact; Master APIs retain existing platform authorization",
   assert.deepEqual(crons.find((cron) => cron.path === "/api/cron/master-memberships"), { path: "/api/cron/master-memberships", schedule: "0 11 * * *" });
   assert.ok(crons.some((cron) => cron.path === "/api/cron/payment-reminders"));
 });
+
+test("Master state, membership and payment mutations lock the trainer before subscription access", () => {
+  for (const [path, method] of [["status", "PATCH"], ["membership", "PATCH"], ["membership/mark-paid", "POST"]]) {
+    const route = readFileSync("app/api/platform/trainers/[id]/" + path + "/route.ts", "utf8");
+    const mutation = route.slice(route.indexOf("export async function " + method));
+    assert.match(mutation, /prisma\.\$transaction\(async \(tx\) => \{\s*await lockMasterTrainer\(tx, /);
+    assert.doesNotMatch(mutation, /prisma\.trainerSubscription/);
+  }
+  const lock = readFileSync("lib/master-trainer-lock.ts", "utf8");
+  assert.match(lock, /FROM "users".*FOR NO KEY UPDATE/);
+  const migration = readFileSync("prisma/migrations/20261108150000_master_suspension_events/migration.sql", "utf8");
+  assert.doesNotMatch(migration, /pg_advisory|FOR (?:NO KEY )?UPDATE/);
+});

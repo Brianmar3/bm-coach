@@ -23,7 +23,7 @@ async function fixture(t) {
     INSERT INTO workspaces VALUES ('professional', 'PROFESSIONAL'), ('personal', 'PERSONAL');`);
   await pg.exec(readFileSync("prisma/migrations/20260917180000_trainer_subscriptions/migration.sql", "utf8"));
   await pg.exec(migration);
-  await pg.exec(`CREATE TABLE trainer_invitations (id TEXT PRIMARY KEY, "inviterId" TEXT, "firstName" TEXT, "lastName" TEXT, status TEXT, "acceptedAt" TIMESTAMP, "expiresAt" TIMESTAMP, "createdAt" TIMESTAMP);`);
+  await pg.exec(readFileSync("prisma/migrations/20261108150000_master_suspension_events/migration.sql", "utf8"));
   const quote = (key) => `"${key}"`;
   const bind = (params, value) => { params.push(value instanceof Date ? value.toISOString() : value); return `$${params.length}`; };
   function whereSql(where, params) {
@@ -67,14 +67,6 @@ async function fixture(t) {
       masterEmailDigest: table(connection, "master_email_digests"),
       masterEmailAttempt: table(connection, "master_email_attempts"),
       masterMembershipRenewal: table(connection, "master_membership_renewals"),
-      user: { async findMany({where}) {
-        assert.equal(where.status,"SUSPENDED");
-        return (await connection.query(`SELECT u.id,u.name FROM users u WHERE u.status='SUSPENDED' AND u."platformRole"='TRAINER' AND EXISTS (SELECT 1 FROM workspace_memberships m JOIN workspaces w ON w.id=m."workspaceId" WHERE m."userId"=u.id AND m.role='OWNER' AND w.type='PROFESSIONAL')`)).rows;
-      } },
-      trainerInvitation: { async findMany({where}) {
-        assert.deepEqual(where.inviter,{platformRole:"PLATFORM_OWNER"});
-        return (await connection.query(`SELECT i.* FROM trainer_invitations i JOIN users u ON u.id=i."inviterId" WHERE i.status='PENDING' AND i."acceptedAt" IS NULL AND i."createdAt" <= $1 AND i."expiresAt">=$2 AND i."expiresAt"<=$3 AND u."platformRole"='PLATFORM_OWNER' ORDER BY i."expiresAt",i.id`,[where.createdAt.lte,where.expiresAt.gte,where.expiresAt.lte])).rows;
-      } },
       trainerSubscription: {
         async findMany({ where }) {
           const predicate = { status: where.status, ...(where.nextDueAt ? { nextDueAt: where.nextDueAt } : {}) };
@@ -101,7 +93,7 @@ async function fixture(t) {
 test("migration: renewal capture covers payment, edit, reactivation; no insertion, no-op, cancellation or rolled-back event", async (t) => {
   const { pg, subscription } = await fixture(t);
   await subscription("one");
-  const count = async () => Number((await pg.query("SELECT count(*) FROM master_membership_renewals")).rows[0].count);
+  const count = async () => Number((await pg.query("SELECT count(*) FROM master_membership_renewals WHERE kind='RENEWED'")).rows[0].count);
   assert.equal(await count(), 0);
   await pg.exec(`UPDATE trainer_subscriptions SET notes='edit'; UPDATE trainer_subscriptions SET "nextDueAt"="nextDueAt";`);
   assert.equal(await count(), 0);
@@ -115,7 +107,7 @@ test("migration: renewal capture covers payment, edit, reactivation; no insertio
   assert.equal(await count(), 3);
   await assert.rejects(pg.transaction(async (tx) => { await tx.exec(`UPDATE trainer_subscriptions SET status='ACTIVE', "nextDueAt"='2031-05-01'`); throw new Error("rollback"); }));
   assert.equal(await count(), 3);
-  const rows = (await pg.query('SELECT * FROM master_membership_renewals ORDER BY "nextDueAt"')).rows;
+  const rows = (await pg.query(`SELECT * FROM master_membership_renewals WHERE kind='RENEWED' ORDER BY "nextDueAt"`)).rows;
   assert.equal(rows[0].trainerName, "Trainer one");
   assert.equal(rows[0].plan, "PRO");
   assert.equal(rows[0].nextDueAt.toISOString(), "2031-01-01T00:00:00.000Z");
@@ -127,14 +119,14 @@ test("migration: renewal capture covers payment, edit, reactivation; no insertio
 test("daily service: one combined email under concurrent cron invocations, immutable payload and persisted provider ID", async (t) => {
   const { db, pg, subscription, options } = await fixture(t);
   for (const [id, due] of [["7", "2030-11-03"], ["3", "2030-10-30"], ["1", "2030-10-28"], ["0", "2030-10-27"], ["overdue", "2030-10-24"], ["ignored", "2030-10-29"]]) await subscription(id, `${due}T12:00:00Z`);
-  await subscription("renewed", "2030-10-24T12:00:00Z");
+  await subscription("renewed", "2030-10-27T12:00:00Z");
   await pg.exec(`UPDATE trainer_subscriptions SET "nextDueAt"='2030-11-27',"lastPaidAt"='2030-10-26' WHERE id='renewed'`);
   let calls = 0;
-  const send = async (payload) => { calls++; assert.match(payload.text, /Renovación registrada/); assert.match(payload.text, /Trainer ignored/); return "provider-1"; };
+  const send = async (payload) => { calls++; assert.match(payload.text, /Renovación registrada/); for (const id of ["7", "3", "0"]) assert.match(payload.text, new RegExp("Trainer " + id)); assert.doesNotMatch(payload.text, /Trainer (ignored|overdue|1\b)/); assert.equal((payload.text.match(/Vence hoy/g) ?? []).length, 1); return "provider-1"; };
   await Promise.all(Array.from({ length: 5 }, () => runMasterDigest(db, config, { ...options, send })));
   assert.equal(calls, 1);
   const digest = await db.masterEmailDigest.findUnique({ where: { day: "2030-10-27" } });
-  assert.equal(digest.itemCount, 7);
+  assert.equal(digest.itemCount, 4);
   assert.equal(digest.status, "SENT");
   assert.equal(digest.providerId, "provider-1");
   assert.equal((await db.masterEmailAttempt.findMany()).length, 1);
@@ -235,14 +227,35 @@ test("only professional trainer owners appear; platform owners and personal work
   assert.equal((await db.masterMembershipRenewal.findMany()).length, 0);
 });
 
-test("digest covers old overdue, independent access suspension and pending invitations once daily", async t => {
- const {pg,db,subscription,options}=await fixture(t);
- await subscription("old","2030-09-01T12:00:00Z");
- await subscription("blocked","2030-12-01T12:00:00Z");
- await pg.exec(`UPDATE users SET status='SUSPENDED' WHERE id='blocked'; INSERT INTO users (id,name,"platformRole") VALUES ('owner','Owner','PLATFORM_OWNER'); INSERT INTO trainer_invitations VALUES ('invite','owner','Test','Invitation','PENDING',NULL,'2030-10-28','2030-10-26');`);
- let calls=0;
- const send=async payload=>{calls++; assert.match(payload.text,/Trainer old/); assert.match(payload.text,/Trainer blocked/); assert.match(payload.text,/Test Invitation/); assert.match(payload.text,/view=invitations/); return "one";};
- await runMasterDigest(db,config,{...options,send}); await runMasterDigest(db,config,{...options,send});
- assert.equal(calls,1);
- assert.equal((await db.masterEmailDigest.findUnique({where:{day:"2030-10-27"}})).itemCount,3);
+
+test("suspensions and renewals are consumed once across days; a later suspension is a new event", async (t) => {
+  const { pg, db, subscription, options } = await fixture(t);
+  await subscription("old", "2030-09-01T12:00:00Z");
+  await subscription("blocked", "2030-12-01T12:00:00Z");
+  await subscription("renewed", "2030-12-01T12:00:00Z");
+  await pg.exec(`BEGIN;
+    UPDATE users SET status='SUSPENDED' WHERE id='blocked';
+    UPDATE trainer_subscriptions SET status='SUSPENDED' WHERE id='blocked';
+    COMMIT;
+    UPDATE users SET status='SUSPENDED' WHERE id='blocked';
+    UPDATE trainer_subscriptions SET "nextDueAt"='2031-01-01' WHERE id='renewed';`);
+  await pg.exec("INSERT INTO users (id,name) VALUES ('access-only','Access only'); INSERT INTO workspace_memberships VALUES ('access-only','professional','OWNER'); UPDATE users SET status='SUSPENDED' WHERE id='access-only';");
+  const payloads = [];
+  const send = async (payload) => { payloads.push(payload.text); return "test-id"; };
+  assert.equal((await runMasterDigest(db, config, { ...options, send })).status, "SENT");
+  assert.equal((payloads[0].match(/Suspensión registrada/g) ?? []).length, 2);
+  assert.match(payloads[0], /Access only/);
+  assert.equal((payloads[0].match(/Renovación registrada/g) ?? []).length, 1);
+  assert.doesNotMatch(payloads[0], /Trainer old/);
+  const nextDay = { ...options, now: () => new Date("2030-10-28T11:00:00Z"), send };
+  assert.equal((await runMasterDigest(db, config, nextDay)).status, "SKIPPED");
+  await pg.exec(`UPDATE users SET status='ACTIVE' WHERE id='blocked';
+    UPDATE trainer_subscriptions SET status='ACTIVE' WHERE id='blocked';
+    BEGIN;
+    UPDATE trainer_subscriptions SET status='SUSPENDED' WHERE id='blocked';
+    UPDATE users SET status='SUSPENDED' WHERE id='blocked';
+    COMMIT;`);
+  assert.equal((await runMasterDigest(db, config, { ...nextDay, now: () => new Date("2030-10-29T11:00:00Z") })).status, "SENT");
+  assert.equal((payloads[1].match(/Suspensión registrada/g) ?? []).length, 1);
+  assert.doesNotMatch(payloads[1], /Renovación registrada/);
 });

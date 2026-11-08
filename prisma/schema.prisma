@@ -193,11 +193,12 @@ model MasterEmailDigest {
 
 model MasterMembershipRenewal {
   id             String   @id @default(dbgenerated("gen_random_uuid()::text"))
-  subscriptionId String
+  subscriptionId String?
   trainerUserId  String
   trainerName    String
   plan           String
-  nextDueAt      DateTime
+  nextDueAt      DateTime?
+  kind           String   @default("RENEWED")
   occurredAt     DateTime @default(now())
   digestId       String?
   digest         MasterEmailDigest? @relation(fields: [digestId], references: [id], onDelete: Restrict)

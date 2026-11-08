@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { argentinaDay, authorizedMasterCron, digestWindow, masterEmailConfig, membershipEmailItem, invitationEmailItem, renderMasterEmail, sendMasterEmail } from "../lib/master-email.ts";
+import { argentinaDay, authorizedMasterCron, digestWindow, masterEmailConfig, membershipEmailItem, renderMasterEmail, sendMasterEmail } from "../lib/master-email.ts";
 
 const now = new Date("2026-10-27T11:00:00Z");
 test("fechas argentinas, cambio de mes/año y corte a las 08:00", () => {
@@ -9,22 +9,22 @@ test("fechas argentinas, cambio de mes/año y corte a las 08:00", () => {
   assert.equal(digestWindow(now).ready, true);
   assert.equal(digestWindow(now).cutoff.toISOString(), now.toISOString());
 });
-test("resumen diario: próximos siete días, todos los vencidos y exclusión de canceladas", () => {
+test("resumen diario: solo 7, 3 y 0 días; excluye vencimientos pasados y cancelaciones", () => {
   for (const days of [-4, -3, -2, -1, 0, 1, 2, 3, 4, 7, 8]) {
     const subscription = { nextDueAt: new Date(now.getTime() + days * 86400000), plan: "PRO" as const, status: "ACTIVE" as const, trainer: { name: "Entrenador" } };
-    assert.equal(Boolean(membershipEmailItem(subscription, now)), days <= 7);
+    assert.equal(Boolean(membershipEmailItem(subscription, now)), [7, 3, 0].includes(days));
     assert.equal(membershipEmailItem({ ...subscription, status: "CANCELLED" }, now), null);
   }
   const subscription = { nextDueAt: new Date("2026-10-24T12:00:00Z"), plan: "FREE" as const, status: "ACTIVE" as const, trainer: { name: "Ana" } };
-  assert.equal(membershipEmailItem(subscription, now)?.state, "Vencida");
-  assert.equal(membershipEmailItem({ ...subscription, status: "SUSPENDED" }, now)?.state, "Suspendida");
+  assert.equal(membershipEmailItem(subscription, now), null);
+  assert.equal(membershipEmailItem({ ...subscription, status: "SUSPENDED", nextDueAt: now }, now), null);
   assert.equal(membershipEmailItem({ ...subscription, nextDueAt: null }, now), null);
   assert.equal(membershipEmailItem({ ...subscription, nextDueAt: new Date("2026-11-27T12:00:00Z") }, now), null);
 });
 test("comparación por día local, sin redondear horas restantes", () => {
   const subscription = { nextDueAt: new Date("2026-10-28T02:59:59Z"), plan: "PRO" as const, status: "ACTIVE" as const, trainer: { name: "Ana" } };
   assert.equal(membershipEmailItem(subscription, now)?.notice, "Vence hoy");
-  assert.equal(membershipEmailItem({ ...subscription, nextDueAt: new Date("2026-10-28T03:00:00Z") }, now)?.notice, "Vence en 1 día");
+  assert.equal(membershipEmailItem({ ...subscription, nextDueAt: new Date("2026-10-28T03:00:00Z") }, now), null);
 });
 test("endpoint exige secreto Bearer y falla cerrado", () => {
   const secret = "x".repeat(32);
@@ -69,18 +69,4 @@ test("Resend usa payload fijo, key idempotente y timeout; clasifica fallos sin f
   }
   await assert.rejects(sendMasterEmail(payload, "key", "fake", async () => { throw new Error("secret"); }), { message: "RESEND_NETWORK", retryable: true });
   await assert.rejects(sendMasterEmail(payload, "key", "fake", async () => Response.json({})), { message: "RESEND_INVALID_RESPONSE" });
-});
-
-test("suspensión sin fecha y seguimiento de invitaciones sin alertas obsoletas", () => {
- const sub = { nextDueAt:null, plan:"PRO" as const, status:"SUSPENDED" as const, trainer:{id:"trainer",name:"Prueba"} };
- assert.equal(membershipEmailItem(sub, now)?.state, "Suspendida");
- const invitation = {firstName:"Prueba",lastName:"Invitada",createdAt:new Date(now.getTime()-86400000),expiresAt:new Date(now.getTime()+86400000),status:"PENDING",acceptedAt:null};
- assert.equal(invitationEmailItem(invitation,now)?.destination,"invitations");
- assert.equal(invitationEmailItem({...invitation,acceptedAt:now},now),null);
- assert.equal(invitationEmailItem({...invitation,status:"CANCELLED"},now),null);
- assert.equal(invitationEmailItem({...invitation,expiresAt:new Date(now.getTime()-10*86400000)},now),null);
- assert.equal(invitationEmailItem({...invitation,createdAt:new Date(now.getTime()+1)},now),null);
- const payload=renderMasterEmail([membershipEmailItem(sub,now)!],"2026-10-27","test@bm.test","https://bm.test/master");
- assert.match(payload.text,/https:\/\/bm.test\/platform\/trainers\/trainer/);
- assert.match(payload.text,/Sin definir/);
 });

@@ -1,3 +1,4 @@
+import { lockMasterTrainer } from "@/lib/master-trainer-lock";
 import { revalidatePath } from "next/cache";
 import { platformOwnerApiAccess } from "@/lib/platform-auth";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +15,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const trainer = await prisma.user.findFirst({ where: { id, platformRole: "TRAINER", memberships: { some: { role: "OWNER", workspace: { type: "PROFESSIONAL" } } } }, select: { id: true } });
   if (!trainer) return Response.json({ error: "Entrenador no encontrado." }, { status: 404 });
   const updated = await prisma.$transaction(async (tx) => {
+    await lockMasterTrainer(tx, trainer.id);
     const user = await tx.user.update({ where: { id: trainer.id }, data: { status: nextStatus }, select: { id: true, status: true } });
     await tx.trainerSubscription.updateMany({ where: { trainerUserId: trainer.id }, data: { status: nextStatus === "ACTIVE" ? "ACTIVE" : "SUSPENDED" } });
     return user;

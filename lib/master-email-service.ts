@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient, Prisma } from "@prisma/client";
-import { argentinaDay, digestWindow, MasterEmailDeliveryError, membershipEmailItem, invitationEmailItem, renderMasterEmail, sendMasterEmail, type MasterEmailPayload, type masterEmailConfig } from "./master-email.ts";
+import { argentinaDay, digestWindow, MasterEmailDeliveryError, membershipEmailItem, renderMasterEmail, sendMasterEmail, type MasterEmailPayload, type masterEmailConfig } from "./master-email.ts";
 
 type Config = NonNullable<ReturnType<typeof masterEmailConfig>>;
 type Database = Pick<PrismaClient, "$transaction">;
@@ -25,27 +25,23 @@ export async function prepareMasterDigest(db: Database, config: Config, now: Dat
       },
       include: { trainer: { select: { id: true, name: true, status: true } } }, orderBy: [{ nextDueAt: "asc" }, { id: "asc" }],
     });
-    const renewals = await tx.masterMembershipRenewal.findMany({ where: { digestId: null, occurredAt: { lte: cutoff } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
+    const events = await tx.masterMembershipRenewal.findMany({ where: { digestId: null, occurredAt: { lte: cutoff } }, orderBy: [{ occurredAt: "asc" }, { id: "asc" }] });
     const items = subscriptions.flatMap((subscription) => {
       const item = membershipEmailItem(subscription, cutoff);
       return item ? [item] : [];
     });
-    const included = new Set(items.map(item => item.trainerId).filter(Boolean));
-    items.push(...[...new Map(renewals.map(renewal => [renewal.trainerUserId, renewal])).values()].map((renewal) => ({ trainer: renewal.trainerName, trainerId: renewal.trainerUserId, plan: renewal.plan, dueAt: renewal.nextDueAt.toISOString(), state: "Renovada", notice: `Renovación registrada · ${argentinaDay(renewal.occurredAt).split("-").reverse().join("/")}` })));
-    const suspended = await tx.user.findMany({
-      where: { platformRole: "TRAINER", status: "SUSPENDED", memberships: { some: { role: "OWNER", workspace: { type: "PROFESSIONAL" } } } },
-      select: { id: true, name: true }, orderBy: { id: "asc" },
-    });
-
-    for (const trainer of suspended) if (!included.has(trainer.id)) items.push({ trainer: trainer.name, trainerId: trainer.id, plan: "Consultar membresía", dueAt: null, state: "Acceso suspendido", notice: "Cuenta profesional suspendida · revisar" });
-    const invitations = await tx.trainerInvitation.findMany({
-      where: { status: "PENDING", acceptedAt: null, createdAt: { lte: cutoff }, expiresAt: { gte: new Date(cutoff.getTime() - 8 * 86400000), lte: new Date(cutoff.getTime() + 3 * 86400000) }, inviter: { platformRole: "PLATFORM_OWNER" } },
-      select: { firstName: true, lastName: true, expiresAt: true, createdAt: true, status: true, acceptedAt: true }, orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
-    });
-    items.push(...invitations.flatMap(invitation => { const item = invitationEmailItem(invitation, cutoff); return item ? [item] : []; }));
+    items.push(...events.map((event) => {
+      const suspended = event.kind === "SUSPENDED";
+      const date = argentinaDay(event.occurredAt).split("-").reverse().join("/");
+      return {
+        trainer: event.trainerName, trainerId: event.trainerUserId, plan: event.plan,
+        dueAt: event.nextDueAt?.toISOString() ?? null, state: suspended ? "Suspendida" : "Renovada",
+        notice: (suspended ? "Suspensión registrada" : "Renovación registrada") + " · " + date,
+      };
+    }));
     const payload = renderMasterEmail(items, day, config.from, config.masterUrl);
     const digest = await tx.masterEmailDigest.create({ data: { day, status: items.length ? "PENDING" : "SKIPPED", payload, itemCount: items.length } });
-    if (renewals.length) await tx.masterMembershipRenewal.updateMany({ where: { id: { in: renewals.map((item) => item.id) }, digestId: null }, data: { digestId: digest.id } });
+    if (events.length) await tx.masterMembershipRenewal.updateMany({ where: { id: { in: events.map((item) => item.id) }, digestId: null }, data: { digestId: digest.id } });
     return digest;
   }, { maxWait: 5000, timeout: 20000 });
 }
