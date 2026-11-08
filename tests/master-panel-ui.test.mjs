@@ -29,18 +29,22 @@ test('lista real refresca al volver, mantiene un CTA y no refresca encima del fo
  Object.defineProperty(document,'visibilityState',{value:'visible',configurable:true});
  const root=createRoot(document.getElementById('root'));
  t.after(async()=>{await act(async()=>root.unmount());dom.window.close();globalThis.window=previous.window;globalThis.document=previous.document;globalThis.fetch=previous.fetch;globalThis.IS_REACT_ACT_ENVIRONMENT=previous.act;});
- let active=1,calls=0;
+ let active=1,limit=20,calls=0;
  globalThis.fetch=async url=>{
   assert.equal(url,'/api/platform/trainers');calls++;
-  return Response.json({invitations:[],trainers:[{id:'trainer',name:'Test trainer',email:'test@example.test',status:'ACTIVE',createdAt:'2026-01-01',effectiveSubscriptionStatus:'ACTIVE',trainerSubscription:null,memberships:[{workspace:{id:'a',name:'Test workspace',status:'ACTIVE',studentCounts:{total:active+1,active,inactive:1},capacity:{plan:'STARTER',used:active,limit:20,reached:false,nearLimit:false}}}]}]});
+  return Response.json({invitations:[],trainers:[{id:'trainer',name:'Test trainer',email:'test@example.test',status:'ACTIVE',createdAt:'2026-01-01',effectiveSubscriptionStatus:'ACTIVE',trainerSubscription:null,memberships:[{workspace:{id:'a',name:'Test workspace',status:'ACTIVE',studentCounts:{total:active+1,active,inactive:1},capacity:{plan:'STARTER',used:active,limit,reached:false,nearLimit:false}}}]}]});
  };
  const Component=loadComponent();
  await act(async()=>root.render(React.createElement(Component)));
  assert.match(document.body.textContent,/1 \/ 20/);
- assert.match(document.querySelector('dd.text-zinc-400')?.textContent ?? '',/2 total/);
+ assert.doesNotMatch(document.body.textContent,/Alumnos activos: ocupan cupo|\d+ total/);
+ assert.ok([...document.querySelectorAll('button')].some(button=>button.textContent==='Actualizar datos'));
  assert.equal([...document.querySelectorAll('button')].filter(button=>button.textContent==='+ Invitar entrenador').length,1);
- active=2;await act(async()=>window.dispatchEvent(new window.Event('focus')));
- assert.match(document.body.textContent,/2 \/ 20/);
+ active=3;limit=null;await act(async()=>window.dispatchEvent(new window.Event('focus')));
+ const card=document.querySelector('article');
+ assert.equal(card.querySelector('div.md\\:hidden p.font-bold.mt-1')?.textContent,'3 / ∞');
+ assert.equal(card.querySelector('dd.font-bold')?.textContent,'3 / ∞');
+ assert.doesNotMatch(card.textContent,/\d+ total/);
  const invite=[...document.querySelectorAll('button')].find(button=>button.textContent==='+ Invitar entrenador');
  await act(async()=>invite.click());
  assert.ok(document.querySelector('form[aria-label="Invitar entrenador"]'));
