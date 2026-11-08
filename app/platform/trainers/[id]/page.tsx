@@ -1,3 +1,5 @@
+import { PlatformRefresh } from "@/componentes/platform-refresh";
+import { masterStudentCounts } from "@/lib/master-student-counts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrainerAccountActions } from "@/componentes/trainer-account-actions";
@@ -39,6 +41,7 @@ export default async function TrainerDetailPage({ params }: PageProps<"/platform
   const trialActive = subscription ? trainerTrialIsActive(subscription.trialEndsAt) : false;
   const workspace = trainer.memberships[0]?.workspace;
   const capacity = trainerStudentCapacity(subscription ? effectiveTrainerPlan(subscription) : "FREE", workspace ? countActiveManagedStudents(workspace.students) : 0);
+  const studentCounts = masterStudentCounts(workspace?.students ?? []);
   const percentage = capacity.limit === null ? 0 : Math.min(100, Math.round(capacity.used / capacity.limit * 100));
   const serializedSubscription = subscription ? {
     ...subscription,
@@ -54,7 +57,7 @@ export default async function TrainerDetailPage({ params }: PageProps<"/platform
 
   return <main className="px-4 py-8 sm:px-6 lg:px-10">
     <div className="mx-auto max-w-5xl">
-      <Link href="/platform/trainers" className="text-sm font-bold text-yellow-300">← Volver a entrenadores</Link>
+      <Link href="/platform/trainers" className="text-sm font-bold text-yellow-300">← Volver a entrenadores</Link><div className="mt-3"><PlatformRefresh /></div>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[.24em] text-yellow-400">Entrenador</p>
@@ -64,6 +67,7 @@ export default async function TrainerDetailPage({ params }: PageProps<"/platform
         <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${trainer.status === "ACTIVE" ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>Acceso {trainer.status === "ACTIVE" ? "activo" : "suspendido"}</span>
       </div>
 
+      <p className="mt-4 text-xs text-zinc-400">{studentCounts.total} alumnos gestionados en total · {studentCounts.inactive} inactivos, suspendidos o archivados. No incluye autoservicio ni invitaciones pendientes.</p>
       <section className="mt-7 grid gap-4 md:grid-cols-2">
         <article className="rounded-2xl border border-zinc-800 bg-zinc-900/75 p-5">
           <h2 className="font-bold">Cuenta profesional</h2>
@@ -73,7 +77,7 @@ export default async function TrainerDetailPage({ params }: PageProps<"/platform
             <div><dt className="text-zinc-500">Teléfono</dt><dd>{trainer.phone || "Sin informar"}</dd></div>
             <div><dt className="text-zinc-500">Ciudad / servicio</dt><dd>{[trainer.city, trainer.serviceType].filter(Boolean).join(" · ") || "Sin informar"}</dd></div>
             <div><dt className="text-zinc-500">Workspace</dt><dd>{workspace?.name || "Sin workspace"}</dd></div>
-            <div><dt className="text-zinc-500">Alumnos activos</dt><dd>{capacity.used} / {capacity.limit ?? "Sin límite"}</dd></div>
+            <div><dt className="text-zinc-500">Alumnos activos (cupo)</dt><dd>{capacity.used} / {capacity.limit ?? "Sin límite"}</dd></div>
             <div><dt className="text-zinc-500">Onboarding</dt><dd>{trainer.onboardingCompleted ? "Completo" : "Pendiente"}</dd></div>
           </dl>
           {capacity.limit !== null && <>
