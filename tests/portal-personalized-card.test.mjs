@@ -6,7 +6,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 const source = readFileSync(new URL('../componentes/portal-section.tsx', import.meta.url), 'utf8');
-const fragment = source.slice(source.indexOf('function personalizedHomePlan'), source.indexOf('const WeeklyObjectiveTargetIcon'));
+const fragment = source.slice(source.indexOf('function personalizedHomePlan'), source.indexOf('function WeeklyObjective'));
 const code = ts.transpileModule(fragment, { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 } }).outputText;
 const Frame = ({ children }) => React.createElement('section', null, children);
 const Link = ({ children, ...props }) => React.createElement('a', props, children);

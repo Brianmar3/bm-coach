@@ -283,8 +283,8 @@ test("Inicio usa total y preview del servidor sin recortar la fuente completa", 
   assert.match(source, /data\.summary\.preview\.map/);
   assert.match(source, /data\.summary\.preview\.map/);
   assert.match(source, /Ver agenda completa/);
-  assert.match(source, /data\.summary\.firstStartTime/);
-  assert.match(source, /data\.summary\.lastStartTime/);
+  assert.match(source, /data\.summary\.dateLabel/);
+  assert.match(source, /\{item\.startTime\}–\{item\.endTime\}/);
   assert.match(source, /Ver todos los horarios/);
   assert.doesNotMatch(source, /focusItems\.slice\(/);
   assert.match(source, /focusItems\.map/);

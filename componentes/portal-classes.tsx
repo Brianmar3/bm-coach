@@ -9,7 +9,7 @@ import { PortalActionCard } from "@/componentes/portal-action-card";
 import { QuickNoteButton } from "@/componentes/quick-log";
 import { useSaveClassCopy } from "@/componentes/offline-classes";
 import { savedClassAgenda } from "@/lib/offline-classes";
-import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmCloseIcon, BmHistoryIcon, BmRoutineIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
+import { BmCalendarIcon, BmCheckIcon, BmClassesIcon, BmChevronRightIcon, BmCloseIcon, BmHistoryIcon, BmTimerIcon, BmUserIcon } from "@/componentes/icons";
 
 type ClassData = {
   occurrences: PortalClassOccurrence[];
@@ -74,7 +74,7 @@ function weeklyScheduleDisplay(label: string) {
   };
 }
 
-export function PortalClasses({ compact = false, showQuickLogAction = false }: { compact?: boolean; showQuickLogAction?: boolean }) {
+export function PortalClasses({ compact = false, showQuickLogAction = false, selectedClassId }: { compact?: boolean; showQuickLogAction?: boolean; selectedClassId?: string }) {
   const saveClassCopy = useSaveClassCopy();
   const [data, setData] = useState<ClassData | null>(null);
   const [notice, setNotice] = useState("");
@@ -85,7 +85,9 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
   const responseRevision = useRef(0);
   const loadSequence = useRef(0);
   const confirmationTimer = useRef<number | null>(null);
-  const [showWeek, setShowWeek] = useState(false);
+  const [weekOverride, setShowWeek] = useState<boolean | null>(null);
+  const selectedRow = useRef<HTMLElement>(null);
+  const revealedClass = useRef<string | null>(null);
   const endpoint = compact ? "/api/portal/clases?summary=1" : "/api/portal/clases";
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -184,13 +186,29 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
     const ids = new Set(data?.upcoming.occurrenceIds ?? []);
     return (data?.occurrences ?? []).filter((item) => ids.has(item.id));
   }, [data]);
+  const openWeekForSelection = Boolean(selectedClassId && !focusItems.some(item => item.id === selectedClassId) && upcomingItems.some(item => item.id === selectedClassId));
+  const showWeek = weekOverride ?? openWeekForSelection;
+  const visibleItems = showWeek ? upcomingItems : focusItems;
+  const selectedVisibleId = !compact && visibleItems.some(item => item.id === selectedClassId) ? selectedClassId : undefined;
+
+  useEffect(() => {
+    if (!selectedVisibleId || revealedClass.current === selectedVisibleId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const row = selectedRow.current;
+      if (!row) return;
+      revealedClass.current = selectedVisibleId;
+      row.focus({ preventScroll: true });
+      row.scrollIntoView({ block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedVisibleId]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, PortalClassOccurrence[]>();
-    const visible = showWeek ? upcomingItems : focusItems;
-    for (const item of visible)
+    for (const item of visibleItems)
       map.set(item.date, [...(map.get(item.date) ?? []), item]);
     return [...map.entries()];
-  }, [focusItems, showWeek, upcomingItems]);
+  }, [visibleItems]);
   const weeklySchedules = useMemo(() => {
     const map = new Map<string, Array<ReturnType<typeof weeklyScheduleDisplay>>>();
     for (const label of data?.scheduleLabels ?? []) {
@@ -225,18 +243,12 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
             </h2>
           </div>
           <div className="shrink-0 text-right">
-            {data.summary.dateLabel && <span className="block max-w-36 text-[10px] font-medium leading-tight text-zinc-400 sm:text-xs">{data.summary.dateLabel}</span>}
+            {data.summary.dateLabel && <span className="block max-w-32 text-xs font-bold leading-snug text-zinc-200 sm:max-w-44 sm:text-sm">{data.summary.dateLabel}</span>}
             <Link href="/portal/clases" className="portal-home-interactive mt-2 inline-flex min-h-8 items-center text-[10px] font-black text-yellow-300 transition hover:text-yellow-200 sm:text-xs">Ver agenda completa ›</Link>
           </div>
         </div>
         {data.summary.total ? (
           <>
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-zinc-500 sm:text-xs">
-              {data.summary.firstStartTime && data.summary.lastStartTime && (
-                <span className="tabular-nums">◷ {data.summary.firstStartTime}–{data.summary.lastStartTime}</span>
-              )}
-              <span>· {data.summary.mode === "TODAY" ? "Elegí tu horario." : "Tu próximo día con actividad."}</span>
-            </div>
             <div className="mt-3 space-y-2">
               {data.summary.preview.map((item, index) => (
                 <CompactClassRow
@@ -315,7 +327,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
               <section key={date} className="border-b border-white/[.07] py-3 last:border-0 sm:py-4">
                 <h3 className="mb-1.5 text-xs font-black capitalize text-zinc-300 sm:text-sm">{dateLabel(date)}</h3>
                 <div>
-                  {items.map((item) => <ClassRow key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
+                  {items.map((item) => <ClassRow key={item.id} item={item} saving={savingId === item.id} respond={respond} selectedRef={item.id === selectedVisibleId ? selectedRow : undefined} />)}
                 </div>
               </section>
             ))}
@@ -336,7 +348,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false }: {
             </span>
           </div>
           <div className="px-3 sm:px-5">
-            {focusItems.map((item) => <ClassRow key={item.id} item={item} saving={savingId === item.id} respond={respond} />)}
+            {focusItems.map((item) => <ClassRow key={item.id} item={item} saving={savingId === item.id} respond={respond} selectedRef={item.id === selectedVisibleId ? selectedRow : undefined} />)}
           </div>
         </section>
       )}
@@ -398,14 +410,17 @@ function CompactClassRow({
   const discipline = disciplineLabel(`${item.name} ${item.category}`, item.name || item.category);
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   return (
-    <article className={`portal-home-class-row grid min-w-0 grid-cols-[2.65rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-2xl border border-white/[.075] bg-black/35 px-2.5 py-3 shadow-[inset_0_1px_rgba(255,255,255,.02)] sm:grid-cols-[2.9rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-3 ${confirmed ? "portal-home-confirmed" : ""}`} style={{ animationDelay: `${index * 75}ms` }}>
-      <span className="grid size-10 place-items-center rounded-full border border-yellow-400/25 bg-yellow-400/[.07] text-yellow-300 sm:size-11">
-        <BmRoutineIcon size={19} />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-xs font-black tabular-nums text-zinc-100 sm:text-sm">{item.startTime}–{item.endTime}</p>
-        <p className="mt-0.5 truncate text-[10px] text-zinc-400 sm:text-xs">{discipline}</p>
-      </div>
+    <article className={`portal-home-class-row grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/[.075] bg-black/35 p-2 shadow-[inset_0_1px_rgba(255,255,255,.02)] sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-3 sm:p-3 ${confirmed ? "portal-home-confirmed" : ""}`} style={{ animationDelay: `${index * 75}ms` }}>
+      <Link href={`/portal/clases?clase=${encodeURIComponent(item.id)}`} aria-label={`${discipline}, ${dateLabel(item.date)}, ${item.startTime} a ${item.endTime}`} className="group flex min-h-11 min-w-0 items-center gap-2 rounded-xl px-1 py-1 focus-visible:outline-2 focus-visible:outline-yellow-300 sm:gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/25 bg-yellow-400/[.07] text-yellow-300 sm:size-11">
+          <BmClassesIcon size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block break-words text-sm font-black leading-snug text-zinc-100 group-hover:text-yellow-200 sm:text-base">{discipline}</span>
+          <span className="mt-0.5 block text-xs font-semibold tabular-nums text-yellow-200 sm:text-sm">{item.startTime}–{item.endTime}</span>
+        </span>
+        <BmChevronRightIcon size={14} className="shrink-0 text-yellow-400/70" />
+      </Link>
       <span className={`hidden shrink-0 text-[9px] font-bold sm:inline ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{item.response === "GOING" ? "✓ " : ""}{responseLabel}</span>
       {item.canRespond ? <button type="button" disabled={saving} aria-pressed={item.response === "GOING"}
         onClick={() => respond(item, "GOING")} className={`portal-home-interactive min-h-11 shrink-0 rounded-xl border px-3 text-[10px] font-black transition disabled:opacity-50 sm:min-h-12 sm:px-4 sm:text-xs ${item.response === "GOING" ? "border-yellow-300/55 bg-yellow-400/[.08] text-yellow-200 shadow-[0_0_18px_rgba(250,204,21,.06)]" : "border-yellow-400/35 bg-zinc-950 text-yellow-200 hover:border-yellow-300/60"}`}>{item.response === "GOING" ? "✓ Asistiré" : "Asistiré"}</button> : <span className={`shrink-0 text-[9px] font-bold sm:hidden ${item.response === "GOING" ? "text-emerald-400" : "text-zinc-500"}`}>{responseLabel}</span>}
@@ -417,7 +432,9 @@ function ClassRow({
   item,
   saving,
   respond,
+  selectedRef,
 }: {
+  selectedRef?: React.Ref<HTMLElement>;
   item: PortalClassOccurrence;
   saving: boolean;
   respond: (
@@ -429,7 +446,7 @@ function ClassRow({
   const responseLabel = item.response === "GOING" ? "Confirmada" : item.response === "NOT_GOING" ? "No asistirás" : item.statusLabel;
   const confirmedLabel = `${item.confirmedCount} ${item.confirmedCount === 1 ? "confirmado" : "confirmados"}`;
   return (
-    <article className="min-w-0 border-b border-white/[.075] py-4 last:border-0 sm:py-5">
+    <article ref={selectedRef} tabIndex={selectedRef ? -1 : undefined} aria-current={selectedRef ? "true" : undefined} className={`min-w-0 border-b border-white/[.075] py-4 last:border-0 sm:py-5 ${selectedRef ? "rounded-xl bg-yellow-400/10 px-2 ring-1 ring-inset ring-yellow-400/50" : ""}`}>
       <div className="grid min-w-0 grid-cols-[minmax(6.8rem,.8fr)_minmax(0,1.4fr)] items-center gap-3 sm:gap-5">
         <p className="flex items-center gap-2 border-r border-white/[.1] pr-3 text-xs font-black tabular-nums text-yellow-300 sm:text-sm"><BmTimerIcon size={19} className="shrink-0" />{item.startTime}–{item.endTime}</p>
         <div className="min-w-0">
