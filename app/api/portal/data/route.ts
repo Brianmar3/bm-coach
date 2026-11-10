@@ -95,6 +95,16 @@ async function loadHomeInsights(studentId: string, workspaceId: string, primaryS
   }));
   const attendanceRecords = mergePortalAttendanceRecords(currentAttendance, legacyAttendance);
   const attendedClassDates = attendanceRecords.filter((record) => record.status === "PRESENT").map((record) => record.date).sort();
+  const workoutKeys = completedWorkoutDates.map(item => item.date.toISOString().slice(0, 10));
+  const activeDays = new Set([...attendedClassDates, ...workoutKeys].filter(day => day <= todayKey));
+  const cursor = new Date(todayKey + "T12:00:00Z");
+  if (!activeDays.has(todayKey)) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  let streakDays = 0;
+  while (activeDays.has(cursor.toISOString().slice(0, 10))) {
+    streakDays += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+  const activityStats = { streakDays, workoutsThisMonth: [...activeDays].filter(day => day.startsWith(todayKey.slice(0, 7))).length };
   const evaluationDateKeys = evaluationDates.map((item) => item.date.toISOString().slice(0, 10));
   const hasClassParticipation = includeClasses && (Boolean(primaryScheduleId) || attendedClassDates.length > 0 || Boolean(firstStrengthLog));
   const weeklyGoal = includeClasses ? planDays(plan) ?? 0 : 0;
@@ -102,6 +112,7 @@ async function loadHomeInsights(studentId: string, workspaceId: string, primaryS
   const weeklyMission = await withWeeklyCelebrationState(studentId, await loadCurrentWeeklyMission(studentId, todayKey));
   return {
     weeklyWorkoutCount,
+    activityStats,
     classesAttendedThisMonth: currentMonthAttendance?.completedDays ?? currentMonthAttendance?.present ?? 0,
     monthlyAttendancePercentage: currentMonthAttendance?.percentage ?? null,
     classesAttendedPreviousMonth: hasPreviousMonthData ? previousMonthAttendance?.completedDays ?? previousMonthAttendance?.present ?? 0 : null,
@@ -271,6 +282,7 @@ export async function GET(request: Request) {
         mode: serviceType === "MIXED" ? "MIXTO" : serviceType === "PERSONALIZED" ? "RUTINA_PERSONALIZADA" : "PRESENCIAL",
         hasClassParticipation: homeInsights.hasClassParticipation,
         classesAttendedThisMonth: homeInsights.classesAttendedThisMonth,
+        activityStats: "activityStats" in homeInsights ? homeInsights.activityStats : undefined,
         monthlyAttendancePercentage: homeInsights.monthlyAttendancePercentage,
         classesAttendedPreviousMonth: homeInsights.classesAttendedPreviousMonth,
         previousMonthAttendancePercentage: homeInsights.previousMonthAttendancePercentage,

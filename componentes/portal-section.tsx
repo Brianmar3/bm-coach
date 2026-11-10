@@ -1,4 +1,5 @@
 "use client";
+import { SportsShield } from "@/componentes/sports-shield";
 import { HomeLoadEvolution } from "@/componentes/home-load-evolution";
 import { WorkoutFinishDuration } from "@/componentes/workout-finish-duration";
 import { WORKOUT_MAX_DURATION_MINUTES, workoutDurationError } from "@/lib/workout-session-validation";
@@ -63,7 +64,6 @@ import {
   BmPlayIcon,
   BmPointsIcon,
   BmProgressIcon,
-  BmRankingIcon,
   BmRoutineIcon,
   BmSlidersIcon,
   BmTargetIcon,
@@ -368,7 +368,7 @@ function WeeklyMissionAchievement({ data }: { data: PortalData }) {
   const completed = mission.state === "COMPLETED";
   const expired = mission.state === "EXPIRED";
   const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";
-  return <section className={`portal-points-enter relative overflow-hidden rounded-[22px] border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] [--points-delay:220ms] sm:p-5 ${completed ? "border-emerald-400/20 bg-[linear-gradient(145deg,#151816,#090909)]" : "border-white/[.08] bg-[linear-gradient(145deg,#151515,#090909)]"}`}>
+  return <section data-state={mission.state} className={`portal-points-enter sports-weekly relative overflow-hidden rounded-[22px] border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] [--points-delay:220ms] sm:p-5 ${completed ? "border-emerald-400/20 bg-[linear-gradient(145deg,#151816,#090909)]" : "border-white/[.08] bg-[linear-gradient(145deg,#151515,#090909)]"}`}>
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-[var(--foreground-muted)]" : "border-yellow-400/20 bg-yellow-400/[.06] text-[var(--brand-text)]"}`}>{stateLabel}</span></div><h2 className="mt-2 flex items-center gap-2 text-sm font-black leading-snug text-white sm:text-base">{completed ? <BmTrophyIcon size={20} className="shrink-0 text-emerald-300" /> : <BmTargetIcon size={20} className="shrink-0 text-[var(--brand-text)]" />}{mission.title}</h2></div><div className="shrink-0 text-right text-[11px] leading-relaxed text-[var(--foreground-muted)]"><p className="font-bold uppercase tracking-[.12em] text-[var(--brand-text)]">Recompensa</p><p>+{mission.pointsPerSession} por entrenamiento</p><p>+{mission.completionBonus} bonus semanal</p><p className="mt-0.5 font-bold text-[var(--brand-text)]">Máximo +{mission.maximumReward} pts</p></div></div>
     <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-[var(--foreground-muted)]">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-[var(--foreground-muted)]"}`}>{completed ? `+${mission.maximumReward} pts obtenidos` : mission.message}</p></div>
     <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-label="Progreso de la misión semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)}><div className={`portal-points-progress h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div>
@@ -384,17 +384,20 @@ type PointsRankingPreview = {
 function PointsSummary({ data, ranking }: { data: PortalData; ranking: PointsRankingPreview | null }) {
   const points = data.home.points;
   const progress = points.nextTarget > 0 ? Math.min(100, (points.total / points.nextTarget) * 100) : 0;
-  return <section id="puntos" className="portal-points-summary portal-points-enter relative scroll-mt-24 overflow-hidden rounded-[26px] border border-yellow-400/55 p-4 shadow-[0_20px_55px_rgba(0,0,0,.42),0_0_28px_rgba(250,204,21,.08)] [--points-delay:70ms] sm:p-6">
-    <span aria-hidden="true" className="portal-points-sweep" />
-    <div className="relative grid grid-cols-[minmax(0,1fr)_64px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[1fr_86px_1fr] sm:gap-5">
-      <div className="min-w-0"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[var(--brand-text)] sm:text-[11px]">Este mes</p><strong className="mt-2 block truncate text-4xl font-black tabular-nums text-[var(--foreground)] sm:text-5xl"><HomeAnimatedNumber value={points.monthlyTotal} /></strong><span className="mt-1 block text-[11px] text-[var(--foreground-muted)]">{ranking?.currentPosition ? `Posición #${ranking.currentPosition}` : "Ranking mensual"}</span></div>
-      <span className="portal-points-emblem relative grid size-16 place-items-center justify-self-center rounded-[22px] border border-yellow-300/55 bg-yellow-400/[.08] text-[var(--brand-text)] sm:size-[86px]"><BmPointsIcon size={38} strokeWidth={1.55} /></span>
-      <div className="min-w-0 text-right"><p className="text-[11px] font-bold uppercase leading-snug tracking-[.08em] text-[var(--foreground-muted)]">Total histórico</p><strong className="mt-2 block truncate text-2xl font-semibold tabular-nums text-[var(--foreground-muted)] sm:text-3xl"><HomeAnimatedNumber value={points.total} /></strong><span className="mt-1 block text-[11px] text-[var(--foreground-muted)]">Acumulados</span></div>
+  return <section id="puntos" className="portal-points-summary portal-points-enter scroll-mt-24 [--points-delay:35ms]">
+    <div className="sports-score">
+      <span aria-hidden="true" className="portal-points-sweep" />
+      <div><p>Puntos del mes</p><strong><HomeAnimatedNumber value={points.monthlyTotal} /></strong>{ranking?.currentPosition != null && <small>Posición #{ranking.currentPosition}</small>}</div>
+      <SportsShield />
+      <div><p>Total histórico</p><strong><HomeAnimatedNumber value={points.total} /></strong><span>pts</span></div>
     </div>
-    <div className="relative mt-5 grid grid-cols-2 gap-2.5"><Link href="/portal/ranking" aria-label="Ver ranking mensual" className="portal-points-primary portal-points-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-2 text-[11px] font-black text-zinc-950 transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-200 min-[390px]:px-3 min-[390px]:text-xs sm:text-sm"><BmRankingIcon size={20} />Ver ranking<BmChevronRightIcon size={17} /></Link><Link href="/portal/puntos/historial" aria-label="Ver historial de puntos" className="portal-points-secondary portal-points-action inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-yellow-400/40 bg-black/25 px-2 text-[11px] font-black text-[var(--brand-text)] transition hover:bg-yellow-400/[.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 min-[390px]:px-3 min-[390px]:text-xs sm:text-sm"><BmHistoryIcon size={20} />Ver historial<BmChevronRightIcon size={17} /></Link></div>
-    <p className="relative mt-4 border-t border-[var(--border-soft)] pt-3 text-[11px] font-semibold text-[var(--foreground-muted)]">Objetivo del total histórico</p>
-    <div className="relative mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-[var(--foreground-muted)]"><span>Próximo objetivo: {points.nextTarget} pts</span><span>{points.pointsToNextTarget} pts restantes</span></div>
-    <div className="relative portal-points-track mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="portal-points-fill portal-points-progress h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-300" style={{ width: `${progress}%` }} /></div>
+    <div className="sports-historical">
+      <span aria-hidden="true">PTS</span>
+      <div>
+        <div><span>Progreso histórico</span><span>{points.total} / {points.nextTarget} pts</span></div>
+        <div className="portal-points-track" role="progressbar" aria-label="Progreso histórico" aria-valuenow={Math.round(progress)} aria-valuetext={`${points.total} de ${points.nextTarget} puntos, ${points.pointsToNextTarget} restantes`}><div className="portal-points-fill portal-points-progress" style={{ width: `${progress}%` }} /></div>
+      </div>
+    </div>
   </section>;
 }
 
@@ -403,18 +406,37 @@ function PointsAndAchievementsView({ data }: { data: PortalData }) {
   const [ranking, setRanking] = useState<PointsRankingPreview | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    if (!competitive) return () => controller.abort();
+    if (!competitive) return;
     fetch("/api/portal/ranking", { cache: "no-store", signal: controller.signal })
       .then(async (response) => response.ok ? await response.json() as PointsRankingPreview : null)
       .then((body) => { if (body) setRanking(body); })
       .catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setRanking(null); });
     return () => controller.abort();
   }, [competitive]);
-  return <div className="portal-points-page mx-auto max-w-5xl space-y-4 sm:space-y-5">
-    <header className="portal-points-enter [--points-delay:0ms]"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Tu evolución</p><h1 className="mt-1 text-2xl font-black uppercase tracking-[.02em] text-zinc-100 sm:text-3xl">{competitive ? "Puntos y logros" : "Progreso y logros"}</h1><p className="mt-1 text-sm text-[var(--foreground-muted)]">{competitive ? "Tus avances, movimientos y próximos hitos" : "Tu constancia, evolución y logros personales"}</p></header>
+  const reward = data.home.points.recent.find(item => item.points > 0 && (item.eventType === "ACHIEVEMENT" || item.eventType === "PERSONAL_RECORD"));
+  const unlockedAchievements = data.home.achievements.filter(item => item.unlocked);
+  const latestAchievement = unlockedAchievements.reduce<PortalAchievement | undefined>(
+    (latest, item) => !latest || item.unlockedAt > latest.unlockedAt ? item : latest,
+    undefined,
+  );
+  const rewardTitle = reward?.description ?? latestAchievement?.name;
+  return <div className="portal-points-page sports-points-page mx-auto max-w-3xl">
+    <header className="portal-points-enter sports-page-heading [--points-delay:0ms]"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Tu evolución</p><h1 className="mt-1 text-3xl font-black tracking-tight text-zinc-100 sm:text-4xl">{competitive ? "Puntos y logros" : "Progreso y logros"}</h1><p className="mt-1 text-sm text-[var(--foreground-muted)]">{competitive ? "Tus avances, movimiento y próximos hitos" : "Tu constancia, evolución y logros personales"}</p></header>
     {competitive && <PointsSummary data={data} ranking={ranking} />}
+    {data.home.activityStats && <div className="grid grid-cols-3 gap-2" aria-label="Resumen de actividad">
+      {[
+        { title: "Racha", value: `${data.home.activityStats.streakDays} ${data.home.activityStats.streakDays === 1 ? "día" : "días"}`, icon: <BmFlameIcon size={19} /> },
+        { title: "Días activos", value: `${data.home.activityStats.workoutsThisMonth} este mes`, icon: <BmBarbellIcon size={19} /> },
+        { title: "Medallas", value: `${unlockedAchievements.length} / ${data.home.achievements.length}`, icon: <BmTrophyIcon size={19} /> },
+      ].map(item => <div key={item.title} className="sports-mini-stat"><span aria-hidden="true">{item.icon}</span><div><p>{item.title}</p><strong>{item.value}</strong></div></div>)}
+    </div>}
     {competitive && <WeeklyMissionAchievement data={data} />}
     <AchievementsOverview data={data} />
+    {competitive && rewardTitle && <aside className="sports-reward portal-points-enter"><SportsShield reward /><div><p className="sports-reward-title">¡Recompensa desbloqueada!</p><p>{rewardTitle}</p>{reward && <strong>+{reward.points} pts</strong>}</div></aside>}
+    {competitive && <nav className="sports-points-links" aria-label="Opciones de puntos">
+      <Link href="/portal/ranking" aria-label="Ver ranking mensual"><BmTrophyIcon size={17} />Ver ranking<BmChevronRightIcon size={15} /></Link>
+      <Link href="/portal/puntos/historial" aria-label="Ver historial de puntos"><BmHistoryIcon size={17} />Ver historial<BmChevronRightIcon size={15} /></Link>
+    </nav>}
   </div>;
 }
 
@@ -476,21 +498,50 @@ function MonthlyAttendanceIndicator({ data }: { data: PortalData }) {
   </Link>;
 }
 
+const achievementFilters = ["Todos", "Fuerza", "Progreso", "Constancia", "Especiales"] as const;
+type AchievementFilter = typeof achievementFilters[number];
+
+function matchesAchievement(item: PortalAchievement, filter: AchievementFilter) {
+  if (filter === "Todos") return true;
+  if (filter === "Fuerza") return ["FUERZA", "REPETICIONES", "VOLUMEN", "RECORDS_PERSONALES"].includes(item.category ?? "");
+  if (filter === "Constancia") return ["CONSTANCIA", "ASISTENCIA", "CLASES", "RUTINAS"].includes(item.category ?? "");
+  if (filter === "Especiales") return item.level === "ESPECIAL" || item.level === "HITO";
+  return ["PROGRESO", "EVALUACIONES", "TIEMPO", "ANTIGUEDAD"].includes(item.category ?? "");
+}
+
 function AchievementsOverview({ data }: { data: PortalData }) {
-  const unlocked = data.home.achievements.filter((achievement) => achievement.unlocked).sort((left, right) => right.unlockedAt.localeCompare(left.unlockedAt));
-  const upcoming = data.home.achievements.filter((achievement) => !achievement.unlocked && achievement.progress > 0).sort((left, right) => right.progress / right.target - left.progress / left.target);
-  const categories = [...new Set([...unlocked, ...upcoming].map((achievement) => achievement.category).filter(Boolean))];
-  return <section id="logros" className="portal-points-enter scroll-mt-24 [--points-delay:340ms]"><div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-[11px] font-black uppercase tracking-[.2em] text-[var(--brand-text)]">Logros</p><h2 className="mt-1 text-lg font-black">Tus hitos</h2></div><span className="rounded-full border border-yellow-400/20 bg-yellow-400/[.05] px-3 py-1 text-xs font-bold text-[var(--brand-text)]">{unlocked.length} obtenidos</span></div>{categories.length ? <div className="space-y-5">{categories.map((category) => { const items = [...unlocked, ...upcoming].filter((achievement) => achievement.category === category); return <section key={category}><div className="mb-2 flex items-center justify-between"><h3 className="text-xs font-black uppercase tracking-[.16em] text-[var(--foreground-muted)]">{achievementCategoryLabel(category)}</h3><span className="text-[11px] text-[var(--foreground-muted)]">{items.filter((item) => item.unlocked).length} de {items.length}</span></div><div className="space-y-2">{items.map((achievement) => <AchievementCard key={achievement.id} achievement={achievement} />)}</div></section>; })}</div> : <p className="rounded-2xl border border-dashed border-white/[.08] p-6 text-center text-sm text-[var(--foreground-muted)]">Tus próximos logros aparecerán acá.</p>}</section>;
+  const [filter, setFilter] = useState<AchievementFilter>("Todos");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const achievements = [...data.home.achievements].sort((a, b) =>
+    Number(b.unlocked) - Number(a.unlocked) || b.unlockedAt.localeCompare(a.unlockedAt));
+  const filtered = achievements.filter(item => matchesAchievement(item, filter));
+  const active = filtered.find(item => item.id === selected);
+  return <section id="logros" className="portal-points-enter scroll-mt-24 [--points-delay:120ms]">
+    <div className="sports-hito-title flex items-center justify-between gap-3"><h2>Tus hitos</h2><span className="rounded-full border border-yellow-400/20 px-3 py-1 text-xs font-bold text-[var(--brand-text)]">{achievements.filter(item => item.unlocked).length} obtenidos</span></div>
+    <div className="sports-hito-filters" aria-label="Filtrar hitos">
+      {achievementFilters.map(item => <button key={item} type="button" aria-pressed={filter === item}
+        onClick={() => { setFilter(item); setExpanded(false); setSelected(null); }}
+        className="min-h-8 rounded-full border border-[var(--border-soft)] px-3 text-xs font-semibold aria-pressed:border-yellow-400 aria-pressed:bg-yellow-400 aria-pressed:text-zinc-950">{item}</button>)}
+    </div>
+    <div className="sports-hito-grid grid grid-cols-4 gap-2">
+      {filtered.slice(0, expanded ? filtered.length : 3).map(item => <button key={item.id} type="button"
+        aria-expanded={selected === item.id} onClick={() => setSelected(selected === item.id ? null : item.id)}
+        data-unlocked={item.unlocked} className="sports-hito">
+        <span className="sports-hito-icon">{achievementIcon(item)}</span><strong>{item.name}</strong>
+        <small className="sr-only">{item.unlocked ? "Desbloqueado" : "Bloqueado"}</small>
+      </button>)}
+      {!expanded && filtered.length > 3 && <button type="button" className="sports-hito" onClick={() => setExpanded(true)}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="6" y="10" width="12" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v2"/></svg>+{filtered.length - 3} más</button>}
+    </div>
+    {expanded && filtered.length > 3 && <button type="button" className="mt-2 min-h-9 text-xs font-bold text-[var(--brand-text)]" onClick={() => { setExpanded(false); setSelected(null); }}>Ver menos</button>}
+    {!filtered.length && <p className="rounded-2xl border border-dashed border-[var(--border-soft)] p-4 text-sm text-[var(--foreground-muted)]">Todavía no hay hitos en esta categoría.</p>}
+    {active && <div className="mt-3"><AchievementCard achievement={active} /></div>}
+  </section>;
 }
 
 function AchievementCard({ achievement }: { achievement: PortalAchievement }) {
   const percentage = achievement.target > 0 ? Math.min(100, achievement.progress / achievement.target * 100) : 0;
   return <article data-unlocked={achievement.unlocked} className={`portal-achievement-card grid grid-cols-[2.75rem_minmax(0,1fr)] gap-3 rounded-2xl border p-3.5 ${achievement.unlocked ? "border-yellow-400/20 bg-[linear-gradient(145deg,rgba(250,204,21,.045),rgba(9,9,11,.88))]" : "border-white/[.07] bg-[#111113]"}`}><span className={`portal-achievement-icon grid size-11 place-items-center rounded-full border ${achievement.unlocked ? "border-yellow-400/35 bg-yellow-400/[.07] text-[var(--brand-text)] shadow-[0_0_18px_rgba(250,204,21,.07)]" : "border-zinc-700 bg-zinc-900 text-[var(--foreground-muted)]"}`}>{achievementIcon(achievement)}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className={`text-sm font-bold ${achievement.unlocked ? "text-zinc-100" : "text-[var(--foreground-muted)]"}`}>{achievement.name}</h4>{achievement.level && <span className="portal-achievement-badge rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-[var(--foreground-muted)]">{achievementLevelLabel(achievement.level)}</span>}</div>{achievement.exercise && <p className="mt-1 truncate text-xs font-semibold text-[var(--brand-text)]">{achievement.exercise} · {achievement.source === "CLASS" ? "Clase presencial" : achievement.source === "QUICK_LOG" ? "Registro personal" : "Rutina personalizada"}</p>}<p className="mt-1 text-xs leading-relaxed text-[var(--foreground-muted)]">{achievement.description}</p>{achievement.previousValue && achievement.newValue && <p className="mt-1 text-xs text-[var(--foreground-muted)]">{achievement.previousValue} → {achievement.newValue}</p>}{achievement.feedback && <p className="mt-2 rounded-lg bg-yellow-400/[.05] p-2 text-xs text-zinc-300">Devolución: {achievement.feedback}</p>}<div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-[var(--foreground-muted)]"><span>{achievement.unlocked ? date(achievement.unlockedAt) : `${achievement.progress} de ${achievement.target}`}</span>{achievement.unlocked && <span className="font-bold text-[var(--brand-text)]/75">Desbloqueado</span>}</div>{!achievement.unlocked && <div className="portal-points-track mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="portal-points-fill portal-points-progress h-full rounded-full bg-gradient-to-r from-amber-600 to-yellow-300" style={{ width: `${percentage}%` }} /></div>}</div></article>;
-}
-
-function achievementCategoryLabel(category: PortalAchievement["category"]) {
-  const labels: Partial<Record<NonNullable<PortalAchievement["category"]>, string>> = { CONSTANCIA: "Constancia", ASISTENCIA: "Asistencia", FUERZA: "Fuerza", REPETICIONES: "Repeticiones", VOLUMEN: "Volumen", RUTINAS: "Rutinas", CLASES: "Clases", EVALUACIONES: "Evaluaciones", ANTIGUEDAD: "Antigüedad", RECORDS_PERSONALES: "Récords personales", TIEMPO: "Tiempo", PROGRESO: "Progreso" };
-  return category ? labels[category] ?? category.replaceAll("_", " ") : "Otros";
 }
 
 function achievementLevelLabel(level: NonNullable<PortalAchievement["level"]>) {

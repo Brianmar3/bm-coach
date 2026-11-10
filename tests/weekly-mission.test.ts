@@ -226,9 +226,11 @@ test("Puntos separa total y mes y navega al ranking completo", () => {
   assert.match(ranking, /entry\.studentId !== pinnedCurrent\?\.studentId/);
   assert.match(ranking, /entry\.profileImageUrl \|\| DEFAULT_PROFILE_AVATAR\.src/);
   assert.match(rankingRoute, /studentName, profileImageUrl, total/);
-  assert.match(ranking, /position === 1/);
-  assert.match(ranking, /position === 2/);
-  assert.match(ranking, /position === 3/);
+  const styles = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(ranking, /data-position=\{entry\.position\}/);
+  for (const position of [1, 2, 3]) {
+    assert.ok(styles.includes(`.sports-podium-plate[data-position="${position}"]`));
+  }
   assert.match(ranking, /prefers-reduced-motion: reduce/);
   assert.match(ranking, /useAnimatedPoints/);
   assert.doesNotMatch(ranking, /Racha|positionChange|variaci[oó]n/i);

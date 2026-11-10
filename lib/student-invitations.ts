@@ -48,8 +48,3 @@ export function parseStudentInvitationRegistration(value: unknown): { input: Stu
   if (password !== data.confirmPassword) return { input: null, error: "Las contraseñas no coinciden." };
   return { input: { firstName, lastName, phone, birthDate, username, password }, error: "" };
 }
-
-export function studentInvitationWhatsappText(url: string, displayName = "BM Training") {
-  const invitationBrand = displayName.trim() || "BM Training";
-  return `Hola 👋 Te invito a ${invitationBrand} para que podamos llevar tu entrenamiento y seguimiento desde la app.\n\nCompletá tu registro acá:\n${url}`;
-}

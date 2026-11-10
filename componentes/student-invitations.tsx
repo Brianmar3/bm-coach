@@ -2,7 +2,7 @@
 import { KeyboardDialog } from "@/componentes/keyboard-dialog";
 
 import { useEffect, useState } from "react";
-import { studentInvitationWhatsappText as buildStudentInvitationWhatsappText } from "@/lib/student-invitations";
+import { studentInvitationWhatsappText as buildStudentInvitationWhatsappText } from "@/lib/student-invitation-whatsapp";
 import { STUDENT_SERVICE_OPTIONS } from "@/lib/student-service";
 import type { StudentServiceType } from "@/types/gestion";
 import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";

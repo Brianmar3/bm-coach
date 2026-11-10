@@ -132,6 +132,7 @@ export type PortalData = {
   home: {
     mode: "PRESENCIAL" | "RUTINA_PERSONALIZADA" | "ENTRENAMIENTO_EN_CASA" | "MIXTO" | "SIN_DEFINIR";
     hasClassParticipation: boolean;
+    activityStats?: { streakDays: number; workoutsThisMonth: number };
     classesAttendedThisMonth: number;
     monthlyAttendancePercentage: number | null;
     classesAttendedPreviousMonth: number | null;

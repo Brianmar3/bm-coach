@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { decryptStudentInvitationToken, encryptStudentInvitationToken, invitationServiceType, parseStudentInvitationRegistration, STUDENT_INVITATION_DAYS, studentInvitationDisplayStatus, studentInvitationToken, studentInvitationTokenHash, studentInvitationWhatsappText, validStudentInvitationToken } from "../lib/student-invitations.ts";
+import { decryptStudentInvitationToken, encryptStudentInvitationToken, invitationServiceType, parseStudentInvitationRegistration, STUDENT_INVITATION_DAYS, studentInvitationDisplayStatus, studentInvitationToken, studentInvitationTokenHash, validStudentInvitationToken } from "../lib/student-invitations.ts";
+import { studentInvitationWhatsappText } from "../lib/student-invitation-whatsapp.ts";
 import { findWorkspacePhoneDuplicate } from "../lib/student-phone-identity.ts";
 import { trainerStudentCapacity } from "../lib/trainer-plan-limits.ts";
 import { resolveWorkspaceBranding } from "../lib/workspace-branding.ts";
