@@ -57,15 +57,23 @@ function serverFixture() {
       if (found) return found;
       const row = { id: `receipt-${receipts.length}`, ...create }; receipts.push(row); return row;
     },
+    createMany: async ({ data, skipDuplicates }) => {
+      assert.equal(skipDuplicates, true);
+      if (receipts.some(row => row.studentId === data.studentId && row.achievementKey === data.achievementKey)) return { count: 0 };
+      receipts.push({ id: `receipt-${receipts.length}`, ...data });
+      return { count: 1 };
+    },
     updateMany: async ({ where, data }) => {
       const rows = receipts.filter(row => row.id === where.id && row.studentId === where.studentId && row.celebratedAt === null);
       rows.forEach(row => Object.assign(row, data)); return { count: rows.length };
     },
-    findFirst: async ({ where }) => receipts.find(row => row.id === where.id && row.studentId === where.studentId && row.celebratedAt) ?? null,
-  } };
+    findFirst: async ({ where }) => receipts.find(row => row.id === where.id && row.studentId === where.studentId && (where.celebratedAt === null ? row.celebratedAt === null && row.status !== "BASELINE" : row.celebratedAt)) ?? null,
+  }, studentPointTransaction: { findMany: async ({ where }) => {
+    assert.equal(where.studentId, studentId); assert.equal(where.active, true); return [{ points: 7 }];
+  } } };
   const dependencies = {
     'server-only': {}, '@/lib/prisma': { prisma },
-    '@/lib/notifiable-achievements': {},
+    '@/lib/notifiable-achievements': { loadNotifiableAchievements: async () => [{ id: 'verified', name: 'Logro real', icon: 'medal', description: '', unlockedAt: '2026-10-07' }] },
     '@/lib/portal-auth': { getPortalSession: async () => studentId ? { studentId } : null, validRequestOrigin: () => origin },
     '@/lib/portal-celebrations': { weeklyCelebrationKey },
     '@/lib/weekly-mission-data': { loadCurrentWeeklyMission: async () => current },
@@ -79,6 +87,7 @@ function serverFixture() {
   const route = load('app/api/portal/achievements/celebration/route.ts');
   return { receipts, setStudent: id => studentId = id, setMission: value => current = value, setOrigin: value => origin = value,
     confirm: body => route.PATCH(new Request('https://bm.test/api/portal/achievements/celebration', { method: 'PATCH', body: JSON.stringify(body) })),
+    claim: body => route.POST(new Request("https://bm.test/api/portal/achievements/celebration", { method: "POST", body: JSON.stringify(body) })),
     state: load('lib/weekly-celebration-state.ts').withWeeklyCelebrationState,
   };
 }
@@ -107,4 +116,32 @@ test('PATCH de logro admite reintentos y rechaza IDs ajenos, origen inválido y 
   assert.equal((await f.confirm({ notificationId: 'foreign' })).status, 404);
   f.setOrigin(false); assert.equal((await f.confirm({ notificationId: 'own' })).status, 403);
   f.setOrigin(true); f.setStudent(null); assert.equal((await f.confirm({ notificationId: 'own' })).status, 401);
+});
+
+test('dos solicitudes simultáneas reciben una sola celebración semanal con el bonus actual del servidor', async () => {
+  const f = serverFixture();
+  const key = weeklyCelebrationKey(mission());
+  const responses = await Promise.all([1, 2].map(() => f.claim({ kind: 'weekly', key, points: 999 })));
+  const payloads = await Promise.all(responses.map(response => response.json()));
+  const awarded = payloads.map(body => body.celebration).filter(Boolean);
+  assert.equal(awarded.length, 1);
+  assert.equal(awarded[0].mission.completionBonus, mission().completionBonus);
+  assert.equal((await (await f.claim({ kind: 'weekly', key })).json()).celebration, null);
+});
+
+test('el servidor entrega el logro vigente una vez y toma los puntos acreditados, con aislamiento por alumno', async () => {
+  const f = serverFixture();
+  f.receipts.push(
+    { id: 'own', achievementKey: 'verified', studentId: 'a', status: 'PENDING', celebratedAt: null },
+    { id: 'foreign', achievementKey: 'verified', studentId: 'b', status: 'PENDING', celebratedAt: null },
+    { id: 'revoked', achievementKey: 'revoked', studentId: 'a', status: 'PENDING', celebratedAt: null },
+  );
+  const claim = async notificationId => (await (await f.claim({ notificationId, points: 999 })).json()).celebration;
+  assert.equal(await claim('foreign'), null);
+  assert.equal(await claim('revoked'), null);
+  const awarded = (await Promise.all([claim('own'), claim('own')])).filter(Boolean);
+  assert.equal(awarded.length, 1);
+  assert.equal(awarded[0].achievement.points, 7);
+  assert.equal(await claim('own'), null);
+  f.setOrigin(false); assert.equal((await f.claim({ notificationId: 'own' })).status, 403);
 });

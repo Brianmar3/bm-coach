@@ -27,7 +27,20 @@ window.announce=announceNewAchievements;
 window.fixtureBranding={displayName:'BM Training',accentColor:new URL(location.href).searchParams.get('accent'),logoMode:'DEFAULT'};
 window.fixtureMission={id:'mission-a',weekStart:'2026-10-05',weekEnd:'2026-10-11',target:2,progress:2,percentage:100,state:'COMPLETED',completionBonus:5,pointsAwardedAt:'2026-10-08T12:00:00.000Z'};
 window.receipts=JSON.parse(localStorage.getItem('receipts')||'[]');window.pending=JSON.parse(localStorage.getItem('pending')||'[]');window.patches=[];
-window.fetch=async(url,options={})=>{if(options.method==='PATCH'){const body=JSON.parse(options.body);window.patches.push(body);if(window.failNext){window.failNext=false;return new Response('{}',{status:503});}const key=body.key||body.notificationId;window.receipts.push(key);localStorage.setItem('receipts',JSON.stringify(window.receipts));return new Response('{}',{status:200});}return new Response(JSON.stringify({achievement:window.pending.find(a=>!window.receipts.includes(a.notificationId))||null}),{status:200});};
+window.fetch=async(url,options={})=>{
+  if(options.method==='POST'){
+    const body=JSON.parse(options.body);window.patches.push(body);
+    const key=body.key||body.notificationId;
+    const achievement=window.pending.find(a=>a.notificationId===key);
+    const candidate=body.kind==='weekly' && key===rules.weeklyCelebrationKey(window.fixtureMission)
+      ? {kind:'weekly',key,mission:window.fixtureMission}
+      : achievement ? {kind:'achievement',key,achievement} : null;
+    if(!candidate||window.receipts.includes(key))return Response.json({celebration:null});
+    window.receipts.push(key);localStorage.setItem('receipts',JSON.stringify(window.receipts));
+    return Response.json({celebration:candidate});
+  }
+  return Response.json({achievement:window.pending.find(a=>!window.receipts.includes(a.notificationId))||null});
+};
 function Home(){const [mission,setMission]=R.useState(()=>({...window.fixtureMission,celebrationConfirmed:window.receipts.includes(rules.weeklyCelebrationKey(window.fixtureMission))}));window.changeMission=value=>{window.fixtureMission=value;setMission(value);};R.useEffect(()=>{const refresh=()=>setMission({...window.fixtureMission,celebrationConfirmed:window.receipts.includes(rules.weeklyCelebrationKey(window.fixtureMission))});window.addEventListener('bm:portal-data-refresh',refresh);return()=>window.removeEventListener('bm:portal-data-refresh',refresh);},[]);const hidden=useWeeklyMissionCelebration(mission);return h('main',{},h('button',{id:'outside'},'Inicio'),!hidden&&h('article',{'data-weekly-card':true},'Objetivo semanal'));}
 const params=new URL(location.href).searchParams;const mode=params.get('theme');require('@/lib/appearance').applyAppearance(mode.startsWith('system')?'system':mode);
 require('react-dom/client').createRoot(document.getElementById('root')).render(h(AchievementCelebration,{isHome:true},h(Home)));
@@ -48,7 +61,7 @@ try {
     const page = await open(theme, accent, width, motion);
     assert.equal(await page.getByRole('dialog').count(), 1);
     assert.equal(await page.getByRole('heading', { name: '¡Objetivo semanal completado!' }).count(), 1);
-    const result = await page.locator('dialog').evaluate(e => ({ width: e.getBoundingClientRect().width, height: e.getBoundingClientRect().height, overflow: e.scrollWidth > e.clientWidth, confetti: getComputedStyle(e.querySelector('.bm-celebration-confetti')).display, animation: getComputedStyle(e.querySelector('.bm-celebration-content')).animationName }));
+    const result = await page.locator('dialog').evaluate(e => ({ width: e.getBoundingClientRect().width, height: e.getBoundingClientRect().height, overflow: e.scrollWidth > e.clientWidth, confetti: getComputedStyle(e.querySelector('.bm-celebration-confetti')).display, animation: getComputedStyle(e.querySelector('.bm-celebration-emblem')).animationName }));
     assert.equal(result.width, width); assert.equal(result.height, width === 320 ? 568 : 844); assert.equal(result.overflow, false);
     if (motion === 'reduce') { assert.equal(result.confetti, 'none'); assert.equal(result.animation, 'none'); }
     else assert.notEqual(result.animation, 'none');
@@ -75,11 +88,7 @@ try {
   const page = await open();
   await page.waitForTimeout(2200);
   assert.equal(await page.getByRole('dialog').count(), 1, 'must not auto-dismiss');
-  assert.equal(await page.evaluate(() => window.patches.length), 0, 'must not auto-acknowledge');
-  await page.evaluate(() => window.failNext = true);
-  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-  await page.getByRole('alert').waitFor();
-  assert.equal(await page.locator('[data-weekly-card]').count(), 1);
+  assert.equal(await page.evaluate(() => window.patches.length), 1, 'only one claim before displaying');
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'detached' });
   assert.equal(await page.locator('[data-weekly-card]').count(), 0);
@@ -112,5 +121,5 @@ try {
   assert.equal(await page.getByRole('dialog').count(), 0);
   await page.close();
   assert.deepEqual(errors, []);
-  console.log(`${cases} responsive/theme/motion cases passed. Manual acknowledgement, failure/retry, reload, focus, Home hide/reappear, renewed completion and achievement queue passed.`);
+  console.log(`${cases} responsive/theme/motion cases passed. Claim before display, immediate close, reload, focus, Home hide/reappear, renewed completion and achievement queue passed.`);
 } finally { await browser.close(); }

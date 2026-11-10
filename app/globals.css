@@ -1379,7 +1379,7 @@ html[data-theme="light"] .workspace-brand .portal-ranking-page .portal-ranking-w
   position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; min-height: 100%; width: min(100%, 38rem); margin: auto; text-align: center;
   padding: max(1.75rem, env(safe-area-inset-top)) 1.5rem max(1.5rem, env(safe-area-inset-bottom));
-  animation: bm-celebration-enter 650ms cubic-bezier(.16,1,.3,1) both;
+  animation: bm-celebration-enter 360ms cubic-bezier(.22,.68,.33,1) both;
 }
 .bm-celebration-eyebrow { color: var(--foreground-muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .bm-celebration-eyebrow span { padding: 0 .4rem; color: var(--brand-text); }
@@ -1388,7 +1388,7 @@ html[data-theme="light"] .workspace-brand .portal-ranking-page .portal-ranking-w
   border-radius: 50%; border: 1px solid color-mix(in srgb, var(--bm-accent) 55%, transparent);
   color: var(--brand-text); background: radial-gradient(circle at 40% 28%, var(--bm-accent-soft), transparent), var(--surface-elevated);
   box-shadow: 0 0 70px var(--bm-accent-soft), inset 0 0 28px var(--bm-accent-soft);
-  animation: bm-celebration-emblem 850ms cubic-bezier(.16,1,.3,1) both;
+  animation: bm-celebration-emblem 560ms cubic-bezier(.22,.72,.34,1) both;
 }
 .bm-celebration-orbit { position: absolute; inset: -12px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--bm-accent) 18%, transparent); }
 .bm-celebration-check { position: absolute; bottom: 3px; right: 3px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--bm-accent); color: var(--bm-accent-contrast); border: 3px solid var(--background); }
@@ -1410,12 +1410,21 @@ html[data-theme="light"] .workspace-brand .portal-ranking-page .portal-ranking-w
 .bm-celebration-next { margin-top: .5rem; font-size: .75rem; color: var(--foreground-muted); }
 .bm-celebration-error { margin-bottom: 1rem; color: var(--danger); font-size: .85rem; }
 .bm-celebration-confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
-.bm-celebration-confetti i { position: absolute; left: var(--x); top: -20px; width: 5px; height: 12px; background: var(--bm-accent); opacity: 0; animation: bm-celebration-confetti 2700ms ease-out var(--delay) both; }
+.bm-celebration-confetti i { position: absolute; left: var(--x); top: -20px; width: 5px; height: 12px; background: var(--bm-accent); opacity: 0; animation: bm-celebration-confetti 3200ms cubic-bezier(.38,.24,.64,.8) var(--delay) both; }
 .bm-celebration-confetti i:nth-child(3n) { width: 4px; height: 7px; background: var(--foreground-muted); }
 .bm-celebration-confetti i:nth-child(4n) { border-radius: 50%; width: 5px; height: 5px; }
-@keyframes bm-celebration-enter { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes bm-celebration-emblem { from { opacity: 0; transform: scale(.7) rotate(-12deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
-@keyframes bm-celebration-confetti { 5% { opacity: .85; } 75% { opacity: .6; } 100% { opacity: 0; transform: translate(var(--drift), 95dvh) rotate(var(--spin)); } }
+@keyframes bm-celebration-enter { from { opacity: .88; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bm-celebration-emblem {
+  from { opacity: .45; transform: translateY(-7px) scale(.82) rotate(-8deg); }
+  66% { opacity: 1; transform: translateY(1px) scale(1.025) rotate(1deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+@keyframes bm-celebration-confetti {
+  from { opacity: 0; transform: translate3d(0, 0, 0) rotate(0deg); }
+  10% { opacity: .85; }
+  76% { opacity: .67; }
+  to { opacity: 0; transform: translate3d(var(--drift), 100dvh, 0) rotate(var(--spin)); }
+}
 @media (max-height: 700px) {
   .bm-celebration-emblem { width: 110px; height: 110px; margin: 1.25rem 0; }
   .bm-celebration-emblem > svg { width: 58px; height: 58px; }
@@ -1967,3 +1976,27 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
 .portal-home-personalized > .portal-home-hero { padding-block: 1rem; }
 .portal-home-personalized .portal-home-main-card > section { justify-content: flex-start; }
 .portal-home-personalized .portal-home-main-card .my-5 { margin-block: .75rem; }
+/* Student portal sports motion. */
+[data-impulso="true"] { position: relative; isolation: isolate; animation: none; }
+[data-impulso="true"]::after {
+  content: ""; pointer-events: none; position: absolute; inset: 0; z-index: 4;
+  background: repeating-linear-gradient(121deg, transparent 0 27px, #edbd643b 28px 29px, transparent 31px 47px),
+    linear-gradient(121deg, transparent 36%, #d5a65330 49%, #ffe4a6b0 50%, #c8903835 51%, transparent 61%);
+  mask-image: linear-gradient(#000, transparent 310px);
+  clip-path: inset(0 100% 0 0); animation: sport-impulse 290ms cubic-bezier(.37,.08,.29,1) both;
+}
+@keyframes sport-impulse {
+  0% { clip-path: inset(0 100% 0 0); opacity: 0; }
+  28% { clip-path: inset(0 64% 0 0); opacity: .78; }
+  68% { clip-path: inset(0 4% 0 37%); opacity: .57; }
+  100% { clip-path: inset(0 0 0 100%); opacity: 0; }
+}
+
+.bm-celebration-actions button { transition: transform 155ms cubic-bezier(.21,.65,.32,1); }
+.bm-celebration-actions button:active:not(:disabled) { transform: scale(.982); transition-duration: 75ms; }
+.portal-home-interactive { transition-timing-function: cubic-bezier(.21,.65,.32,1); }
+.portal-home-interactive:active { transition-duration: 75ms; }
+@media (prefers-reduced-motion: reduce) {
+  [data-impulso="true"]::after { display: none; }
+  .bm-celebration-actions button, .bm-celebration-actions button:active:not(:disabled) { transition: none; transform: none; }
+}

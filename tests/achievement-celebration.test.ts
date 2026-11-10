@@ -24,7 +24,7 @@ test("la celebración se confirma de forma persistente y respeta reduced motion"
   const dialog = readFileSync(new URL("../componentes/celebration-dialog.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(route, /data: \{ celebratedAt: new Date\(\) \}/);
-  assert.match(component, /method: "PATCH"/);
+  assert.match(component, /method: "POST"/);
   assert.match(dialog, /showModal\(\)/);
   assert.match(css, /prefers-reduced-motion: reduce[\s\S]*\.bm-celebration-confetti \{ display: none/);
 });
@@ -44,13 +44,13 @@ test("una marca de fuerza conserva un ID estable y datos reales para la celebrac
   assert.match(quickLogAchievements, /newValue:/);
 });
 
-test("fullscreen permanece hasta confirmación manual y procesa un solo elemento", () => {
+test("el diálogo permanece hasta el cierre manual y procesa un solo elemento", () => {
   const dialog = readFileSync(new URL("../componentes/celebration-dialog.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(component, /1540|1780|setPhase/);
   assert.match(component, /queue\[0\]/);
   assert.match(dialog, /Continuar/);
   assert.match(dialog, /onClick=\{onContinue\}/);
-  assert.match(component, /if \(!response.ok\) throw/);
+  assert.match(component, /if \(!response.ok\) return/);
 });
 test("la app abierta y reanudada consulta logros pendientes", () => {
   assert.match(component, /setInterval\(\(\) => void check\(\), 10000\)/);

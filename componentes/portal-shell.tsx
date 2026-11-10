@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import type { StudentServiceType } from "@/types/gestion";
 
 import { StudentNotificationCenter } from "@/componentes/admin-notification-center";
@@ -61,6 +61,15 @@ export function PortalShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const previousPath = useRef(pathname);
+  const main = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const destination = ["/portal/clases", "/portal/rutina", "/portal/puntos", "/portal/progreso"].includes(pathname);
+    if (main.current && previousPath.current === "/portal" && destination) {
+      main.current.dataset.impulso = "true";
+    }
+    previousPath.current = pathname;
+  }, [pathname]);
   useEffect(() => {
     if (!studentId) return;
     return trackPortalHomeScroll(window, `bm:portal-home-scroll:${studentId}`, pathname === "/portal");
@@ -182,7 +191,7 @@ export function PortalShell({
         </nav>
       </PortalHeader>
 
-      <main key={pathname} className={`portal-nav-content ${navigationStyles.enter} mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12`}>
+      <main key={pathname} ref={main} className={`portal-nav-content ${navigationStyles.enter} mx-auto max-w-6xl p-2.5 pb-[calc(var(--portal-bottom-nav-height)+var(--portal-bottom-nav-offset)+var(--portal-bottom-nav-clearance)+env(safe-area-inset-bottom))] sm:p-6 md:pb-12`}>
         {(serviceType === "PERSONALIZED" || serviceType === "MIXED") && <OfflineTrainingBridge />}
         {children}
       </main>
