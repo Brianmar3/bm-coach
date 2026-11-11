@@ -55,3 +55,51 @@
   box-shadow: 0 0 0 2px var(--surface);
 }
 @media (min-width: 768px) { .page { padding-bottom: 0; } }
+
+.photoDialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(28rem, calc(100% - 1rem));
+  max-width: none;
+  max-height: calc(100dvh - 1rem - env(safe-area-inset-top));
+  padding: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  color: var(--foreground);
+  background: var(--surface);
+  overflow: hidden;
+}
+.photoDialog::backdrop { background: #000b; }
+.photoLayout { display: flex; flex-direction: column; max-height: inherit; }
+.photoHeader { flex: none; padding: .8rem 1rem; border-bottom: 1px solid var(--border-soft); }
+.photoHeader h2 { font-size: 1.1rem; font-weight: 800; }
+.photoBody { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; justify-items: center; gap: .85rem; padding: .85rem 1rem; }
+.photoBody p { color: var(--foreground-muted); font-size: .8rem; }
+.photoCanvas { width: min(100%, 14rem); height: auto; aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--bm-accent); touch-action: none; cursor: grab; }
+.photoCanvas:active { cursor: grabbing; }
+.photoZoom { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .8rem; width: min(100%, 18rem); font-size: .85rem; font-weight: 600; }
+.photoZoom input { min-height: 2.75rem; accent-color: var(--bm-accent); }
+.photoReplace, .photoActions button { display: grid; place-items: center; min-height: 2.75rem; padding: .4rem .75rem; border: 1px solid var(--border-soft); border-radius: .7rem; font-size: .85rem; font-weight: 700; cursor: pointer; }
+.photoReplace:focus-within, .photoActions button:focus-visible, .photoCanvas:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 2px; }
+.photoFooter { flex: none; padding: .65rem 1rem max(.65rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--border-soft); background: var(--surface); }
+.photoActions { display: grid; grid-template-columns: 1fr 1.35fr; gap: .5rem; }
+.photoActions button[type="submit"] { background: var(--bm-accent); color: var(--bm-accent-contrast); }
+.photoActions button:disabled { opacity: .55; cursor: default; }
+.photoError { font-size: .8rem; color: var(--danger); margin-bottom: .45rem; }
+
+.avatarSaveDock {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: calc(var(--portal-bottom-nav-height, 4rem) + var(--portal-bottom-nav-offset, .5rem) + .5rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(calc(100% - 1.25rem), 24rem);
+  padding: .35rem;
+  border-radius: .95rem;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+}
+@media (min-width: 768px) {
+  .avatarSaveDock { bottom: 1rem; }
+}
