@@ -4,8 +4,10 @@ import { coachedStudentsWhere } from "@/lib/coached-students";
 import { isSelfService } from "@/lib/self-service";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { recordPlanFrequencyChange } from "@/lib/student-history";
 import { Prisma } from "@prisma/client";
-import { canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
+import { assignedPlan, canonicalPlanName, isPersistentPlanId, plansWithIds, removedAssignedPlan, synchronizedStudentPlan, validateCoachPlans, validatePaymentMethods } from "@/lib/coach-plans";
 import type { CoachSettings, Student } from "@/types/gestion";
 import { normalizeTransferDetails, validateTransferDetails } from "@/lib/transfer-payment";
 import { allowedLogoModes, normalizeAccentColor, normalizeCustomLogoUrl, normalizeLogoMode, normalizeWorkspaceName, resolveWorkspaceBranding } from "@/lib/workspace-branding";
@@ -101,69 +103,84 @@ async function saveCoachSettings(items: Array<{ id: string }>, workspaceId: stri
   if (!logoMode) return Response.json({ error: "El estilo del logo no es válido." }, { status: 400 });
   if (planError || methodError || transferError) return Response.json({ error: planError ?? methodError ?? transferError }, { status: 400 });
 
-  const [currentRecord, studentRecords, brandingPlan] = await Promise.all([
-    prisma.coachSettingsRecord.findFirst({ where: { workspaceId }, orderBy: { updatedAt: "desc" }, select: { id: true, data: true } }),
-    prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true } }),
-    loadWorkspaceBrandingPlan(workspaceId),
-  ]);
-  const current = currentRecord?.data as unknown as CoachSettings | undefined;
-  const currentCustomLogoUrl = normalizeCustomLogoUrl(current?.customLogoUrl);
-  const systemName = brandingPlan === "PREMIUM" ? normalizeWorkspaceName(requested.systemName) : normalizeWorkspaceName(current?.systemName) ?? "BM Training";
-  if (!systemName) return Response.json({ error: "El nombre de tu espacio debe tener entre 1 y 36 caracteres." }, { status: 400 });
-  if (!allowedLogoModes(brandingPlan).includes(logoMode)) return Response.json({ error: `El plan ${brandingPlan} no permite usar el estilo ${logoMode}.` }, { status: 403 });
-  if (normalizeCustomLogoUrl(requested.customLogoUrl) !== currentCustomLogoUrl) return Response.json({ error: "El logo personalizado sólo puede cambiarse mediante la carga segura de archivos." }, { status: 400 });
-  if (logoMode === "CUSTOM" && !currentCustomLogoUrl) return Response.json({ error: "Subí un logo válido antes de activar el estilo personalizado." }, { status: 400 });
-  const requestedPersistentPlans = plansWithIds(requested.plans);
-  const currentPlans = plansWithIds(current?.plans).map((plan, index) => {
-    if (plan.id) return plan;
-    const samePlan = requestedPersistentPlans.find((candidate) =>
-      canonicalPlanName(candidate.name) === canonicalPlanName(plan.name)
-      && Number(candidate.price) === Number(plan.price));
-    return { ...plan, id: samePlan?.id || requestedPersistentPlans[index]?.id || "" };
-  });
-  const nextPlans = requested.plans.map((plan) => ({
-    ...plan,
-    id: isPersistentPlanId(plan.id) ? plan.id.trim() : randomUUID(),
-    name: canonicalPlanName(plan.name),
-  }));
-  const assignedRemoval = removedAssignedPlan(
-    studentRecords.map((record) => record.data as unknown as Student),
-    currentPlans,
-    nextPlans,
-  );
-  if (assignedRemoval) {
-    return Response.json(
-      { error: `No podés quitar “${assignedRemoval.plan.name}” porque está asignado a ${assignedRemoval.student.firstName || "un alumno"} ${assignedRemoval.student.lastName || ""}. Cambiá primero su plan.`.trim() },
-      { status: 409 },
-    );
-  }
+  const brandingPlan = await loadWorkspaceBrandingPlan(workspaceId);
+  try {
+    return await prisma.$transaction(async (transaction) => {
+      const [currentRecord, studentRecords] = await Promise.all([
+        transaction.coachSettingsRecord.findFirst({ where: { workspaceId }, orderBy: { updatedAt: "desc" }, select: { id: true, data: true } }),
+        transaction.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, select: { id: true, data: true } }),
+      ]);
+      const current = currentRecord?.data as unknown as CoachSettings | undefined;
+      const currentCustomLogoUrl = normalizeCustomLogoUrl(current?.customLogoUrl);
+      const systemName = brandingPlan === "PREMIUM" ? normalizeWorkspaceName(requested.systemName) : normalizeWorkspaceName(current?.systemName) ?? "BM Training";
+      if (!systemName) return Response.json({ error: "El nombre de tu espacio debe tener entre 1 y 36 caracteres." }, { status: 400 });
+      if (!allowedLogoModes(brandingPlan).includes(logoMode)) return Response.json({ error: `El plan ${brandingPlan} no permite usar el estilo ${logoMode}.` }, { status: 403 });
+      if (normalizeCustomLogoUrl(requested.customLogoUrl) !== currentCustomLogoUrl) return Response.json({ error: "El logo personalizado sólo puede cambiarse mediante la carga segura de archivos." }, { status: 400 });
+      if (logoMode === "CUSTOM" && !currentCustomLogoUrl) return Response.json({ error: "Subí un logo válido antes de activar el estilo personalizado." }, { status: 400 });
+      const requestedPersistentPlans = plansWithIds(requested.plans);
+      const currentPlans = plansWithIds(current?.plans).map((plan, index) => {
+        if (plan.id) return plan;
+        const samePlan = requestedPersistentPlans.find((candidate) =>
+          canonicalPlanName(candidate.name) === canonicalPlanName(plan.name)
+          && Number(candidate.price) === Number(plan.price));
+        return { ...plan, id: samePlan?.id || requestedPersistentPlans[index]?.id || "" };
+      });
+      const nextPlans = requested.plans.map((plan) => ({
+        ...plan,
+        id: isPersistentPlanId(plan.id) ? plan.id.trim() : randomUUID(),
+        name: canonicalPlanName(plan.name),
+        frequencyDays: plan.frequencyDays === undefined ? currentPlans.find(current => current.id === plan.id)?.frequencyDays : plan.frequencyDays,
+      }));
+      const assignedRemoval = removedAssignedPlan(
+        studentRecords.map((record) => record.data as unknown as Student),
+        currentPlans,
+        nextPlans,
+      );
+      if (assignedRemoval) {
+        return Response.json(
+          { error: `No podés quitar “${assignedRemoval.plan.name}” porque está asignado a ${assignedRemoval.student.firstName || "un alumno"} ${assignedRemoval.student.lastName || ""}. Cambiá primero su plan.`.trim() },
+          { status: 409 },
+        );
+      }
 
-  const { brandingPlan: _brandingPlan, displayName: _displayName, ...persistedRequested } = requested as CoachSettings & { displayName?: string };
-  void _brandingPlan;
-  void _displayName;
-  const settings: CoachSettings = {
-    ...persistedRequested,
-    accentColor,
-    logoMode,
-    customLogoUrl: currentCustomLogoUrl,
-    systemName,
-    plans: nextPlans,
-    paymentMethods: requested.paymentMethods.map((method) => method.trim()),
-    transferDetails: normalizeTransferDetails(requested.transferDetails),
-  };
-  const studentUpdates = studentRecords.flatMap((record) => {
-    const student = record.data as unknown as Student;
-    const updated = synchronizedStudentPlan(student, currentPlans, nextPlans);
-    if (updated.planId === student.planId && updated.plan === student.plan && updated.monthlyFee === student.monthlyFee) return [];
-    return [prisma.studentRecord.update({
-      where: { id: record.id },
-      data: { data: { ...(record.data as Prisma.JsonObject), planId: updated.planId ?? "", plan: updated.plan, monthlyFee: updated.monthlyFee } },
-    })];
-  });
-  await prisma.$transaction([
-    ...studentUpdates,
-    prisma.coachSettingsRecord.deleteMany({ where: { workspaceId } }),
-    prisma.coachSettingsRecord.create({ data: { id: currentRecord?.id ?? `settings-${workspaceId}`, workspaceId, data: settings as unknown as Prisma.InputJsonObject } }),
-  ]);
-  return Response.json({ ok: true, settings: { ...settings, brandingPlan } });
+      const { brandingPlan: _brandingPlan, displayName: _displayName, ...persistedRequested } = requested as CoachSettings & { displayName?: string };
+      void _brandingPlan;
+      void _displayName;
+      const settings: CoachSettings = {
+        ...persistedRequested,
+        accentColor,
+        logoMode,
+        customLogoUrl: currentCustomLogoUrl,
+        systemName,
+        plans: nextPlans,
+        paymentMethods: requested.paymentMethods.map((method) => method.trim()),
+        transferDetails: normalizeTransferDetails(requested.transferDetails),
+      };
+      const effectiveDate = dateKeyToDatabase(argentinaDateKey());
+      const studentUpdates = studentRecords.map(async (record) => {
+        const student = record.data as unknown as Student;
+        const updated = synchronizedStudentPlan(student, currentPlans, nextPlans);
+
+        const previous = assignedPlan(student, currentPlans);
+        const next = previous && assignedPlan(updated, nextPlans);
+        if (next?.frequencyDays !== undefined && next.frequencyDays !== (previous?.frequencyDays ?? null)) {
+          await recordPlanFrequencyChange(transaction, record.id, previous?.frequencyDays ?? null, next.frequencyDays, effectiveDate);
+        }
+        if (updated.planId === student.planId && updated.plan === student.plan && updated.monthlyFee === student.monthlyFee) return;
+        await transaction.studentRecord.update({
+          where: { id: record.id, workspaceId },
+          data: { data: { ...(record.data as Prisma.JsonObject), planId: updated.planId ?? "", plan: updated.plan, monthlyFee: updated.monthlyFee } },
+        });
+      });
+      await Promise.all(studentUpdates);
+      await transaction.coachSettingsRecord.deleteMany({ where: { workspaceId } });
+      await transaction.coachSettingsRecord.create({ data: { id: currentRecord?.id ?? `settings-${workspaceId}`, workspaceId, data: settings as unknown as Prisma.InputJsonObject } });
+      return Response.json({ ok: true, settings: { ...settings, brandingPlan } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30_000 });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return Response.json({ error: "La configuración cambió mientras guardabas. Volvé a cargar e intentá otra vez." }, { status: 409 });
+    }
+    throw error;
+  }
 }

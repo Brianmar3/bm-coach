@@ -1,7 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@prisma/client";
-import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { normalizePlanName } from "@/lib/coach-plans";
 import { membershipConfigurationChanged } from "@/lib/monthly-calculations";
 import type { ParsedStudentInput } from "@/lib/student-enrollment";
@@ -125,4 +125,44 @@ export async function recordStudentDeactivation(
       data: { studentId, type: "DEACTIVATION", eventDate: effectiveDate, actor: HISTORY_ACTOR },
     }),
   ]);
+}
+
+export async function recordPlanFrequencyChange(
+  transaction: Prisma.TransactionClient,
+  studentId: string,
+  previousFrequency: number | null,
+  frequencyDays: number | null,
+  effectiveDate: Date,
+) {
+  const membership = await transaction.studentMembershipHistory.findFirst({
+    where: { studentId, endDate: null },
+    orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
+    select: { id: true, startDate: true, frequencyDays: true, planName: true, serviceType: true, monthlyAmount: true, status: true },
+  });
+  // Preserve a different frequency already agreed for this individual membership.
+  if (!membership || membership.frequencyDays !== previousFrequency) return;
+  const membershipStart = databaseDateKey(membership.startDate);
+  const effectiveDay = databaseDateKey(effectiveDate);
+  if (membershipStart > effectiveDay) return;
+
+  if (membershipStart === effectiveDay) {
+    await transaction.studentMembershipHistory.update({ where: { id: membership.id }, data: { frequencyDays } });
+    return;
+  }
+
+  await transaction.studentMembershipHistory.update({
+    where: { id: membership.id },
+    data: { endDate: effectiveDate, endReason: "Cambio de frecuencia del plan" },
+  });
+  await transaction.studentMembershipHistory.create({
+    data: {
+      studentId,
+      startDate: effectiveDate,
+      planName: membership.planName,
+      frequencyDays,
+      serviceType: membership.serviceType,
+      monthlyAmount: membership.monthlyAmount,
+      status: membership.status,
+    },
+  });
 }

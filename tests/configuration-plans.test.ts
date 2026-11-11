@@ -125,3 +125,16 @@ test("un alumno legacy se resuelve por nombre canónico y precio sin enviar id s
   assert.equal(payload.planId, "");
   assert.equal("selectionKey" in payload, false);
 });
+
+test("la frecuencia del plan es explícita y el precio cero es válido", () => {
+  const plans: CoachSettings["plans"] = [
+    { id: "fixed", name: "Plan fijo sin número", price: 0, frequencyDays: 4 },
+    { id: "flexible", name: "5 días por semana", price: 0, frequencyDays: null },
+    { id: "legacy", name: "2 días por semana", price: 30000 },
+  ];
+  assert.equal(validateCoachPlans(plans), null);
+  const options = studentPlanOptions(settings(plans));
+  assert.equal(options.find(plan => plan.persistentId === "fixed")?.frequencyDays, 4);
+  assert.equal(options.find(plan => plan.persistentId === "flexible")?.frequencyDays, null);
+  assert.equal(options.find(plan => plan.persistentId === "legacy")?.frequencyDays, undefined);
+});

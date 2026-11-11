@@ -58,7 +58,7 @@ export type Student = {
 };
 
 export type StudentPlanOption = {
-  frequencyDays?: 2 | 3 | 4 | 5;
+  frequencyDays?: 2 | 3 | 4 | 5 | null;
   /** Stable selector identity; it is never persisted as Student.planId. */
   id: string;
   /** Real identity stored in configuration, or empty for legacy plans. */
@@ -73,7 +73,7 @@ export type StudentPlanOption = {
 };
 
 export type CoachPlan = {
-  frequencyDays?: 2 | 3 | 4 | 5;
+  frequencyDays?: 2 | 3 | 4 | 5 | null;
   id?: string;
   name: string;
   price: number;

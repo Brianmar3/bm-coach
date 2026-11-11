@@ -92,7 +92,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
   };
 }
 
-export type ParsedStudentInput = Omit<Student, "id" | "scheduleLabel" | "scheduleLabels"> & { frequencyDays?: 2 | 3 | 4 | 5; scheduleId: string; scheduleIds: string[]; flexibleSchedule: string };
+export type ParsedStudentInput = Omit<Student, "id" | "scheduleLabel" | "scheduleLabels"> & { frequencyDays?: 2 | 3 | 4 | 5 | null; scheduleId: string; scheduleIds: string[]; flexibleSchedule: string };
 
 export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): { data: ParsedStudentInput; error: null } | { data: null; error: string } {
   if (!value || typeof value !== "object") return { data: null, error: "Los datos del alumno no son válidos." };
