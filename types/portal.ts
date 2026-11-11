@@ -130,6 +130,7 @@ export type PortalData = {
   weeklyWorkouts: number;
   pendingResponses: number;
   home: {
+    sportsPoints?: boolean;
     mode: "PRESENCIAL" | "RUTINA_PERSONALIZADA" | "ENTRENAMIENTO_EN_CASA" | "MIXTO" | "SIN_DEFINIR";
     hasClassParticipation: boolean;
     activityStats?: { streakDays: number; workoutsThisMonth: number };

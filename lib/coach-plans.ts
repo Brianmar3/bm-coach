@@ -56,6 +56,7 @@ export function validateCoachPlans(plans: CoachPlan[]) {
     const persistentId = planId(plan);
     if (persistentId && ids.has(persistentId)) return "Hay planes con identificadores repetidos. Volvé a cargar la página e intentá otra vez.";
     if (persistentId) ids.add(persistentId);
+    if (plan.frequencyDays !== undefined && ![2, 3, 4, 5].includes(plan.frequencyDays)) return "La frecuencia semanal debe ser de 2, 3, 4 o 5 días.";
     if (!Number.isFinite(plan.price) || plan.price < 0) return `El precio de “${plan.name.trim()}” no puede ser negativo.`;
   }
   return null;
@@ -80,6 +81,7 @@ export function studentPlanOptions(settings: CoachSettings | undefined): Student
       days: planSelectionKey(plan),
       name,
       price: Number(plan.price),
+      ...(plan.frequencyDays === undefined ? {} : { frequencyDays: plan.frequencyDays }),
       configured: true as const,
     };
     const key = normalizePlanName(name);

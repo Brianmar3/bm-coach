@@ -1,5 +1,7 @@
 import "server-only";
 
+import { activeSportsPointStart } from "@/lib/sports-point-policy";
+import { loadSportsWeeklyMission } from "@/lib/sports-point-data";
 import { Prisma } from "@prisma/client";
 import { loadPortalAttendanceRange } from "@/lib/portal-attendance-data";
 import { argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
@@ -174,6 +176,8 @@ export async function reconcileWeeklyMissionForDate(studentId: string, reference
 }
 
 export async function loadCurrentWeeklyMission(studentId: string, referenceDate = argentinaDateKey()): Promise<WeeklyMissionView | null> {
+  const start = activeSportsPointStart(referenceDate);
+  if (start) return loadSportsWeeklyMission(studentId, start, referenceDate);
   const mission = await resolveCurrentWeeklyMission(studentId, referenceDate);
   if (!mission || mission.state === "EXPIRED") return null;
   return getWeeklyMissionProgress({

@@ -208,7 +208,7 @@ function PortalOverview({ data }: { data: PortalData }) {
       </div>
     </PortalHeroFrame>
     <PortalEventAnnouncement events={data.events} studentId={data.profile.id} />
-    {groupClassesEnabled && !weeklyCelebrated && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
+    {(groupClassesEnabled || data.home.sportsPoints) && !weeklyCelebrated && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
     <div className="portal-home-main-card portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
     {routineFocused && <HomeLoadEvolution sessions={data.workoutSessions} />}
     <HomeQuickStats data={data} />
@@ -292,7 +292,7 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
   const animatedProgress = useHomeAnimatedValue(mission.progress, 620);
   const animatedPercentage = useHomeAnimatedValue(mission.percentage, 620);
   const stateLabel = completed ? "Cumplido" : expired ? "Vencida" : "Activa";
-  const remainingMessage = completed
+  const remainingMessage = !mission.pointsPerSession ? mission.message : completed
     ? `Objetivo semanal completado · +${mission.completionBonus} pts`
     : expired
       ? "La semana finalizó."
@@ -318,16 +318,16 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
       <span aria-hidden="true" className={`portal-home-objective-icon grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-[var(--brand-text)]"}`}>{completed ? <BmCheckIcon size={22} className="portal-home-objective-check" /> : <BmMedalIcon size={22} />}</span>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[var(--brand-text)] sm:text-[11px]">Objetivo semanal</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${completed ? "border-emerald-400/25 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-[var(--foreground-muted)]" : "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300"}`}>{stateLabel}</span></div>
-        <h2 className="mt-1 text-sm font-bold leading-snug text-zinc-100 sm:text-base">{Math.round(animatedProgress)} de {mission.target} clases completadas</h2>
+        <h2 className="mt-1 text-sm font-bold leading-snug text-zinc-100 sm:text-base">{Math.round(animatedProgress)} de {mission.target} {mission.pointsPerSession ? "clases completadas" : "entrenamientos completados"}</h2>
       </div>
       <strong className={`text-lg font-black tabular-nums sm:text-xl ${completed ? "text-emerald-300" : "text-[var(--brand-text)]"}`}>{Math.round(animatedPercentage)}%</strong>
     </div>
-    <div className="mt-2"><div role="progressbar" aria-label="Progreso del objetivo semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)} className="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={`portal-home-objective-progress h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${animatedPercentage}%` }} /></div><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px] leading-snug text-[var(--foreground-muted)] sm:text-xs"><span>{remainingMessage}</span><span>+{mission.pointsPerSession} por clase · +{mission.completionBonus} bonus</span></div></div>
+    <div className="mt-2"><div role="progressbar" aria-label="Progreso del objetivo semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)} className="h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={`portal-home-objective-progress h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${animatedPercentage}%` }} /></div><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px] leading-snug text-[var(--foreground-muted)] sm:text-xs"><span>{remainingMessage}</span><span>{mission.pointsPerSession > 0 && <>+{mission.pointsPerSession} por clase · </>}+{mission.completionBonus} bonus</span></div></div>
   </section>;
 }
 
 function HomeQuickStats({ data }: { data: PortalData }) {
-  const competitive = isCompetitiveGamificationEligible(data.profile.serviceType);
+  const competitive = data.home.sportsPoints || isCompetitiveGamificationEligible(data.profile.serviceType);
   const account = data.paymentAccount;
   const weekStart = new Date(`${argentinaDateKey()}T12:00:00.000Z`);
   weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
@@ -368,7 +368,7 @@ function WeeklyMissionAchievement({ data }: { data: PortalData }) {
   const expired = mission.state === "EXPIRED";
   const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";
   return <section data-state={mission.state} className={`portal-points-enter sports-weekly relative overflow-hidden rounded-[22px] border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] [--points-delay:220ms] sm:p-5 ${completed ? "border-emerald-400/20 bg-[linear-gradient(145deg,#151816,#090909)]" : "border-white/[.08] bg-[linear-gradient(145deg,#151515,#090909)]"}`}>
-    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-[var(--foreground-muted)]" : "border-yellow-400/20 bg-yellow-400/[.06] text-[var(--brand-text)]"}`}>{stateLabel}</span></div><h2 className="mt-2 flex items-center gap-2 text-sm font-black leading-snug text-white sm:text-base">{completed ? <BmTrophyIcon size={20} className="shrink-0 text-emerald-300" /> : <BmMedalIcon size={20} className="shrink-0 text-[var(--brand-text)]" />}{mission.title}</h2></div><div className="shrink-0 text-right text-[11px] leading-relaxed text-[var(--foreground-muted)]"><p className="font-bold uppercase tracking-[.12em] text-[var(--brand-text)]">Recompensa</p><p>+{mission.pointsPerSession} por entrenamiento</p><p>+{mission.completionBonus} bonus semanal</p><p className="mt-0.5 font-bold text-[var(--brand-text)]">Máximo +{mission.maximumReward} pts</p></div></div>
+    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-[var(--foreground-muted)]" : "border-yellow-400/20 bg-yellow-400/[.06] text-[var(--brand-text)]"}`}>{stateLabel}</span></div><h2 className="mt-2 flex items-center gap-2 text-sm font-black leading-snug text-white sm:text-base">{completed ? <BmTrophyIcon size={20} className="shrink-0 text-emerald-300" /> : <BmMedalIcon size={20} className="shrink-0 text-[var(--brand-text)]" />}{mission.title}</h2></div><div className="shrink-0 text-right text-[11px] leading-relaxed text-[var(--foreground-muted)]"><p className="font-bold uppercase tracking-[.12em] text-[var(--brand-text)]">Recompensa</p>{mission.pointsPerSession > 0 && <p>+{mission.pointsPerSession} por entrenamiento</p>}<p>+{mission.completionBonus} bonus semanal</p><p className="mt-0.5 font-bold text-[var(--brand-text)]">Máximo +{mission.maximumReward} pts</p></div></div>
     <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-[var(--foreground-muted)]">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-[var(--foreground-muted)]"}`}>{completed ? `+${mission.maximumReward} pts obtenidos` : mission.message}</p></div>
     <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-label="Progreso de la misión semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)}><div className={`portal-points-progress h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div>
   </section>;
@@ -401,7 +401,7 @@ function PointsSummary({ data, ranking }: { data: PortalData; ranking: PointsRan
 }
 
 function PointsAndAchievementsView({ data }: { data: PortalData }) {
-  const competitive = isCompetitiveGamificationEligible(data.profile.serviceType);
+  const competitive = data.home.sportsPoints || isCompetitiveGamificationEligible(data.profile.serviceType);
   const [ranking, setRanking] = useState<PointsRankingPreview | null>(null);
   useEffect(() => {
     const controller = new AbortController();

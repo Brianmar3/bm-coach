@@ -1,3 +1,4 @@
+import { activeSportsPointStart } from "@/lib/sports-point-policy";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession } from "@/lib/portal-auth";
 import { requireAdminApiResponse } from "@/lib/admin-api-auth";
@@ -35,10 +36,14 @@ export async function GET(_request: Request, context: Context) {
     if (kind === "progress" && !photo) return unavailable();
     const student = await prisma.studentRecord.findUnique({ where: { id: photo?.quickLog.studentId ?? id }, select: { id: true, workspaceId: true, data: true } });
     if (!student || student.workspaceId !== actor.workspaceId) return unavailable();
+    if (kind === "ranking" && (student.data as { rankingParticipation?: boolean }).rankingParticipation === false) return unavailable();
     let rankingVisible = false;
-    if (kind === "ranking" && session && actor.type === "student" && !actor.selfService && isCompetitiveGamificationEligible(session.credential.student.serviceType)) {
+    if (kind === "ranking" && session && actor.type === "student" && !actor.selfService && (activeSportsPointStart() || isCompetitiveGamificationEligible(session.credential.student.serviceType))) {
       const ranking = await loadPointRanking("month", actor.workspaceId);
-      rankingVisible = ranking.some(entry => entry.studentId === session.studentId) && ranking.some(entry => entry.studentId === student.id);
+      const viewer = session.credential.student.data as { rankingParticipation?: boolean; status?: string };
+      const canViewRanking = ranking.some(entry => entry.studentId === session.studentId) ||
+        (viewer.rankingParticipation === false && viewer.status !== "inactivo");
+      rankingVisible = canViewRanking && ranking.some(entry => entry.studentId === student.id);
     }
     const mediaKind = kind as "profile" | "ranking" | "progress";
     if (!canReadStudentMedia(actor, { ...student, selfService: isSelfService(student.data) }, mediaKind, rankingVisible)) return unavailable();

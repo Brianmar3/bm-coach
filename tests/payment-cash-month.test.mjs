@@ -141,7 +141,7 @@ test("API real en memoria: fecha manual independiente de cuota y corrección ind
     "@/lib/prisma": { prisma: { $transaction: async callback => callback(transaction) } },
     "@/lib/trainer-workspace": { requireTrainerWorkspace: async () => ({ workspaceId: "bm" }), assertStudentInWorkspace: async (id, workspace) => { assert.equal(id, "a"); assert.equal(workspace, "bm"); } },
     "@/lib/payments": { ...f.payments, paymentDashboard: async () => ({ asOf: "2026-11-03" }) },
-    "@/lib/payment-notifications": { persistPaymentConfirmation: async () => {}, sendPaymentConfirmationPush: async () => {} },
+    "@/lib/payment-notifications": { persistPaymentConfirmation: async () => {}, reconcilePaymentPoints: async () => {}, sendPaymentConfirmationPush: async () => {} },
   });
   const POST = local("app/api/pagos/route.ts").POST;
   const response = await POST(new Request("https://bm.test/api/pagos", { method: "POST", body: JSON.stringify({ studentId: "a", amount: 30000, paidDate: "2026-10-31", billingPeriod: "2026-11-01", nextDueDate: "2026-12-01", method: "Transferencia", notes: "Original" }) }));

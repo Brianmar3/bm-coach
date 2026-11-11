@@ -1,4 +1,6 @@
+import { activeSportsPointStart } from "@/lib/sports-point-policy";
 import { getPortalSession } from "@/lib/portal-auth";
+import { loadStudentPointSummary } from "@/lib/student-points";
 import { loadPointRanking } from "@/lib/point-ranking";
 import { isCompetitiveGamificationEligible } from "@/lib/student-service";
 
@@ -6,7 +8,7 @@ export async function GET() {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión no válida." }, { status: 401 });
   if (session.credential.mustChangePassword) return Response.json({ error: "Debés cambiar tu contraseña temporal." }, { status: 403 });
-  if (!isCompetitiveGamificationEligible(session.credential.student.serviceType)) return Response.json({ redirectTo: "/portal/progreso" }, { status: 403 });
+  if ((!activeSportsPointStart() && !isCompetitiveGamificationEligible(session.credential.student.serviceType))) return Response.json({ redirectTo: "/portal/progreso" }, { status: 403 });
 
   const workspaceId = session.credential.student.workspaceId;
   if (!workspaceId) return Response.json({ error: "Workspace pendiente de configurar." }, { status: 403 });
@@ -16,12 +18,14 @@ export async function GET() {
     period: "month",
     currentStudentId: session.studentId,
     currentPosition: currentIndex >= 0 ? currentIndex + 1 : null,
-    currentPoints: currentIndex >= 0 ? ranking[currentIndex].total : 0,
+    currentPoints: currentIndex >= 0 ? ranking[currentIndex].total
+      : (session.credential.student.data as { rankingParticipation?: boolean }).rankingParticipation === false
+        ? (await loadStudentPointSummary(session.studentId)).monthlyTotal : 0,
     ranking: ranking.map(({ studentId, studentName, profileImageUrl, total }) => ({
       studentId,
       studentName,
       profileImageUrl,
       total,
     })),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

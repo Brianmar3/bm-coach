@@ -16,6 +16,7 @@ import {
 } from "@/lib/payment-notification-rules";
 import { sendStudentPush } from "@/lib/push-notifications";
 import type { Student } from "@/types/gestion";
+import { activeSportsPointStart } from "@/lib/sports-point-policy";
 import { isCompetitiveGamificationEligible } from "@/lib/student-service";
 
 const PAYMENT_PORTAL_URL = "/portal/pagos";
@@ -45,13 +46,47 @@ function isUniqueConflict(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
+function hasPositivePaymentAmount(amount: StudentPayment["amount"]) {
+  const value = Number(amount);
+  return Number.isFinite(value) && value > 0;
+}
+
+export async function reconcilePaymentPoints(
+  transaction: Prisma.TransactionClient,
+  payment: Pick<StudentPayment, "id" | "studentId" | "paidDate" | "dueDate" | "amount"> & Partial<Pick<StudentPayment, "status">>,
+) {
+  if (activeSportsPointStart()) {
+    await transaction.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${"sports-points:" + payment.studentId})::bigint)`);
+  }
+  const eventKey = onTimePaymentPointEventKey(payment.id);
+  const student = await transaction.studentRecord.findUnique({ where: { id: payment.studentId }, select: { serviceType: true } });
+  if ((payment.status && payment.status !== "PAGADO") || !payment.paidDate ||
+      !paymentWasOnTime(payment.paidDate, payment.dueDate) || !hasPositivePaymentAmount(payment.amount) || !student || !isCompetitiveGamificationEligible(student.serviceType)) {
+    await transaction.studentPointTransaction.updateMany({
+      where: { studentId: payment.studentId, eventKey, sourceType: "PAYMENT", active: true },
+      data: { active: false, invalidatedAt: new Date() },
+    });
+    return false;
+  }
+
+  const occurredAt = new Date(databaseDateKey(payment.paidDate) + "T12:00:00Z");
+  await transaction.studentPointTransaction.upsert({
+    where: { studentId_eventKey: { studentId: payment.studentId, eventKey } },
+    create: {
+      studentId: payment.studentId, eventKey, eventType: "PAYMENT", sourceType: "PAYMENT", sourceId: payment.id,
+      points: ON_TIME_PAYMENT_POINTS, description: "Pago de cuota registrado en término", occurredAt, notifiedAt: new Date(),
+    },
+    update: { occurredAt, active: true, invalidatedAt: null },
+  });
+  return true;
+}
+
 export async function persistPaymentConfirmation(
   transaction: Prisma.TransactionClient,
-  payment: Pick<StudentPayment, "id" | "studentId" | "paidDate" | "dueDate">,
+  payment: Pick<StudentPayment, "id" | "studentId" | "paidDate" | "dueDate" | "amount">,
 ) {
-  const student = await transaction.studentRecord.findUnique({ where: { id: payment.studentId }, select: { serviceType: true } });
   const onTime = Boolean(payment.paidDate && paymentWasOnTime(payment.paidDate, payment.dueDate));
-  const awardsPoints = onTime && Boolean(student && isCompetitiveGamificationEligible(student.serviceType));
+  const awardsPoints = await reconcilePaymentPoints(transaction, payment);
   const message = awardsPoints
     ? `Tu pago fue cargado correctamente. Sumaste +${ON_TIME_PAYMENT_POINTS} puntos por pagar en término.`
     : "Tu pago fue cargado correctamente.";
@@ -67,40 +102,18 @@ export async function persistPaymentConfirmation(
     },
     update: {},
   });
-  if (awardsPoints && payment.paidDate) {
-    await transaction.studentPointTransaction.upsert({
-      where: {
-        studentId_eventKey: {
-          studentId: payment.studentId,
-          eventKey: onTimePaymentPointEventKey(payment.id),
-        },
-      },
-      create: {
-        studentId: payment.studentId,
-        eventKey: onTimePaymentPointEventKey(payment.id),
-        eventType: "PAYMENT",
-        sourceType: "PAYMENT",
-        sourceId: payment.id,
-        points: ON_TIME_PAYMENT_POINTS,
-        description: "Pago de cuota registrado en término",
-        occurredAt: payment.paidDate,
-        notifiedAt: new Date(),
-      },
-      update: { active: true, invalidatedAt: null },
-    });
-  }
   await resolveStudentPaymentReminders(transaction, payment.studentId);
   return { onTime, awardsPoints, message };
 }
 
 export async function sendPaymentConfirmationPush(
-  payment: Pick<StudentPayment, "id" | "studentId" | "paidDate" | "dueDate">,
+  payment: Pick<StudentPayment, "id" | "studentId" | "paidDate" | "dueDate" | "amount">,
 ) {
   const [student, onTime] = await Promise.all([
     prisma.studentRecord.findUnique({ where: { id: payment.studentId }, select: { serviceType: true } }),
     Promise.resolve(Boolean(payment.paidDate && paymentWasOnTime(payment.paidDate, payment.dueDate))),
   ]);
-  const body = onTime && student && isCompetitiveGamificationEligible(student.serviceType)
+  const body = onTime && hasPositivePaymentAmount(payment.amount) && student && isCompetitiveGamificationEligible(student.serviceType)
     ? `Tu pago fue cargado correctamente. Sumaste +${ON_TIME_PAYMENT_POINTS} puntos por pagar en término.`
     : "Tu pago fue cargado correctamente.";
   await sendStudentPush(payment.studentId, {

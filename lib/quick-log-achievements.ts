@@ -254,9 +254,11 @@ function numericSummary(item: {
 
 export async function loadQuickLogAchievements(
   studentId: string,
+  transaction?: DbClient,
 ): Promise<PortalAchievement[]> {
+  const db = transaction ?? prisma;
   let [items, count] = await Promise.all([
-    prisma.quickLogAchievement.findMany({
+    db.quickLogAchievement.findMany({
       where: { studentId },
       orderBy: [{ unlockedAt: "desc" }, { createdAt: "desc" }],
       include: {
@@ -265,7 +267,7 @@ export async function loadQuickLogAchievements(
         },
       },
     }),
-    prisma.quickLog.count({
+    db.quickLog.count({
       where: {
         studentId,
         type: "PROGRESS",
@@ -276,7 +278,7 @@ export async function loadQuickLogAchievements(
       },
     }),
   ]);
-  if (count > 0 && items.length === 0) {
+  if (!transaction && count > 0 && items.length === 0) {
     await prisma.$transaction(
       (transaction) =>
         recalculateQuickLogAchievements(transaction, studentId),
@@ -284,7 +286,7 @@ export async function loadQuickLogAchievements(
     ).catch((error) => {
       console.error("No se pudo reconstruir los logros de registros", error);
     });
-    items = await prisma.quickLogAchievement.findMany({
+    items = await db.quickLogAchievement.findMany({
       where: { studentId },
       orderBy: [{ unlockedAt: "desc" }, { createdAt: "desc" }],
       include: {
@@ -304,7 +306,7 @@ export async function loadQuickLogAchievements(
         skipDuplicates: true,
       });
     }
-    count = await prisma.quickLog.count({
+    count = await db.quickLog.count({
       where: {
         studentId,
         type: "PROGRESS",

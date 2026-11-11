@@ -11,14 +11,16 @@ export const POINT_RULES = {
 
 export type ValidPointEvent = {
   eventKey: string;
-  eventType: "ATTENDANCE" | "RECORD" | "WEEKLY_MISSION" | "PAYMENT";
+  eventType: "ATTENDANCE" | "RECORD" | "WEEKLY_MISSION" | "PAYMENT" | "ACHIEVEMENT";
   sourceType:
     | "CLASS_OCCURRENCE_ATTENDANCE"
     | "LEGACY_ATTENDANCE"
     | "QUICK_LOG"
+    | "CLASS_WORKOUT_LOG"
     | "WORKOUT_SESSION"
     | "WEEKLY_MISSION"
-    | "PAYMENT";
+    | "PAYMENT"
+    | "ACHIEVEMENT";
   sourceId: string;
   points: number;
   description: string;

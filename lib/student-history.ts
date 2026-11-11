@@ -2,8 +2,9 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { normalizePlanName } from "@/lib/coach-plans";
 import { membershipConfigurationChanged } from "@/lib/monthly-calculations";
-import { planDays, type ParsedStudentInput } from "@/lib/student-enrollment";
+import type { ParsedStudentInput } from "@/lib/student-enrollment";
 import type { Student } from "@/types/gestion";
 
 const HISTORY_ACTOR = "coach";
@@ -21,7 +22,7 @@ function currentStudentStatus(current: Partial<Student>) {
 function membershipValues(input: ParsedStudentInput) {
   return {
     planName: input.plan,
-    frequencyDays: planDays(input.plan),
+    frequencyDays: input.frequencyDays ?? null,
     serviceType: input.serviceType,
     monthlyAmount: Number.isFinite(input.monthlyFee) && input.monthlyFee > 0 ? input.monthlyFee : null,
     status: membershipStatus(input.status),
@@ -60,12 +61,20 @@ export async function recordStudentHistoryChange(
   );
 
   if (membershipChanged) {
+    const samePlan = currentServiceType === input.serviceType && (current.planId && input.planId
+      ? current.planId === input.planId
+      : normalizePlanName(current.plan ?? "") === normalizePlanName(input.plan));
+    const openMembership = samePlan ? await transaction.studentMembershipHistory.findFirst({
+      where: { studentId, endDate: null, serviceType: currentServiceType },
+      orderBy: { startDate: "desc" }, select: { frequencyDays: true },
+    }) : null;
     await transaction.studentMembershipHistory.updateMany({
       where: { studentId, endDate: null },
       data: { endDate: effectiveDate, endReason: "Cambio registrado desde la ficha del alumno" },
     });
     await transaction.studentMembershipHistory.create({
-      data: { studentId, startDate: effectiveDate, ...membershipValues(input) },
+      data: { studentId, startDate: effectiveDate, ...membershipValues(input),
+        frequencyDays: openMembership ? openMembership.frequencyDays : input.frequencyDays ?? null },
     });
   }
 
@@ -106,7 +115,7 @@ export async function recordStudentDeactivation(
         studentId,
         startDate: effectiveDate,
         planName: current.plan ?? "Sin plan",
-        frequencyDays: planDays(current.plan ?? ""),
+        frequencyDays: null,
         serviceType: currentServiceType,
         monthlyAmount: Number(current.monthlyFee ?? 0) > 0 ? Number(current.monthlyFee) : null,
         status: "INACTIVE",

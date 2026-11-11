@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { databaseDateKey, dateKeyToDatabase, isDateKey } from "@/lib/payment-dates";
 import { PAYMENT_METHODS, paymentDashboard, serializePayment, storedStudent } from "@/lib/payments";
 
+import { reconcilePaymentPoints } from "@/lib/payment-notifications";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -58,7 +60,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/pagos/[i
         select: { id: true },
       });
       if (duplicate) throw new Error("DUPLICATE_PAYMENT");
-      return transaction.studentPayment.update({
+      const updated = await transaction.studentPayment.update({
         where: { id, student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } },
         data: {
           amount: input.amount,
@@ -69,6 +71,10 @@ export async function PUT(request: Request, context: RouteContext<"/api/pagos/[i
         },
         include: { student: true },
       });
+      if (!existing.paidDate || databaseDateKey(existing.paidDate) !== input.paidDate) {
+        await reconcilePaymentPoints(transaction, updated);
+      }
+      return updated;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return Response.json({ payment: serializePayment(record), dashboard: await paymentDashboard() });
   } catch (error) {
@@ -93,7 +99,10 @@ export async function PATCH(request: Request, context: RouteContext<"/api/pagos/
     const result = await prisma.$transaction(async (transaction) => {
       const existing = await transaction.studentPayment.findUnique({ where: { id, student: { workspaceId: (await requireTrainerWorkspace()).workspaceId } }, include: { student: true } });
       if (!existing) throw new Error("NOT_FOUND");
-      if (existing.status === "ANULADO") return { record: existing, warning: null };
+      if (existing.status === "ANULADO") {
+        await reconcilePaymentPoints(transaction, existing);
+        return { record: existing, warning: null };
+      }
       let warning: string | null = null;
 
       const laterValidPayment = await transaction.studentPayment.findFirst({
@@ -128,6 +137,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/pagos/
         data: { status: "ANULADO", voidedAt: new Date(), voidReason },
         include: { student: true },
       });
+      await reconcilePaymentPoints(transaction, record);
       return { record, warning };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return Response.json({ payment: serializePayment(result.record), dashboard: await paymentDashboard(), warning: result.warning });

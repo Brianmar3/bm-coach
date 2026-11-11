@@ -11,6 +11,7 @@ test("anular un pago viejo no revierte el vencimiento establecido por otro pago 
   const second = { ...first, id: "second", createdAt: new Date("2026-10-09T11:00:00Z") };
   for (const laterExists of [true, false]) {
     let dueDateWrites = 0;
+    let reconciled = false;
     const tx = {
       studentPayment: {
         findUnique: async () => first,
@@ -26,6 +27,7 @@ test("anular un pago viejo no revierte el vencimiento establecido por otro pago 
     const deps: Record<string, unknown> = {
       "@prisma/client": { Prisma }, "@/lib/prisma": { prisma: { $transaction: async (run: (value: unknown) => Promise<unknown>) => run(tx) } },
       "@/lib/trainer-workspace": { requireTrainerWorkspace: async () => ({ workspaceId: "wa" }) }, "@/lib/payment-dates": dates,
+      "@/lib/payment-notifications": { reconcilePaymentPoints: async (_tx: unknown, payment: { status: string }) => { reconciled = payment.status === "ANULADO"; } },
       "@/lib/payments": { storedStudent: (value: unknown) => value, serializePayment: (value: unknown) => value, paymentDashboard: async () => ({}) },
     };
     const code = ts.transpileModule(readFileSync("app/api/pagos/[id]/route.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -33,6 +35,7 @@ test("anular un pago viejo no revierte el vencimiento establecido por otro pago 
     new Function("require", "exports", code)((name: string) => deps[name], exports);
     const response = await exports.PATCH(new Request("https://test.local/api/pagos/first", { method: "PATCH", body: JSON.stringify({ action: "void", reason: "Carga equivocada" }) }), { params: Promise.resolve({ id: "first" }) });
     assert.equal(response.status, 200);
+    assert.equal(reconciled, true);
     assert.equal(dueDateWrites, laterExists ? 0 : 1);
   }
 });

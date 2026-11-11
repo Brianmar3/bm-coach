@@ -4,11 +4,17 @@ import type {
   StudentPointEventType,
   StudentPointSourceType,
 } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { argentinaDateKey, argentinaDateTimeBoundary, argentinaMonthBounds, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { activeSportsPointStart, buildSportsPointEvents } from "@/lib/sports-point-policy";
+import { loadSportsActivity } from "@/lib/sports-point-data";
+import { loadNotifiableAchievements } from "@/lib/notifiable-achievements";
 import { studentName } from "@/lib/attendance";
 import {
   buildValidPointEvents,
+  effectivePointDate,
   pointEventKeysToInvalidate,
   type ValidPointEvent,
 } from "@/lib/point-event-rules";
@@ -24,6 +30,7 @@ import type {
 } from "@/types/points";
 import { reconcileWeeklyMissionForDate, resolveCurrentWeeklyMission } from "@/lib/weekly-mission-data";
 import { paymentWasOnTime } from "@/lib/payment-notification-rules";
+import { weekRange } from "@/lib/weekly-attendance";
 import { pointPeriodStart } from "@/lib/point-period";
 import { isCompetitiveGamificationEligible, wasCompetitiveDuringMembership } from "@/lib/student-service";
 import { reconcileInformativeQuickLogPoints } from "@/lib/quick-log-point-reconciliation";
@@ -308,10 +315,84 @@ async function notifyPointGain(
   }));
 }
 
+
+async function syncSportsStudentPoints(studentId: string, start: string, options: { notify?: boolean }) {
+  const today = argentinaDateKey();
+  const boundary = argentinaDateTimeBoundary(start);
+  const result = await prisma.$transaction(async db => {
+    await db.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${"sports-points:" + studentId})::bigint)`);
+    const { days, contracts, serviceType } = await loadSportsActivity(studentId, start, today, db);
+    const achievements = await loadNotifiableAchievements(studentId, { verifiedAttendance: true, db });
+    const milestones = achievements.filter(item => item.level === "DESTACADO" || item.level === "ESPECIAL" ||
+      item.level === "HITO" || item.category === "RECORDS_PERSONALES");
+    const events = buildSportsPointEvents({ start, today, days, contracts,
+      achievements: milestones.map(item => ({ id: item.id, date: item.unlockedAt, name: item.name })) });
+    const payments = await db.studentPayment.findMany({
+      where: { studentId, status: "PAGADO", amount: { gt: 0 }, paidDate: { gte: new Date(start), lt: new Date(new Date(today).getTime() + 86400000) } },
+      select: { id: true, paidDate: true, dueDate: true },
+    });
+    const paymentPeriods = contracts.map(period => ({
+      startDate: dateKeyToDatabase(period.start),
+      endDate: period.end ? dateKeyToDatabase(period.end) : null,
+      serviceType: period.serviceType,
+    }));
+    events.push(...buildValidPointEvents({ onTimePayments: payments.flatMap(payment => {
+      if (!payment.paidDate || !paymentWasOnTime(payment.paidDate, payment.dueDate)) return [];
+      const date = effectivePointDate(payment.paidDate);
+      const eligible = paymentPeriods.length
+        ? wasCompetitiveDuringMembership(date, paymentPeriods)
+        : serviceType && isCompetitiveGamificationEligible(serviceType);
+      return eligible ? [{ id: payment.id, date, description: "Pago de cuota registrado en término" }] : [];
+    }) }));
+    const previous = await db.studentPointTransaction.findMany({ where: { studentId },
+      select: { eventKey: true, active: true, occurredAt: true, notifiedAt: true } });
+    const beforeCutoff = (row: typeof previous[number]) => row.eventKey.startsWith("payment-on-time:")
+      ? databaseDateKey(row.occurredAt) < start : row.occurredAt < boundary;
+    const byKey = new Map(previous.map(row => [row.eventKey, row]));
+    const desired = new Set(events.map(event => event.eventKey));
+    const gained: PointEvent[] = [];
+    const now = new Date();
+    const historicalBonus = previous.find(row => row.active && row.occurredAt < boundary &&
+      (row.eventKey.startsWith("weekly-mission-bonus:") || row.eventKey.startsWith("weekly-mission:")) &&
+      argentinaDateKey(row.occurredAt) >= (weekRange(start)?.start ?? start));
+    for (const event of events) {
+      if (historicalBonus && event.eventKey === "sports:weekly:" + weekRange(start)?.start) continue;
+      const row = byKey.get(event.eventKey);
+      if (row && beforeCutoff(row)) continue;
+      const claim = !row?.notifiedAt;
+      await db.studentPointTransaction.upsert({
+        where: { studentId_eventKey: { studentId, eventKey: event.eventKey } },
+        create: { studentId, ...event, notifiedAt: now },
+        update: { ...event, active: true, invalidatedAt: null, notifiedAt: row?.notifiedAt ?? now },
+      });
+      if (claim && options.notify !== false) gained.push(event);
+    }
+    const obsolete = previous.filter(row => row.active && !beforeCutoff(row) && !desired.has(row.eventKey));
+    const invalidated = obsolete.length ? await db.studentPointTransaction.updateMany({
+      where: { studentId, eventKey: { in: obsolete.map(row => row.eventKey) },
+        OR: [{ occurredAt: { gte: boundary } }, { sourceType: "PAYMENT", occurredAt: { gte: new Date(start) } }] },
+      data: { active: false, invalidatedAt: now },
+    }) : { count: 0 };
+    const { _sum } = await db.studentPointTransaction.aggregate({ where: { studentId, active: true }, _sum: { points: true } });
+    const sourceCounts = { quickLogs: 0,
+      routineSessions: events.filter(event => event.eventKey.startsWith("sports:training:") && event.sourceType === "WORKOUT_SESSION").length,
+      attendances: events.filter(event => event.eventType === "ATTENDANCE").length,
+      achievements: events.filter(event => event.eventType === "ACHIEVEMENT").length };
+    return { total: _sum.points ?? 0, gained, desiredCount: events.length, sourceCounts,
+      individualExerciseEventsRemoved: 0, eventsInvalidated: invalidated.count,
+      activityEventCount: sourceCounts.routineSessions + sourceCounts.attendances + sourceCounts.achievements };
+  });
+  await notifyPointGain(studentId, result.gained, result.total).catch(error =>
+    console.error("No se pudo notificar el movimiento de puntos", { studentId, error }));
+  return result;
+}
+
 export async function syncStudentPoints(
   studentId: string,
   options: { notify?: boolean; cleanupHistoricalMarks?: boolean; attendanceDate?: string } = {},
 ) {
+  const sportsStart = activeSportsPointStart();
+  if (sportsStart) return syncSportsStudentPoints(studentId, sportsStart, options);
   await reconcileInformativeQuickLogPoints([studentId]);
   const student = await prisma.studentRecord.findUnique({
     where: { id: studentId },
@@ -439,9 +520,9 @@ export async function syncStudentPoints(
   }
   const sourceCounts = {
     quickLogs: desired.filter((event) => event.eventKey.startsWith("record:quick-log:")).length,
-    routineSessions: desired.filter((event) => event.sourceType === "WORKOUT_SESSION").length,
+    routineSessions: desired.filter((event) => event.eventKey.startsWith("record:workout-session:")).length,
     attendances: desired.filter((event) => event.eventType === "ATTENDANCE").length,
-    achievements: 0,
+    achievements: desired.filter(event => event.eventType === "ACHIEVEMENT").length,
   };
   return {
     total,
@@ -466,7 +547,7 @@ export async function loadStudentPointSummary(
       take: recentLimit,
     }),
     prisma.studentPointTransaction.aggregate({
-      where: { studentId, active: true, occurredAt: { gte: pointPeriodStart("month")! } },
+      where: { studentId, active: true, occurredAt: { gte: pointPeriodStart("month")!, lt: argentinaDateTimeBoundary(argentinaMonthBounds().nextMonthStart) } },
       _sum: { points: true },
     }),
   ]);

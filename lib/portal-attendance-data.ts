@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import {
@@ -15,10 +16,10 @@ import { hasGroupClasses } from "@/lib/student-service";
 import { planDays } from "@/lib/student-enrollment";
 import type { Student } from "@/types/gestion";
 
-export async function loadPortalAttendanceRange(studentId: string, workspaceId: string, start: string, endExclusive: string) {
+export async function loadPortalAttendanceRange(studentId: string, workspaceId: string, start: string, endExclusive: string, db: Prisma.TransactionClient = prisma) {
   const range = { gte: dateKeyToDatabase(start), lt: dateKeyToDatabase(endExclusive) };
   const [currentRows, legacyRows] = await Promise.all([
-    prisma.classOccurrenceAttendance.findMany({
+    db.classOccurrenceAttendance.findMany({
       where: {
         studentId,
         actualAttendance: { in: ["PRESENT", "ABSENT"] },
@@ -30,7 +31,7 @@ export async function loadPortalAttendanceRange(studentId: string, workspaceId: 
         occurrence: { select: { date: true, classNameSnapshot: true, startTime: true, endTime: true, scheduleId: true } },
       },
     }),
-    prisma.classAttendance.findMany({
+    db.classAttendance.findMany({
       where: { studentId, date: range, OR: [{ scheduleId: null }, { schedule: { workspaceId } }] },
       select: {
         id: true,

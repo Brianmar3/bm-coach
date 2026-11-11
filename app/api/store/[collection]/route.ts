@@ -65,9 +65,9 @@ export async function PUT(request: Request, context: RouteContext<"/api/store/[c
         if (reserved) return false;
         await assertTrainerCanReplaceStudents(workspaceId, items.map((data) => ({ data })), transaction);
         const existingPhotos = await transaction.studentRecord.findMany({ where: { workspaceId }, select: { id: true, data: true } });
-        const photos = new Map(existingPhotos.map(record => [record.id, record.data as { profileImageUrl?: string; avatarPresetId?: string }]));
+        const photos = new Map(existingPhotos.map(record => [record.id, record.data as { profileImageUrl?: string; avatarPresetId?: string; rankingParticipation?: boolean }]));
         await transaction.studentRecord.deleteMany({ where: { workspaceId, AND: [coachedStudentsWhere] } });
-        if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: { ...item, profileImageUrl: photos.get(item.id)?.profileImageUrl ?? "", avatarPresetId: photos.get(item.id)?.avatarPresetId ?? "" } as Prisma.InputJsonValue })) });
+        if (items.length) await transaction.studentRecord.createMany({ data: items.map((item) => ({ workspaceId, id: item.id, data: { ...item, profileImageUrl: photos.get(item.id)?.profileImageUrl ?? "", avatarPresetId: photos.get(item.id)?.avatarPresetId ?? "", rankingParticipation: photos.get(item.id)?.rankingParticipation !== false } as Prisma.InputJsonValue })) });
         return true;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return Response.json(saved ? { ok: true } : { error: "Una cuenta autogestionada no puede reemplazarse desde alumnos." }, { status: saved ? 200 : 409 });

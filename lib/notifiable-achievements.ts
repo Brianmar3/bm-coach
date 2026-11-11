@@ -1,9 +1,12 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import type { Student } from "@/types/gestion";
 import type { PortalAchievement } from "@/lib/portal-achievements";
 import { calculatePortalAchievements } from "@/lib/portal-achievements";
 import { bmTrainingActivityStart } from "@/lib/bm-training";
+import { addDateDays } from "@/lib/weekly-attendance";
+import { loadVerifiedSportsAttendance } from "@/lib/sports-point-data";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
 import { planDays } from "@/lib/student-enrollment";
 import { prisma } from "@/lib/prisma";
@@ -14,23 +17,25 @@ const notifiableCategories = new Set(["ASISTENCIA", "CONSTANCIA", "FUERZA", "REP
 
 export async function loadNotifiableAchievements(
   studentId: string,
-  options: { includeAll?: boolean } = {},
+  options: { includeAll?: boolean; verifiedAttendance?: boolean; db?: Prisma.TransactionClient } = {},
 ) {
-  const record = await prisma.studentRecord.findUnique({ where: { id: studentId }, select: { data: true, serviceType: true, primaryScheduleId: true, weeklyClasses: { where: { active: true }, select: { scheduleId: true }, take: 1 } } });
+  const db = options.db ?? prisma;
+  const record = await db.studentRecord.findUnique({ where: { id: studentId }, select: { data: true, workspaceId: true, serviceType: true, primaryScheduleId: true, weeklyClasses: { where: { active: true }, select: { scheduleId: true }, take: 1 } } });
   if (!record) return [];
   const student = record.data as unknown as Student;
   const today = argentinaDateKey();
   const activityStart = dateKeyToDatabase(bmTrainingActivityStart(student.joinedAt));
-  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, quickLogs] = await Promise.all([
-    prisma.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
-    prisma.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart } } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }),
-    prisma.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
-    prisma.physicalEvaluation.findMany({ where: { studentId, date: { gte: activityStart }, OR: [{ weight: { not: null } }, { height: { not: null } }, { bodyFatPercentage: { not: null } }, { muscleMass: { not: null } }, { waist: { not: null } }, { hip: { not: null } }] }, select: { date: true }, orderBy: { date: "asc" } }),
-    loadQuickLogAchievements(studentId),
+  const [workouts, occurrenceAttendances, legacyAttendances, evaluations, quickLogs, verified] = await Promise.all([
+    db.workoutSession.findMany({ where: { studentId, status: "COMPLETED", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
+    db.classOccurrenceAttendance.findMany({ where: { studentId, actualAttendance: "PRESENT", occurrence: { date: { gte: activityStart }, ...(options.verifiedAttendance ? { status: { not: "CANCELLED" as const } } : {}) } }, select: { occurrence: { select: { date: true } } }, orderBy: { occurrence: { date: "asc" } } }),
+    db.classAttendance.findMany({ where: { studentId, status: "PRESENT", date: { gte: activityStart } }, select: { date: true }, orderBy: { date: "asc" } }),
+    db.physicalEvaluation.findMany({ where: { studentId, date: { gte: activityStart }, OR: [{ weight: { not: null } }, { height: { not: null } }, { bodyFatPercentage: { not: null } }, { muscleMass: { not: null } }, { waist: { not: null } }, { hip: { not: null } }] }, select: { date: true }, orderBy: { date: "asc" } }),
+    loadQuickLogAchievements(studentId, options.db),
+    options.verifiedAttendance ? loadVerifiedSportsAttendance(studentId, record.workspaceId, bmTrainingActivityStart(student.joinedAt), addDateDays(today, 1), db) : Promise.resolve(null),
   ]);
   const newDates = occurrenceAttendances.map((item) => item.occurrence.date.toISOString().slice(0, 10));
   const firstNewDate = newDates[0] ?? "";
-  const attendanceDates = [...legacyAttendances.map((item) => item.date.toISOString().slice(0, 10)).filter((value) => !firstNewDate || value < firstNewDate), ...newDates].sort();
+  const attendanceDates = verified ? [...new Set(verified.map(row => row.date))].sort() : [...legacyAttendances.map((item) => item.date.toISOString().slice(0, 10)).filter((value) => !firstNewDate || value < firstNewDate), ...newDates].sort();
   const hasClasses = Boolean(record.primaryScheduleId || record.weeklyClasses.length || attendanceDates.length);
   const general = calculatePortalAchievements({
     completedWorkoutDates: workouts.map((item) => item.date.toISOString().slice(0, 10)),

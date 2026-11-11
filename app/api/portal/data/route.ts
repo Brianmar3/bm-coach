@@ -1,3 +1,4 @@
+import { activeSportsPointStart } from "@/lib/sports-point-policy";
 import { ownedStudentBlob, studentProfilePhoto } from "@/lib/student-media";
 import { offlineScope } from "@/lib/offline-training-types";
 import { storedHeightToCentimeters } from "@/lib/height";
@@ -279,6 +280,7 @@ export async function GET(request: Request) {
       weeklyWorkouts: workoutSessions.filter((workout) => workout.status === "COMPLETED" && workout.date >= weekStart).length,
       pendingResponses: comments.filter((comment) => comment.author === "STUDENT" && comment.status === "PENDING").length,
       home: {
+        sportsPoints: Boolean(activeSportsPointStart(todayKey)),
         mode: serviceType === "MIXED" ? "MIXTO" : serviceType === "PERSONALIZED" ? "RUTINA_PERSONALIZADA" : "PRESENCIAL",
         hasClassParticipation: homeInsights.hasClassParticipation,
         classesAttendedThisMonth: homeInsights.classesAttendedThisMonth,

@@ -48,6 +48,7 @@ export function PortalShell({
   profileImageUrl,
   serviceType,
   hasRoutine,
+  sportsPoints = false,
   branding,
   children,
 }: {
@@ -57,6 +58,7 @@ export function PortalShell({
   profileImageUrl: string;
   serviceType: StudentServiceType;
   hasRoutine: boolean;
+  sportsPoints?: boolean;
   branding: WorkspaceBranding;
   children: ReactNode;
 }) {
@@ -157,7 +159,7 @@ export function PortalShell({
       : "text-zinc-500 hover:text-zinc-200";
   };
 
-  return <OfflineClassesBoundary scope={classScope}><WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider><AchievementCelebration key={studentId} isHome={isHome} achievementsHref={serviceType === "PERSONALIZED" ? "/portal/progreso" : "/portal/puntos"}>
+  return <OfflineClassesBoundary scope={classScope}><WorkspaceBrandingValueProvider branding={currentBranding}><RestTimerProvider><AchievementCelebration key={studentId} isHome={isHome} achievementsHref={serviceType === "PERSONALIZED" && !sportsPoints ? "/portal/progreso" : "/portal/puntos"}>
     <div className={`workspace-brand ${isHome ? "portal-home-shell flex min-h-dvh flex-col" : "min-h-screen"} overflow-x-clip bg-[var(--background)] text-[var(--foreground)]`} style={workspaceBrandingVariables(currentBranding.accentColor) as CSSProperties} onClickCapture={(event) => {
       if (navigator.onLine || serviceType === "CLASSES" || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       const link = (event.target as Element).closest("a");
@@ -167,7 +169,7 @@ export function PortalShell({
     }}>
 
       <NativePushOnboarding audience="student" />
-      <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<>{isCompetitiveGamificationEligible(serviceType) && <Link href="/portal/ranking" aria-label="Abrir Ranking" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/20 text-yellow-300 transition-colors hover:bg-yellow-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300"><BmTrophyIcon size={22} /></Link>}<StudentNotificationCenter /></>}>
+      <PortalHeader branding={currentBranding} studentName={studentName} profileImageUrl={currentProfileImageUrl} actions={<>{(sportsPoints || isCompetitiveGamificationEligible(serviceType)) && <Link href="/portal/ranking" aria-label="Abrir Ranking" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-yellow-400/20 text-yellow-300 transition-colors hover:bg-yellow-400/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-300"><BmTrophyIcon size={22} /></Link>}<StudentNotificationCenter /></>}>
         <nav
           aria-label="Navegación del portal"
           className="mx-auto hidden max-w-6xl gap-5 px-5 pb-2 md:flex"

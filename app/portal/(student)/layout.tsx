@@ -1,3 +1,4 @@
+import { activeSportsPointStart } from "@/lib/sports-point-policy";
 import { studentProfilePhoto } from "@/lib/student-media";
 import type { ReactNode } from "react";
 import { requirePortalPageSession } from "@/lib/portal-auth";
@@ -25,5 +26,5 @@ export default async function StudentPortalLayout({ children }: { children: Reac
   const classScope = serviceType === "CLASSES" && workspaceId && !session.credential.mustChangePassword
     ? { key: offlineScope(session.studentId, workspaceId, session.id), expiresAt: session.expiresAt.toISOString() }
     : undefined;
-  return <PortalShell classScope={classScope} studentId={session.studentId} branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={studentProfilePhoto(session.studentId, student.profileImageUrl, false, student.avatarPresetId)} serviceType={serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
+  return <PortalShell sportsPoints={Boolean(activeSportsPointStart())} classScope={classScope} studentId={session.studentId} branding={branding} studentName={`${student.firstName} ${student.lastName}`.trim()} profileImageUrl={studentProfilePhoto(session.studentId, student.profileImageUrl, false, student.avatarPresetId)} serviceType={serviceType} hasRoutine={hasRoutine}>{children}</PortalShell>;
 }

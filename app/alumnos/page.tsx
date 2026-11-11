@@ -310,7 +310,10 @@ export default function AlumnosPage() {
     <StudentInvitations open={inviteOpen} onClose={() => setInviteOpen(false)} />
     {chooseEnrollment && <div className="fixed inset-0 z-[70] grid place-items-center bg-black/85 p-4"><KeyboardDialog as="section" onClose={() => setChooseEnrollment(false)} role="dialog" aria-modal="true" aria-label="Nuevo alumno" className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-5 text-white"><div className="flex items-center justify-between"><h2 className="text-xl font-black">Nuevo alumno</h2><button type="button" onClick={() => setChooseEnrollment(false)} className="p-2 text-[var(--foreground-muted)]">Cerrar</button></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => { setChooseEnrollment(false); setInviteOpen(true); }} className="rounded-xl border border-yellow-400/50 bg-yellow-400/10 p-4 text-left"><strong className="block text-[var(--brand-text)]">Invitar alumno</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">El alumno completa sus datos desde un enlace.</span></button><button type="button" onClick={() => { setChooseEnrollment(false); void begin(); }} className="rounded-xl border border-zinc-700 p-4 text-left"><strong className="block">Cargar manualmente</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">Completá vos los datos del alumno.</span></button></div></KeyboardDialog></div>}
     {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
-    {viewing && <StudentDetail item={viewing} attendanceReturnTo={attendanceReturnTo} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
+    {viewing && <StudentDetail item={viewing} onRankingChange={(rankingParticipation) => {
+        setItems((current) => current.map((item) => item.id === viewing.id ? { ...item, rankingParticipation } : item));
+        setViewing((current) => current?.id === viewing.id ? { ...current, rankingParticipation } : current);
+    }} attendanceReturnTo={attendanceReturnTo} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
     <TrainerFloatingActions mode="direct" enabled={!open && !viewing && !chooseEnrollment && !inviteOpen} actions={[{ label: "Nuevo alumno", symbol: "+", onSelect: () => setChooseEnrollment(true) }]} />
   </ModuleShell>;
 }
@@ -431,12 +434,45 @@ function ServiceBadge({ value }: { value: StudentServiceType }) {
     return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${styles}`}>{studentServiceLabel(value)}</span>;
 }
 
-function StudentDetail({ item, attendanceReturnTo, focus, close, edit }: {
+function RankingParticipation({ student, onChange }: { student: Student; onChange: (participating: boolean) => void }) {
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState("");
+    async function save(rankingParticipation: boolean) {
+        setSaving(true);
+        setMessage("");
+        try {
+            const response = await fetch(`/api/alumnos/${encodeURIComponent(student.id)}/ranking-participation`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rankingParticipation }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            onChange(result.rankingParticipation);
+            setMessage("Preferencia guardada.");
+        } catch {
+            setMessage("No se pudo guardar la preferencia. Volvé a intentarlo.");
+        } finally {
+            setSaving(false);
+        }
+    }
+    return <div className="mt-5 space-y-1 text-sm">
+        <label className="inline-flex min-h-11 items-center gap-2">
+            <input type="checkbox" className="accent-yellow-400" checked={student.rankingParticipation !== false} disabled={saving} onChange={(event) => void save(event.target.checked)} />
+            Participa en el ranking
+        </label>
+        <p className="text-[var(--foreground-muted)]">Sus puntos y logros se conservan aunque no participe.</p>
+        <p role="status">{saving ? "Guardando…" : message}</p>
+    </div>;
+}
+
+function StudentDetail({ item, attendanceReturnTo, focus, close, edit, onRankingChange }: {
     attendanceReturnTo: string;
     item: Student;
     focus: StudentNotificationFocus | null;
     close: () => void;
     edit: () => void;
+    onRankingChange: (participating: boolean) => void;
 }) {
     const [weightRevision, setWeightRevision] = useState(0);
     useEffect(() => {
@@ -469,6 +505,7 @@ function StudentDetail({ item, attendanceReturnTo, focus, close, edit }: {
                 <Detail label="Fecha de inicio" value={showDate(item.joinedAt)}/>
                 <Detail label="Horario principal" value={item.scheduleLabel ?? "Sin horario principal"} wide/>
             </dl>
+            <RankingParticipation key={item.id} student={item} onChange={onRankingChange} />
             <StudentHealthObservations student={item}/>
             {item.serviceType !== "CLASSES" && <StudentEvaluations student={item} onMeasurementsChange={() => setWeightRevision(value => value + 1)}/>}
             {focus?.section === "achievements" && <section id="student-section-achievements" className="mt-5 scroll-mt-24 rounded-xl border border-yellow-300/50 bg-yellow-400/10 p-4 shadow-[0_0_24px_rgba(250,204,21,.08)]"><p className="text-xs font-bold uppercase tracking-wide text-[var(--brand-text)]">Logros</p><h3 className="mt-1 font-bold">Logro relacionado con la notificación</h3><p className="mt-1 text-sm text-zinc-300">La ficha corresponde a {item.firstName} {item.lastName}. {focus.entityId ? "El logro relacionado fue localizado desde su identificador histórico." : "La notificación no conserva un identificador de logro específico."}</p></section>}

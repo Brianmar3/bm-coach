@@ -1,3 +1,5 @@
+import { activeSportsPointStart } from "@/lib/sports-point-policy";
+import { argentinaMonthBounds, argentinaDateTimeBoundary } from "@/lib/payment-dates";
 import { studentProfilePhoto } from "@/lib/student-media";
 import "server-only";
 import { coachedStudentsWhere } from "@/lib/coached-students";
@@ -13,18 +15,25 @@ import { reconcileInformativeQuickLogPoints } from "@/lib/quick-log-point-reconc
 export async function loadPointRanking(period: PointRankingPeriod, workspaceId: string) {
   if (!workspaceId) throw new Error("Workspace requerido para ranking.");
   const from = pointPeriodStart(period);
+  const end = period === "month" ? argentinaDateTimeBoundary(argentinaMonthBounds().nextMonthStart) : null;
+  const sportsStart = activeSportsPointStart();
   const allStudents = await prisma.studentRecord.findMany({ where: { AND: [coachedStudentsWhere], workspaceId }, select: { id: true, data: true, serviceType: true }, orderBy: { createdAt: "asc" } });
-  const students = allStudents.filter((record) => (record.data as unknown as Student).status !== "inactivo" && isCompetitiveGamificationEligible(record.serviceType));
+  const students = allStudents.filter((record) => (record.data as unknown as Student).status !== "inactivo" &&
+    (record.data as unknown as Student).rankingParticipation !== false && (sportsStart || isCompetitiveGamificationEligible(record.serviceType)));
   const studentIds = students.map((student) => student.id);
-  await reconcileInformativeQuickLogPoints(studentIds);
+  if (!sportsStart) await reconcileInformativeQuickLogPoints(studentIds);
   const [allMovements, membershipPeriods] = await Promise.all([
-    prisma.studentPointTransaction.findMany({ where: { active: true, studentId: { in: studentIds } }, select: { id: true, studentId: true, eventType: true, points: true, description: true, occurredAt: true }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }] }),
+    prisma.studentPointTransaction.findMany({ where: { active: true, studentId: { in: studentIds } }, select: { id: true, studentId: true, eventKey: true, eventType: true, points: true, description: true, occurredAt: true }, orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }] }),
     prisma.studentMembershipHistory.findMany({ where: { studentId: { in: studentIds } }, select: { studentId: true, startDate: true, endDate: true, serviceType: true } }),
   ]);
   const periodsByStudent = new Map<string, typeof membershipPeriods>();
   for (const membership of membershipPeriods) periodsByStudent.set(membership.studentId, [...(periodsByStudent.get(membership.studentId) ?? []), membership]);
-  const eligibleMovements = allMovements.filter((item) => wasCompetitiveDuringMembership(item.occurredAt, periodsByStudent.get(item.studentId) ?? []));
-  const movements = eligibleMovements.filter((item) => !from || item.occurredAt >= from);
+  const sportsBoundary = sportsStart ? argentinaDateTimeBoundary(sportsStart) : null;
+  const eligibleMovements = allMovements.filter(item => sportsBoundary && item.occurredAt >= sportsBoundary
+    ? item.eventKey.startsWith("sports:") || item.eventKey.startsWith("achievement:") ||
+      (item.eventType === "PAYMENT" && item.eventKey.startsWith("payment-on-time:"))
+    : wasCompetitiveDuringMembership(item.occurredAt, periodsByStudent.get(item.studentId) ?? []));
+  const movements = eligibleMovements.filter((item) => (!from || item.occurredAt >= from) && (!end || item.occurredAt < end));
   const totalByStudent = new Map<string, number>();
   const historicalByStudent = new Map<string, number>();
   for (const item of eligibleMovements) historicalByStudent.set(item.studentId, (historicalByStudent.get(item.studentId) ?? 0) + item.points);
