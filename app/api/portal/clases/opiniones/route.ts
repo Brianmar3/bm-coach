@@ -1,7 +1,9 @@
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { prisma } from "@/lib/prisma";
 import { feedbackInput } from "@/lib/class-communication";
-import { pendingClassFeedback, submitClassFeedback } from "@/lib/class-communication-service";
+import { availableClassFeedback, submitClassFeedback } from "@/lib/class-communication-service";
+
+import { hasGroupClasses } from "@/lib/student-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,9 +12,10 @@ export async function GET() {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
   const workspaceId = session.credential.student.workspaceId;
+  if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Tu servicio no incluye clases." }, { status: 403 });
   if (!workspaceId || session.credential.mustChangePassword) return Response.json({ error: "Primero completá el acceso a tu cuenta." }, { status: 403 });
-  try { return Response.json({ invitation: await pendingClassFeedback(prisma, session.studentId, workspaceId) }, { headers: { "Cache-Control": "private, no-store" } }); }
-  catch (error) { console.error("No se pudo cargar la invitación de clase", error); return Response.json({ error: "No se pudo cargar la invitación." }, { status: 500 }); }
+  try { return Response.json({ classes: await availableClassFeedback(prisma, session.studentId, workspaceId) }, { headers: { "Cache-Control": "private, no-store" } }); }
+  catch (error) { console.error("No se pudieron cargar las clases para opinar", error); return Response.json({ error: "No se pudieron cargar tus clases." }, { status: 500 }); }
 }
 
 export async function POST(request: Request) {
@@ -20,6 +23,7 @@ export async function POST(request: Request) {
   const session = await getPortalSession();
   if (!session) return Response.json({ error: "Sesión vencida." }, { status: 401 });
   const workspaceId = session.credential.student.workspaceId;
+  if (!hasGroupClasses(session.credential.student.serviceType)) return Response.json({ error: "Tu servicio no incluye clases." }, { status: 403 });
   if (!workspaceId || session.credential.mustChangePassword) return Response.json({ error: "Primero completá el acceso a tu cuenta." }, { status: 403 });
   let input;
   try { input = feedbackInput(await request.json()); }

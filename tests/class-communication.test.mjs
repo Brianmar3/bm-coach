@@ -30,7 +30,8 @@ afterEach(() => mock.timers.setTime(fixedNow.getTime()));
 const occurrenceTools = { argentinaClock: (date = new Date()) => { const local = new Date(date.getTime() - 3 * 60 * 60 * 1000).toISOString(); return {date: local.slice(0,10), time: local.slice(11,16)}; }, occurrenceClassName: row => row.classNameSnapshot };
 const load = loader({ "@/lib/class-occurrences": occurrenceTools });
 const { feedbackInput, CLASS_REACTIONS } = load("lib/class-communication.ts");
-const { pendingClassFeedback, submitClassFeedback, reactToConfirmation, classOpinions, feedbackReportFilter, classOpinionsReceivedToday } = load("lib/class-communication-service.ts");
+const { availableClassFeedback, submitClassFeedback, reactToConfirmation, classOpinions, feedbackReportFilter, classOpinionsReceivedToday } = load("lib/class-communication-service.ts");
+const pendingClassFeedback = async (...args) => (await availableClassFeedback(...args))[0] ?? null;
 const occurrence = { id: "class-a", workspaceId: "bm", date: new Date("2026-11-03T00:00:00Z"), startTime: "09:00", endTime: "10:00", status: "SCHEDULED", classNameSnapshot: "Funcional", categorySnapshot: "Funcional" };
 function attendance(patch = {}) { return { id: "attendance-a", occurrenceId: "class-a", studentId: "a", student: { workspaceId: "bm", data: { firstName: "Ana", lastName: "Pérez" } }, occurrence, response: "GOING", actualAttendance: "PRESENT", updatedAt: new Date("2026-11-03T10:00:00Z"), classRating: null, classComment: null, classFeedbackAt: null, classFeedbackSkippedAt: null, ...patch }; }
 
@@ -60,7 +61,7 @@ function database(rows) {
     findFirst: async ({ where }) => scoped(where).sort((a, b) => b.occurrence.date - a.occurrence.date)[0] ?? null,
     updateMany: async ({ where, data }) => { const found = scoped(where); for (const row of found) Object.assign(row, data, { updatedAt: data.updatedAt ?? new Date() }); writes.push(data); return { count: found.length }; },
     count: async ({ where }) => scoped(where).length,
-    findMany: async ({ where, take, skip, orderBy }) => { assert.equal(take, 30); const rows = scoped(where); if (orderBy?.[0]?.classRating) rows.sort((a,b) => b.classRating.localeCompare(a.classRating)); return rows.slice(skip, skip + take); },
+    findMany: async ({ where, take, skip, orderBy }) => { const rows = scoped(where); if (orderBy?.[0]?.classRating) rows.sort((a,b) => b.classRating.localeCompare(a.classRating)); return take ? rows.slice(skip, skip + take) : rows; },
     groupBy: async ({ where }) => {
       const groups = new Map(); for (const row of scoped(where)) { const key = row.occurrenceId + row.classRating; const group = groups.get(key) ?? { occurrenceId: row.occurrenceId, classRating: row.classRating, _count: { _all: 0 } }; group._count._all++; groups.set(key, group); } return [...groups.values()];
     },
@@ -151,12 +152,16 @@ test("API portal usa identidad de sesión, rechaza origen externo y no confía e
   const api = loader({ "@/lib/class-occurrences": occurrenceTools, "@/lib/prisma": { prisma: db }, "@/lib/portal-auth": { getPortalSession: async () => session, validRequestOrigin: () => origin } })("app/api/portal/clases/opiniones/route.ts");
   const request = body => new Request("https://bm.test/api/portal/clases/opiniones", { method: "POST", body: JSON.stringify(body) });
   assert.equal((await api.GET()).status, 401); assert.equal((await api.POST(request({}))).status, 401);
-  session = { studentId: "a", credential: { student: { workspaceId: "bm" } } }; origin = false;
+  session = { studentId: "a", credential: { student: { workspaceId: "bm", serviceType: "CLASSES" } } }; origin = false;
   assert.equal((await api.POST(request({}))).status, 403); origin = true;
+  session.credential.student.serviceType = "PERSONALIZED";
+  assert.equal((await api.GET()).status, 403);
+  assert.equal((await api.POST(request({ occurrenceId:"class-a", rating:"GOOD" }))).status,403);
+  session.credential.student.serviceType = "MIXED";
   assert.equal((await api.POST(request({ occurrenceId: "other", rating: "GOOD", studentId: "other", workspaceId: "foreign" }))).status, 409);
   assert.equal((await api.POST(request({ occurrenceId: "class-a", rating: "GOOD", studentId: "other" }))).status, 200);
   assert.equal(row.classRating, "GOOD"); assert.equal((await api.GET()).headers.get("cache-control"), "private, no-store");
-  assert.equal((await (await api.GET()).json()).invitation, null);
+  assert.deepEqual((await (await api.GET()).json()).classes, []);
 });
 
 test("APIs de entrenador requieren autenticación, workspace y origen para reaccionar", async () => {
@@ -209,33 +214,58 @@ for (const width of [390, 1280]) test(`${width}px reacciones UI editables median
   assert.equal(calls.length, 2); assert.ok(calls.every(call => call.url === "/api/admin/notifications/notice/reaction"));
 });
 
-for (const width of [390, 1280]) test(`${width}px opinión opcional privada, comentario y envío; no vuelve a solicitar la respuesta`, async () => {
-  window.innerWidth = width; const row = attendance(); const db = database([row]);
+test("la opinión sólo se abre al tocar Dejar opinión, permite elegir una clase propia y se guarda una vez", async () => {
+  const first = attendance();
+  const second = attendance({ id:"attendance-b", occurrenceId:"class-b", occurrence:{...occurrence,id:"class-b",startTime:"10:00",endTime:"11:00"} });
+  const foreign = attendance({ id:"attendance-c", occurrenceId:"class-c", studentId:"b" });
+  const db = database([first, second, foreign]);
+  let reads = 0, posts = 0;
   globalThis.fetch = async (_url, options = {}) => {
-    if (options.method === "POST") { const ok = await submitClassFeedback(db, "a", "bm", feedbackInput(JSON.parse(options.body))); return { ok, json: async () => ({ ok }) }; }
-    return { ok: true, json: async () => ({ invitation: await pendingClassFeedback(db, "a", "bm") }) };
+    if (options.method === "POST") {
+      posts++;
+      const ok = await submitClassFeedback(db, "a", "bm", feedbackInput(JSON.parse(options.body)));
+      return { ok, json: async () => ({ ok }) };
+    }
+    reads++;
+    return { ok:true, json:async () => ({ classes:await availableClassFeedback(db,"a","bm") }) };
   };
-  const view = render(h(Invitation)); await screen.findByRole("region", { name: "Opinión de tu clase" });
-  assert.ok(screen.getByText(/sólo tu entrenador puede verla e identificar/));
-  fireEvent.click(screen.getByRole("button", { name: "🔥 Excelente" })); fireEvent.change(screen.getByLabelText("Comentario (opcional)"), { target: { value: "Muy clara la explicación" } }); fireEvent.click(screen.getByRole("button", { name: "Enviar opinión" }));
-  await screen.findByText("Gracias por compartir tu opinión."); assert.equal(row.classRating, "EXCELLENT"); assert.equal(row.classComment, "Muy clara la explicación");
-  view.unmount(); render(h(Invitation)); await waitFor(() => assert.ok(screen.queryByRole("region", { name: "Opinión de tu clase" }) === null));
+  const view = render(h(Invitation));
+  window.dispatchEvent(new Event("focus"));
+  assert.equal(reads,0);
+  assert.equal(screen.queryByRole("region",{name:"Opinión de tu clase"}),null);
+  fireEvent.click(screen.getByRole("button",{name:"Dejar opinión"}));
+  const selector = await screen.findByRole("combobox",{name:"Clase realizada"});
+  assert.equal(selector.options.length,2);
+  fireEvent.change(selector,{target:{value:"class-b"}});
+  fireEvent.click(screen.getByRole("button",{name:"🔥 Excelente"}));
+  fireEvent.change(screen.getByLabelText("Comentario (opcional)"),{target:{value:"Muy buena"}});
+  const button=screen.getByRole("button",{name:"Enviar opinión"});
+  fireEvent.click(button);
+  fireEvent.click(button);
+  await screen.findByText("Gracias por compartir tu opinión.");
+  assert.equal(posts,1);
+  assert.equal(second.classComment,"Muy buena");
+  assert.equal(first.classFeedbackAt,null);
+  assert.equal(foreign.classFeedbackAt,null);
+  view.unmount();
+  render(h(Invitation));
+  assert.equal(reads,1);
+  assert.equal(screen.queryByRole("region",{name:"Opinión de tu clase"}),null);
 });
 
-test("Omitir en el portal no exige seleccionar valoración ni cambia la asistencia", async () => {
-  const row = attendance(); const db = database([row]); globalThis.fetch = async (_url, options = {}) => {
-    if (options.method === "POST") return { ok: await submitClassFeedback(db, "a", "bm", feedbackInput(JSON.parse(options.body))), json: async () => ({ ok: true }) };
-    return { ok: true, json: async () => ({ invitation: await pendingClassFeedback(db, "a", "bm") }) };
+test("Cerrar no guarda ni descarta definitivamente la opinión", async () => {
+  const row=attendance(); const db=database([row]);
+  globalThis.fetch = async (_url, options = {}) => {
+    assert.notEqual(options.method,"POST");
+    return {ok:true,json:async()=>({classes:await availableClassFeedback(db,"a","bm")})};
   };
-  render(h(Invitation)); await screen.findByRole("button", { name: "Omitir" }); fireEvent.click(screen.getByRole("button", { name: "Omitir" }));
-  await waitFor(() => assert.ok(row.classFeedbackSkippedAt)); assert.equal(row.classRating, null); assert.equal(row.actualAttendance, "PRESENT");
-});
-
-test("una invitación respondida en otro dispositivo se retira si el envío devuelve 409", async () => {
-  let answered = false;
-  globalThis.fetch = async (_url, options = {}) => options.method === "POST" ? (answered = true, { status: 409, ok: false, json: async () => ({ error: "Ya respondiste" }) }) : { ok: true, json: async () => ({ invitation: answered ? null : { occurrenceId: occurrence.id, date: "2026-11-03", className: "Funcional", startTime: "09:00", endTime: "10:00" } }) };
-  render(h(Invitation)); await screen.findByRole("button", { name: "💪 Buena" }); fireEvent.click(screen.getByRole("button", { name: "💪 Buena" })); fireEvent.click(screen.getByRole("button", { name: "Enviar opinión" }));
-  await waitFor(() => assert.ok(screen.queryByRole("region", { name: "Opinión de tu clase" }) === null));
+  render(h(Invitation));
+  fireEvent.click(screen.getByRole("button",{name:"Dejar opinión"}));
+  await screen.findByRole("button",{name:"Enviar opinión"});
+  fireEvent.click(screen.getByRole("button",{name:"Cerrar"}));
+  assert.equal(screen.queryByRole("region",{name:"Opinión de tu clase"}),null);
+  assert.equal(row.classFeedbackSkippedAt,null);
+  assert.equal(row.actualAttendance,"PRESENT");
 });
 
 test("recepción hoy usa límites argentinos y aísla workspaces, incluso para clases anteriores", async () => {
@@ -247,35 +277,17 @@ test("recepción hoy usa límites argentinos y aísla workspaces, incluso para c
 });
 
 
-for (const skip of [false, true]) test(`persistencia al recargar después de ${skip ? "Omitir" : "enviar"}, incluso con actualización simultánea de asistencia`, async () => {
- const row = attendance(); const other = attendance({id:"other-attendance",occurrenceId:"other-class",occurrence:{...occurrence,id:"other-class",date:new Date("2026-11-02T00:00:00Z"),endTime:"13:00"}});
- const db = database([row, other]); const update = db.classOccurrenceAttendance.updateMany;
- let conflict = true;
- db.classOccurrenceAttendance.updateMany = async args => {if (conflict) {conflict=false; row.updatedAt=new Date("2026-11-03T11:00:00Z"); return {count:0};} return update(args);};
- const api = loader({"@/lib/class-occurrences":occurrenceTools,"@/lib/prisma":{prisma:db},"@/lib/portal-auth":{getPortalSession:async()=>({studentId:"a",credential:{student:{workspaceId:"bm"}}}),validRequestOrigin:()=>true}})("app/api/portal/clases/opiniones/route.ts");
- let reads=0;
- globalThis.fetch=async (_url, options={})=> {if(options.method==="POST") return api.POST(new Request("https://bm.test/api/portal/clases/opiniones",options)); const response=await api.GET();reads++;return response;};
- const view=render(h(Invitation)); await screen.findByRole("button",{name:"Omitir"});
- if (!skip) fireEvent.click(screen.getByRole("button",{name:"💪 Buena"}));
- fireEvent.click(screen.getByRole("button",{name:skip?"Omitir":"Enviar opinión"}));
- await waitFor(()=>assert.ok(skip?row.classFeedbackSkippedAt:row.classFeedbackAt));
- await waitFor(()=>assert.ok(screen.queryByRole("region",{name:"Opinión de tu clase"}) === null));
- assert.equal(row.updatedAt.toISOString(),"2026-11-03T11:00:00.000Z");
- view.unmount(); const before=reads; render(h(Invitation));
- await waitFor(()=>assert.ok(reads>before));
- await screen.findByRole("region",{name:"Opinión de tu clase"});
- assert.equal((await (await api.GET()).json()).invitation.occurrenceId,"other-class");
- assert.ok(screen.getByText(/2\/11\/2026/));
+test("si el servidor ya no admite la clase se muestra su mensaje sin confirmar una respuesta", async () => {
+  globalThis.fetch=async (_url, options = {}) => options.method === "POST"
+    ? {status:409,ok:false,json:async()=>({error:"La clase no está disponible."})}
+    : {ok:true,json:async()=>({classes:[{occurrenceId:occurrence.id,date:"2026-11-03",className:"Funcional",startTime:"09:00",endTime:"10:00"}]})};
+  render(h(Invitation));
+  fireEvent.click(screen.getByRole("button",{name:"Dejar opinión"}));
+  fireEvent.click(await screen.findByRole("button",{name:"💪 Buena"}));
+  fireEvent.click(screen.getByRole("button",{name:"Enviar opinión"}));
+  await screen.findByText("La clase no está disponible.");
+  assert.equal(screen.queryByText("Gracias por compartir tu opinión."),null);
 });
-
-
-test("un 409 sin decisión persistida no oculta falsamente la invitación", async () => {
- globalThis.fetch=async (_url, options={})=>options.method==="POST"?{status:409,ok:false,json:async()=>({})}:{ok:true,json:async()=>({invitation:{occurrenceId:occurrence.id,date:"2026-11-03",className:"Funcional",startTime:"09:00",endTime:"10:00"}})};
- render(h(Invitation)); await screen.findByRole("button",{name:"Omitir"}); fireEvent.click(screen.getByRole("button",{name:"Omitir"}));
- await screen.findByText("Tu respuesta no se guardó. Volvé a intentar.");
- assert.ok(screen.getByRole("region",{name:"Opinión de tu clase"}));
-});
-
 
 for (const [label, now, date, startTime, endTime, actualAttendance, status, allowed] of [
  ["futura", "2026-11-03T15:00:00Z", "2026-11-04", "09:00", "10:00", "PRESENT", "SCHEDULED", false],
@@ -296,23 +308,16 @@ for (const [label, now, date, startTime, endTime, actualAttendance, status, allo
  mock.timers.setTime(new Date(now).getTime());
  for (const skip of [false,true]) {
   const row = attendance({actualAttendance, occurrence:{...occurrence,date:new Date(date+"T00:00:00Z"),startTime,endTime,status}}); const db=database([row]);
-  const api=loader({"@/lib/class-occurrences":occurrenceTools,"@/lib/prisma":{prisma:db},"@/lib/portal-auth":{getPortalSession:async()=>({studentId:"a",credential:{student:{workspaceId:"bm"}}}),validRequestOrigin:()=>true}})("app/api/portal/clases/opiniones/route.ts");
-  const invitation=(await (await api.GET()).json()).invitation;
+  const api=loader({"@/lib/class-occurrences":occurrenceTools,"@/lib/prisma":{prisma:db},"@/lib/portal-auth":{getPortalSession:async()=>({studentId:"a",credential:{student:{workspaceId:"bm",serviceType:"CLASSES"}}}),validRequestOrigin:()=>true}})("app/api/portal/clases/opiniones/route.ts");
+  const invitation=(await (await api.GET()).json()).classes[0];
   assert.equal(Boolean(invitation),allowed);
-  if(invitation) assert.equal(new Date(invitation.expiresAt).getTime()-new Date(date+"T"+endTime+":00-03:00").getTime(),86400000);
+  if(invitation) assert.equal(invitation.endTime,endTime);
   const result=await api.POST(new Request("https://bm.test/api/portal/clases/opiniones",{method:"POST",body:JSON.stringify({occurrenceId:"class-a",rating:"GOOD",skip})}));
   assert.equal(result.status,allowed?200:409);
   if(!allowed) assert.equal(db.writes.length,0);
-  else assert.equal((await (await api.GET()).json()).invitation,null);
+  else assert.deepEqual((await (await api.GET()).json()).classes,[]);
  }
 });
-
-test("una invitación vence mientras el portal sigue abierto sin usar la hora del dispositivo",async()=>{
- globalThis.fetch=async()=>({ok:true,json:async()=>({invitation:{occurrenceId:occurrence.id,date:"2026-11-03",className:"Funcional",startTime:"09:00",endTime:"10:00",serverNow:"2026-11-04T12:59:59.800Z",expiresAt:"2026-11-04T13:00:00Z"}})});
- render(h(Invitation)); await screen.findByRole("region",{name:"Opinión de tu clase"});
- await waitFor(()=>assert.ok(screen.queryByRole("region",{name:"Opinión de tu clase"})===null));
-});
-
 
 test('reaccionar marca únicamente la confirmación como leída y cambiarla conserva el timestamp',async()=>{
  const db=reactionDatabase();const result=await reactToConfirmation(db,'bm','notice','RECEIVED');
@@ -390,4 +395,23 @@ test('valoraciones sin comentario se acumulan sin filas vacías ni datos de alum
  const rows=['IMPROVE','GOOD','EXCELLENT'].map((classRating,i)=>attendance({id:String(i),classRating,classComment:i===0?null:'',classFeedbackAt:new Date()}));const db=database(rows),original=db.classOccurrenceAttendance.findMany;
  db.classOccurrenceAttendance.findMany=async args=>{assert.equal(args.select.student,undefined);assert.equal(args.include,undefined);return original(args);};
  const report=await classOpinions(db,'bm',feedbackReportFilter(new URLSearchParams()));assert.equal(report.total,3);assert.deepEqual(report.distribution,{EXCELLENT:1,GOOD:1,IMPROVE:1});assert.equal(report.commentTotal,0);assert.deepEqual(report.comments,[]);
+});
+
+test("guardar una opinión reintenta una actualización simultánea de asistencia", async () => {
+  const row = attendance();
+  const db = database([row]);
+  const update = db.classOccurrenceAttendance.updateMany;
+  let changed = false;
+  db.classOccurrenceAttendance.updateMany = async args => {
+    if (!changed) {
+      changed = true;
+      row.updatedAt = new Date("2026-11-03T11:00:00Z");
+      return { count: 0 };
+    }
+    return update(args);
+  };
+  assert.equal(await submitClassFeedback(db, "a", "bm", feedbackInput({ occurrenceId: "class-a", rating: "GOOD" })), true);
+  assert.equal(row.updatedAt.toISOString(), "2026-11-03T11:00:00.000Z");
+  assert.equal(row.actualAttendance, "PRESENT");
+  assert.deepEqual(await availableClassFeedback(db, "a", "bm"), []);
 });

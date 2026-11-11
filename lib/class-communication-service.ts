@@ -33,15 +33,18 @@ export function eligibleFeedback(studentId: string, workspaceId: string): Prisma
   return { studentId, student: { workspaceId }, actualAttendance: "PRESENT", classFeedbackAt: null, classFeedbackSkippedAt: null, occurrence: feedbackClasses(workspaceId) };
 }
 
-export async function pendingClassFeedback(db: Db, studentId: string, workspaceId: string) {
-  const excluded: string[] = [];
-  for (;;) {
-    const row = await db.classOccurrenceAttendance.findFirst({ where: { ...eligibleFeedback(studentId, workspaceId), ...(excluded.length ? { id: { notIn: excluded } } : {}) }, include: { occurrence: true }, orderBy: [{ occurrence: { date: "desc" } }, { occurrence: { startTime: "desc" } }] });
-    if (!row) return null;
-    const expiresAt = feedbackDeadline(row.occurrence), now = new Date();
-    if (expiresAt && expiresAt.getTime() > now.getTime()) return { occurrenceId: row.occurrenceId, date: databaseDateKey(row.occurrence.date), className: occurrenceClassName(row.occurrence), startTime: row.occurrence.startTime, endTime: row.occurrence.endTime, expiresAt: expiresAt.toISOString(), serverNow: now.toISOString() };
-    excluded.push(row.id);
-  }
+export async function availableClassFeedback(db: Db, studentId: string, workspaceId: string) {
+  const rows = await db.classOccurrenceAttendance.findMany({
+    where: eligibleFeedback(studentId, workspaceId),
+    select: { occurrenceId: true, occurrence: true },
+    orderBy: [{ occurrence: { date: "desc" } }, { occurrence: { startTime: "desc" } }, { id: "asc" }],
+  });
+  const now = Date.now();
+  return rows.flatMap(({ occurrenceId, occurrence }) => {
+    const deadline = feedbackDeadline(occurrence);
+    if (!deadline || deadline.getTime() <= now) return [];
+    return [{ occurrenceId, date: databaseDateKey(occurrence.date), className: occurrenceClassName(occurrence), startTime: occurrence.startTime, endTime: occurrence.endTime }];
+  });
 }
 
 export async function submitClassFeedback(db: Db, studentId: string, workspaceId: string, input: ReturnType<typeof feedbackInput>) {

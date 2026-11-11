@@ -231,7 +231,6 @@ export function PortalClasses({ compact = false, showQuickLogAction = false, sel
   if (compact)
     return (
       <section className="h-full overflow-hidden rounded-[26px] border border-yellow-400/20 bg-[radial-gradient(circle_at_top_right,rgba(250,204,21,.08),transparent_36%),linear-gradient(145deg,#151515,#090909)] p-3.5 shadow-[0_18px_45px_rgba(0,0,0,.32),inset_0_1px_rgba(255,255,255,.025)] sm:p-4">
-        <ClassFeedbackInvitation/>
         <div className="flex items-start justify-between gap-3 sm:gap-5">
           <div className="min-w-0">
             <p className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[.22em] text-yellow-400 sm:text-[11px]">
@@ -277,7 +276,6 @@ export function PortalClasses({ compact = false, showQuickLogAction = false, sel
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-4">
-      <ClassFeedbackInvitation/>
       <PortalSectionHeading icon={BmCalendarIcon} kicker="Agenda presencial" title="Tus próximas clases" subtitle="Consultá tus horarios y confirmá tu asistencia." action={showQuickLogAction ? <QuickNoteButton placement="inline" /> : undefined} />
 
       <nav aria-label="Vista de clases" className="portal-home-class-row mt-6 portal-class-tabs grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]" style={{ animationDelay: "65ms" }}>
@@ -383,6 +381,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false, sel
       </details>
 
       <div className="portal-home-class-row mt-4 sm:mt-5" style={{ animationDelay: "260ms" }}><PortalActionCard href="/portal/registro" ariaLabel="Ver mis registros" title="Mis registros" subtitle="Ejercicios, cargas y marcas" icon={<BmHistoryIcon size={20} />} /></div>
+      <ClassFeedbackInvitation />
     </div>
   );
 }
