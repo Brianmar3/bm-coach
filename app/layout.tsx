@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AppFrame } from "@/componentes/app-frame";
 import { BmTrainingSplash } from "@/componentes/bm-training-splash";
 import { PwaServiceWorkerRegistration } from "@/componentes/pwa-service-worker-registration";
+import { NativePushNavigation } from "@/componentes/native-push-navigation";
 import { AppearanceRuntime } from "@/componentes/appearance-runtime";
 import "./globals.css";
 
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body className="min-h-full">
         <AppearanceRuntime />
         <PwaServiceWorkerRegistration />
+        <NativePushNavigation />
         <BmTrainingSplash />
         <div id="bm-app-root">
           <AppFrame>{children}</AppFrame>

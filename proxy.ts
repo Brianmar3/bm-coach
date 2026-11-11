@@ -4,6 +4,7 @@ import { ADMIN_SESSION_COOKIE, PLATFORM_SESSION_COOKIE, adminAuthError, verifyAd
 import { masterEntryDestination } from "@/lib/master-access";
 import { platformSessionAccess } from "@/lib/platform-session-access";
 import { LAST_PORTAL_COOKIE, portalExperienceCookieOptions, STUDENT_SESSION_COOKIE } from "@/lib/portal-experience";
+import { STUDENT_FEE_PATH, STUDENT_FEE_RETURN_HEADER, studentFeeDestination } from "@/lib/student-notification-destination";
 import { prisma } from "@/lib/prisma";
 import { trainerIdentityHasWorkspaceAccess } from "@/lib/trainer-session-access";
 
@@ -95,7 +96,13 @@ export async function proxy(request: NextRequest) {
         return response;
       }
     }
-    const response = NextResponse.next();
+    const headers = new Headers(request.headers);
+    headers.delete(STUDENT_FEE_RETURN_HEADER);
+    if (path === STUDENT_FEE_PATH) {
+      const notice = request.nextUrl.searchParams.get("aviso");
+      headers.set(STUDENT_FEE_RETURN_HEADER, studentFeeDestination(notice && /^[\w-]{1,128}$/.test(notice) ? notice : undefined));
+    }
+    const response = NextResponse.next({ request: { headers } });
     if ((path === "/portal" || (path.startsWith("/portal/") && path !== "/portal/login")) && request.cookies.has(STUDENT_SESSION_COOKIE)) response.cookies.set(LAST_PORTAL_COOKIE, "student", portalExperienceCookieOptions());
     return response;
   }

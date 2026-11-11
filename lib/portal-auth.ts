@@ -90,9 +90,9 @@ export async function getPortalSession({ allowSelfService = false }: { allowSelf
   return session;
 }
 
-export async function requirePortalPageSession() {
+export async function requirePortalPageSession(next?: string | null) {
   const session = await getPortalSession({ allowSelfService: true });
-  if (!session) redirect("/portal/login");
+  if (!session) redirect(next ? `/portal/login?mode=student&next=${encodeURIComponent(next)}` : "/portal/login");
   if (isSelfService(session.credential.student.data)) redirect("/portal/autogestion");
   return session;
 }

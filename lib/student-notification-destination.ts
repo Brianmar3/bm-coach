@@ -1,4 +1,5 @@
 export type StudentNotificationNavigation = {
+  id?: string;
   type?: string | null;
   eventKey?: string | null;
   url?: string | null;
@@ -46,10 +47,27 @@ export function safePortalNotificationDestination(value?: string | null) {
   }
 }
 
+export const STUDENT_FEE_PATH = "/portal/pagos";
+export const STUDENT_FEE_RETURN_HEADER = "x-bm-student-fee-return";
+
+export function isFeeReminder(eventKey?: string | null) {
+  return /^(payment-reminder|service-expiration):/i.test(eventKey ?? "");
+}
+
+export function studentFeeDestination(noticeId?: string) {
+  return noticeId ? `${STUDENT_FEE_PATH}?aviso=${encodeURIComponent(noticeId)}` : STUDENT_FEE_PATH;
+}
+
+export function safeStudentFeeReturn(value: unknown) {
+  if (typeof value !== "string" || !/^\/portal\/pagos(?:\?aviso=[\w-]{1,128})?$/.test(value)) return null;
+  return value;
+}
+
 export function getNotificationDestination(notification: StudentNotificationNavigation) {
   const type = normalizedToken(notification.type);
   const eventKey = normalizedToken(notification.eventKey);
 
+  if (isFeeReminder(notification.eventKey) && notification.id) return studentFeeDestination(notification.id);
   if (type === "PAYMENT" || eventKey.includes("PAYMENT") || eventKey.includes("CUOTA")) return "/portal/pagos";
   if (
     ["POINTS", "ACHIEVEMENT", "ACHIEVEMENT_UNLOCKED", "MILESTONE", "LOGRO"].includes(type)

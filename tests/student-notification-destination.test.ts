@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import {
   getNotificationDestination,
   safePortalNotificationDestination,
+  safeStudentFeeReturn,
 } from "../lib/student-notification-destination.ts";
 import { openNotificationSafely } from "../lib/trainer-notification-destination.ts";
 
@@ -69,4 +71,52 @@ test("el Service Worker valida same-origin, enfoca o abre la ruta contextual", (
   assert.match(serviceWorker, /safeNotificationTarget\(event\.notification\.data\?\.url\)/);
   assert.match(serviceWorker, /existing\.navigate\(target\).*existing\.focus\(\)/s);
   assert.match(serviceWorker, /clients\.openWindow\(target\)/);
+});
+test("los avisos de cuota y de servicio conservan un identificador para verificar la cuenta", () => {
+  const url = "/portal/pagos?aviso=notice-123";
+  for (const eventKey of ["payment-reminder:obligation:due_today", "service-expiration:student:overdue"]) {
+    assert.equal(getNotificationDestination({ id: "notice-123", eventKey, url: "/portal" }), url);
+  }
+  assert.equal(getNotificationDestination({ url }), url);
+  assert.equal(safeStudentFeeReturn(url), url);
+  assert.equal(safeStudentFeeReturn("/portal/pagos"), "/portal/pagos");
+  assert.equal(safeStudentFeeReturn("/portal/pagos?aviso=x&next=/admin"), null);
+  assert.equal(safeStudentFeeReturn("/portal/pagos/otra-cuenta"), null);
+  assert.equal(safeStudentFeeReturn("//example.org/portal/pagos"), null);
+});
+
+
+
+test("el Service Worker abre el enlace de cuota en una ventana nueva o en la existente", async () => {
+  const source = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  const origin = "https://bm-training.test";
+  const url = "/portal/pagos?aviso=notice-123";
+  for (const existing of [false, true]) {
+    const calls: string[] = [];
+    const handlers = new Map<string, (event: unknown) => void>();
+    let task: Promise<unknown> | undefined;
+    const client = {
+      url: origin + "/portal",
+      navigate: async (target: string) => { calls.push(target); },
+      focus: async () => { calls.push("focus"); },
+    };
+    const clients = {
+      matchAll: async () => existing ? [client] : [],
+      openWindow: async (target: string) => { calls.push(target); },
+    };
+    runInNewContext(source, {
+      URL,
+      clients,
+      self: {
+        location: { origin },
+        addEventListener: (type: string, handler: (event: unknown) => void) => handlers.set(type, handler),
+      },
+    });
+    handlers.get("notificationclick")!({
+      notification: { close() {}, data: { url } },
+      waitUntil: (promise: Promise<unknown>) => { task = promise; },
+    });
+    await task;
+    assert.deepEqual(calls, existing ? [origin + url, "focus"] : [origin + url]);
+  }
 });

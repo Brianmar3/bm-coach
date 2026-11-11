@@ -8,7 +8,6 @@ import {
   checkNativePushPermissions,
   createNativePushChannel,
   getNativePushEnvironment,
-  listenForNativePushActions,
   openNativeNotificationSettings,
   permissionIsBlocked,
   registerNativePushToken,
@@ -179,16 +178,12 @@ export function PushNotificationsCard({
 
   useEffect(() => {
     let cancelled = false;
-    let actionListener: Awaited<
-      ReturnType<typeof listenForNativePushActions>
-    > | null = null;
 
     void (async () => {
       const detectedNativeEnvironment = await getNativePushEnvironment();
       if (detectedNativeEnvironment) {
         if (cancelled) return;
         setNativeEnvironment(detectedNativeEnvironment);
-        actionListener = await listenForNativePushActions();
 
         const configResponse = await fetch(
           `${nativeEndpoint}?appId=${encodeURIComponent(detectedNativeEnvironment.appId)}`,
@@ -290,7 +285,6 @@ export function PushNotificationsCard({
     });
     return () => {
       cancelled = true;
-      if (actionListener) void actionListener.remove();
     };
   }, [audience, endpoint, nativeEndpoint]);
 

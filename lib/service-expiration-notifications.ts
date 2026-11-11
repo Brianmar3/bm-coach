@@ -11,6 +11,8 @@ import {
 } from "@/lib/service-expiration-rules";
 import type { Student } from "@/types/gestion";
 
+import { studentFeeDestination } from "@/lib/student-notification-destination";
+
 const SERVICE_PORTAL_URL = "/portal/pagos";
 
 function storedStudent(value: Prisma.JsonValue) {
@@ -22,6 +24,7 @@ function isUniqueConflict(error: unknown) {
 }
 
 export type CreatedServiceExpirationReminder = {
+  notificationId: string;
   studentId: string;
   dueDate: string;
   kind: ServiceExpirationReminderKind;
@@ -64,8 +67,8 @@ export async function createServiceExpirationReminders(
     if (!candidate) continue;
     if (await hasMatchingPaymentObligation(prisma, record.id, candidate.dueDate)) continue;
     try {
-      const queued = Boolean(await prisma.studentNotification.create({ data: { studentId: candidate.studentId, type: "REMINDER", eventKey: candidate.eventKey, title: candidate.title, message: candidate.message, url: SERVICE_PORTAL_URL } }));
-      if (queued) created.push(candidate);
+      const notification = await prisma.studentNotification.create({ data: { studentId: candidate.studentId, type: "REMINDER", eventKey: candidate.eventKey, title: candidate.title, message: candidate.message, url: SERVICE_PORTAL_URL } });
+      if (notification) created.push({ ...candidate, notificationId: notification.id });
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
     }
@@ -100,7 +103,7 @@ export async function sendServiceExpirationReminder(
   const result = await sendStudentNativePush(reminder.studentId, {
     title: reminder.title,
     body: reminder.message,
-    url: SERVICE_PORTAL_URL,
+    url: studentFeeDestination(reminder.notificationId),
     tag: reminder.eventKey,
   });
   return result;

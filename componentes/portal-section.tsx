@@ -1,4 +1,6 @@
 "use client";
+import { safeStudentFeeReturn } from "@/lib/student-notification-destination";
+import feeStyles from "./portal-fee.module.css";
 import { PortalSectionHeading } from "@/componentes/portal-section-heading";
 import { SportsShield } from "@/componentes/sports-shield";
 import { HomeLoadEvolution } from "@/componentes/home-load-evolution";
@@ -68,6 +70,8 @@ import {
   BmRoutineIcon,
   BmSlidersIcon,
   BmTimerIcon,
+  BmWalletIcon,
+  BmInfoIcon,
   BmTrophyIcon,
   BmWorkoutIcon,
 } from "@/componentes/icons";
@@ -118,7 +122,11 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
     const request = fetch(`${dataEndpoint}?section=${dataSection}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const body = await response.json() as PortalData & { error?: string; code?: string };
-        if (response.status === 401) { window.location.href = "/portal/login"; throw new Error("Sesión vencida. Los registros offline siguen guardados."); }
+        if (response.status === 401) {
+          const next = section === "pagos" ? safeStudentFeeReturn(window.location.pathname + window.location.search) : null;
+          window.location.href = next ? `/portal/login?mode=student&next=${encodeURIComponent(next)}` : "/portal/login";
+          throw new Error("Sesión vencida. Los registros offline siguen guardados.");
+        }
         if (body.code === "PASSWORD_CHANGE_REQUIRED") { setChangeRequired(true); return null; }
         if (!response.ok) throw new Error(body.error ?? "No se pudo cargar tu información.");
         if (!selfService && section === "inicio" && !controller.signal.aborted) {
@@ -665,20 +673,66 @@ function EvaluationsView({ data }: { data: PortalData }) {
 function PaymentsView({ data }: { data: PortalData }) {
   const [visibleCount, setVisibleCount] = useState(8);
   const account = data.paymentAccount;
-  const status = accountStatus[account.status];
+  const noMonthlyFee = Boolean(account.plan) && account.monthlyFee === 0;
+  const status = noMonthlyFee ? { label: "Sin cargo mensual", className: accountStatus.AL_DIA.className } : accountStatus[account.status];
+  const copy = homePaymentCardCopy(account.status, account.nextDueDate, argentinaDateKey());
+  const showReminder = account.configured && (copy.tone === "due-soon" || copy.tone === "overdue");
   const openObligations = openTransferObligations(data.paymentObligations);
-  return <PageHeader icon={BmPaymentIcon} kicker="Pagos" title="Mi cuota" subtitle="Estado e historial personal de pagos">
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-[var(--foreground-muted)]">Estado actual</p><span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-bold ${status.className}`}>{status.label}</span></div>{account.monthlyFee > 0 && <p className="text-2xl font-bold">{money(account.monthlyFee)}<span className="ml-1 text-xs font-normal text-[var(--foreground-muted)]">por mes</span></p>}</div>
-      {account.configured ? <><dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><SmallMetric title="Próximo vencimiento" value={date(account.nextDueDate)} /><SmallMetric title="Plan" value={account.plan || "Sin detalle"} /><SmallMetric title="Último pago" value={account.lastPaymentDate ? date(account.lastPaymentDate) : "Sin registrar"} /><SmallMetric title="Importe del último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /></dl>{account.status === "SIN_PAGOS" && <p className="mt-3 rounded-lg bg-yellow-400/5 px-3 py-2 text-sm text-yellow-100">Tu cuota todavía no registra pagos.</p>}</> : <p className="mt-4 text-sm text-[var(--foreground-muted)]">Todavía no tenés una cuota configurada.</p>}
+  return <div className={feeStyles.screen}>
+    <PortalSectionHeading icon={BmPaymentIcon} kicker="Pagos" title="Mi cuota" subtitle="Estado e historial personal de pagos" />
+    {showReminder && <aside className={feeStyles.reminder} data-overdue={copy.tone === "overdue"}>
+      <BmCalendarIcon size={21} className={feeStyles.icon} />
+      <div><strong>{copy.title === "Vence hoy" ? "Tu cuota vence hoy" : copy.tone === "overdue" ? "Tu cuota está vencida" : `Tu cuota ${copy.title.toLocaleLowerCase("es")}`}</strong>
+        <p>Contactá a tu entrenador para mantener tu servicio activo.</p></div>
+    </aside>}
+    <section className={feeStyles.summary} aria-label="Estado de la cuota">
+      <div className={feeStyles.summaryHeader}>
+        <div><p className={feeStyles.eyebrow}>Estado actual</p>
+          <span className={`${feeStyles.status} ${status.className}`}><BmTimerIcon size={17} />{status.label}</span>
+        </div>
+        {(account.monthlyFee > 0 || noMonthlyFee) && <p className={feeStyles.amount}>{money(account.monthlyFee)} <span>por mes</span></p>}
+      </div>
+      {(account.configured || noMonthlyFee) ? <dl className={feeStyles.metrics}>
+        <FeeMetric icon={BmCalendarIcon} label="Próximo vencimiento" value={noMonthlyFee ? "—" : date(account.nextDueDate)} />
+        <FeeMetric icon={BmDumbbellIcon} label="Plan" value={account.plan || "Sin detalle"} />
+        <FeeMetric icon={BmCheckIcon} label="Último pago" value={account.lastPaymentDate ? date(account.lastPaymentDate) : "Sin registrar"} />
+        <FeeMetric icon={BmPaymentIcon} label="Importe del último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} />
+      </dl> : <p className={feeStyles.muted}>Todavía no tenés una cuota configurada.</p>}
     </section>
-    <section className="mt-5">
-      <h2 className="font-semibold">Historial de pagos</h2>
-      {data.payments.length ? <div className="mt-3 space-y-2">{data.payments.slice(0, visibleCount).map((payment) => <article key={payment.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{date(payment.paidDate || payment.createdAt)}</p><p className="mt-1 text-xs capitalize text-[var(--foreground-muted)]">{billingPeriod(payment.billingPeriod) || payment.concept}</p></div><div className="text-right"><p className="font-bold">{money(payment.amount)}</p><span className="mt-1 inline-flex rounded-full bg-emerald-400/10 px-2 py-0.5 text-[11px] font-bold text-emerald-300">Confirmado</span></div></div><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--foreground-muted)]"><span>{payment.method || "Medio no informado"}</span>{payment.concept && billingPeriod(payment.billingPeriod) && <span>{payment.concept}</span>}</div>{payment.notes && <p className="mt-2 border-t border-zinc-800 pt-2 text-xs text-[var(--foreground-muted)]">{payment.notes}</p>}</article>)}</div> : <Notice>Todavía no hay pagos registrados.</Notice>}
-      {visibleCount < data.payments.length && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-[var(--brand-text)] focus:outline-none focus:ring-2 focus:ring-yellow-400">Ver más pagos</button>}
+    <section aria-labelledby="fee-history">
+      <h2 id="fee-history" className={feeStyles.title}><BmHistoryIcon size={19} className={feeStyles.icon} />Historial de pagos</h2>
+      {data.payments.length ? <ul className={feeStyles.historyList}>{data.payments.slice(0, visibleCount).map((payment) => {
+        const period = billingPeriod(payment.billingPeriod);
+        return <li key={payment.id} className={feeStyles.historyItem}>
+          <div className={feeStyles.paymentLine}>
+            <BmCalendarIcon size={20} className={feeStyles.icon} />
+            <div><strong>{date(payment.paidDate || payment.createdAt)}</strong><p className="capitalize">{period || payment.concept}</p></div>
+            <div className={feeStyles.paid}><strong>{money(payment.amount)}</strong><span>Confirmado</span></div>
+          </div>
+          <div className={feeStyles.paymentDetails}><BmWalletIcon size={15} className={feeStyles.icon} /><span>{payment.method || "Medio no informado"}</span>{payment.concept && period && <span>{payment.concept}</span>}</div>
+          {payment.notes && <p className={feeStyles.muted}>{payment.notes}</p>}
+        </li>;
+      })}</ul> : <Notice>Todavía no hay pagos registrados.</Notice>}
+      {visibleCount < data.payments.length && <button type="button" onClick={() => setVisibleCount((count) => count + 10)} className="mt-3 rounded-lg border border-zinc-700 px-3 py-2 text-sm font-bold text-[var(--brand-text)] focus-visible:ring-2 focus-visible:ring-yellow-400">Ver más pagos</button>}
     </section>
-    <section className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900 p-4"><h2 className="font-semibold">Medios de pago</h2>{data.paymentMethods.length ? <ul className="mt-3 space-y-2">{data.paymentMethods.map((method) => { const transfer = method.trim().toLocaleLowerCase("es") === "transferencia"; return <li key={method}>{transfer && openObligations.length ? <PortalTransferPaymentSheet details={data.transferDetails} obligations={data.paymentObligations} /> : <div className="flex min-h-11 items-center justify-between rounded-lg bg-zinc-950 px-3 py-2 text-sm text-zinc-300"><span>{method}</span>{transfer && data.paymentObligations.length > 0 && <span className="text-xs text-emerald-300">Sin saldo pendiente</span>}</div>}</li>; })}</ul> : <p className="mt-2 text-sm text-[var(--foreground-muted)]">Consultá con tu entrenador para conocer los medios de pago.</p>}<p className="mt-3 text-xs text-[var(--foreground-muted)]">Los pagos son confirmados únicamente por el entrenador.</p></section>
-  </PageHeader>;
+    <section className={feeStyles.methods} aria-labelledby="fee-methods">
+      <h2 id="fee-methods" className={feeStyles.title}><BmWalletIcon size={20} className={feeStyles.icon} />Medios de pago</h2>
+      {data.paymentMethods.length ? <ul className={feeStyles.methodsList}>{data.paymentMethods.map((method) => {
+        const transfer = method.trim().toLocaleLowerCase("es") === "transferencia";
+        return <li key={method}>{transfer && openObligations.length
+          ? <PortalTransferPaymentSheet details={data.transferDetails} obligations={data.paymentObligations} />
+          : <div className={feeStyles.method}><BmPaymentIcon size={18} className={feeStyles.icon} /><span>{method}</span>{transfer && data.paymentObligations.length > 0 && <small>Sin saldo pendiente</small>}</div>}</li>;
+      })}</ul> : <p className={feeStyles.muted}>Consultá con tu entrenador para conocer los medios de pago.</p>}
+      <p className={feeStyles.confirmation}><BmInfoIcon size={16} />Los pagos son confirmados únicamente por el entrenador.</p>
+    </section>
+  </div>;
+}
+
+function FeeMetric({ icon: Icon, label, value }: { icon: typeof BmPaymentIcon; label: string; value: string }) {
+  return <div className={feeStyles.metric}>
+    <Icon size={19} className={feeStyles.icon} />
+    <div><dt>{label}</dt><dd>{value}</dd></div>
+  </div>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

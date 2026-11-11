@@ -19,6 +19,8 @@ import type { Student } from "@/types/gestion";
 import { activeSportsPointStart } from "@/lib/sports-point-policy";
 import { isCompetitiveGamificationEligible } from "@/lib/student-service";
 
+import { studentFeeDestination } from "@/lib/student-notification-destination";
+
 const PAYMENT_PORTAL_URL = "/portal/pagos";
 
 function storedStudent(value: Prisma.JsonValue) {
@@ -125,6 +127,7 @@ export async function sendPaymentConfirmationPush(
 }
 
 export type CreatedPaymentReminder = {
+  notificationId: string;
   obligationId: string;
   dueDate: string;
   studentId: string;
@@ -178,8 +181,8 @@ export async function createPaymentReminders(today = argentinaDateKey()) {
     if (legacy && legacy.title !== "Recordatorio resuelto" && legacy.message.includes(formatDate(obligation.dueDate))) continue;
     const content = reminderContent(kind, obligation.dueDate, balance);
     try {
-      const queued = Boolean(await prisma.studentNotification.create({ data: { studentId: obligation.studentId, type: "PAYMENT", eventKey, ...content, url: PAYMENT_PORTAL_URL } }));
-      if (queued) created.push({ obligationId: obligation.id, dueDate: databaseDateKey(obligation.dueDate), studentId: obligation.studentId, eventKey, ...content });
+      const notification = await prisma.studentNotification.create({ data: { studentId: obligation.studentId, type: "PAYMENT", eventKey, ...content, url: PAYMENT_PORTAL_URL } });
+      if (notification) created.push({ notificationId: notification.id, obligationId: obligation.id, dueDate: databaseDateKey(obligation.dueDate), studentId: obligation.studentId, eventKey, ...content });
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
     }
@@ -191,7 +194,7 @@ export async function sendPaymentReminderPush(reminder: CreatedPaymentReminder) 
   await sendStudentPush(reminder.studentId, {
     title: reminder.title,
     body: reminder.message,
-    url: PAYMENT_PORTAL_URL,
+    url: studentFeeDestination(reminder.notificationId),
     tag: reminder.eventKey,
   }, async () => {
     const obligation = await prisma.monthlyStudentObligation.findFirst({ where: { id: reminder.obligationId, studentId: reminder.studentId }, include: { student: { select: { data: true } } } });

@@ -6,13 +6,16 @@ import { PortalShell } from "@/componentes/portal-shell";
 import { hasActivePortalRoutine } from "@/lib/portal-service-access";
 import { establishAchievementBaseline } from "@/lib/push-notifications";
 import type { Student } from "@/types/gestion";
+import { headers } from "next/headers";
+import { safeStudentFeeReturn, STUDENT_FEE_RETURN_HEADER } from "@/lib/student-notification-destination";
 import { redirect } from "next/navigation";
 import { onboardingIsComplete } from "@/lib/student-onboarding";
 import { loadWorkspaceBranding } from "@/lib/workspace-branding-server";
 import { offlineScope } from "@/lib/offline-training-types";
 
 export default async function StudentPortalLayout({ children }: { children: ReactNode }) {
-  const session = await requirePortalPageSession();
+  const next = safeStudentFeeReturn((await headers()).get(STUDENT_FEE_RETURN_HEADER));
+  const session = await requirePortalPageSession(next);
   const student = session.credential.student.data as unknown as Student;
   if (!session.credential.mustChangePassword && !onboardingIsComplete(student)) redirect("/portal/onboarding");
   const [hasRoutine, , branding] = await Promise.all([
