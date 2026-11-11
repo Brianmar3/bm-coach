@@ -1,4 +1,6 @@
 "use client";
+import { PortalSectionHeading } from "@/componentes/portal-section-heading";
+import { BmMedalIcon } from "@/componentes/icons";
 import { SportsLaurels, SportsShield } from "@/componentes/sports-shield";
 import { argentinaDateKey, argentinaMonthBounds } from "@/lib/payment-dates";
 import { StudentPhoto } from "@/componentes/student-photo";
@@ -143,7 +145,7 @@ export function PortalRanking() {
   const currentOnPodium = Boolean(ranking?.currentPosition && ranking.currentPosition <= 3);
 
   return <div className="portal-ranking-page sports-ranking-page mx-auto w-full max-w-3xl">
-    <header className="portal-ranking-header sports-page-heading portal-ranking-enter-item flex items-start gap-3 md:block [--ranking-delay:40ms]"><PortalPointsBackLink /><div className="min-w-0 md:mt-6"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Puntos del mes</p><h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight sm:text-4xl">Ranking mensual</h1><p className="mt-2 text-sm leading-relaxed text-zinc-500 sm:text-base">Tu posición y la tabla completa del mes actual.</p></div></header>
+    <PortalSectionHeading icon={BmMedalIcon} kicker="Puntos del mes" title="Ranking mensual" subtitle="Tu posición y la tabla completa del mes actual" action={<PortalPointsBackLink />} className="portal-ranking-header portal-ranking-enter-item [--ranking-delay:40ms]" />
 
     {error ? <p role="alert" className="mt-5 rounded-xl border border-red-400/20 bg-red-400/[.06] p-4 text-sm text-red-200">{error}</p> : !ranking ? <RankingSkeleton /> : <>
       <div className="sports-arena">

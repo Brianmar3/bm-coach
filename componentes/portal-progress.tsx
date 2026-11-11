@@ -1,4 +1,5 @@
 "use client";
+import { PortalSectionHeading } from "@/componentes/portal-section-heading";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -79,10 +80,7 @@ function ProgressContent({ data }: { data: PortalProgressData }) {
   const summary = data.summary;
   const adherence = summary.adherencePercentage;
   return <div className="mx-auto max-w-5xl space-y-5 overflow-x-clip pb-2">
-    <header className="flex min-w-0 items-center gap-3 px-1">
-      <Link href="/portal/rutina" aria-label="Volver a la rutina" className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-zinc-900 text-zinc-200 outline-none transition hover:border-yellow-400/30 hover:text-yellow-300 focus-visible:ring-2 focus-visible:ring-yellow-300"><BmBackIcon size={22} /></Link>
-      <div className="min-w-0"><h1 className="text-2xl font-black tracking-tight text-white">Mi progreso</h1><p className="truncate text-sm text-zinc-500">Tu historial, evolución y avances</p></div>
-    </header>
+    <PortalSectionHeading icon={BmProgressIcon} kicker="Tu evolución" title="Mi progreso" subtitle="Tu historial, evolución y avances" action={<Link href="/portal/rutina" aria-label="Volver a la rutina" className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-zinc-900 text-zinc-200 outline-none transition hover:border-yellow-400/30 hover:text-yellow-300 focus-visible:ring-2 focus-visible:ring-yellow-300"><BmBackIcon size={22} /></Link>} />
 
     <section className="overflow-hidden rounded-[26px] border border-white/[.08] bg-[radial-gradient(circle_at_8%_8%,rgba(250,204,21,.08),transparent_32%),linear-gradient(145deg,#181818,#090909)] p-4 shadow-[0_18px_42px_rgba(0,0,0,.32)] sm:p-6">
       <p className="mb-4 text-[10px] font-black uppercase tracking-[.2em] text-yellow-400">Plan actual · {data.plan.name}</p>

@@ -1,4 +1,5 @@
 "use client";
+import { PortalSectionHeading } from "@/componentes/portal-section-heading";
 import { SportsShield } from "@/componentes/sports-shield";
 import { HomeLoadEvolution } from "@/componentes/home-load-evolution";
 import { WorkoutFinishDuration } from "@/componentes/workout-finish-duration";
@@ -66,8 +67,6 @@ import {
   BmProgressIcon,
   BmRoutineIcon,
   BmSlidersIcon,
-  BmTargetIcon,
-  BmFocusIcon,
   BmTimerIcon,
   BmTrophyIcon,
   BmWorkoutIcon,
@@ -184,7 +183,7 @@ export function PortalSection({ section, dataEndpoint = "/api/portal/data", self
   if (section === "puntos-historial") return <PointsHistoryPageView data={data} />;
   if (section === "perfil") return <StudentProfileView profile={data.profile} />;
   if (section === "avatar") return <StudentAvatarPage profile={data.profile} />;
-  if (section === "configuracion") return <PageHeader title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><section id="apariencia" className="mb-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="mb-4 font-semibold text-[var(--brand-text)]">Apariencia</h2><AppearanceSelector /></section><div id="notificaciones" className="scroll-mt-24"><PushNotificationsCard /></div><div id="seguridad" className="scroll-mt-24"><ExpandablePasswordCard /></div><section id="privacidad" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-[var(--brand-text)]">Privacidad</h2><p className="mt-1 text-sm leading-relaxed text-[var(--foreground-muted)]">Tus datos se muestran únicamente dentro de tu cuenta. Los cambios administrativos de plan, servicio y estado los gestiona tu entrenador.</p></section><section id="preferencias" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-[var(--brand-text)]">Preferencias</h2><p className="mt-1 text-sm leading-relaxed text-[var(--foreground-muted)]">BM Training respeta las preferencias de movimiento y accesibilidad configuradas en tu dispositivo.</p></section><PortalLogoutCard /></PageHeader>;
+  if (section === "configuracion") return <PageHeader icon={BmSlidersIcon} kicker="Mi cuenta" title="Configuración" subtitle="Cuenta, seguridad y notificaciones"><section id="apariencia" className="mb-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="mb-4 font-semibold text-[var(--brand-text)]">Apariencia</h2><AppearanceSelector /></section><div id="notificaciones" className="scroll-mt-24"><PushNotificationsCard /></div><div id="seguridad" className="scroll-mt-24"><ExpandablePasswordCard /></div><section id="privacidad" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-[var(--brand-text)]">Privacidad</h2><p className="mt-1 text-sm leading-relaxed text-[var(--foreground-muted)]">Tus datos se muestran únicamente dentro de tu cuenta. Los cambios administrativos de plan, servicio y estado los gestiona tu entrenador.</p></section><section id="preferencias" className="mt-4 scroll-mt-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5"><h2 className="font-semibold text-[var(--brand-text)]">Preferencias</h2><p className="mt-1 text-sm leading-relaxed text-[var(--foreground-muted)]">BM Training respeta las preferencias de movimiento y accesibilidad configuradas en tu dispositivo.</p></section><PortalLogoutCard /></PageHeader>;
   return <PortalOverview data={data} />;
 }
 
@@ -316,7 +315,7 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
 
   return <section aria-live="polite" className={`bm-surface-featured portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)] ${completed ? "border-emerald-400/25" : "border-yellow-400/35"} ${advancing ? "portal-home-objective-advancing" : ""}`}>
     <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5">
-      <span aria-hidden="true" className={`portal-home-objective-icon grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-[var(--brand-text)]"}`}>{completed ? <BmCheckIcon size={22} className="portal-home-objective-check" /> : <BmFocusIcon size={22} />}</span>
+      <span aria-hidden="true" className={`portal-home-objective-icon grid size-11 place-items-center rounded-full border ${completed ? "border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300" : "border-yellow-400/25 bg-yellow-400/[.05] text-[var(--brand-text)]"}`}>{completed ? <BmCheckIcon size={22} className="portal-home-objective-check" /> : <BmMedalIcon size={22} />}</span>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[var(--brand-text)] sm:text-[11px]">Objetivo semanal</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${completed ? "border-emerald-400/25 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-[var(--foreground-muted)]" : "border-emerald-400/20 bg-emerald-400/[.06] text-emerald-300"}`}>{stateLabel}</span></div>
         <h2 className="mt-1 text-sm font-bold leading-snug text-zinc-100 sm:text-base">{Math.round(animatedProgress)} de {mission.target} clases completadas</h2>
@@ -369,7 +368,7 @@ function WeeklyMissionAchievement({ data }: { data: PortalData }) {
   const expired = mission.state === "EXPIRED";
   const stateLabel = completed ? "Completada" : expired ? "Vencida" : "Activa";
   return <section data-state={mission.state} className={`portal-points-enter sports-weekly relative overflow-hidden rounded-[22px] border p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)] [--points-delay:220ms] sm:p-5 ${completed ? "border-emerald-400/20 bg-[linear-gradient(145deg,#151816,#090909)]" : "border-white/[.08] bg-[linear-gradient(145deg,#151515,#090909)]"}`}>
-    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-[var(--foreground-muted)]" : "border-yellow-400/20 bg-yellow-400/[.06] text-[var(--brand-text)]"}`}>{stateLabel}</span></div><h2 className="mt-2 flex items-center gap-2 text-sm font-black leading-snug text-white sm:text-base">{completed ? <BmTrophyIcon size={20} className="shrink-0 text-emerald-300" /> : <BmTargetIcon size={20} className="shrink-0 text-[var(--brand-text)]" />}{mission.title}</h2></div><div className="shrink-0 text-right text-[11px] leading-relaxed text-[var(--foreground-muted)]"><p className="font-bold uppercase tracking-[.12em] text-[var(--brand-text)]">Recompensa</p><p>+{mission.pointsPerSession} por entrenamiento</p><p>+{mission.completionBonus} bonus semanal</p><p className="mt-0.5 font-bold text-[var(--brand-text)]">Máximo +{mission.maximumReward} pts</p></div></div>
+    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Misión semanal</p><span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${completed ? "border-emerald-400/20 bg-emerald-400/[.07] text-emerald-300" : expired ? "border-zinc-700 bg-zinc-800/70 text-[var(--foreground-muted)]" : "border-yellow-400/20 bg-yellow-400/[.06] text-[var(--brand-text)]"}`}>{stateLabel}</span></div><h2 className="mt-2 flex items-center gap-2 text-sm font-black leading-snug text-white sm:text-base">{completed ? <BmTrophyIcon size={20} className="shrink-0 text-emerald-300" /> : <BmMedalIcon size={20} className="shrink-0 text-[var(--brand-text)]" />}{mission.title}</h2></div><div className="shrink-0 text-right text-[11px] leading-relaxed text-[var(--foreground-muted)]"><p className="font-bold uppercase tracking-[.12em] text-[var(--brand-text)]">Recompensa</p><p>+{mission.pointsPerSession} por entrenamiento</p><p>+{mission.completionBonus} bonus semanal</p><p className="mt-0.5 font-bold text-[var(--brand-text)]">Máximo +{mission.maximumReward} pts</p></div></div>
     <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-2xl font-black tracking-tight text-white">{mission.progress} <span className="text-base text-[var(--foreground-muted)]">/ {mission.target}</span></strong><p className={`text-right text-xs font-semibold ${completed ? "text-emerald-300" : "text-[var(--foreground-muted)]"}`}>{completed ? `+${mission.maximumReward} pts obtenidos` : mission.message}</p></div>
     <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-label="Progreso de la misión semanal" aria-valuemin={0} aria-valuemax={mission.target} aria-valuenow={Math.min(mission.progress, mission.target)}><div className={`portal-points-progress h-full rounded-full ${completed ? "bg-gradient-to-r from-emerald-500 to-yellow-300" : "bg-gradient-to-r from-amber-500 to-yellow-300"}`} style={{ width: `${mission.percentage}%` }} /></div>
   </section>;
@@ -421,7 +420,7 @@ function PointsAndAchievementsView({ data }: { data: PortalData }) {
   );
   const rewardTitle = reward?.description ?? latestAchievement?.name;
   return <div className="portal-points-page sports-points-page mx-auto max-w-3xl">
-    <header className="portal-points-enter sports-page-heading [--points-delay:0ms]"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Tu evolución</p><h1 className="mt-1 text-3xl font-black tracking-tight text-zinc-100 sm:text-4xl">{competitive ? "Puntos y logros" : "Progreso y logros"}</h1><p className="mt-1 text-sm text-[var(--foreground-muted)]">{competitive ? "Tus avances, movimiento y próximos hitos" : "Tu constancia, evolución y logros personales"}</p></header>
+    <PortalSectionHeading icon={BmTrophyIcon} kicker={competitive ? "Puntos y logros" : "Tu progreso"} title={competitive ? "Puntos y logros" : "Progreso y logros"} subtitle={competitive ? "Tus avances, movimiento y próximos hitos" : "Tu constancia, evolución y logros personales"} className="portal-points-enter [--points-delay:0ms]" />
     {competitive && <PointsSummary data={data} ranking={ranking} />}
     {data.home.activityStats && <div className="grid grid-cols-3 gap-2" aria-label="Resumen de actividad">
       {[
@@ -575,7 +574,7 @@ function movementIcon(eventType: StudentPointMovement["eventType"]) {
   if (eventType === "ATTENDANCE") return <BmAttendanceIcon size={19} />;
   if (eventType === "PAYMENT") return <BmPaymentIcon size={19} />;
   if (eventType === "ACHIEVEMENT" || eventType === "MILESTONE") return <BmTrophyIcon size={19} />;
-  if (eventType === "WEEKLY_MISSION") return <BmTargetIcon size={19} />;
+  if (eventType === "WEEKLY_MISSION") return <BmMedalIcon size={19} />;
   if (eventType === "PERSONAL_RECORD") return <BmMedalIcon size={19} />;
   if (eventType === "RECORD") return <BmBarbellIcon size={19} />;
   return <BmChallengeIcon size={19} />;
@@ -583,7 +582,7 @@ function movementIcon(eventType: StudentPointMovement["eventType"]) {
 
 function PointsHistoryPageView({ data }: { data: PortalData }) {
   return <div className="mx-auto w-full max-w-3xl overflow-x-clip px-0.5 sm:px-0">
-    <header className="portal-points-enter flex items-start gap-3 md:block [--points-delay:0ms]"><PortalPointsBackLink /><div className="min-w-0 md:mt-6"><p className="text-[11px] font-black uppercase tracking-[.22em] text-[var(--brand-text)]">Historial</p><h1 className="mt-1 text-2xl font-black tracking-tight text-zinc-100 sm:text-3xl">Movimientos de puntos</h1><p className="mt-1 text-sm text-[var(--foreground-muted)]">Consultá cómo sumaste tus puntos.</p></div></header>
+    <PortalSectionHeading icon={BmHistoryIcon} kicker="Historial" title="Movimientos de puntos" subtitle="Consultá cómo sumaste tus puntos." action={<PortalPointsBackLink />} className="portal-points-enter [--points-delay:0ms]" />
     <div className="mt-5"><PointsHistory data={data} /></div>
   </div>;
 }
@@ -597,17 +596,17 @@ function PointsHistory({ data }: { data: PortalData }) {
 }
 
 function ComparativeEvaluationsView({ data }: { data: PortalData }) {
-  return <div className="mx-auto max-w-5xl"><header className="mb-4 px-1 pt-1 sm:mb-5"><h1 className="text-3xl font-black tracking-tight text-zinc-100 sm:text-4xl">Mis evaluaciones</h1><p className="mt-1 text-base text-[var(--foreground-muted)] sm:text-lg">Tu evolución física</p></header><PortalEvaluationsDashboard evaluations={data.evaluations} /></div>;
+  return <div className="mx-auto max-w-5xl"><PortalSectionHeading icon={BmProgressIcon} kicker="Evaluación" title="Mi evaluación" subtitle="Seguimiento de tu progreso y estado físico" className="mb-4 sm:mb-5" /><PortalEvaluationsDashboard evaluations={data.evaluations} /></div>;
 }
 
 // Se conserva temporalmente para compatibilidad visual con enlaces internos antiguos.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CompactEvaluationsView({ data }: { data: PortalData }) {
   const latest = data.evaluations[0];
-  if (!latest) return <PageHeader title="Evaluaciones" subtitle="Tu seguimiento"><Notice>Todavía no hay evaluaciones completadas.</Notice></PageHeader>;
+  if (!latest) return <PageHeader icon={BmEvaluationIcon} kicker="Evaluación" title="Evaluaciones" subtitle="Tu seguimiento"><Notice>Todavía no hay evaluaciones completadas.</Notice></PageHeader>;
   const progress = Math.min(100, Math.max(0, latest.completionPercentage ?? 100));
   const state = latest.status === "REASSESSMENT_RECOMMENDED" ? "Reevaluación recomendada" : "Completada";
-  return <PageHeader title="Evaluaciones" subtitle="Tu información básica de seguimiento">
+  return <PageHeader icon={BmEvaluationIcon} kicker="Evaluación" title="Evaluaciones" subtitle="Tu información básica de seguimiento">
     <section className="rounded-2xl border border-yellow-400/15 bg-[linear-gradient(145deg,#181818,#090909)] p-4 shadow-[0_14px_35px_rgba(0,0,0,.25)]"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Última evaluación</p><p className="mt-2 text-lg font-black">{date(latest.date)}</p><p className="mt-1 text-xs text-[var(--foreground-muted)]">Versión {latest.version ?? data.evaluations.length} · {state}</p></div><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-sm font-black text-emerald-300">{progress}%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800" aria-label={`Progreso ${progress}%`}><div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-emerald-400" style={{ width: `${progress}%` }} /></div><div className="mt-4 grid grid-cols-2 gap-2"><SmallMetric title="Estado" value={state} /><SmallMetric title="Próxima evaluación" value={latest.reassessmentDate ? date(latest.reassessmentDate) : "—"} /></div></section>
     <details className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900 p-3"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-bold text-[var(--brand-text)] focus:outline-none focus:ring-2 focus:ring-yellow-400"><span>Ver historial</span><span aria-hidden="true"><BmChevronRightIcon size={16} className="inline" /></span></summary><div className="mt-3 space-y-2 border-t border-zinc-800 pt-3">{data.evaluations.map((item) => <details key={item.id} className="rounded-lg bg-zinc-950 p-3"><summary className="cursor-pointer list-none"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Versión {item.version ?? "—"} · {date(item.date)}</p><p className="mt-1 text-xs text-[var(--foreground-muted)]">{item.status === "REASSESSMENT_RECOMMENDED" ? "Reevaluación recomendada" : "Completada"} · {item.completionPercentage ?? 100}%</p></div><span className="text-xs font-bold text-[var(--brand-text)]">Ver</span></div></summary><div className="mt-3 grid grid-cols-2 gap-2 border-t border-zinc-800 pt-3 sm:grid-cols-4">{evaluationMeasurements(item).map((measurement) => <SmallMetric key={measurement.key} title={measurement.label} value={measurement.display} />)}</div></details>)}</div></details>
   </PageHeader>;
@@ -644,7 +643,7 @@ function EvaluationsView({ data }: { data: PortalData }) {
   const latest = data.evaluations[0];
   const previous = data.evaluations[1];
   const measurements = latest ? evaluationMeasurements(latest) : [];
-  if (!latest) return <PageHeader title="Mis evaluaciones" subtitle="Tu evolución física"><Notice>Todavía no hay evaluaciones registradas.</Notice></PageHeader>;
+  if (!latest) return <PageHeader icon={BmEvaluationIcon} kicker="Evaluación" title="Mis evaluaciones" subtitle="Tu evolución física"><Notice>Todavía no hay evaluaciones registradas.</Notice></PageHeader>;
   const summaryKeys = new Set(["weight", "bmi", "bodyFatPercentage", "muscleMass"]);
   const summary = measurements.filter((item) => summaryKeys.has(item.key));
   const bodyMeasures = measurements.filter((item) => !summaryKeys.has(item.key));
@@ -653,7 +652,7 @@ function EvaluationsView({ data }: { data: PortalData }) {
     { label: "Muslos", right: latest.rightThigh, left: latest.leftThigh },
     { label: "Pantorrillas", right: latest.rightCalf, left: latest.leftCalf },
   ].filter((item): item is { label: string; right: number; left: number } => item.right !== null && item.left !== null);
-  return <PageHeader title="Mis evaluaciones" subtitle="Consulta tus mediciones; solo tu entrenador puede modificarlas">
+  return <PageHeader icon={BmEvaluationIcon} kicker="Evaluación" title="Mis evaluaciones" subtitle="Consulta tus mediciones; solo tu entrenador puede modificarlas">
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-wider text-[var(--brand-text)]">Última evaluación</p><p className="mt-1 font-bold">{date(latest.date)}</p></div><span className="text-xs text-[var(--foreground-muted)]">{measurements.length} mediciones</span></div>{summary.length > 0 && <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{summary.map((item) => <SmallMetric key={item.key} title={item.label} value={item.display} />)}</div>}{latest.notes && <p className="mt-4 rounded-xl bg-zinc-950 p-3 text-sm text-[var(--foreground-muted)]">{latest.notes}</p>}</section>
     <div className="mt-5"><BodyEvolutionCard evaluations={data.evaluations} /></div>
     <section className="mt-5"><h2 className="font-semibold">Comparación anterior</h2>{previous ? <><p className="mt-1 text-xs text-[var(--foreground-muted)]">{date(previous.date)} → {date(latest.date)}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{BODY_METRICS.flatMap((metric) => { const current = latest[metric.key]; const before = previous[metric.key]; if (current === null || before === null) return []; const difference = current - before; return [<article key={metric.key} className="rounded-xl bg-zinc-900 p-3"><p className="text-xs text-[var(--foreground-muted)]">{metric.label}</p><p className="mt-1 text-sm font-semibold">{formatBodyValue(before, metric.unit)} → {formatBodyValue(current, metric.unit)}</p><p className="mt-1 text-xs text-zinc-300">{difference > 0 ? "↑ +" : difference < 0 ? "↓ " : "→ "}{formatBodyValue(difference, metric.unit)}</p></article>]; })}</div></> : <p className="mt-3 text-sm text-[var(--foreground-muted)]">Todavía no hay datos suficientes para comparar.</p>}</section>
@@ -668,7 +667,7 @@ function PaymentsView({ data }: { data: PortalData }) {
   const account = data.paymentAccount;
   const status = accountStatus[account.status];
   const openObligations = openTransferObligations(data.paymentObligations);
-  return <PageHeader title="Mi cuota" subtitle="Estado e historial personal de pagos">
+  return <PageHeader icon={BmPaymentIcon} kicker="Pagos" title="Mi cuota" subtitle="Estado e historial personal de pagos">
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-[var(--foreground-muted)]">Estado actual</p><span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-sm font-bold ${status.className}`}>{status.label}</span></div>{account.monthlyFee > 0 && <p className="text-2xl font-bold">{money(account.monthlyFee)}<span className="ml-1 text-xs font-normal text-[var(--foreground-muted)]">por mes</span></p>}</div>
       {account.configured ? <><dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><SmallMetric title="Próximo vencimiento" value={date(account.nextDueDate)} /><SmallMetric title="Plan" value={account.plan || "Sin detalle"} /><SmallMetric title="Último pago" value={account.lastPaymentDate ? date(account.lastPaymentDate) : "Sin registrar"} /><SmallMetric title="Importe del último pago" value={account.lastPaymentAmount === null ? "Sin pagos" : money(account.lastPaymentAmount)} /></dl>{account.status === "SIN_PAGOS" && <p className="mt-3 rounded-lg bg-yellow-400/5 px-3 py-2 text-sm text-yellow-100">Tu cuota todavía no registra pagos.</p>}</> : <p className="mt-4 text-sm text-[var(--foreground-muted)]">Todavía no tenés una cuota configurada.</p>}
@@ -1088,7 +1087,7 @@ export function WorkoutView({ data, selfService = false }: { data: OfflineWorkou
       });
     }
   }
-  if (!routine || !selectedDay) return <PageHeader title="Mi rutina" subtitle="Tu planificación activa"><Notice>Todavía no tenés una rutina activa.</Notice></PageHeader>;
+  if (!routine || !selectedDay) return <PageHeader icon={BmRoutineIcon} kicker="Entrenamiento" title="Mi rutina" subtitle="Tu planificación activa"><Notice>Todavía no tenés una rutina activa.</Notice></PageHeader>;
   const totalSets = draft?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
   const completedTotal = draft?.exercises.reduce((total, exercise) => total + exercise.sets.filter((set) => set.completed).length, 0) ?? 0;
   const completedExercises = completedExerciseCount(draft?.exercises ?? []);
@@ -1272,7 +1271,7 @@ function CommentsView({ data }: { data: PortalData }) {
   const [category, setCategory] = useState("consulta"); const [body, setBody] = useState(""); const [saving, setSaving] = useState(false); const [message, setMessage] = useState("");
   async function submit(event: FormEvent) { event.preventDefault(); setSaving(true); setMessage(""); const response = await fetch("/api/portal/comentarios", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ context: "general", category, body }) }); const result = await response.json() as { error?: string }; setMessage(response.ok ? "Tu comentario fue enviado." : result.error ?? "No se pudo enviar."); if (response.ok) setBody(""); setSaving(false); }
   const roots = data.comments.filter((item) => !item.parentId);
-  return <PageHeader title="Comentarios" subtitle="Consultas y devoluciones para tu entrenador"><form onSubmit={submit} className="rounded-2xl border border-yellow-400/20 bg-zinc-900 p-4"><select value={category} onChange={(event) => setCategory(event.target.value)} className={portalInput}><option value="consulta">Consulta</option><option value="dificultad">Dificultad</option><option value="dolor">Dolor o molestia</option><option value="devolucion">Devolución</option></select><textarea required value={body} onChange={(event) => setBody(event.target.value)} placeholder="Escribí tu mensaje…" rows={4} className={`${portalInput} mt-3`} /><button disabled={saving} className="mt-3 w-full rounded-xl bg-yellow-400 p-3 font-bold text-zinc-950">Enviar comentario</button>{message && <p className="mt-3 text-sm text-[var(--brand-text)]">{message}</p>}</form><div className="mt-5 space-y-3">{roots.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex justify-between"><span className="text-xs capitalize text-[var(--foreground-muted)]">{item.category} · {item.contextLabel}</span><span className={`rounded-full px-2 py-1 text-[11px] ${item.status === "pendiente" ? "bg-yellow-400/10 text-[var(--brand-text)]" : "bg-emerald-400/10 text-emerald-300"}`}>{item.status}</span></div><p className="mt-3 text-sm">{item.body}</p>{data.comments.filter((reply) => reply.parentId === item.id).map((reply) => <p key={reply.id} className="mt-3 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200"><strong>Entrenador:</strong> {reply.body}</p>)}</article>)}</div></PageHeader>;
+  return <PageHeader icon={BmHistoryIcon} kicker="Seguimiento" title="Comentarios" subtitle="Consultas y devoluciones para tu entrenador"><form onSubmit={submit} className="rounded-2xl border border-yellow-400/20 bg-zinc-900 p-4"><select value={category} onChange={(event) => setCategory(event.target.value)} className={portalInput}><option value="consulta">Consulta</option><option value="dificultad">Dificultad</option><option value="dolor">Dolor o molestia</option><option value="devolucion">Devolución</option></select><textarea required value={body} onChange={(event) => setBody(event.target.value)} placeholder="Escribí tu mensaje…" rows={4} className={`${portalInput} mt-3`} /><button disabled={saving} className="mt-3 w-full rounded-xl bg-yellow-400 p-3 font-bold text-zinc-950">Enviar comentario</button>{message && <p className="mt-3 text-sm text-[var(--brand-text)]">{message}</p>}</form><div className="mt-5 space-y-3">{roots.map((item) => <article key={item.id} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4"><div className="flex justify-between"><span className="text-xs capitalize text-[var(--foreground-muted)]">{item.category} · {item.contextLabel}</span><span className={`rounded-full px-2 py-1 text-[11px] ${item.status === "pendiente" ? "bg-yellow-400/10 text-[var(--brand-text)]" : "bg-emerald-400/10 text-emerald-300"}`}>{item.status}</span></div><p className="mt-3 text-sm">{item.body}</p>{data.comments.filter((reply) => reply.parentId === item.id).map((reply) => <p key={reply.id} className="mt-3 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200"><strong>Entrenador:</strong> {reply.body}</p>)}</article>)}</div></PageHeader>;
 }
 
 const portalInput = "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-yellow-400";
@@ -1376,7 +1375,9 @@ function PortalLogoutCard() {
   );
 }
 
-function PageHeader({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <><header className="mb-6"><h1 className="text-2xl font-bold">{title}</h1><p className="mt-1 text-sm text-[var(--foreground-muted)]">{subtitle}</p></header>{children}</>; }
+function PageHeader({ icon, kicker, title, subtitle, children }: Omit<React.ComponentProps<typeof PortalSectionHeading>, "action" | "className"> & { children: ReactNode }) {
+  return <><PortalSectionHeading icon={icon} kicker={kicker} title={title} subtitle={subtitle} className="mb-6" />{children}</>;
+}
 function SmallMetric({ title, value }: { title: string; value: string }) { return <div className="rounded-lg bg-zinc-950 p-2"><p className="text-[11px] text-[var(--foreground-muted)]">{title}</p><p className="mt-1 font-semibold">{value}</p></div>; }
 function Notice({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "error" }) { return <section className={`rounded-2xl border p-5 text-sm ${tone === "error" ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-zinc-800 bg-zinc-900 text-[var(--foreground-muted)]"}`}>{children}</section>; }
 function PortalLoading() { return <div className="animate-pulse space-y-4"><div className="h-8 w-48 rounded bg-zinc-800" /><div className="h-4 w-72 rounded bg-zinc-900" /><div className="grid gap-4 sm:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-32 rounded-2xl bg-zinc-900" />)}</div><div className="h-64 rounded-2xl bg-zinc-900" /></div>; }

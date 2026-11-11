@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { PortalSectionHeading } from "@/componentes/portal-section-heading";
+import { BmNutritionIcon } from "@/componentes/icons";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   NutritionContextSnapshot,
@@ -64,11 +66,7 @@ function PageHeader({
   back?: string;
 }) {
   return (
-    <header className="bm-surface bm-card-pad">
-      <Link href={back} className="text-xs font-bold text-[var(--brand-text)]">← Nutrición</Link>
-      <h1 className="mt-3 text-2xl font-black">{title}</h1>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--foreground-muted)]">{description}</p>
-    </header>
+    <PortalSectionHeading icon={BmNutritionIcon} kicker="Nutrición" title={title} subtitle={description} action={<Link href={back} className="text-xs font-bold text-[var(--brand-text)]">← Nutrición</Link>} />
   );
 }
 

@@ -1,4 +1,5 @@
 "use client";
+import { PortalSectionHeading } from "@/componentes/portal-section-heading";
 
 import Link from "next/link";
 import { ClassFeedbackInvitation } from "@/componentes/class-feedback-invitation";
@@ -277,14 +278,9 @@ export function PortalClasses({ compact = false, showQuickLogAction = false, sel
   return (
     <div className="mx-auto w-full max-w-5xl pb-4">
       <ClassFeedbackInvitation/>
-      <header className="flex items-start justify-between gap-3 px-1">
-        <div className="min-w-0"><p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Agenda presencial</p>
-        <h1 className="mt-1.5 text-2xl font-black leading-tight tracking-[-.03em] text-zinc-50 sm:text-4xl">Tus próximas clases</h1>
-        <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-zinc-400 sm:text-base">Consultá tus horarios y confirmá tu asistencia.</p></div>
-        {showQuickLogAction && <QuickNoteButton placement="inline" />}
-      </header>
+      <PortalSectionHeading icon={BmCalendarIcon} kicker="Agenda presencial" title="Tus próximas clases" subtitle="Consultá tus horarios y confirmá tu asistencia." action={showQuickLogAction ? <QuickNoteButton placement="inline" /> : undefined} />
 
-      <nav aria-label="Vista de clases" className="portal-home-class-row mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]" style={{ animationDelay: "65ms" }}>
+      <nav aria-label="Vista de clases" className="portal-home-class-row mt-6 portal-class-tabs grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[.1] bg-zinc-950/80 shadow-[inset_0_1px_rgba(255,255,255,.03)]" style={{ animationDelay: "65ms" }}>
         <button
           type="button"
           aria-pressed={!showWeek}
@@ -314,7 +310,7 @@ export function PortalClasses({ compact = false, showQuickLogAction = false, sel
           </p>
         </section>
       ) : showWeek ? (
-        <section className="portal-home-class-row mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl" style={{ animationDelay: "130ms" }}>
+        <section className="portal-class-agenda portal-home-class-row mt-4 overflow-hidden rounded-2xl border border-white/[.08] bg-[linear-gradient(145deg,#171717,#0b0b0b)] shadow-[0_16px_45px_rgba(0,0,0,.25)] sm:rounded-3xl" style={{ animationDelay: "130ms" }}>
           <div className="flex items-center gap-2.5 border-b border-white/[.07] px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-yellow-400/20 bg-yellow-400/[.08] text-yellow-300 sm:size-10"><BmCalendarIcon size={20} /></span>
             <div className="min-w-0">

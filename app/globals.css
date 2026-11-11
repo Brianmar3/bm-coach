@@ -2004,9 +2004,6 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
 
 /* Points and ranking share the proportions and metallic accents of the approved reference. */
 .sports-points-page { display:grid; gap:9px; }
-.sports-page-heading h1 { margin-top:2px; font-size:clamp(24px,6.2vw,33px); font-weight:700; line-height:1.12; }
-.sports-page-heading > p:last-child, .sports-page-heading > div > p:last-child { margin-top:4px; color:var(--foreground-muted); font-size:12px; }
-.sports-page-heading p:first-child { font-size:10px; font-weight:700; letter-spacing:.19em; }
 .sports-shield { width:110px; height:auto; overflow:visible; color:#ffca52; filter:drop-shadow(0 0 9px #ffb52065); }
 .sports-shield-laurels { color:#dc9e2c; }
 .portal-points-summary { border:1px solid #aa792971; border-radius:19px; background:var(--surface-elevated); }
@@ -2143,3 +2140,89 @@ html[data-theme] .portal-evaluation .bm-evaluation-chart text[fill="#a1a1aa"] { 
 .sports-month > span:last-child { padding:4px 8px; border:1px solid #b2802e67; border-radius:99px; color:var(--brand-text); }
 html:not([data-theme="light"]) :is(.sports-mini-stat,.sports-hito,.sports-month,.portal-ranking-summary,.sports-podium-plate,.sports-score,.portal-points-summary,.sports-weekly,.sports-reward) { --surface-elevated:#121212; }
 html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
+
+/* Compact headings for the authenticated student portal. */
+.portal-section-heading {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 5px 10px;
+  border: 1px solid #c595493d;
+  border-radius: 15px;
+  background:
+    radial-gradient(ellipse at 100% 8%, #bc832034, transparent 48%),
+    radial-gradient(ellipse at 0 105%, #cf8b252f, transparent 46%),
+    var(--surface-elevated);
+}
+.portal-section-heading::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 68% 185% at 42% -86%, transparent 97%, #ffd883ac 99%, transparent 100%),
+    radial-gradient(ellipse 68% 185% at 43% -81%, transparent 96%, #e2a44540 99%, transparent 100%);
+  mask-image: linear-gradient(110deg, #000, transparent 31%, transparent 73%, #000 100%);
+}
+.portal-section-heading-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #b782356e;
+  border-radius: 11px;
+  color: var(--brand-text);
+  background: linear-gradient(145deg, #d6982226, transparent 70%), var(--surface-elevated);
+  box-shadow: inset 0 1px #ffd07423;
+}
+.portal-section-heading-copy { flex: 1; min-width: 0; }
+.portal-section-heading-copy > p:first-child {
+  color: var(--brand-text);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .17em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.portal-section-heading-copy > h1 {
+  margin: 2px 0;
+  color: var(--foreground);
+  font-size: clamp(19px, 5.1vw, 25px);
+  font-weight: 750;
+  letter-spacing: -.025em;
+  line-height: 1.1;
+}
+.portal-section-heading-copy > p:last-child {
+  color: var(--foreground-muted);
+  font-size: 11px;
+  line-height: 1.24;
+}
+.portal-section-heading-action { flex: none; }
+.portal-class-tabs > button[aria-pressed="true"] {
+  background: linear-gradient(180deg, #d99a2117, transparent 78%);
+  box-shadow: inset 0 -1px #ffd76870;
+}
+.portal-class-agenda { border-color: #b6803a58; }
+.nutrition-home .nutrition-context { padding-bottom: .5rem; }
+.nutrition-home .nutrition-context-title > p { min-width: 0; }
+.nutrition-home .nutrition-context-meta { margin-top: .35rem; }
+.nutrition-home :is(.nutrition-today, .nutrition-habits) { border-color: #b6803a58; }
+.portal-evaluation .evaluation-hero {
+  background: radial-gradient(ellipse at 100% 100%, #c68a2532, transparent 54%), var(--surface-elevated);
+  border-color: #b6803a66;
+}
+.quick-log-create :is(input, select, textarea):focus-visible {
+  outline: 1px solid var(--brand-text);
+  outline-offset: 1px;
+}
+
+.portal-evaluation .evaluation-metrics > div {
+  box-shadow: inset 0 0 0 1px #b6803a43;
+  background: linear-gradient(145deg, #b6803a18, transparent 70%), var(--surface);
+}

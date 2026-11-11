@@ -1,11 +1,12 @@
 "use client";
+import { PortalSectionHeading } from "@/componentes/portal-section-heading";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { NUTRITION_HABITS } from "@/lib/nutrition";
 import type { NutritionHabitKey } from "@/types/nutrition";
 import type { NutritionDashboardData } from "@/types/nutrition-intelligence";
-import { BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmShieldCheckIcon, BmCommentIcon, BmBookmarkIcon, BmStarIcon, BmCartIcon, BmCookingIcon, BmBookIcon, BmLearningIcon, BmProteinIcon, BmPlantIcon, BmMealPlanIcon, BmHydrationIcon, BmChallengeIcon } from "@/componentes/icons";
+import { BmNutritionIcon, BmCalendarIcon, BmCheckIcon, BmChevronRightIcon, BmShieldCheckIcon, BmCommentIcon, BmBookmarkIcon, BmStarIcon, BmCartIcon, BmCookingIcon, BmBookIcon, BmLearningIcon, BmProteinIcon, BmPlantIcon, BmMealPlanIcon, BmHydrationIcon, BmChallengeIcon } from "@/componentes/icons";
 
 const emptyHabits: Record<NutritionHabitKey, boolean> = {
   hydration: false,
@@ -152,15 +153,15 @@ export function StudentNutrition() {
 
   return (
     <div className="nutrition-home mx-auto min-w-0 max-w-5xl">
-      <header className="nutrition-context">
-        <p className="nutrition-eyebrow">Tu guía para hoy{data?.studentName ? `, ${data.studentName}` : ""}</p>
-        <div className="nutrition-context-title"><h1>Nutrición</h1><Link href="/portal/nutricion/preferencias" className="nutrition-text-action">Preferencias <BmChevronRightIcon size={16} /></Link></div>
+      <PortalSectionHeading icon={BmNutritionIcon} kicker="Nutrición" title="Mi nutrición" subtitle="Plan, consumo y progreso diario" />
+      <section className="nutrition-context" aria-label="Tu guía de nutrición">
+        <div className="nutrition-context-title"><p className="nutrition-eyebrow">Tu guía para hoy{data?.studentName ? `, ${data.studentName}` : ""}</p><Link href="/portal/nutricion/preferencias" className="nutrition-text-action">Preferencias <BmChevronRightIcon size={16} /></Link></div>
         <p className="nutrition-objective">Tu objetivo: <strong>{data?.objective || "Mejorar hábitos"}</strong></p>
         <div className="nutrition-context-meta">
           <span className="nutrition-context-status">{data?.contextStatus === "FULL" ? "Personalización completa" : data?.contextStatus === "LIMITED" ? "Personalización limitada" : "Guía base"}{data?.contextStatus === "FULL" && <BmCheckIcon size={16} />}</span>
           <p><LineIcon name="calendar" className="size-4" />{data?.evaluation ? `Evaluación del ${showDate(data.evaluation.date)}` : "Guía basada en tu perfil actual"}</p>
         </div>
-      </header>
+      </section>
       {error && <p role="alert" className="nutrition-feedback is-error">{error}</p>}
       {message && <p role="status" className="nutrition-feedback">{message}</p>}
       <section className="nutrition-today" aria-labelledby="nutrition-today-title">

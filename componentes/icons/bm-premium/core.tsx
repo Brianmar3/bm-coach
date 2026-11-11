@@ -1,3 +1,4 @@
+import { BmMedalIcon } from "./support";
 import { createBmIcon } from "./icon";
 
 // Core family. Each silhouette fits the same grid, with an open, quiet contour.
@@ -8,7 +9,7 @@ export const BmNutritionIcon = createBmIcon("BmNutritionIcon", <><path d="M12 8c
 export const BmAppleIcon = BmNutritionIcon;
 export const BmEvaluationIcon = createBmIcon("BmEvaluationIcon", <><path d="M14.5 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.5L14.5 3Z"/><path d="M14.5 3v5.5H20M8 7h3M8 10.5h3M8 17l3-3 3 1 3-4M14 11h3v3"/></>);
 export const BmStudentsIcon = createBmIcon("BmStudentsIcon", <><circle cx="9" cy="7" r="3.5"/><path d="M3 20v-2.5A5.5 5.5 0 0 1 8.5 12h1a5.5 5.5 0 0 1 5.5 5.5V20H3Z"/><path d="M16 4.5a3 3 0 0 1 0 6M18 13a4.5 4.5 0 0 1 3 4.5V20h-3"/></>);
-export const BmTargetIcon = createBmIcon("BmTargetIcon", <><path d="M19.5 10a8.5 8.5 0 1 1-5.5-5.5M15.5 11.5A4.5 4.5 0 1 1 11 7"/><path d="m11 13 9-9M16 4h4v4"/><circle cx="11" cy="13" r=".8" fill="currentColor" stroke="none"/></>);
+export const BmTargetIcon = BmMedalIcon;
 export const BmFocusIcon = createBmIcon("BmFocusIcon", <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></>);
 export const BmProgressIcon = createBmIcon("BmProgressIcon", <><path d="M4 20v-3M9 20v-5M14 20v-7M19 20v-9"/><path d="M3.5 12.5 8.5 9l4 1 7-6M15.5 4h4v4"/></>);
 export const BmDiscomfortIcon = createBmIcon("BmDiscomfortIcon", <><path d="M9.5 8V7a3.5 3.5 0 1 1 7-1M9.5 8 6 9.5a4 4 0 0 0-2.5 3.7L3 20M7 13l.5 8h9l.5-5M19 15l2 5"/><circle cx="17" cy="10" r="3.5"/><circle cx="17" cy="10" r="1" fill="currentColor" stroke="none"/></>);

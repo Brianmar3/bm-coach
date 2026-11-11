@@ -1,4 +1,5 @@
 "use client";
+import { PortalSectionHeading } from "@/componentes/portal-section-heading";
 import { StudentPhoto } from "@/componentes/student-photo";
 /* eslint-disable @next/next/no-img-element -- Blob URLs are validated uploads */
 
@@ -19,7 +20,7 @@ import {
   type QuickLogDraft,
   type QuickLogKind,
 } from "@/lib/quick-log-flow";
-import { BmBackIcon, BmCheckIcon, BmClipboardIcon, BmDeleteIcon, BmEditIcon, BmFilterIcon, BmPlusIcon, BmProgressIcon, BmSearchIcon } from "@/componentes/icons";
+import { BmBarbellIcon, BmBackIcon, BmCheckIcon, BmClipboardIcon, BmDeleteIcon, BmEditIcon, BmFilterIcon, BmPlusIcon, BmProgressIcon, BmSearchIcon } from "@/componentes/icons";
 
 const labels: Record<QuickLogType, { title: string }> = {
   WORKOUT: { title: "Entrenamiento" },
@@ -227,7 +228,7 @@ export function QuickLogHistory({ startCreating = false }: { startCreating?: boo
       setError("No se pudo confirmar la eliminación de la foto. Revisá tu conexión y actualizá los registros antes de reintentar.");
     }
   }
-  return <div><header className="portal-home-class-row"><p className="text-[11px] font-black uppercase tracking-[.22em] text-yellow-400">Registro personal</p><h1 className="mt-1.5 text-3xl font-black tracking-[-.03em] text-zinc-50">Mis registros</h1><p className="mt-1.5 text-sm text-zinc-400">{logs.length} {logs.length === 1 ? "registro" : "registros"} · {distinctExercises} {distinctExercises === 1 ? "ejercicio" : "ejercicios"}</p>{!creating && <button onClick={() => setCreating(true)} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 px-4 py-2.5 text-sm font-black text-zinc-950 shadow-[0_10px_28px_rgba(250,204,21,.14)] transition active:scale-[.98]"><BmPlusIcon size={17} />Nuevo registro</button>}</header>
+  return <div><div className="portal-home-class-row"><PortalSectionHeading icon={BmBarbellIcon} kicker="Registro personal" title="Mis registros" subtitle={`${logs.length} ${logs.length === 1 ? "registro" : "registros"} · ${distinctExercises} ${distinctExercises === 1 ? "ejercicio" : "ejercicios"}`} />{!creating && <button onClick={() => setCreating(true)} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 px-4 py-2.5 text-sm font-black text-zinc-950 shadow-[0_10px_28px_rgba(250,204,21,.14)] transition active:scale-[.98]"><BmPlusIcon size={17} />Nuevo registro</button>}</div>
     {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}{notice && <p role="status" className="mt-4 rounded-xl bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}
     {creating ? <GuidedQuickLogForm close={() => setCreating(false)} saved={async () => { window.dispatchEvent(new Event(OFFLINE_EXERCISES_CHANGED)); setNotice("Registro guardado correctamente."); await load(); }} /> : <>
     <div className="portal-home-class-row mt-5 grid grid-cols-2 rounded-xl border border-zinc-800 bg-zinc-950 p-1" style={{ animationDelay: "65ms" }} role="tablist" aria-label="Vista de registros"><button type="button" role="tab" aria-selected={view === "chronological"} onClick={() => setView("chronological")} className={`min-h-10 rounded-lg border text-sm font-semibold transition ${view === "chronological" ? "border-yellow-400/55 bg-yellow-400/[.08] text-yellow-300" : "border-transparent text-zinc-400"}`}>Cronológico</button><button type="button" role="tab" aria-selected={view === "exercises"} onClick={() => setView("exercises")} className={`min-h-10 rounded-lg border text-sm font-semibold transition ${view === "exercises" ? "border-yellow-400/55 bg-yellow-400/[.08] text-yellow-300" : "border-transparent text-zinc-400"}`}>Por ejercicio</button></div>
