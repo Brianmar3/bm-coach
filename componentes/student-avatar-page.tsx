@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWorkspaceBranding } from "@/componentes/workspace-branding-provider";
 import { DEFAULT_PROFILE_AVATAR, PROFILE_AVATARS, profileAvatarById, profileAvatarBySrc } from "@/lib/profile-avatars";
 import type { PortalProfile } from "@/types/portal";
@@ -51,6 +51,10 @@ export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
   const [saving, setSaving] = useState(false);
   const savingLock = useRef(false);
   const [photoDraft, setPhotoDraft] = useState<File | null>(null);
+  const photoSection = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (window.location.hash === "#foto-propia") photoSection.current?.scrollIntoView({ block: "start" });
+  }, []);
   const selectedAvatar = profileAvatarById(avatarChoice ?? "");
   const previewImage = selectedAvatar?.src || currentImage || DEFAULT_PROFILE_AVATAR.src;
 
@@ -164,6 +168,22 @@ export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
         </p>
       </header>
 
+      <section ref={photoSection} id="foto-propia" aria-labelledby="foto-propia-title" className="scroll-mt-24 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-4">
+        {error && <p role="alert" className="mb-3 rounded-xl bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] p-3 text-sm text-[var(--danger)]">{error}</p>}
+        {message && <p role="status" className="mb-3 rounded-xl bg-[color-mix(in_srgb,var(--success)_10%,transparent)] p-3 text-sm text-[var(--success)]">{message}</p>}
+        <div>
+          <h2 id="foto-propia-title" className="text-sm font-semibold text-[var(--foreground)]">Tu foto propia</h2>
+          <p className="mt-1 text-xs text-[var(--foreground-muted)]">Podés usar una foto JPG, PNG o WebP de hasta 3 MB. Elegir un avatar no borra tu foto guardada.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <label className={`inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-[var(--foreground)] hover:border-[var(--bm-accent)] ${saving ? "pointer-events-none opacity-50" : ""}`}>
+              Subir foto propia
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) setPhotoDraft(file); event.target.value = ""; }} />
+            </label>
+            {hasPhoto && savedAvatarId && <button type="button" disabled={saving} onClick={restorePhoto} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--bm-accent)] disabled:opacity-50">Volver a mi foto anterior</button>}
+          </div>
+        </div>
+      </section>
+
       <section aria-labelledby="current-avatar-title">
         <h2 id="current-avatar-title" className="text-[10px] font-black uppercase tracking-[.18em] text-[var(--brand-text)]">
           Avatar actual
@@ -216,33 +236,19 @@ export function StudentAvatarPage({ profile }: { profile: PortalProfile }) {
           </div>
       </section>
 
+      {avatarChoice && avatarChoice !== savedAvatarId && <div className={styles.avatarSaveDock}>
+      <button
+        type="button"
+        onClick={saveAvatar}
+        disabled={saving || !avatarChoice || avatarChoice === savedAvatarId}
+        className="min-h-12 w-full rounded-xl bg-[var(--bm-accent)] px-4 font-black text-[var(--bm-accent-contrast)] transition hover:bg-[var(--bm-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bm-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {saving ? "Guardando…" : "Guardar avatar"}
+      </button>
+      </div>}
+
       {photoDraft && <StudentPhotoEditor initialFile={photoDraft} onCancel={() => setPhotoDraft(null)} onSave={uploadPhoto} />}
 
-      <section className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-4">
-        {error && <p role="alert" className="mb-3 rounded-xl bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] p-3 text-sm text-[var(--danger)]">{error}</p>}
-        {message && <p role="status" className="mb-3 rounded-xl bg-[color-mix(in_srgb,var(--success)_10%,transparent)] p-3 text-sm text-[var(--success)]">{message}</p>}
-        {avatarChoice && avatarChoice !== savedAvatarId && <div className={styles.avatarSaveDock}>
-        <button
-          type="button"
-          onClick={saveAvatar}
-          disabled={saving || !avatarChoice || avatarChoice === savedAvatarId}
-          className="min-h-12 w-full rounded-xl bg-[var(--bm-accent)] px-4 font-black text-[var(--bm-accent-contrast)] transition hover:bg-[var(--bm-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--bm-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? "Guardando…" : "Guardar avatar"}
-        </button>
-        </div>}
-        <div className="mt-4 border-t border-[var(--border-soft)] pt-4">
-          <p className="text-sm font-semibold text-[var(--foreground)]">Tu foto propia</p>
-          <p className="mt-1 text-xs text-[var(--foreground-muted)]">Podés usar una foto JPG, PNG o WebP de hasta 3 MB. Elegir un avatar no borra tu foto guardada.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <label className={`inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-[var(--foreground)] hover:border-[var(--bm-accent)] ${saving ? "pointer-events-none opacity-50" : ""}`}>
-              Subir foto propia
-              <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) setPhotoDraft(file); event.target.value = ""; }} />
-            </label>
-            {hasPhoto && savedAvatarId && <button type="button" disabled={saving} onClick={restorePhoto} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--bm-accent)] disabled:opacity-50">Volver a mi foto anterior</button>}
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

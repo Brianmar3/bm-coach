@@ -87,7 +87,7 @@ export function StudentProfileView({ profile: initialProfile }: { profile: Porta
           {settingsOpen && <SettingsMenu onClose={() => setSettingsOpen(false)} />}
         </div>
       </div>
-      <div className="mt-6 border-t border-white/10 pt-5"><h2 className="font-semibold">Elegir avatar</h2><p className="mt-1 text-sm text-zinc-500">Elegí el avatar que más te represente.</p><Link href="/portal/perfil/avatar" className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl border border-yellow-400/65 px-4 font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmUserPlusIcon size={22} />Cambiar avatar</Link></div>
+      <div className="mt-6 border-t border-white/10 pt-5"><h2 className="font-semibold">Elegir avatar</h2><p className="mt-1 text-sm text-zinc-500">Elegí el avatar que más te represente.</p><div className="mt-4 flex flex-wrap gap-2"><Link href="/portal/perfil/avatar" className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-yellow-400/65 px-4 font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmUserPlusIcon size={22} />Cambiar avatar</Link><Link href="/portal/perfil/avatar#foto-propia" className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-yellow-400/65 px-4 font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmEditIcon size={20} />Cambiar foto</Link></div></div>
     </PortalProfileFrame>
 
     <section className="rounded-[26px] border border-yellow-400/20 bg-[linear-gradient(145deg,#151515,#0a0a0a)] p-4 shadow-[0_15px_35px_rgba(0,0,0,.28)] sm:p-6">
