@@ -24,11 +24,6 @@
   border-radius: .65rem;
 }
 .back:hover::before { border-color: var(--bm-accent); }
-.current {
-  border-color: var(--border-soft);
-  background: linear-gradient(145deg, var(--surface), var(--surface-soft));
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--overlay) 20%, transparent);
-}
 .choice {
   position: relative;
   border-color: var(--border-soft);
@@ -74,15 +69,14 @@
 .photoLayout { display: flex; flex-direction: column; max-height: inherit; }
 .photoHeader { flex: none; padding: .8rem 1rem; border-bottom: 1px solid var(--border-soft); }
 .photoHeader h2 { font-size: 1.1rem; font-weight: 800; }
-.photoBody { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; justify-items: center; gap: .85rem; padding: .85rem 1rem; }
-.photoBody p { color: var(--foreground-muted); font-size: .8rem; }
+.photoBody { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; justify-items: center; gap: .45rem; padding: .65rem .8rem; }
 .photoCanvas { width: min(100%, 14rem); height: auto; aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--bm-accent); touch-action: none; cursor: grab; }
 .photoCanvas:active { cursor: grabbing; }
 .photoZoom { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .8rem; width: min(100%, 18rem); font-size: .85rem; font-weight: 600; }
 .photoZoom input { min-height: 2.75rem; accent-color: var(--bm-accent); }
 .photoReplace, .photoActions button { display: grid; place-items: center; min-height: 2.75rem; padding: .4rem .75rem; border: 1px solid var(--border-soft); border-radius: .7rem; font-size: .85rem; font-weight: 700; cursor: pointer; }
 .photoReplace:focus-within, .photoActions button:focus-visible, .photoCanvas:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 2px; }
-.photoFooter { flex: none; padding: .65rem 1rem max(.65rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--border-soft); background: var(--surface); }
+.photoFooter { flex: none; padding: .55rem .8rem max(.55rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--border-soft); background: var(--surface); }
 .photoActions { display: grid; grid-template-columns: 1fr 1.35fr; gap: .5rem; }
 .photoActions button[type="submit"] { background: var(--bm-accent); color: var(--bm-accent-contrast); }
 .photoActions button:disabled { opacity: .55; cursor: default; }
@@ -103,3 +97,65 @@
 @media (min-width: 768px) {
   .avatarSaveDock { bottom: 1rem; }
 }
+
+.profilePhoto { position: relative; flex: none; }
+.profileCamera {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+}
+.profileCamera span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--bm-accent);
+  border-radius: 50%;
+  background: #101010;
+  color: var(--bm-accent);
+  box-shadow: 0 2px 6px #0009;
+}
+.profileCamera:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 1px; }
+
+.photoChoices {
+  position: fixed;
+  inset: auto 0 0;
+  width: min(100%, 27rem);
+  max-width: none;
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--bm-accent) 34%, var(--border-soft));
+  border-radius: 20px 20px 0 0;
+  background: var(--surface);
+  color: var(--foreground);
+}
+.photoChoices::backdrop { background: #000a; }
+.photoChoicesContent {
+  display: grid;
+  gap: .35rem;
+  padding: .35rem .75rem max(.65rem, env(safe-area-inset-bottom));
+}
+.photoChoicesHeading { display: flex; align-items: center; justify-content: space-between; padding-left: .5rem; }
+.photoChoicesHeading h2 { font-size: 1rem; font-weight: 800; }
+.photoChoicesHeading button { display: grid; min-width: 44px; min-height: 44px; place-items: center; border-radius: .7rem; color: var(--foreground-muted); }
+.photoChoice {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  min-height: 44px;
+  width: 100%;
+  padding: .35rem .75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: .7rem;
+  background: var(--surface-soft);
+  font-size: .875rem;
+  font-weight: 700;
+  text-align: left;
+}
+.photoChoice svg { flex: none; color: var(--bm-accent); }
+.photoChoice:focus-visible, .photoChoicesHeading button:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: 1px; }

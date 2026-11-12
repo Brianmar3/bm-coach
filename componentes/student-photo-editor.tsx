@@ -134,9 +134,9 @@ export function StudentPhotoEditor({ initialFile, onCancel, onSave }: {
     if (!saveLock.current) onCancel();
   }}>
     <form className={styles.photoLayout} onSubmit={(event) => { event.preventDefault(); void save(); }}>
-      <header className={styles.photoHeader}><h2 id="profile-photo-title">Editar foto</h2></header>
+      <header className={styles.photoHeader}><h2 id="profile-photo-title">Recortar foto</h2></header>
       <div className={styles.photoBody} data-photo-editor-scroll>
-        <p id="profile-photo-instructions">Arrastrá la imagen o usá las flechas del teclado para encuadrarla.</p>
+        <p id="profile-photo-instructions" className="sr-only">Arrastrá la foto o usá las flechas para encuadrarla.</p>
         <canvas ref={canvas} width={SIZE} height={SIZE} className={styles.photoCanvas} aria-label="Vista previa circular de tu foto" aria-describedby="profile-photo-instructions"
           tabIndex={image && !saving ? 0 : -1}
           onPointerDown={(event) => {

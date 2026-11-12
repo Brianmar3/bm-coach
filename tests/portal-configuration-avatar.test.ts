@@ -88,20 +88,26 @@ test("la selección sigue persistiendo por avatarId con la API existente", () =>
   assert.doesNotMatch(profileRoute, /profileImageUrl: avatar\.src|removeOwnedBlob\(student\.profileImageUrl[^\n]*avatar/);
 });
 
-test("Cambiar avatar navega a una página propia y ya no abre un modal", () => {
+test("Perfil ofrece un solo acceso con rutas distintas para avatar y foto", () => {
   assert.match(profile, /href="\/portal\/perfil\/avatar"/);
   assert.match(avatarRoute, /section="avatar"/);
+  assert.match(profile, /aria-label="Cambiar foto de perfil" aria-haspopup="dialog"/);
+  assert.match(profile, /<dialog ref=\{photoChoices\} id="profile-photo-choices"/);
+  assert.match(profile, /photoChoices\.current\?\.showModal\(\)/);
+  assert.match(profile, /Elegir avatar\s*<\/Link>/);
+  assert.match(profile, /photoInput\.current\?\.click\(\)[\s\S]*?Subir foto propia/);
+  assert.match(profile, /<StudentPhotoEditor initialFile=\{photoDraft\}/);
+  assert.doesNotMatch(profile, />Cambiar avatar<|>Cambiar foto<|#foto-propia/);
   assert.doesNotMatch(profile, /avatarPickerOpen|aria-modal/);
   assert.doesNotMatch(avatarPage, /fixed inset-0|sticky bottom-0|z-\[70\]|safe-area-inset/);
 });
 
-test("la página muestra selección local y guardado explícito con opción de foto propia", () => {
-  assert.match(avatarPage, /Avatar actual/);
+test("la galería muestra selección local y un guardado explícito sin el cargador de fotos", () => {
   assert.match(avatarPage, /Avatares BM/);
   assert.match(avatarPage, /setAvatarChoice\(avatar\.id\)/);
   assert.match(avatarPage, /Guardar avatar/);
   assert.match(avatarPage, /Volver a mi foto anterior/);
-  assert.match(avatarPage, /Subir foto propia/);
+  assert.doesNotMatch(avatarPage, /Subir foto propia|StudentPhotoEditor/);
   assert.match(avatarPage, /href="\/portal\/perfil"/);
   assert.doesNotMatch(avatarPage, /onClick=\{saveAvatar\}.*setAvatarChoice/s);
 });

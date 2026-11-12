@@ -3,6 +3,7 @@ import { createBmIcon } from "./icon";
 // Navigation
 export const BmProfileIcon = createBmIcon("BmProfileIcon", <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>);
 export const BmUserIcon = BmProfileIcon;
+export const BmCameraIcon = createBmIcon("BmCameraIcon", <><path d="M4 7h4l2-3h4l2 3h4a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" /><circle cx="12" cy="13" r="3" /></>);
 export const BmUserPlusIcon = createBmIcon("BmUserPlusIcon", <><circle cx="9" cy="8" r="4" /><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6" /></>);
 
 // Account and settings

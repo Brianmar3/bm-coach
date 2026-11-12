@@ -6,6 +6,10 @@ import { PortalProfileFrame, PortalProfileAvatar } from "@/componentes/portal-vi
 
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { StudentPhotoEditor } from "@/componentes/student-photo-editor";
+import { announceProfilePhoto, readAvatarResponse } from "@/lib/student-profile-photo-client";
+import photoStyles from "./student-avatar-page.module.css";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { DEFAULT_PROFILE_AVATAR } from "@/lib/profile-avatars";
 import { studentServiceLabel } from "@/lib/student-service";
@@ -28,7 +32,8 @@ import {
   BmRoutineIcon,
   BmLevelIcon,
   BmDiscomfortIcon,
-  BmUserPlusIcon,
+  BmCameraIcon,
+  BmUserIcon,
   BmPhoneIcon,
   type BmIconProps,
 } from "@/componentes/icons";
@@ -48,6 +53,30 @@ const infoIcons: Record<string, ComponentType<BmIconProps>> = {
 
 export function StudentProfileView({ profile: initialProfile }: { profile: PortalProfile }) {
   const [profile, setProfile] = useState(initialProfile);
+  const photoChoices = useRef<HTMLDialogElement>(null);
+  const [photoDraft, setPhotoDraft] = useState<File | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const photoTrigger = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
+
+  function closePhotoEditor() {
+    setPhotoDraft(null);
+    requestAnimationFrame(() => photoTrigger.current?.focus({ preventScroll: true }));
+  }
+
+  async function uploadProfilePhoto(file: File) {
+    const form = new FormData();
+    form.set("photo", file);
+    const response = await fetch("/api/portal/profile-photo", { method: "POST", body: form });
+    const body = await readAvatarResponse(response);
+    const photoUrl = body.photoUrl ?? body.url;
+    if (!response.ok || body.success === false || !photoUrl) throw new Error(body.error ?? "No se pudo guardar la foto.");
+    setProfile(current => ({ ...current, profileImageUrl: photoUrl, avatarPresetId: "", hasProfilePhoto: true }));
+    announceProfilePhoto(photoUrl);
+    closePhotoEditor();
+    router.refresh();
+  }
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -80,15 +109,44 @@ export function StudentProfileView({ profile: initialProfile }: { profile: Porta
   return <div className="mx-auto max-w-4xl space-y-4 pb-3">
     <PortalProfileFrame>
       <div className="flex items-center gap-4 sm:gap-7">
-        <PortalProfileAvatar src={shown} name={`${profile.firstName} ${profile.lastName}`} />
+        <div className={photoStyles.profilePhoto}>
+          <PortalProfileAvatar src={shown} name={`${profile.firstName} ${profile.lastName}`} />
+          <button ref={photoTrigger} type="button" aria-label="Cambiar foto de perfil" aria-haspopup="dialog" aria-controls="profile-photo-choices" className={photoStyles.profileCamera} onClick={() => photoChoices.current?.showModal()}>
+            <span><BmCameraIcon size={17} aria-hidden="true" /></span>
+          </button>
+        </div>
         <div className="min-w-0 flex-1"><h1 className="text-2xl font-black leading-tight sm:text-4xl">{profile.firstName} {profile.lastName}</h1><p className="mt-3 flex items-center gap-2 text-sm text-zinc-400 sm:text-base"><BmCalendarIcon size={18} className="shrink-0 text-yellow-400" />{profile.plan || "Plan sin definir"}</p><p className={`mt-2 text-sm sm:text-base ${active ? "text-emerald-300" : "text-zinc-400"}`}><span className={`mr-2 inline-block size-2.5 rounded-full ${active ? "bg-emerald-400" : "bg-zinc-500"}`} />Alumno {profile.status}</p></div>
         <div ref={settingsRef} className="relative self-start">
           <button type="button" aria-label="Abrir ajustes" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((value) => !value)} className="grid size-12 place-items-center rounded-2xl border border-yellow-400/45 bg-black/35 text-zinc-100 transition hover:bg-yellow-400/[.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-300 sm:size-16"><BmSettingsIcon size={28} /></button>
           {settingsOpen && <SettingsMenu onClose={() => setSettingsOpen(false)} />}
         </div>
       </div>
-      <div className="mt-6 border-t border-white/10 pt-5"><h2 className="font-semibold">Elegir avatar</h2><p className="mt-1 text-sm text-zinc-500">Elegí el avatar que más te represente.</p><div className="mt-4 flex flex-wrap gap-2"><Link href="/portal/perfil/avatar" className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-yellow-400/65 px-4 font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmUserPlusIcon size={22} />Cambiar avatar</Link><Link href="/portal/perfil/avatar#foto-propia" className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-yellow-400/65 px-4 font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]"><BmEditIcon size={20} />Cambiar foto</Link></div></div>
     </PortalProfileFrame>
+    <dialog ref={photoChoices} id="profile-photo-choices" aria-labelledby="profile-photo-choices-title" className={photoStyles.photoChoices} onClick={event => {
+      if (event.target === event.currentTarget) event.currentTarget.close();
+    }}>
+      <div className={photoStyles.photoChoicesContent}>
+        <div className={photoStyles.photoChoicesHeading}>
+          <h2 id="profile-photo-choices-title">Foto de perfil</h2>
+          <button type="button" aria-label="Cerrar opciones de foto" onClick={() => photoChoices.current?.close()}><BmCloseIcon size={19} aria-hidden="true" /></button>
+        </div>
+        <Link href="/portal/perfil/avatar" className={photoStyles.photoChoice} onClick={() => photoChoices.current?.close()}>
+          <BmUserIcon size={19} aria-hidden="true" />Elegir avatar
+        </Link>
+        <button type="button" className={photoStyles.photoChoice} onClick={() => {
+          photoChoices.current?.close();
+          photoInput.current?.click();
+        }}>
+          <BmCameraIcon size={19} aria-hidden="true" />Subir foto propia
+        </button>
+      </div>
+    </dialog>
+    <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={event => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) setPhotoDraft(file);
+    }} />
+    {photoDraft && <StudentPhotoEditor initialFile={photoDraft} onCancel={closePhotoEditor} onSave={uploadProfilePhoto} />}
 
     <section className="rounded-[26px] border border-yellow-400/20 bg-[linear-gradient(145deg,#151515,#0a0a0a)] p-4 shadow-[0_15px_35px_rgba(0,0,0,.28)] sm:p-6">
       <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold">Información personal y deportiva</h2><button type="button" onClick={() => { setEditing((value) => !value); setMessage(""); }} className="inline-flex min-h-11 items-center gap-1.5 px-2 text-sm font-bold text-yellow-300">{editing ? "Cancelar" : <><BmEditIcon size={17} />Editar</>}</button></div>
