@@ -4,6 +4,7 @@ export type NutritionIngredient = {
   unit: string;
   category: string;
   optional?: boolean;
+  state?: string;
 };
 
 export type NutritionRecipeResult = {

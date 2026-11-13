@@ -16,6 +16,7 @@ import {
   validateRecipeResult,
   normalizeIngredientInput,
 } from "@/lib/nutrition-rules";
+import { recipeWithServings } from "@/lib/nutrition-recipe-servings";
 import { catalogRecipesByTitles } from "@/lib/nutrition-catalog";
 import type {
   NutritionPlanMeal,
@@ -102,6 +103,7 @@ function parseShoppingItems(value: unknown): NutritionShoppingItem[] {
       quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : null,
       unit: safeText(record.unit, 30),
       category: safeText(record.category, 50) || "Otros",
+      ...(typeof record.state === "string" ? { state: safeText(record.state, 48) } : {}),
       checked: record.checked === true,
       optional: record.optional === true,
     }];
@@ -377,7 +379,11 @@ export async function POST(
           steps: recipe.steps,
           substitutions: recipe.substitutions,
         });
-        return candidate ? [candidate] : [];
+        if (!candidate) return [];
+        const servings = !ownedMealPlan && recipeIds.length === 1 && candidate.tags.includes("ficha:2")
+          ? safeInteger(input.servings, 1, 12, candidate.servings)
+          : candidate.servings;
+        return [recipeWithServings(candidate, servings)];
       });
       if (ownedMealPlan) {
         const meals = parsePlanMeals(ownedMealPlan.meals);

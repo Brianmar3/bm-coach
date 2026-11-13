@@ -458,7 +458,7 @@ export function shoppingItemsFromRecipes(
   const grouped = new Map<string, NutritionShoppingItem>();
   for (const recipe of recipes) {
     for (const ingredient of recipe.ingredients.filter((item) => !item.optional)) {
-      const key = `${canonicalIngredient(ingredient.name)}|${normalizeNutritionText(ingredient.unit)}`;
+      const key = `${canonicalIngredient(ingredient.name)}|${normalizeNutritionText(ingredient.unit)}|${normalizeNutritionText(ingredient.state ?? "")}`;
       const current = grouped.get(key);
       if (current && current.quantity !== null && ingredient.quantity !== null) {
         current.quantity += ingredient.quantity;
@@ -481,6 +481,8 @@ export function shoppingItemsFromRecipes(
 export function validateRecipeResult(value: unknown): NutritionRecipeResult | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
+  const tags = stringList(record.tags, 20);
+  const curated = tags.includes("ficha:2");
   const title = safeText(record.title, 120);
   const description = safeText(record.description, 400);
   const rawIngredients = Array.isArray(record.ingredients) ? record.ingredients : [];
@@ -496,9 +498,12 @@ export function validateRecipeResult(value: unknown): NutritionRecipeResult | nu
       unit: safeText(ingredientRecord.unit, 30),
       category: safeText(ingredientRecord.category, 50) || "Otros",
       optional: ingredientRecord.optional === true,
+      ...(curated && typeof ingredientRecord.state === "string" ? { state: safeText(ingredientRecord.state, 48) } : {}),
     }];
   }).slice(0, 30);
-  const steps = stringList(record.steps, 20);
+  const steps = curated && Array.isArray(record.steps)
+    ? record.steps.map((step) => safeText(step, 240)).filter(Boolean).slice(0, 20)
+    : stringList(record.steps, 20);
   if (!title || ingredients.length < 2 || !steps.length) return null;
   const budget = safeText(record.budgetLevel, 20);
   const budgetLevel = (["VERY_LOW", "LOW", "MODERATE", "HIGH"] as const).find((item) => item === budget);
@@ -520,12 +525,12 @@ export function validateRecipeResult(value: unknown): NutritionRecipeResult | nu
           const source = item as Record<string, unknown>;
           const ingredientName = safeText(source.ingredient, 80);
           const replacement = safeText(source.replacement, 100);
-          return ingredientName && replacement ? [{ ingredient: canonicalIngredient(ingredientName), replacement: canonicalIngredient(replacement) }] : [];
+          return ingredientName && replacement ? [{ ingredient: canonicalIngredient(ingredientName), replacement: curated ? replacement : canonicalIngredient(replacement) }] : [];
         }).slice(0, 12)
       : [],
     rationale: safeText(record.rationale, 300),
     warnings: stringList(record.warnings, 8),
-    tags: stringList(record.tags, 20),
+    tags,
     mealTypes: stringList(record.mealTypes, 8),
     budgetLevel,
     region: safeText(record.region, 20) || "AR",

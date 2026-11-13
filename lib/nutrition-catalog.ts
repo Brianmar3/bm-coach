@@ -3,6 +3,8 @@ import type {
   NutritionRecipeResult,
 } from "../types/nutrition-intelligence.ts";
 
+import { CURATED_RECIPES } from "./nutrition-curated-recipes.ts";
+
 export type NutritionBudgetLevel = "VERY_LOW" | "LOW" | "MODERATE" | "HIGH";
 
 type IngredientDefinition = {
@@ -310,60 +312,67 @@ const budgetLabels: Record<NutritionBudgetLevel, string> = {
 };
 
 export const NUTRITION_RECIPE_CATALOG: NutritionRecipeResult[] = recipeSpecs.map(
-  (spec) => ({
-    id: spec.id,
-    title: spec.title,
-    description: `${spec.title}: una preparación realista con ingredientes habituales en Argentina.`,
-    servings: 1,
-    preparationMinutes: spec.minutes,
-    difficulty: spec.minutes > 40 ? "Intermedia" : "Fácil",
-    ingredients: [
-      ...spec.essential.map((name) => catalogIngredient(name)),
-      ...(spec.optional ?? []).map((name) => catalogIngredient(name, true)),
-    ],
-    essentialIngredients: spec.essential,
-    optionalIngredients: spec.optional ?? [],
-    steps: [
-      `Prepará los ingredientes principales para ${spec.title.toLocaleLowerCase("es-AR")}.`,
-      `Cociná usando el método ${spec.method}, controlando el punto de cocción.`,
-      "Integrá los ingredientes opcionales que tengas y condimentá de forma simple.",
-    ],
-    condiments: spec.condiments ?? ["sal", "pimienta", "aceite"],
-    equipment: spec.equipment,
-    substitutions: [],
-    rationale:
-      spec.budget === "VERY_LOW" || spec.budget === "LOW"
-        ? "Usa ingredientes rendidores y fáciles de reutilizar durante la semana."
-        : "Aporta variedad con ingredientes disponibles habitualmente en comercios argentinos.",
-    warnings: [],
-    tags: [
-      ...spec.tags,
-      ...spec.mealTypes,
-      `presupuesto:${spec.budget.toLocaleLowerCase()}`,
-      `catalog:${spec.id}`,
-    ],
-    mealTypes: spec.mealTypes,
-    budgetLevel: spec.budget,
-    region: "AR",
-    objectiveTags: ["mejorar hábitos", "mantener", "rendimiento"],
-    trainingTags: spec.mealTypes.filter((item) => item.includes("entrenamiento")),
-    mainProtein: spec.protein ?? "",
-    carbBase: spec.carbBase ?? (spec.essential.find((name) => ["arroz", "fideos", "pan", "avena", "polenta", "papa", "batata", "tortilla de trigo", "tortilla de maíz", "cuscús"].includes(name)) ?? ""),
-    cookingMethod: spec.method,
-    reusable: spec.reusable ?? false,
-    portable: spec.portable ?? spec.tags.includes("para llevar"),
-    requiresCooking: spec.requiresCooking ?? (!spec.tags.includes("sin cocinar") && !spec.tags.includes("sin horno")),
-    compatibleRestrictions: spec.compatibleRestrictions ?? [
-      ...(spec.tags.includes("vegetariana") ? ["vegetariana"] : []),
-      ...(spec.tags.includes("sin horno") ? ["sin horno"] : []),
-      ...(spec.tags.includes("sin cocinar") ? ["sin cocinar"] : []),
-      ...(spec.tags.includes("para llevar") ? ["para llevar"] : []),
-    ],
-    argentinianContext: spec.argentinianContext ?? [
-      "Receta simple con ingredientes habituales en Argentina.",
-      "Se adapta a menús caseros y económicos.",
-    ],
-  }),
+  (spec) => {
+    const curated = CURATED_RECIPES[spec.id];
+    const ingredients = curated?.ingredients.map(([name, quantity, unit, state, optional]) => ({
+      ...catalogIngredient(name, optional), quantity, unit, state,
+    }));
+    return {
+      id: spec.id,
+      title: spec.title,
+      description: curated?.description ?? `${spec.title}: una preparación realista con ingredientes habituales en Argentina.`,
+      servings: curated?.servings ?? 1,
+      preparationMinutes: curated ? curated.prep + curated.cook : spec.minutes,
+      difficulty: spec.minutes > 40 ? "Intermedia" : "Fácil",
+      ingredients: ingredients ?? [
+        ...spec.essential.map((name) => catalogIngredient(name)),
+        ...(spec.optional ?? []).map((name) => catalogIngredient(name, true)),
+      ],
+      essentialIngredients: ingredients?.filter((ingredient) => !ingredient.optional).map((ingredient) => ingredient.name) ?? spec.essential,
+      optionalIngredients: ingredients?.filter((ingredient) => ingredient.optional).map((ingredient) => ingredient.name) ?? spec.optional ?? [],
+      steps: curated?.steps ?? [
+        `Prepará los ingredientes principales para ${spec.title.toLocaleLowerCase("es-AR")}.`,
+        `Cociná usando el método ${spec.method}, controlando el punto de cocción.`,
+        "Integrá los ingredientes opcionales que tengas y condimentá de forma simple.",
+      ],
+      condiments: spec.condiments ?? ["sal", "pimienta", "aceite"],
+      equipment: spec.equipment,
+      substitutions: curated?.substitutions.map(([ingredient, replacement]) => ({ ingredient, replacement })) ?? [],
+      rationale:
+        spec.budget === "VERY_LOW" || spec.budget === "LOW"
+          ? "Usa ingredientes rendidores y fáciles de reutilizar durante la semana."
+          : "Aporta variedad con ingredientes disponibles habitualmente en comercios argentinos.",
+      warnings: [],
+      tags: [
+        ...(curated?.tags ?? spec.tags),
+        ...(curated ? ["ficha:2", "ficha-preparacion:" + curated.prep, "ficha-coccion:" + curated.cook, ...(curated.rest ? ["ficha-reposo:" + curated.rest] : [])] : []),
+        ...spec.mealTypes,
+        `presupuesto:${spec.budget.toLocaleLowerCase()}`,
+        `catalog:${spec.id}`,
+      ],
+      mealTypes: spec.mealTypes,
+      budgetLevel: spec.budget,
+      region: "AR",
+      objectiveTags: ["mejorar hábitos", "mantener", "rendimiento"],
+      trainingTags: spec.mealTypes.filter((item) => item.includes("entrenamiento")),
+      mainProtein: spec.protein ?? "",
+      carbBase: spec.carbBase ?? (spec.essential.find((name) => ["arroz", "fideos", "pan", "avena", "polenta", "papa", "batata", "tortilla de trigo", "tortilla de maíz", "cuscús"].includes(name)) ?? ""),
+      cookingMethod: spec.method,
+      reusable: spec.reusable ?? false,
+      portable: spec.portable ?? spec.tags.includes("para llevar"),
+      requiresCooking: spec.requiresCooking ?? (!spec.tags.includes("sin cocinar") && !spec.tags.includes("sin horno")),
+      compatibleRestrictions: spec.compatibleRestrictions ?? [
+        ...(spec.tags.includes("vegetariana") ? ["vegetariana"] : []),
+        ...(spec.tags.includes("sin horno") ? ["sin horno"] : []),
+        ...(spec.tags.includes("sin cocinar") ? ["sin cocinar"] : []),
+        ...(spec.tags.includes("para llevar") ? ["para llevar"] : []),
+      ],
+      argentinianContext: spec.argentinianContext ?? [
+        "Receta simple con ingredientes habituales en Argentina.",
+        "Se adapta a menús caseros y económicos.",
+      ],
+    };
+  },
 );
 
 export function nutritionCatalogStats() {

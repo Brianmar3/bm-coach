@@ -10,9 +10,11 @@ import {
   nutritionSafetyCategory,
   normalizeNutritionText,
   recipeIsCompatible,
+  shoppingItemsFromRecipes,
   validateRecipeResult,
 } from "../lib/nutrition-rules.ts";
 import { NUTRITION_RECIPE_CATALOG, nutritionCatalogStats } from "../lib/nutrition-catalog.ts";
+import { recipeWithServings } from "../lib/nutrition-recipe-servings.ts";
 import { resolveNutritionActivities, weekdayForDateKey } from "../lib/nutrition-activity.ts";
 import type { NutritionContextSnapshot } from "../types/nutrition-intelligence.ts";
 
@@ -185,4 +187,56 @@ test("actividad usa solo el horario de hoy y prioriza la próxima ocurrencia", (
   });
   assert.equal(result.relevantActivity?.name, "Entrenamiento funcional");
   assert.ok(result.activities.every((item) => item.name !== "GAP"));
+});
+
+test("las 15 fichas ampliadas conservan cantidades, sustituciones y tiempos al guardar", () => {
+  const curated = NUTRITION_RECIPE_CATALOG.filter((recipe) => recipe.tags.includes("ficha:2"));
+  assert.equal(NUTRITION_RECIPE_CATALOG.length, 115);
+  assert.equal(curated.length, 15);
+  assert.equal(new Set(NUTRITION_RECIPE_CATALOG.map((recipe) => recipe.id)).size, 115);
+  for (const recipe of curated) {
+    const stored = validateRecipeResult(JSON.parse(JSON.stringify(recipe)));
+    assert.ok(stored);
+    assert.deepEqual(stored.steps, recipe.steps);
+    assert.deepEqual(stored.substitutions.map((item) => item.replacement), recipe.substitutions.map((item) => item.replacement));
+    assert.deepEqual(stored.tags, [...new Set(recipe.tags)]);
+    assert.equal(stored.servings, recipe.servings);
+    assert.ok(stored.ingredients.every((item) => item.quantity !== null && item.quantity > 0));
+    assert.deepEqual(stored.ingredients.map((item) => item.state), recipe.ingredients.map((item) => item.state));
+  }
+});
+
+test("ajustar porciones conserva la receta guardada y separa crudos y cocidos en compras", () => {
+  const recipe = NUTRITION_RECIPE_CATALOG.find((item) => item.id === "fideos-lentejas");
+  assert.ok(recipe);
+  const adjusted = recipeWithServings(recipe, 3);
+  assert.equal(recipe.servings, 2);
+  assert.equal(adjusted.ingredients.find((item) => item.name === "lenteja")?.quantity, 300);
+  const lentils = adjusted.ingredients.find((item) => item.name === "lenteja");
+  assert.ok(lentils);
+  const items = shoppingItemsFromRecipes([adjusted, { ...adjusted, ingredients: [{ ...lentils, quantity: 100, state: "crudas" }] }]);
+  const lentilItems = items.filter((item) => item.name === "lenteja");
+  assert.deepEqual(lentilItems.map(({ quantity, state }) => ({ quantity, state })), [
+    { quantity: 300, state: "cocidas y escurridas" },
+    { quantity: 100, state: "crudas" },
+  ]);
+  assert.ok(!items.some((item) => item.optional));
+});
+
+test("las fichas ampliadas mantienen unidades y proporciones de 1 a 12 porciones", () => {
+  const curated = NUTRITION_RECIPE_CATALOG.filter((recipe) => recipe.tags.includes("ficha:2"));
+  for (const recipe of curated) {
+    for (let servings = 1; servings <= 12; servings += 1) {
+      const adjusted = recipeWithServings(recipe, servings);
+      assert.equal(adjusted.servings, servings);
+      adjusted.ingredients.forEach((item, index) => {
+        const original = recipe.ingredients[index];
+        assert.ok(["g", "ml", "unidades"].includes(item.unit));
+        assert.equal(item.unit, original.unit);
+        assert.equal(item.state, original.state);
+        assert.ok(Math.abs(item.quantity! / servings - original.quantity! / recipe.servings) < 1e-9);
+      });
+    }
+    assert.ok(recipe.tags.every((tag) => !/proteína|calorías|macros|baja en/i.test(tag)));
+  }
 });
