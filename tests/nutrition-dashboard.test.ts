@@ -3,26 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = readFileSync(new URL("../componentes/student-nutrition.tsx", import.meta.url), "utf8");
-const quickLinks = source.slice(source.indexOf("const quickLinks"), source.indexOf("] as const;") + 11);
-const dashboard = source;
-
-test("el inicio conserva únicamente cuatro accesos útiles", () => {
-  for (const label of ["Compras", "Cocinar", "Recetas", "Aprender"]) assert.match(quickLinks, new RegExp(`\\["${label}"`));
-  assert.equal((quickLinks.match(/\/portal\/nutricion\//g) ?? []).length, 4);
-  assert.doesNotMatch(quickLinks, /Favoritos|Historial|Preguntar al asistente|\/asistente/);
+test("la portada prioriza el resumen, las recetas y los hábitos", () => {
+  assert.match(source, /href="\/portal\/nutricion\/ideas"[^>]*>Explorar recetas/);
+  assert.ok(source.indexOf("Resumen del día") < source.indexOf("nutrition-primary-nav"));
+  assert.ok(source.indexOf("Hábitos de hoy") < source.indexOf("Tu biblioteca"));
+  const dock = readFileSync(new URL("../componentes/nutrition-assistant-dock.tsx", import.meta.url), "utf8");
+  assert.match(dock, /showModal/);
+  assert.match(dock, /<AssistantView conversationId="" embedded/);
 });
-
-test("el panel sigue una jerarquía breve y accionable", () => {
-  const recommendation = source.indexOf("Para hoy");
-  const habits = source.indexOf("Hábitos de hoy");
-  const actions = source.indexOf("Accesos útiles");
-  const recipes = source.indexOf("Recetas recientes");
-  const trainer = source.indexOf("Recomendación de tu entrenador");
-  assert.ok(recommendation < trainer && trainer < habits && habits < actions && actions < recipes);
-  assert.doesNotMatch(dashboard, /Planificación activa/);
-  assert.doesNotMatch(dashboard, /href="\/portal\/nutricion\/asistente"/);
-});
-
 test("hábitos integra un resumen compacto y mantiene la edición existente", () => {
   assert.match(source, /compliancePercentage/);
   assert.match(source, /NUTRITION_HABITS\.map/);
@@ -40,7 +28,7 @@ test("hábitos integra un resumen compacto y mantiene la edición existente", ()
 
 test("móvil usa hábitos legibles, herramientas compactas y estados vacíos breves", () => {
   assert.match(source, /nutrition-habit-list/);
-  assert.match(source, /nutrition-tools/);
+  assert.match(source, /nutrition-primary-nav/);
   assert.doesNotMatch(source, /grid-cols-5|truncate/);
   assert.doesNotMatch(source, /overflow-x-auto|w-screen|min-w-screen/);
   assert.match(source, /Todavía no guardaste recetas/);
@@ -51,9 +39,10 @@ test("preferencias, evaluación, recomendación y accesos conservan sus rutas", 
   assert.match(source, /href="\/portal\/nutricion\/preferencias"/);
   assert.match(source, /href="\/portal\/nutricion\/preferencias#datos-utilizados"/);
   assert.match(source, /href=\{data\.recommendation\.href\}/);
-  for (const route of ["compras", "despensa", "recetas", "aprender"]) assert.match(source, new RegExp(`/portal/nutricion/${route}`));
-  assert.match(source, /href="\/portal\/nutricion\/recetas"[^>]*>Ver todas/);
-  assert.match(source, /Explorar <BmChevronRightIcon/);
+  for (const route of ["ideas", "recetas", "plan"]) assert.match(source, new RegExp(`/portal/nutricion/${route}`));
+  assert.match(source, /href="\/portal\/nutricion\/recetas"[^>]*>Ver guardadas/);
+  for (const route of ["despensa", "aprender", "favoritos", "historial"]) assert.ok(source.includes(JSON.stringify(route)));
+  assert.match(source, /Explorar ideas <BmChevronRightIcon/);
 });
 
 test("el rediseño usa iconos lineales y evita emojis y botones amarillos dominantes", () => {

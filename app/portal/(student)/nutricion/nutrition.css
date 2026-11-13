@@ -1,0 +1,96 @@
+/* Nutrition shares the portal surfaces and workspace accent in both themes. */
+.nutrition-primary-nav { display: grid; gap: .5rem; }
+.nutrition-destination { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; align-items: center; gap: .65rem; padding: .65rem .75rem; }
+.nutrition-destination-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: .75rem; background: var(--surface); color: var(--brand-text); border: 1px solid var(--border-soft); }
+.nutrition-destination strong { display: block; font-size: .9rem; }
+.nutrition-destination small { display: block; font-size: .75rem; color: var(--foreground-muted); }
+.nutrition-destination > svg { color: var(--brand-text); }
+.nutrition-destination:hover { border-color: var(--brand-text); }
+.nutrition-home .nutrition-recipes, .nutrition-home .nutrition-context { padding: .85rem; }
+.nutrition-secondary-nav { display: flex; flex-wrap: wrap; gap: .5rem; }
+.nutrition-secondary-nav a { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; padding: 0 .7rem; font-size: .8rem; }
+.nutrition-workspace { min-width: 0; }
+.nutrition-workspace :is(a, button, input, select, textarea):focus-visible { outline: 2px solid var(--brand-text); outline-offset: 2px; }
+.nutrition-recipe-nav { display: flex; flex-wrap: wrap; gap: .5rem; }
+.nutrition-recipe-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 .8rem; border: 1px solid var(--border-soft); border-radius: .75rem; font-size: .875rem; color: var(--foreground-muted); }
+.nutrition-recipe-nav a[aria-current="page"] { background: var(--surface); border-color: var(--brand-text); color: var(--brand-text); font-weight: 700; }
+.nutrition-chat { max-width: 46rem; margin-inline: auto; padding: clamp(.75rem, 3vw, 1.25rem); }
+.nutrition-chat-suggestions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+.nutrition-chat-messages { display: grid; align-content: start; gap: .65rem; max-height: 48dvh; overflow-y: auto; margin-top: 1rem; padding: .25rem; }
+.nutrition-chat-message { justify-self: start; max-width: 90%; min-width: 0; overflow-wrap: anywhere; border: 1px solid var(--border-soft); background: var(--surface); border-radius: .9rem .9rem .9rem .25rem; padding: .65rem .8rem; font-size: .875rem; line-height: 1.5; }
+.nutrition-chat-message[data-author="user"] { justify-self: end; border-radius: .9rem .9rem .25rem .9rem; border-color: var(--brand-text); background: color-mix(in srgb, var(--brand-text) 8%, var(--surface)); }
+.nutrition-chat-message strong { display: block; color: var(--brand-text); font-size: .75rem; margin-bottom: .2rem; }
+.nutrition-chat-message p { white-space: pre-wrap; }
+.nutrition-chat-composer { display: flex; align-items: flex-end; gap: .5rem; border-top: 1px solid var(--border-soft); padding-top: .75rem; margin-top: 1rem; }
+.nutrition-chat-composer textarea { display: block; font-size: 1rem; }
+.nutrition-chat-composer button { flex-shrink: 0; }
+@media (min-width: 640px) {
+  .nutrition-primary-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.nutrition-dashboard-layout, .nutrition-dashboard-top, .nutrition-dashboard-lower { display: grid; min-width: 0; gap: .65rem; align-content: start; }
+.nutrition-dashboard-layout .nutrition-today { position: relative; isolation: isolate; overflow: hidden; min-height: 11rem; padding: clamp(1rem, 4vw, 1.5rem); }
+.nutrition-hero-icon { position: absolute; z-index: -1; inset: 1.6rem .8rem auto auto; color: var(--brand-text); opacity: .2; }
+.nutrition-hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
+.nutrition-primary-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nutrition-destination { grid-template-columns: auto minmax(0, 1fr); padding: .55rem; gap: .45rem; }
+.nutrition-destination > svg { display: none; }
+.nutrition-destination strong { overflow-wrap: anywhere; }
+.nutrition-dashboard-lower .nutrition-discovery { gap: .65rem; }
+.nutrition-library { padding: .85rem; }
+.nutrition-library h2 { font-weight: 800; margin-bottom: .55rem; }
+.nutrition-dashboard-lower .nutrition-habit-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; }
+.nutrition-dashboard-lower .nutrition-habit { grid-template-columns: auto minmax(0, 1fr) auto; min-height: 44px; padding: .35rem; gap: .35rem; font-size: .75rem; }
+.nutrition-dashboard-lower .nutrition-habit-icon svg { width: 17px; height: 17px; }
+.nutrition-idea-filters, .nutrition-idea-empty { padding: .85rem; }
+.nutrition-idea-filters details { margin-top: .55rem; }
+.nutrition-idea-filters summary, .nutrition-recipe-ingredients summary { cursor: pointer; min-height: 44px; align-content: center; color: var(--brand-text); }
+.nutrition-idea-empty { color: var(--foreground-muted); font-size: .875rem; }
+.nutrition-recipe-grid { display: grid; gap: .65rem; }
+.nutrition-recipe-card { padding: .75rem; }
+.nutrition-recipe-heading { display: grid; grid-template-columns: 3.8rem minmax(0, 1fr); gap: .65rem; align-items: center; }
+.nutrition-recipe-emblem { display: grid; place-items: center; min-height: 3.8rem; border: 1px solid var(--bm-accent-soft); border-radius: .75rem; background: radial-gradient(ellipse at top, var(--bm-accent-soft), transparent), var(--surface); color: var(--brand-text); }
+.nutrition-recipe-ingredients { border-top: 1px solid var(--border-soft); margin-top: .55rem; }
+.nutrition-with-assistant { --nutrition-fab-clearance: 4rem; --nutrition-fab-gap: 1.125rem; --nutrition-nav-offset: calc(var(--portal-bottom-nav-height) + var(--portal-bottom-nav-offset) + env(safe-area-inset-bottom)); padding-bottom: var(--nutrition-fab-clearance); }
+.nutrition-with-assistant :is(a, button, input, select, textarea, summary) { scroll-margin-bottom: calc(var(--nutrition-nav-offset) + var(--nutrition-fab-clearance) + .75rem); }
+.nutrition-with-assistant .nutrition-assistant-trigger {
+  position: fixed;
+  z-index: 30;
+  inset: auto max(1rem, env(safe-area-inset-right)) calc(var(--nutrition-nav-offset) + var(--nutrition-fab-gap)) auto;
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  min-height: 44px;
+  padding-inline: .9rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand-text) 48%, var(--border-soft));
+  background: color-mix(in srgb, var(--brand-text) 6%, var(--surface));
+  color: var(--brand-text);
+  box-shadow: 0 5px 18px rgb(0 0 0 / .23);
+}
+.nutrition-assistant-trigger:focus-visible { outline: 2px solid var(--brand-text); outline-offset: 3px; }
+.nutrition-assistant-dialog[data-keyboard] {
+  bottom: calc(var(--nutrition-keyboard-inset) + .5rem);
+  max-height: calc(var(--nutrition-visible-height) - 1rem - env(safe-area-inset-top));
+}
+.nutrition-assistant-dialog .nutrition-chat-composer {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  padding-bottom: .25rem;
+}
+.nutrition-assistant-dialog { position: fixed; inset: auto max(.75rem, calc((100vw - 64rem) / 2)) calc(var(--nutrition-nav-offset) + .5rem) auto; margin: 0; width: min(27rem, calc(100% - 1.5rem)); max-height: calc(100dvh - var(--nutrition-nav-offset) - 1rem); padding: 0; background: var(--surface); color: var(--foreground); border: 1px solid var(--bm-accent-soft); border-radius: 1rem; box-shadow: 0 18px 50px rgb(0 0 0 / .35); overflow: auto; overscroll-behavior: contain; }
+.nutrition-assistant-dialog::backdrop { background: rgb(0 0 0 / .55); }
+.nutrition-assistant-header { position: sticky; top: 0; z-index: 1; background: var(--surface); display: flex; align-items: center; gap: .55rem; padding: .65rem; border-bottom: 1px solid var(--border-soft); }
+.nutrition-assistant-header h2 { flex: 1; font-weight: 800; font-size: .95rem; }
+.nutrition-assistant-close { display: grid; place-items: center; min-width: 44px; min-height: 44px; }
+.nutrition-assistant-body { padding: .65rem; }
+.nutrition-assistant-body .nutrition-chat { padding: .55rem; }
+.nutrition-assistant-body .nutrition-chat-messages { max-height: 28dvh; }
+html[data-portal-keyboard="open"] .nutrition-with-assistant { --nutrition-nav-offset: env(safe-area-inset-bottom); }
+html[data-portal-keyboard="open"] .nutrition-assistant-trigger { visibility: hidden; }
+@media (min-width: 768px) {
+  .nutrition-dashboard-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .nutrition-recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nutrition-with-assistant { --nutrition-nav-offset: max(.75rem, env(safe-area-inset-bottom)); }
+}

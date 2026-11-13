@@ -16,16 +16,21 @@ const emptyHabits: Record<NutritionHabitKey, boolean> = {
   energy: false,
 };
 
-const quickLinks = [
-  ["Compras", "Armá tu lista.", "/portal/nutricion/compras", "cart"],
-  ["Cocinar", "Usá lo que tenés.", "/portal/nutricion/despensa", "pot"],
-  ["Recetas", "Encontrá una opción.", "/portal/nutricion/recetas", "book"],
-  ["Aprender", "Guías prácticas.", "/portal/nutricion/aprender", "learn"],
+const primaryLinks = [
+  ["Planificación", "Comidas de la semana", "/portal/nutricion/plan", BmMealPlanIcon],
+  ["Compras", "Tu lista de ingredientes", "/portal/nutricion/compras", BmCartIcon],
+] as const;
+const secondaryLinks = [
+  ["Mis recetas", "recetas", BmBookmarkIcon],
+  ["Despensa", "despensa", BmCookingIcon],
+  ["Aprender", "aprender", BmLearningIcon],
+  ["Favoritos", "favoritos", BmStarIcon],
+  ["Historial", "historial", BmCalendarIcon],
+  ["Preferencias", "preferencias", BmBookIcon],
 ] as const;
 
-type LineIconName = "calendar" | "shield" | "comment" | "bookmark" | "star" | "cart" | "pot" | "book" | "learn";
-
-const nutritionIcons = { calendar: BmCalendarIcon, shield: BmShieldCheckIcon, comment: BmCommentIcon, bookmark: BmBookmarkIcon, star: BmStarIcon, cart: BmCartIcon, pot: BmCookingIcon, book: BmBookIcon, learn: BmLearningIcon };
+const nutritionIcons = { calendar: BmCalendarIcon, shield: BmShieldCheckIcon, comment: BmCommentIcon, bookmark: BmBookmarkIcon, star: BmStarIcon };
+type LineIconName = keyof typeof nutritionIcons;
 function LineIcon({ name, className = "size-5" }: { name: LineIconName; className?: string }) { const Icon = nutritionIcons[name]; return <Icon className={className} />; }
 const habitIcons = { hydration: BmHydrationIcon, protein: BmProteinIcon, fruitsVegetables: BmPlantIcon, mealOrganization: BmMealPlanIcon, energy: BmChallengeIcon };
 function HabitIcon({ habit }: { habit: NutritionHabitKey }) { const Icon = habitIcons[habit]; return <Icon size={24} />; }
@@ -153,28 +158,32 @@ export function StudentNutrition() {
 
   return (
     <div className="nutrition-home mx-auto min-w-0 max-w-5xl">
-      <PortalSectionHeading icon={BmNutritionIcon} kicker="Nutrición" title="Mi nutrición" subtitle="Plan, consumo y progreso diario" />
-      <section className="nutrition-context" aria-label="Tu guía de nutrición">
-        <div className="nutrition-context-title"><p className="nutrition-eyebrow">Tu guía para hoy{data?.studentName ? `, ${data.studentName}` : ""}</p><Link href="/portal/nutricion/preferencias" className="nutrition-text-action">Preferencias <BmChevronRightIcon size={16} /></Link></div>
-        <p className="nutrition-objective">Tu objetivo: <strong>{data?.objective || "Mejorar hábitos"}</strong></p>
-        <div className="nutrition-context-meta">
-          <span className="nutrition-context-status">{data?.contextStatus === "FULL" ? "Personalización completa" : data?.contextStatus === "LIMITED" ? "Personalización limitada" : "Guía base"}{data?.contextStatus === "FULL" && <BmCheckIcon size={16} />}</span>
-          <p><LineIcon name="calendar" className="size-4" />{data?.evaluation ? `Evaluación del ${showDate(data.evaluation.date)}` : "Guía basada en tu perfil actual"}</p>
-        </div>
-      </section>
+      <PortalSectionHeading icon={BmNutritionIcon} kicker="Nutrición" title="Mi nutrición" subtitle="Tus hábitos, comidas y planificación" />
       {error && <p role="alert" className="nutrition-feedback is-error">{error}</p>}
       {message && <p role="status" className="nutrition-feedback">{message}</p>}
-      <section className="nutrition-today" aria-labelledby="nutrition-today-title">
-        <div><p className="nutrition-eyebrow">Para hoy</p><h2 id="nutrition-today-title">{data?.recommendation.title}</h2><p className="nutrition-description">{data?.recommendation.message}</p></div>
-        {data?.recommendation && <Link href={data.recommendation.href} className="bm-button bm-button-primary nutrition-primary-action">{data.recommendation.action}<BmChevronRightIcon size={20} /></Link>}
+      <div className="nutrition-dashboard-layout">
+      <div className="nutrition-dashboard-top">
+      <section className="nutrition-today bm-surface-featured" aria-labelledby="nutrition-today-title">
+        <BmNutritionIcon className="nutrition-hero-icon" size={98} aria-hidden="true" />
+        <div><p className="nutrition-eyebrow">Resumen del día</p><h2 id="nutrition-today-title">{data?.recommendation.title}</h2><p className="nutrition-description">{data?.recommendation.message}</p></div>
+        <div className="nutrition-hero-actions">
+          <Link href="/portal/nutricion/ideas" className="bm-button bm-button-primary nutrition-primary-action">Explorar recetas <BmChevronRightIcon size={18} /></Link>
+          {data?.recommendation && data.recommendation.href !== "/portal/nutricion/ideas" && <Link href={data.recommendation.href} className="nutrition-text-action">{data.recommendation.action}</Link>}
+        </div>
       </section>
-      <section className={`nutrition-trainer ${data?.trainerNote ? "has-note" : "is-empty"}`} aria-labelledby="nutrition-trainer-title">
-        <span className="nutrition-trainer-icon"><LineIcon name="star" /></span>
-        <div><h2 id="nutrition-trainer-title" className="nutrition-eyebrow">Recomendación de tu entrenador</h2><p>{data?.trainerNote?.text ?? "Todavía no hay una recomendación nueva."}</p>{!data?.trainerNote && <small>Cuando tu entrenador agregue una, aparecerá acá.</small>}</div>
-      </section>
-      <div className="nutrition-workspace-grid">
+      <nav className="nutrition-primary-nav" aria-label="Herramientas de Nutrición">
+        {primaryLinks.map(([title, description, href, Icon]) => (
+          <Link key={href} href={href} className="bm-surface nutrition-destination">
+            <span className="nutrition-destination-icon"><Icon size={20} /></span>
+            <span><strong>{title}</strong><small>{description}</small></span>
+            <BmChevronRightIcon size={16} />
+          </Link>
+        ))}
+      </nav>
+      </div>
+      <div className="nutrition-dashboard-lower">
         <section id="habitos" className="nutrition-habits" aria-labelledby="nutrition-habits-title">
-          <div className="nutrition-section-heading"><div><p className="nutrition-eyebrow">Planificar</p><h2 id="nutrition-habits-title">Hábitos de hoy</h2><p className="nutrition-description">Marcá lo que pudiste sostener</p></div>{data?.summary.daysRegistered ? <div className="nutrition-week-progress"><strong>{data.summary.compliancePercentage}%</strong><span>esta semana</span></div> : null}</div>
+          <div className="nutrition-section-heading"><div><h2 id="nutrition-habits-title">Hábitos de hoy</h2><p className="nutrition-description">Marcá lo que pudiste sostener</p></div>{data?.summary.daysRegistered ? <div className="nutrition-week-progress"><strong>{data.summary.compliancePercentage}%</strong><span>esta semana</span></div> : null}</div>
           {data?.summary.daysRegistered ? <p className="nutrition-habit-summary">{data.summary.daysRegistered} días registrados{data.summary.strongestHabit ? ` · Mejor: ${data.summary.strongestHabit}` : ""}{data.summary.habitToImprove ? ` · Próximo foco: ${data.summary.habitToImprove}` : ""}</p> : <p className="nutrition-habit-summary">Tu resumen semanal aparecerá después del primer registro.</p>}
           <div className="nutrition-habit-list">
             {NUTRITION_HABITS.map(({ key, label }) => (
@@ -187,17 +196,34 @@ export function StudentNutrition() {
           <details className="nutrition-comment"><summary><LineIcon name="comment" className="size-4" />Agregar comentario opcional</summary><label><span className="sr-only">Comentario opcional</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} maxLength={500} rows={2} placeholder="¿Cómo estuvo tu alimentación hoy?" /></label></details>
           <button type="button" onClick={saveHabits} disabled={saving} className="bm-button bm-button-secondary nutrition-save-habits">{saving ? "Guardando…" : data?.todayCheckin ? "Actualizar hábitos" : "Guardar hábitos"}</button>
         </section>
+      <section className={`nutrition-trainer ${data?.trainerNote ? "has-note" : "is-empty"}`} aria-labelledby="nutrition-trainer-title">
+        <span className="nutrition-trainer-icon"><LineIcon name="star" /></span>
+        <div><h2 id="nutrition-trainer-title" className="nutrition-eyebrow">Recomendación de tu entrenador</h2><p>{data?.trainerNote?.text ?? "Todavía no hay una recomendación nueva."}</p>{!data?.trainerNote && <small>Cuando tu entrenador agregue una, aparecerá acá.</small>}</div>
+      </section>
         <div className="nutrition-discovery">
-          <section aria-labelledby="nutrition-tools-title">
-            <h2 id="nutrition-tools-title" className="nutrition-eyebrow">Accesos útiles</h2>
-            <div className="nutrition-tools">{quickLinks.map(([title, description, href, icon], index) => <Link key={href} href={href} className="nutrition-tool"><LineIcon name={icon} /><span><small>{index < 2 ? "Organizar" : "Explorar"}</small><strong>{title}</strong><span>{description}</span></span><BmChevronRightIcon size={16} /></Link>)}</div>
+          <section className="nutrition-recipes bm-surface" aria-labelledby="nutrition-recipes-title">
+            <div className="nutrition-section-heading"><h2 id="nutrition-recipes-title">Mis recetas</h2><Link href="/portal/nutricion/recetas" className="nutrition-text-action">Ver guardadas</Link></div>
+            {data?.recentRecipes.length ? <div className="nutrition-recipe-list">{data.recentRecipes.slice(0, 3).map((recipe) => <Link key={recipe.id} href={`/portal/nutricion/recetas/${recipe.id}`}><LineIcon name="bookmark" /><strong>{recipe.title}</strong><span>{recipe.preparationMinutes} min</span><BmChevronRightIcon size={16} /></Link>)}</div> : <div className="nutrition-recipes-empty"><LineIcon name="bookmark" /><div><p>Todavía no guardaste recetas.</p><small>Encontrá una opción para tu próxima comida.</small><Link href="/portal/nutricion/ideas" className="nutrition-text-action">Explorar ideas <BmChevronRightIcon size={16} /></Link></div></div>}
           </section>
-          <section className="nutrition-recipes" aria-labelledby="nutrition-recipes-title">
-            <div className="nutrition-section-heading"><h2 id="nutrition-recipes-title">Recetas recientes</h2><Link href="/portal/nutricion/recetas" className="nutrition-text-action">Ver todas</Link></div>
-            {data?.recentRecipes.length ? <div className="nutrition-recipe-list">{data.recentRecipes.slice(0, 3).map((recipe) => <Link key={recipe.id} href={`/portal/nutricion/recetas/${recipe.id}`}><LineIcon name="bookmark" /><strong>{recipe.title}</strong><span>{recipe.preparationMinutes} min</span><BmChevronRightIcon size={16} /></Link>)}</div> : <div className="nutrition-recipes-empty"><LineIcon name="bookmark" /><div><p>Todavía no guardaste recetas.</p><small>Encontrá una opción para tu próxima comida.</small><Link href="/portal/nutricion/recetas" className="nutrition-text-action">Explorar <BmChevronRightIcon size={16} /></Link></div></div>}
+          <section className="bm-surface nutrition-library">
+            <h2>Tu biblioteca</h2>
+      <nav className="nutrition-secondary-nav" aria-label="Más herramientas de Nutrición">
+        {secondaryLinks.map(([label, path, Icon]) => (
+          <Link key={path} href={"/portal/nutricion/" + path} className="bm-button bm-button-secondary"><Icon size={17} />{label}</Link>
+        ))}
+      </nav>
           </section>
         </div>
       </div>
+      </div>
+      <section className="nutrition-context bm-surface" aria-label="Tu guía de nutrición">
+        <div className="nutrition-context-title"><p className="nutrition-eyebrow">Tu guía para hoy{data?.studentName ? `, ${data.studentName}` : ""}</p><Link href="/portal/nutricion/preferencias" className="nutrition-text-action">Preferencias <BmChevronRightIcon size={16} /></Link></div>
+        <p className="nutrition-objective">Tu objetivo: <strong>{data?.objective || "Mejorar hábitos"}</strong></p>
+        <div className="nutrition-context-meta">
+          <span className="nutrition-context-status">{data?.contextStatus === "FULL" ? "Personalización completa" : data?.contextStatus === "LIMITED" ? "Personalización limitada" : "Guía base"}{data?.contextStatus === "FULL" && <BmCheckIcon size={16} />}</span>
+          <p><LineIcon name="calendar" className="size-4" />{data?.evaluation ? `Evaluación del ${showDate(data.evaluation.date)}` : "Guía basada en tu perfil actual"}</p>
+        </div>
+      </section>
       <div className="nutrition-context-notices">
         {!data?.profile.personalizationEnabled && <section className="nutrition-context-notice"><div><h2 className="nutrition-personalization-title">Activá la personalización inteligente</h2><p>Adaptá la guía a tu objetivo, hábitos y preferencias.</p></div><button type="button" onClick={enablePersonalization} disabled={consenting} className="bm-button bm-button-secondary">{consenting ? "Activando…" : "Aceptar y activar"}</button></section>}
         {data?.evaluationUpdated && <section className="nutrition-context-notice"><LineIcon name="shield" /><p>Tu evaluación fue actualizada. Podés revisar tu guía; los planes guardados no cambiarán sin tu permiso.</p><Link href="/portal/nutricion/preferencias#datos-utilizados" className="nutrition-text-action">Revisar datos<BmChevronRightIcon size={16} /></Link></section>}
