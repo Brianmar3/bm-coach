@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPortalSession, validRequestOrigin } from "@/lib/portal-auth";
 import { argentinaDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
-import { finalizeNutritionAIReservation, generateNutrition, nutritionAIUsageStatus, releaseNutritionAIReservation, resolveMaxContextMessages } from "@/lib/nutrition-ai";
+import { finalizeNutritionAIReservation, generateNutrition, nutritionAIStatus, nutritionAIUsageStatus, releaseNutritionAIReservation, resolveMaxContextMessages } from "@/lib/nutrition-ai";
 import {
   buildNutritionContext,
   serializeNutritionProfile,
@@ -96,7 +96,7 @@ function parseShoppingItems(value: unknown): NutritionShoppingItem[] {
     const record = item as Record<string, unknown>;
     const name = safeText(record.name, 80);
     if (!name) return [];
-    const quantity = Number(record.quantity);
+    const quantity = record.quantity === null || record.quantity === "" || record.quantity === undefined ? NaN : Number(record.quantity);
     return [{
       id: safeText(record.id, 100) || `item-${index + 1}`,
       name,
@@ -186,6 +186,22 @@ export async function GET(
     });
     return Response.json({ lists });
   }
+  if (feature === "feedback") {
+    const events = await prisma.nutritionAnalyticsEvent.findMany({
+      where: { studentId, event: "recipe_feedback", createdAt: { gte: new Date(Date.now() - 3 * 86400000) } },
+      select: { metadata: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    const selections: Record<string, string> = {};
+    for (const event of events) {
+      const metadata = parseJsonObject(event.metadata);
+      const recipeId = safeText(metadata.recipeId, 120);
+      const signal = safeText(metadata.signal, 40);
+      if (recipeId && signal && !selections[recipeId]) selections[recipeId] = signal;
+    }
+    return Response.json({ selections });
+  }
   if (feature === "favorites") {
     const favorites = await prisma.nutritionFavorite.findMany({
       where: { studentId },
@@ -252,7 +268,7 @@ export async function GET(
       orderBy: { updatedAt: "desc" },
       take: conversationId ? 1 : 20,
     });
-    return Response.json({ conversations, usage: await nutritionAIUsageStatus(studentId) });
+    return Response.json({ conversations, usage: nutritionAIStatus().configured ? await nutritionAIUsageStatus(studentId) : null });
   }
   if (feature === "history") {
     const [recipes, plans, lists, conversations, interactions] = await Promise.all([
@@ -394,9 +410,17 @@ export async function POST(
               return recipe ? [recipe] : [];
             })
           : [];
-        parsedRecipes = storedGenerated.length
-          ? storedGenerated
-          : catalogRecipesByTitles(meals.map((meal) => meal.title));
+        const selectedTitles = [...new Set(meals.map((meal) => meal.title))];
+        parsedRecipes = selectedTitles.flatMap((title) => {
+          const recipe = storedGenerated.find((item) => item.title === title)
+            ?? catalogRecipesByTitles([title])[0];
+          if (!recipe) return [];
+          const appearances = meals.filter((meal) => meal.title === title).length;
+          return [recipeWithServings(recipe, recipe.servings * appearances)];
+        });
+        if (parsedRecipes.length !== selectedTitles.length) {
+          return Response.json({ error: "Hay comidas sin receta disponible. Reemplazalas antes de generar la lista." }, { status: 422 });
+        }
       }
       if (!parsedRecipes.length) {
         const generated = await generateNutrition(studentId, "ideas", { tags: ["económico"] });
@@ -552,12 +576,12 @@ export async function POST(
       await analytics(studentId, result.safetyCategory ? "safety_redirect" : "assistant_message_sent").catch((error) => {
         console.error("No se pudo registrar la analítica del asistente", { studentId, error });
       });
-      const usage = await nutritionAIUsageStatus(studentId);
+      const usage = nutritionAIStatus().configured ? await nutritionAIUsageStatus(studentId) : null;
       return Response.json({
         conversation,
-        usage: { ...usage, remaining: remainingAfterResponse ?? usage.remaining },
+        usage: usage ? { ...usage, remaining: remainingAfterResponse ?? usage.remaining } : null,
         source: result.source,
-        fallbackNotice: result.source === "local_fallback"
+        fallbackNotice: result.source === "local_fallback" && result.fallbackReason && !["personalization_disabled", "missing_api_key"].includes(result.fallbackReason)
           ? "No pudimos conectar con el asistente en este momento. Te mostramos una orientación general."
           : null,
       });
@@ -722,10 +746,22 @@ export async function PUT(
       return Response.json({ plan: duplicate, message: "Plan duplicado." });
     }
     const meals = input.meals === undefined ? undefined : parsePlanMeals(input.meals);
+    const configuration = parseJsonObject(owned.configuration);
+    const existingRecipes = Array.isArray(configuration.generatedRecipes)
+      ? configuration.generatedRecipes.flatMap((value) => {
+          const recipe = validateRecipeResult(value);
+          return recipe ? [recipe] : [];
+        })
+      : [];
+    const addedRecipes = meals ? catalogRecipesByTitles(meals.map((meal) => meal.title)) : [];
+    const generatedRecipes = [...existingRecipes, ...addedRecipes].filter((recipe, index, all) =>
+      all.findIndex((item) => item.title === recipe.title) === index,
+    );
     const plan = await prisma.nutritionMealPlan.update({
       where: { id },
       data: {
         ...(meals ? { meals: jsonValue(meals) } : {}),
+        ...(meals ? { configuration: jsonValue({ ...configuration, generatedRecipes }) } : {}),
         ...(action === "archive" ? { active: false, status: "ARCHIVED" } : {}),
       },
     });

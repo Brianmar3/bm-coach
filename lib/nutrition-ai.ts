@@ -1,4 +1,5 @@
 import "server-only";
+import { localNutritionAnswer } from "./nutrition-local-answer.ts";
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -281,7 +282,6 @@ function localResult(
   feature: GenerateFeature,
   input: Record<string, unknown>,
   context: NutritionContextSnapshot,
-  options?: AssistantGenerationOptions,
 ) {
   if (feature === "pantry") {
     return fallbackPantry(
@@ -306,28 +306,8 @@ function localResult(
   }
   if (feature === "assistant") {
     const question = safeText(input.question, 800);
-    const recentContext = (options?.recentMessages ?? []).slice(-4).map((message) => message.content).join(" ");
-    const normalized = `${recentContext} ${question}`.toLocaleLowerCase("es");
-    const mentioned = normalizeIngredientInput(`${recentContext}, ${question}`).slice(0, 6);
-    const restricted = [...context.profile.allergies, ...context.profile.intolerances, ...context.profile.restrictions]
-      .map((item) => item.toLocaleLowerCase("es"));
-    const safeMentioned = mentioned.filter((item) => !restricted.some((blocked) => item.toLocaleLowerCase("es").includes(blocked) || blocked.includes(item.toLocaleLowerCase("es"))));
-    const availableText = safeMentioned.length ? ` Con lo que mencionaste (${safeMentioned.join(", ")}), priorizá una combinación simple que ya toleres.` : "";
-    const answer = mentioned.length > safeMentioned.length
-      ? "Evitá los alimentos que figuran entre tus alergias, intolerancias o restricciones. Para reemplazarlos de forma segura, usá otra opción que ya sepas que tolerás."
-      : normalized.includes("hidrat")
-      ? "Para sostener la hidratación, dejá agua visible y tomá unos sorbos antes y después del entrenamiento. Si te cuesta, usá una botella y asocia el hábito a tus comidas."
-      : normalized.includes("prote")
-        ? `Una buena base suele ser combinar una proteína simple con una fuente de energía.${availableText}`
-        : normalized.includes("antes de entrenar")
-          ? `Si falta menos de una hora, elegí algo conocido, simple y fácil de digerir, evitando mucha grasa o una porción muy grande.${availableText}`
-          : normalized.includes("cena")
-            ? `Una cena práctica suele combinar una fuente de proteína, alguna verdura y un carbohidrato fácil de preparar.${availableText}`
-            : `Como orientación general, armá una opción simple con energía, proteína y líquidos según tu tolerancia.${availableText}`;
-    return {
-      answer,
-      actions: ["Ver ideas de comidas", "Abrir hábitos"],
-    };
+    const answer = localNutritionAnswer(question);
+    return { answer, actions: [] };
   }
   const recipes = fallbackRecipes(context, {
     mealType: safeText(input.mealType, 40),
@@ -426,19 +406,26 @@ async function recentSelectionSignals(studentId: string) {
   const accepted = favorites.flatMap((recipe) =>
     recipe.tags.filter((tag) => tag.startsWith("catalog:")).map((tag) => tag.slice(8)),
   );
+  const latestFeedback = new Set<string>();
   for (const event of events) {
     const metadata = metadataObject(event.metadata);
     const ids = Array.isArray(metadata.recipeIds)
       ? metadata.recipeIds.filter((value): value is string => typeof value === "string")
       : typeof metadata.recipeId === "string" ? [metadata.recipeId] : [];
     if (event.event === "recipe_exposed") recent.push(...ids);
-    if (event.event === "recipe_feedback" && metadata.signal !== "USEFUL") rejected.push(...ids);
-    if (event.event === "recipe_feedback" && metadata.signal === "USEFUL") accepted.push(...ids);
+    if (event.event === "recipe_feedback") {
+      for (const id of ids) {
+        if (latestFeedback.has(id)) continue;
+        latestFeedback.add(id);
+        if (metadata.signal === "USEFUL") accepted.push(id);
+        else rejected.push(id);
+      }
+    }
   }
   return {
     recentRecipeIds: [...new Set(recent)],
     rejectedRecipeIds: [...new Set(rejected)],
-    acceptedRecipeIds: [...new Set(accepted)],
+    acceptedRecipeIds: [...new Set(accepted)].filter((id) => !rejected.includes(id)),
     exposureCount: events.filter((event) => event.event === "recipe_exposed").length,
   };
 }
@@ -524,7 +511,7 @@ export async function generateNutrition(
       if (providerError === "DAILY_LIMIT" || providerError === "DUPLICATE_REQUEST") throw error;
     }
   } else if (!status.configured) {
-    providerError = "MISSING_API_KEY";
+    providerError = "";
   } else {
     providerError = "PERSONALIZATION_DISABLED";
   }
@@ -556,7 +543,7 @@ export async function generateNutrition(
   }
   let source = "external";
   if (!data) {
-    data = localResult(feature, enrichedInput, context, options);
+    data = localResult(feature, enrichedInput, context);
     source = "local_fallback";
     if (providerResult && !providerError) providerError = "INVALID_RESPONSE";
   }

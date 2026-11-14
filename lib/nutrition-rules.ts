@@ -458,13 +458,18 @@ export function shoppingItemsFromRecipes(
   const grouped = new Map<string, NutritionShoppingItem>();
   for (const recipe of recipes) {
     for (const ingredient of recipe.ingredients.filter((item) => !item.optional)) {
-      const key = `${canonicalIngredient(ingredient.name)}|${normalizeNutritionText(ingredient.unit)}|${normalizeNutritionText(ingredient.state ?? "")}`;
+      const normalizedUnit = normalizeNutritionText(ingredient.unit);
+      const unit = normalizedUnit === "kg" ? "g" : normalizedUnit === "l" ? "ml" : ingredient.unit;
+      const quantity = ingredient.quantity === null ? null : ingredient.quantity * (["kg", "l"].includes(normalizedUnit) ? 1000 : 1);
+      const key = `${canonicalIngredient(ingredient.name)}|${normalizeNutritionText(unit)}|${normalizeNutritionText(ingredient.state ?? "")}`;
       const current = grouped.get(key);
-      if (current && current.quantity !== null && ingredient.quantity !== null) {
-        current.quantity += ingredient.quantity;
+      if (current && current.quantity !== null && quantity !== null) {
+        current.quantity += quantity;
       } else if (!current) {
         grouped.set(key, {
           ...ingredient,
+          unit,
+          quantity,
           id: `item-${grouped.size + 1}-${canonicalIngredient(ingredient.name).replace(/\s/g, "-")}`,
           checked: false,
         });

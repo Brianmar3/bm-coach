@@ -301,9 +301,21 @@ function IdeasView() {
   const [budget, setBudget] = useState("");
   const [maxMinutes, setMaxMinutes] = useState(45);
   const [recipes, setRecipes] = useState<NutritionRecipeResult[]>([]);
+  const [feedbackByRecipe, setFeedbackByRecipe] = useState<Record<string, string>>({});
+  const [pendingFeedback, setPendingFeedback] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    fetch("/api/portal/nutrition/feedback", { cache: "no-store" })
+      .then(async (response) => response.ok ? apiBody(response) : null)
+      .then((body) => {
+        if (body?.selections && typeof body.selections === "object") {
+          setFeedbackByRecipe(body.selections as Record<string, string>);
+        }
+      }).catch(() => {});
+  }, []);
 
   async function generate() {
     setLoading(true);
@@ -342,15 +354,24 @@ function IdeasView() {
   }
 
   async function feedback(recipe: NutritionRecipeResult, signal: string) {
-    const response = await fetch("/api/portal/nutrition/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipeId: recipe.id ?? recipe.title, signal }),
-    });
-    const body = await apiBody(response);
-    if (!response.ok) return setError(String(body.error ?? "No se pudo guardar tu preferencia."));
-    setMessage(String(body.message ?? "Preferencia guardada."));
-    if (signal !== "USEFUL") setRecipes((current) => current.filter((item) => item !== recipe));
+    const recipeId = recipe.id ?? recipe.title;
+    setPendingFeedback(recipeId);
+    setError("");
+    try {
+      const response = await fetch("/api/portal/nutrition/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipeId, signal }),
+      });
+      const body = await apiBody(response);
+      if (!response.ok) throw new Error(String(body.error ?? "No se pudo guardar tu preferencia."));
+      setFeedbackByRecipe((current) => ({ ...current, [recipeId]: signal }));
+      setMessage(`Guardamos tu opinión sobre “${recipe.title}”. Se tendrá en cuenta al pedir nuevas ideas.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "No se pudo guardar tu preferencia.");
+    } finally {
+      setPendingFeedback("");
+    }
   }
 
   return (
@@ -381,7 +402,13 @@ function IdeasView() {
       </section>
       {!loading && !recipes.length && <p className="bm-surface nutrition-idea-empty">Generá ideas para ver opciones con los ingredientes y el tiempo que tengas.</p>}
       <div className="nutrition-recipe-grid">
-        {recipes.map((recipe) => <RecipeCard key={recipe.id ?? recipe.title} recipe={recipe} actions={(adjusted) => <div className="flex flex-wrap gap-2"><button type="button" onClick={() => saveRecipe(adjusted)} className="bm-button bm-button-primary min-h-11 rounded-xl px-4 text-xs font-black">Guardar receta</button><button type="button" onClick={() => feedback(recipe, "USEFUL")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-bold text-[var(--brand-text)]">Me sirve</button><button type="button" onClick={() => feedback(recipe, "DISLIKE")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-bold text-[var(--foreground-muted)]">No me gusta</button><button type="button" onClick={() => feedback(recipe, "RECENTLY_EATEN")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-bold text-[var(--foreground-muted)]">Ya la comí</button><button type="button" onClick={() => feedback(recipe, "TOO_EXPENSIVE")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-bold text-[var(--foreground-muted)]">Muy cara</button><button type="button" onClick={() => feedback(recipe, "TOO_DIFFICULT")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-bold text-[var(--foreground-muted)]">Difícil</button><button type="button" onClick={() => feedback(recipe, "MISSING_INGREDIENTS")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-xs font-bold text-[var(--foreground-muted)]">No tengo eso</button></div>} />)}
+        {recipes.map((recipe) => {
+          const recipeId = recipe.id ?? recipe.title;
+          return <RecipeCard key={recipeId} recipe={recipe} actions={(adjusted) => <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => saveRecipe(adjusted)} className="bm-button bm-button-primary min-h-11 rounded-xl px-4 text-xs font-black">Guardar receta</button>
+            {([ ["USEFUL", "Me sirve"], ["DISLIKE", "No me gusta"], ["RECENTLY_EATEN", "Ya la comí"], ["TOO_EXPENSIVE", "Muy cara"], ["TOO_DIFFICULT", "Difícil"], ["MISSING_INGREDIENTS", "No tengo eso"] ] as const).map(([signal, label]) => <button key={signal} type="button" disabled={pendingFeedback === recipeId} aria-pressed={feedbackByRecipe[recipeId] === signal} onClick={() => feedback(recipe, signal)} className={`min-h-11 rounded-xl border px-3 text-xs font-bold disabled:opacity-50 ${feedbackByRecipe[recipeId] === signal ? "border-[var(--brand-text)] bg-[var(--surface)] text-[var(--brand-text)]" : "border-[var(--border-soft)] text-[var(--foreground-muted)]"}`}>{pendingFeedback === recipeId ? "Guardando…" : label}</button>)}
+          </div>} />;
+        })}
       </div>
     </div>
   );
@@ -531,6 +558,7 @@ type StoredPlan = {
   status: string;
   active: boolean;
   meals: NutritionPlanMeal[];
+  configuration?: { generatedRecipes?: NutritionRecipeResult[] };
 };
 
 function PlansView({ id }: { id: string }) {
@@ -625,13 +653,19 @@ function PlansView({ id }: { id: string }) {
             <div><p className="text-[11px] font-bold uppercase text-[var(--brand-text)]">{plan.active ? "Plan activo" : plan.status}</p><h2 className="mt-1 font-bold">{dateLabel(plan.startDate)} al {dateLabel(plan.endDate)}</h2></div>
             {!id && <Link href={`/portal/nutricion/plan/${plan.id}`} className="text-xs font-bold text-[var(--brand-text)]">Abrir →</Link>}
           </div>
-          <div className="mt-4 space-y-2">
-            {plan.meals.map((meal) => (
-              <div key={meal.id} className="rounded-xl bg-[var(--surface)] p-3 sm:flex sm:items-center sm:justify-between sm:gap-3">
-                <div className="min-w-0"><p className="text-[11px] text-[var(--foreground-muted)]">{dateLabel(meal.dateKey)} · {meal.mealType}</p><p className="mt-1 truncate text-sm font-bold">{meal.title}</p><p className="mt-1 text-[11px] text-[var(--foreground-muted)]">{meal.relationToTraining}</p></div>
-                {id && <div className="mt-3 flex shrink-0 flex-wrap gap-2 sm:mt-0"><button type="button" onClick={() => update(plan, { meals: plan.meals.map((item) => item.id === meal.id ? { ...item, status: item.status === "COMPLETED" ? "PLANNED" : "COMPLETED" } : item) })} className="min-h-10 rounded-lg border border-[var(--border-soft)] px-3 text-[11px] font-bold">{meal.status === "COMPLETED" ? "Reabrir" : "Marcar realizada"}</button><button type="button" onClick={() => replaceMeal(plan, meal)} className="min-h-10 rounded-lg border border-[var(--border-soft)] px-3 text-[11px] font-bold text-[var(--brand-text)]">Reemplazar</button></div>}
-              </div>
-            ))}
+          <div className="nutrition-plan-days mt-4">
+            {[...new Set(plan.meals.map((meal) => meal.dateKey))].map((day) => <div key={day} className="nutrition-plan-day">
+              <h3 className="text-xs font-bold text-[var(--brand-text)]">{dateLabel(day)}</h3>
+              {plan.meals.filter((meal) => meal.dateKey === day).map((meal) => {
+                const recipe = plan.configuration?.generatedRecipes?.find((item) => item.title === meal.title);
+                return <div key={meal.id} className="nutrition-plan-meal">
+                  <div className="min-w-0"><p className="text-[11px] text-[var(--foreground-muted)]">{meal.mealType}{meal.suggestedTime ? ` · ${meal.suggestedTime}` : ""}</p><p className="text-sm font-bold">{meal.title}</p>{recipe && <p className="text-[11px] text-[var(--foreground-muted)]">{recipe.servings} {recipe.servings === 1 ? "porción" : "porciones"} · {recipe.preparationMinutes} min</p>}
+                    {id && recipe && <details className="nutrition-plan-recipe"><summary>Ver receta</summary><p>{recipe.ingredients.map((item) => `${item.name}${item.quantity !== null ? ` ${item.quantity} ${item.unit}` : ""}`).join(" · ")}</p><ol>{recipe.steps.map((step, index) => <li key={index}>{step}</li>)}</ol></details>}
+                  </div>
+                  {id && <div className="nutrition-plan-actions"><button type="button" onClick={() => update(plan, { meals: plan.meals.map((item) => item.id === meal.id ? { ...item, status: item.status === "COMPLETED" ? "PLANNED" : "COMPLETED" } : item) })} className="min-h-10 rounded-lg border border-[var(--border-soft)] px-3 text-[11px] font-bold">{meal.status === "COMPLETED" ? "Reabrir" : "Marcar realizada"}</button><button type="button" onClick={() => replaceMeal(plan, meal)} className="min-h-10 rounded-lg border border-[var(--border-soft)] px-3 text-[11px] font-bold text-[var(--brand-text)]">Reemplazar</button></div>}
+                </div>;
+              })}
+            </div>)}
           </div>
           {id && <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => createShopping(plan)} className="bm-button bm-button-primary min-h-11 rounded-xl px-4 text-xs font-black">Generar lista</button><button type="button" onClick={() => favorite(plan)} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-xs font-bold text-[var(--brand-text)]">Guardar favorito</button><button type="button" onClick={() => update(plan, { action: "duplicate" })} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-xs font-bold">Duplicar</button><button type="button" onClick={() => update(plan, { action: "archive" })} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-xs font-bold text-[var(--foreground-muted)]">Archivar</button></div>}
         </section>
@@ -689,9 +723,9 @@ function ShoppingView({ id }: { id: string }) {
       {!id && <section className="bm-surface-featured p-4"><h2 className="mb-3 font-bold">Ingredientes para tus comidas</h2><button type="button" onClick={create} className="bm-button bm-button-primary min-h-12 rounded-xl px-4 font-black">Crear lista desde mis recetas</button></section>}
       {!lists.length ? <Empty text="No tenés una lista activa." action="Crear lista" href="/portal/nutricion/compras" /> : lists.map((list) => (
         <section key={list.id} className="bm-surface p-5">
-          <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] uppercase text-[var(--brand-text)]">{list.status}</p><h2 className="font-bold">{list.title}</h2></div>{!id && <Link href={`/portal/nutricion/compras/${list.id}`} className="text-xs font-bold text-[var(--brand-text)]">Abrir →</Link>}</div>
+          <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] uppercase text-[var(--brand-text)]">{list.status === "ACTIVE" ? "Activa" : list.status === "ARCHIVED" ? "Archivada" : "Lista"}</p><h2 className="font-bold">{list.title}</h2></div>{!id && <Link href={`/portal/nutricion/compras/${list.id}`} className="text-xs font-bold text-[var(--brand-text)]">Abrir →</Link>}</div>
           {id && <>
-            <div className="mt-4 space-y-2">{list.items.map((item) => <div key={item.id} className="flex min-w-0 items-center gap-3 rounded-xl bg-[var(--surface)] p-3"><input aria-label={`Marcar ${item.name}`} type="checkbox" checked={item.checked} onChange={() => save(list, list.items.map((current) => current.id === item.id ? { ...current, checked: !current.checked } : current))} className="h-5 w-5 accent-[var(--brand-text)]" /><div className="min-w-0 flex-1"><p className={`truncate text-sm font-bold ${item.checked ? "text-[var(--foreground-muted)] line-through" : ""}`}>{item.name}</p><p className="text-[11px] text-[var(--foreground-muted)]">{item.quantity?.toLocaleString("es-AR", { maximumFractionDigits: 2 }) ?? "—"} {item.unit}{item.state && ` (${item.state})`} · {item.category}</p></div><button type="button" aria-label={`Eliminar ${item.name}`} onClick={() => save(list, list.items.filter((current) => current.id !== item.id))} className="min-h-10 min-w-10 rounded-lg text-red-300">×</button></div>)}</div>
+            <div className="nutrition-shopping-groups mt-4">{[...new Set(list.items.map((item) => item.category || "Otros"))].map((category) => <div key={category} className="nutrition-shopping-group"><h3>{category}</h3>{list.items.filter((item) => (item.category || "Otros") === category).map((item) => <div key={item.id} className="nutrition-shopping-item"><input aria-label={`Marcar ${item.name}`} type="checkbox" checked={item.checked} onChange={() => save(list, list.items.map((current) => current.id === item.id ? { ...current, checked: !current.checked } : current))} className="h-5 w-5 accent-[var(--brand-text)]" /><div className="min-w-0 flex-1"><p className={`text-sm font-bold ${item.checked ? "text-[var(--foreground-muted)] line-through" : ""}`}>{item.name}</p><p className="text-[11px] text-[var(--foreground-muted)]">{item.quantity?.toLocaleString("es-AR", { maximumFractionDigits: 2 }) ?? "Sin cantidad"} {item.unit}{item.state && ` (${item.state})`}</p></div><button type="button" aria-label={`Eliminar ${item.name}`} onClick={() => save(list, list.items.filter((current) => current.id !== item.id))} className="min-h-10 min-w-10 rounded-lg text-red-300">×</button></div>)}</div>)}</div>
             <div className="mt-4 flex gap-2"><input value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Agregar alimento" className="min-h-11 min-w-0 flex-1 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-3" /><button type="button" onClick={() => { const name = newItem.trim(); if (!name) return; void save(list, [...list.items, { id: `manual-${Date.now()}`, name, quantity: null, unit: "", category: "Otros", checked: false }]); setNewItem(""); }} className="bm-button bm-button-primary min-h-11 rounded-xl px-4 text-xs font-black">Agregar</button></div>
             <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => favorite(list)} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-xs font-bold text-[var(--brand-text)]">Guardar favorito</button><button type="button" onClick={() => save(list, list.items, "archive")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-4 text-xs font-bold text-[var(--foreground-muted)]">Archivar lista</button></div>
           </>}
@@ -911,7 +945,7 @@ export function AssistantView({ conversationId, embedded = false }: { conversati
       {!embedded && <PageHeader title="Asistente de Nutrición" description="Consultá sobre comidas, hidratación y organización diaria." />}
       <Notice error={error} message="" />
       <section className="bm-surface nutrition-chat" aria-label="Conversación de Nutrición">
-        <p className="text-xs text-[var(--foreground-muted)]">Usando tu objetivo, preferencias y evaluación actual. <Link href="/portal/nutricion/preferencias#datos-utilizados" className="font-bold text-[var(--brand-text)]">Ver datos utilizados</Link></p>
+        <p className="text-xs text-[var(--foreground-muted)]">{usage ? "Usando tu objetivo, preferencias y evaluación actual." : "Guía local de nutrición general. Las preguntas libres pueden tener respuestas limitadas."} <Link href="/portal/nutricion/preferencias#datos-utilizados" className="font-bold text-[var(--brand-text)]">Ver datos utilizados</Link></p>
         {usage && <p className={`mt-3 rounded-xl p-3 text-xs font-bold ${usage.remaining <= 2 ? "bg-[var(--surface)] text-[var(--brand-text)]" : "bg-[var(--surface)] text-[var(--foreground)]"}`}>{usage.remaining === 0 ? "Alcanzaste tus consultas de IA por hoy. Mañana vas a poder volver a conversar. Mientras tanto, podés seguir usando tus recetas, planes, listas y contenidos educativos." : usage.remaining <= 2 ? `Te quedan ${usage.remaining} consultas de IA hoy` : `${usage.remaining} consultas de IA disponibles hoy`}</p>}
         {fallbackNotice && <p role="status" className="mt-3 rounded-xl border border-yellow-400/15 bg-[var(--surface)] p-3 text-xs leading-5 text-[var(--brand-text)]">{fallbackNotice}</p>}
         {!conversation?.messages.length && <div className="nutrition-chat-suggestions">{suggestions.map((item) => <button key={item} type="button" onClick={() => send(item)} className="min-h-11 rounded-full border border-[var(--border-soft)] px-3 text-left text-xs font-bold text-[var(--brand-text)]">{item}</button>)}</div>}

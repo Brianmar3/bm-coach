@@ -48,6 +48,16 @@
 .nutrition-idea-empty { color: var(--foreground-muted); font-size: .875rem; }
 .nutrition-recipe-grid { display: grid; gap: .65rem; }
 .nutrition-recipe-card { padding: .75rem; }
+.nutrition-plan-days, .nutrition-shopping-groups { display: grid; gap: .75rem; }
+.nutrition-plan-day, .nutrition-shopping-group { border: 1px solid var(--border-soft); border-radius: .9rem; background: var(--surface); padding: .7rem; }
+.nutrition-plan-day h3, .nutrition-shopping-group h3 { margin-bottom: .35rem; }
+.nutrition-plan-meal, .nutrition-shopping-item { display: flex; align-items: center; gap: .65rem; padding: .55rem .2rem; border-top: 1px solid var(--border-soft); }
+.nutrition-plan-meal { align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.nutrition-plan-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.nutrition-plan-recipe { margin-top: .3rem; font-size: .75rem; color: var(--foreground-muted); }
+.nutrition-plan-recipe summary { cursor: pointer; color: var(--brand-text); }
+.nutrition-plan-recipe ol { margin: .3rem 0 0 1rem; list-style: decimal; }
+.nutrition-shopping-item input { flex: none; }
 .nutrition-recipe-heading { display: grid; grid-template-columns: 3.8rem minmax(0, 1fr); gap: .65rem; align-items: center; }
 .nutrition-recipe-emblem { display: grid; place-items: center; min-height: 3.8rem; border: 1px solid var(--bm-accent-soft); border-radius: .75rem; background: radial-gradient(ellipse at top, var(--bm-accent-soft), transparent), var(--surface); color: var(--brand-text); }
 .nutrition-recipe-ingredients { border-top: 1px solid var(--border-soft); margin-top: .55rem; }
