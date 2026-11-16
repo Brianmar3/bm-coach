@@ -332,14 +332,24 @@ function WeeklyObjectiveCard({ mission, showSummary, weeklyPoints, rankingPartic
     return () => window.clearTimeout(advanceTimeout);
   }, [mission.id, mission.percentage, mission.progress, mission.state, mission.target]);
 
-  if (completed && showSummary) return <section aria-live="polite" className="bm-surface-featured portal-home-enter relative overflow-hidden rounded-[22px] border border-emerald-400/25 bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)]">
-    <div className="flex items-start gap-3">
-      <span aria-hidden="true" className="portal-home-objective-icon grid size-11 shrink-0 place-items-center rounded-full border border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300"><BmCheckIcon size={22} /></span>
-      <div className="min-w-0 flex-1"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[var(--brand-text)]">Objetivo semanal</p><h2 className="mt-1 text-base font-black leading-tight text-[var(--foreground)]">¡Completaste tu objetivo!</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">{mission.progress} de {mission.target} {mission.pointsPerSession ? "clases" : "entrenamientos"} esta semana</p></div>
+  if (completed && showSummary) return <section aria-live="polite" className="bm-surface-featured portal-home-enter relative overflow-hidden rounded-[22px] border border-yellow-400/35 bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)]">
+    <div aria-hidden="true" className="invisible">
+      <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5">
+        <span className="size-11" />
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[11px] font-black uppercase tracking-[.18em] sm:text-[11px]">Objetivo semanal</p><span className="rounded-full border px-2 py-0.5 text-[11px] font-bold">Activa</span></div><h2 className="mt-1 text-sm font-bold leading-snug sm:text-base">{Math.max(0, mission.target - 1)} de {mission.target} {mission.pointsPerSession ? "clases completadas" : "entrenamientos completados"}</h2></div>
+        <strong className="text-lg font-black tabular-nums sm:text-xl">{Math.round((Math.max(0, mission.target - 1) / mission.target) * 100)}%</strong>
+      </div>
+      <div className="mt-2"><div className="h-1.5" /><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px] leading-snug sm:text-xs"><span>{mission.target === 1 ? "Tu semana recién empieza." : mission.pointsPerSession ? `Te falta 1 clase para ganar +${mission.completionBonus} pts` : mission.message}</span><span>{mission.pointsPerSession > 0 && <>+{mission.pointsPerSession} por clase · </>}+{mission.completionBonus} bonus</span></div></div>
     </div>
-    <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-[var(--input-border)] pt-3">
-      <div><p className="text-[11px] text-[var(--foreground-muted)]">Puntos sumados esta semana</p><strong className="text-xl font-black tabular-nums text-[var(--brand-text)]">{weeklyPoints} pts</strong></div>
-      {rankingParticipation && rankingPosition !== null && <Link href="/portal/ranking" className="inline-flex min-h-10 items-center gap-1 text-sm font-bold text-[var(--brand-text)]">Puesto #{rankingPosition} · Ranking <BmChevronRightIcon size={16} /></Link>}
+    <div className="absolute inset-0 flex flex-col justify-between px-5 py-1.5">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span aria-hidden="true" className="portal-home-objective-icon grid size-11 shrink-0 place-items-center rounded-full border border-emerald-400/45 bg-emerald-400/[.1] text-emerald-300"><BmCheckIcon size={24} /></span>
+        <div className="min-w-0"><p className="text-[10px] font-black uppercase leading-3 tracking-[.17em] text-[var(--brand-text)]">Objetivo semanal</p><h2 className="mt-0.5 text-base font-black leading-tight text-zinc-100">¡Completaste tu objetivo!</h2><p className="text-[11px] leading-tight text-[var(--foreground-muted)]">{mission.progress} de {mission.target} {mission.pointsPerSession ? "clases" : "entrenamientos"} esta semana</p></div>
+      </div>
+      <div className="flex min-w-0 items-end justify-between gap-2 border-t border-[var(--input-border)] pt-1">
+        <div className="min-w-0"><p className="text-[10px] leading-tight text-[var(--foreground-muted)]">Puntos sumados esta semana</p><strong className={`font-black leading-none tabular-nums text-[var(--brand-text)] ${rankingParticipation && rankingPosition !== null ? "text-2xl" : "text-[28px]"}`}>{weeklyPoints} <span className="text-base">pts</span></strong></div>
+        {rankingParticipation && rankingPosition !== null && <Link href="/portal/ranking" aria-label={`Puesto ${rankingPosition} en el ranking mensual. Ver ranking`} className="flex min-h-10 shrink-0 flex-col items-end justify-center border-l border-[var(--input-border)] pl-2 text-[var(--brand-text)]"><strong className="text-[36px] font-black leading-none tabular-nums">#{rankingPosition}</strong><span className="inline-flex items-center text-[10px] font-bold leading-3">Ver ranking <BmChevronRightIcon size={12} /></span></Link>}
+      </div>
     </div>
   </section>;
 
