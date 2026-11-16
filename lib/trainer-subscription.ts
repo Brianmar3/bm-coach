@@ -8,6 +8,7 @@ export type TrainerSubscriptionStatusValue = typeof TRAINER_SUBSCRIPTION_STATUSE
 type SubscriptionStatusInput = { status: TrainerSubscriptionStatusValue; nextDueAt: Date | string | null };
 
 export const TRAINER_TRIAL_DAYS = 30;
+export const TRAINER_GRACE_DAYS = 3;
 
 export function trialEndsAt(startedAt: Date) {
   return new Date(startedAt.getTime() + TRAINER_TRIAL_DAYS * 86400000);
@@ -17,12 +18,29 @@ export function trainerTrialIsActive(value: Date | string | null | undefined, no
   return Boolean(value && new Date(value) > now);
 }
 
-export function effectiveTrainerPlan(subscription: { plan: TrainerSubscriptionPlanValue; trialEndsAt?: Date | string | null }, now = new Date()): TrainerSubscriptionPlanValue {
-  return trainerTrialIsActive(subscription.trialEndsAt, now) ? "PREMIUM" : subscription.plan;
+export type TrainerCommercialPhase = "TRIAL" | "GRACE" | "PAYMENT_PENDING" | "ACTIVE" | "SUSPENDED" | "CANCELLED";
+
+export function trainerCommercialPhase(subscription: SubscriptionStatusInput & { trialEndsAt?: Date | string | null; lastPaidAt?: Date | string | null }, now = new Date()): TrainerCommercialPhase {
+  if (subscription.status === "SUSPENDED" || subscription.status === "CANCELLED") return subscription.status;
+  const trialEnd = subscription.trialEndsAt && new Date(subscription.trialEndsAt);
+  const paid = Boolean(subscription.lastPaidAt);
+  if (trialEnd && !paid) {
+    if (now < trialEnd) return "TRIAL";
+    const graceEnd = new Date(trialEnd.getTime() + TRAINER_GRACE_DAYS * 86400000);
+    // Respect an existing later due date without rewriting historical memberships.
+    if (now < graceEnd) return "GRACE";
+    if (subscription.nextDueAt && new Date(subscription.nextDueAt) > graceEnd && now < new Date(subscription.nextDueAt)) return "ACTIVE";
+    return "PAYMENT_PENDING";
+  }
+  return subscription.nextDueAt && new Date(subscription.nextDueAt) < now || subscription.status === "PAST_DUE" ? "PAYMENT_PENDING" : "ACTIVE";
 }
 
-export function effectiveTrainerSubscriptionStatus(subscription: SubscriptionStatusInput, now = new Date()): TrainerSubscriptionStatusValue {
-  if (subscription.status === "ACTIVE" && subscription.nextDueAt && new Date(subscription.nextDueAt) < now) return "PAST_DUE";
+export function effectiveTrainerPlan(subscription: { plan: TrainerSubscriptionPlanValue; trialEndsAt?: Date | string | null }, now = new Date()): TrainerSubscriptionPlanValue {
+  return subscription.trialEndsAt && now < new Date(new Date(subscription.trialEndsAt).getTime() + TRAINER_GRACE_DAYS * 86400000) ? "PREMIUM" : subscription.plan;
+}
+
+export function effectiveTrainerSubscriptionStatus(subscription: SubscriptionStatusInput & { trialEndsAt?: Date | string | null; lastPaidAt?: Date | string | null }, now = new Date()): TrainerSubscriptionStatusValue {
+  if (subscription.status === "ACTIVE" && trainerCommercialPhase(subscription, now) === "PAYMENT_PENDING") return "PAST_DUE";
   return subscription.status;
 }
 

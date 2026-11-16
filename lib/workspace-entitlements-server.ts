@@ -27,7 +27,7 @@ export async function loadWorkspaceTrainerPlan(
         select: {
           platformRole: true,
           trainerSubscription: {
-            select: { plan: true, trialEndsAt: true },
+            select: { plan: true, trialEndsAt: true, lastPaidAt: true },
           },
         },
       },

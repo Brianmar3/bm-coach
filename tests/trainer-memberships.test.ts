@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { addUtcMonths, effectiveTrainerSubscriptionStatus, isSubscriptionPeriod, isSubscriptionPlan, isSubscriptionStatus, parseDateInput, validSubscriptionTimeline } from "../lib/trainer-subscription.ts";
+import { addUtcMonths, effectiveTrainerPlan, effectiveTrainerSubscriptionStatus, isSubscriptionPeriod, isSubscriptionPlan, isSubscriptionStatus, parseDateInput, trainerCommercialPhase, trialEndsAt, validSubscriptionTimeline } from "../lib/trainer-subscription.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const schema = read("prisma/schema.prisma");
@@ -37,6 +37,22 @@ test("estado efectivo muestra vencido sin mutar el estado persistido", () => {
   assert.equal(effectiveTrainerSubscriptionStatus({ status: "ACTIVE", nextDueAt: "2026-09-16T12:00:00Z" }, now), "PAST_DUE");
   assert.equal(effectiveTrainerSubscriptionStatus({ status: "ACTIVE", nextDueAt: "2026-09-18T12:00:00Z" }, now), "ACTIVE");
   assert.equal(effectiveTrainerSubscriptionStatus({ status: "SUSPENDED", nextDueAt: "2026-09-16T12:00:00Z" }, now), "SUSPENDED");
+});
+
+test("prueba de 30 días, tres días de gracia y pago pendiente sin suspensión automática", () => {
+  const startedAt = new Date("2026-01-01T12:00:00Z");
+  const trialEnd = trialEndsAt(startedAt);
+  const subscription = { plan: "STARTER" as const, status: "ACTIVE" as const, trialEndsAt: trialEnd, nextDueAt: trialEnd, lastPaidAt: null };
+  assert.equal(trialEnd.toISOString(), "2026-01-31T12:00:00.000Z");
+  assert.equal(trainerCommercialPhase(subscription, new Date("2026-01-31T11:59:59Z")), "TRIAL");
+  assert.equal(trainerCommercialPhase(subscription, trialEnd), "GRACE");
+  assert.equal(effectiveTrainerPlan(subscription, new Date("2026-02-03T11:59:59Z")), "PREMIUM");
+  assert.equal(trainerCommercialPhase(subscription, new Date("2026-02-03T12:00:00Z")), "PAYMENT_PENDING");
+  assert.equal(effectiveTrainerSubscriptionStatus(subscription, new Date("2026-02-03T12:00:00Z")), "PAST_DUE");
+  assert.equal(subscription.status, "ACTIVE");
+  assert.equal(trainerCommercialPhase({ ...subscription, status: "SUSPENDED" }, trialEnd), "SUSPENDED");
+  assert.equal(trainerCommercialPhase({ ...subscription, lastPaidAt: "2026-01-20T12:00:00Z", nextDueAt: "2026-02-20T12:00:00Z" }, trialEnd), "ACTIVE");
+  assert.equal(trainerCommercialPhase({ ...subscription, nextDueAt: "2026-04-01T12:00:00Z" }, new Date("2026-02-04T12:00:00Z")), "ACTIVE");
 });
 
 test("fechas comerciales se validan y los períodos no inventan duraciones", () => {
@@ -118,7 +134,7 @@ test("detalle prioriza el estado comercial y separa el contexto interno sin inve
   assert.match(trainerDetail, /data-membership-section="commercial-overview"/);
   assert.match(trainerDetail, /data-membership-section="internal-context"/);
   for (const label of ["Plan", "Estado", "Próximo vencimiento", "Último pago", "Fin del período", "Inicio", "Fin de prueba", "Notas internas"]) assert.match(trainerDetail, new RegExp(label));
-  assert.match(trainerDetail, /trainerTrialIsActive/);
+  assert.match(trainerDetail, /trainerCommercialPhase/);
   assert.match(trainerDetail, /Gestionar membresía|TrainerMembershipDetailManager/);
   assert.doesNotMatch(trainerDetail, /Método de cobro|Renovación automática|Pago rechazado|Mercado Pago|Suscribirse/);
   const subscriptionModel = schema.slice(schema.indexOf("model TrainerSubscription"), schema.indexOf("model TrainerPasswordResetToken"));

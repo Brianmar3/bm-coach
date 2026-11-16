@@ -4,7 +4,7 @@ import { masterWorkspaceTotals } from "@/lib/master-student-counts";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requirePlatformOwnerPage } from "@/lib/platform-auth";
-import { effectiveTrainerSubscriptionStatus, TRAINER_SUBSCRIPTION_PLANS } from "@/lib/trainer-subscription";
+import { effectiveTrainerSubscriptionStatus, trainerCommercialPhase, TRAINER_SUBSCRIPTION_PLANS } from "@/lib/trainer-subscription";
 
 export default async function PlatformPage() {
   await requirePlatformOwnerPage();
@@ -12,17 +12,19 @@ export default async function PlatformPage() {
   const sevenDays = new Date(now.getTime() + 7 * 86400000);
   const twoDays = new Date(now.getTime() + 2 * 86400000);
   const [trainers, invitations] = await Promise.all([
-    prisma.user.findMany({ where: { platformRole: "TRAINER", memberships: { some: { role: "OWNER", workspace: { type: "PROFESSIONAL" } } } }, select: { id: true, name: true, status: true, trainerSubscription: { select: { plan: true, status: true, nextDueAt: true } }, memberships: { where: { role: "OWNER", workspace: { type: "PROFESSIONAL" } }, select: { workspace: { select: { id: true, students: { where: coachedStudentsWhere, select: { data: true } } } } } } } }),
+    prisma.user.findMany({ where: { platformRole: "TRAINER", memberships: { some: { role: "OWNER", workspace: { type: "PROFESSIONAL" } } } }, select: { id: true, name: true, status: true, trainerSubscription: { select: { plan: true, status: true, nextDueAt: true, trialEndsAt: true, lastPaidAt: true } }, memberships: { where: { role: "OWNER", workspace: { type: "PROFESSIONAL" } }, select: { workspace: { select: { id: true, students: { where: coachedStudentsWhere, select: { data: true } } } } } } } }),
     prisma.trainerInvitation.findMany({ where: { status: "PENDING", acceptedAt: null, expiresAt: { gt: now, lte: twoDays } }, select: { id: true, firstName: true, lastName: true, expiresAt: true }, orderBy: { expiresAt: "asc" } }),
   ]);
   const students = masterWorkspaceTotals(trainers.flatMap(trainer => trainer.memberships.map(item => item.workspace)));
   const status = (trainer: typeof trainers[number]) => trainer.trainerSubscription ? effectiveTrainerSubscriptionStatus(trainer.trainerSubscription, now) : null;
+  const phase = (trainer: typeof trainers[number]) => trainer.trainerSubscription ? trainerCommercialPhase(trainer.trainerSubscription, now) : null;
   const suspended = trainers.filter((trainer) => trainer.status === "SUSPENDED" || status(trainer) === "SUSPENDED");
-  const overdue = trainers.filter((trainer) => trainer.status === "ACTIVE" && status(trainer) === "PAST_DUE");
+  const overdue = trainers.filter((trainer) => trainer.status === "ACTIVE" && phase(trainer) === "PAYMENT_PENDING");
   const expiring = trainers.filter((trainer) => trainer.status === "ACTIVE" && status(trainer) === "ACTIVE" && trainer.trainerSubscription?.nextDueAt && trainer.trainerSubscription.nextDueAt >= now && trainer.trainerSubscription.nextDueAt <= sevenDays);
   const metrics = [["Entrenadores", trainers.length], ["Activos", trainers.filter(({ status }) => status === "ACTIVE").length], ["Próximos a vencer", expiring.length], ["Vencidos", overdue.length], ["Suspendidos", suspended.length]] as const;
   const attention = [
-    ...overdue.map((trainer) => ({ label: `${trainer.name} · membresía vencida`, href: `/platform/trainers/${trainer.id}` })),
+    ...overdue.map((trainer) => ({ label: `${trainer.name} · pago pendiente; revisar suspensión`, href: `/platform/trainers/${trainer.id}` })),
+    ...trainers.filter((trainer) => trainer.status === "ACTIVE" && phase(trainer) === "GRACE").map((trainer) => ({ label: `${trainer.name} · en período de gracia`, href: `/platform/trainers/${trainer.id}` })),
     ...expiring.map((trainer) => ({ label: `${trainer.name} · vence pronto`, href: `/platform/trainers/${trainer.id}` })),
     ...suspended.map((trainer) => ({ label: `${trainer.name} · acceso suspendido`, href: `/platform/trainers/${trainer.id}` })),
     ...invitations.map((invitation) => ({ label: `${invitation.firstName} ${invitation.lastName} · invitación por vencer`, href: "/platform/trainers?view=invitations" })),

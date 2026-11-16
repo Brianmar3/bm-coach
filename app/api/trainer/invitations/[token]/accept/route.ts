@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword, passwordValidationError, validRequestOrigin } from "@/lib/portal-auth";
 import { studentEmailConflict, trainerInvitationTokenHash } from "@/lib/trainer-invitations";
 import { loadPlatformSettings } from "@/lib/platform-settings-server";
-import { addUtcMonths, trialEndsAt } from "@/lib/trainer-subscription";
+import { trialEndsAt } from "@/lib/trainer-subscription";
 
 export const runtime = "nodejs";
 class InvitationRejected extends Error {}
@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       const account = await tx.user.create({ data: { name: displayName, email: invitation.email, passwordHash, phone: invitation.phone, brandName: invitation.brandName, platformRole: "TRAINER", status: "ACTIVE", onboardingCompleted: false } });
       const workspace = await tx.workspace.create({ data: { name: workspaceName, slug: trainerWorkspaceSlug(workspaceName, randomBytes(6).toString("hex")), type: "PROFESSIONAL", status: "ACTIVE", timeZone: "America/Argentina/Buenos_Aires" } });
       const startedAt = new Date();
-      const nextDueAt = addUtcMonths(startedAt, settings.initialPeriodMonths);
+      const nextDueAt = trialEndsAt(startedAt);
       await Promise.all([
         tx.workspaceMembership.create({ data: { userId: account.id, workspaceId: workspace.id, role: "OWNER", status: "ACTIVE" } }),
         tx.trainerSubscription.create({ data: { trainerUserId: account.id, plan: settings.defaultTrainerPlan, status: "ACTIVE", startedAt, currentPeriodEnd: nextDueAt, nextDueAt, trialEndsAt: trialEndsAt(startedAt) } }),

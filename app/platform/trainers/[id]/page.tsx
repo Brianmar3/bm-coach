@@ -9,7 +9,7 @@ import { coachedStudentsWhere } from "@/lib/coached-students";
 import { requirePlatformOwnerPage } from "@/lib/platform-auth";
 import { prisma } from "@/lib/prisma";
 import { countActiveManagedStudents, trainerStudentCapacity } from "@/lib/trainer-plan-limits";
-import { effectiveTrainerPlan, effectiveTrainerSubscriptionStatus, trainerTrialIsActive } from "@/lib/trainer-subscription";
+import { effectiveTrainerPlan, effectiveTrainerSubscriptionStatus, trainerCommercialPhase } from "@/lib/trainer-subscription";
 
 function showDate(value: Date | null | undefined) {
   return value ? value.toLocaleDateString("es-AR") : "Sin definir";
@@ -38,7 +38,9 @@ export default async function TrainerDetailPage({ params }: PageProps<"/platform
 
   const subscription = trainer.trainerSubscription;
   const effective = subscription ? effectiveTrainerSubscriptionStatus(subscription) : null;
-  const trialActive = subscription ? trainerTrialIsActive(subscription.trialEndsAt) : false;
+  const phase = trainer.status === "SUSPENDED" ? "SUSPENDED" : subscription ? trainerCommercialPhase(subscription) : null;
+  const trialActive = phase === "TRIAL";
+  const commercialLabel = phase === "TRIAL" ? "Prueba gratuita" : phase === "GRACE" ? "En gracia · acceso completo" : phase === "PAYMENT_PENDING" ? "Pago pendiente · suspensión manual" : phase === "SUSPENDED" ? "Suspendida" : phase === "CANCELLED" ? "Cancelada" : "Al día";
   const workspace = trainer.memberships[0]?.workspace;
   const capacity = trainerStudentCapacity(subscription ? effectiveTrainerPlan(subscription) : "FREE", workspace ? countActiveManagedStudents(workspace.students) : 0);
   const studentCounts = masterStudentCounts(workspace?.students ?? []);
@@ -89,12 +91,12 @@ export default async function TrainerDetailPage({ params }: PageProps<"/platform
         <article className="rounded-2xl border border-yellow-400/15 bg-zinc-900/75 p-5">
           <div className="flex items-center justify-between gap-3">
             <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-yellow-400">Cuenta comercial</p><h2 className="mt-1 font-bold">Membresía</h2></div>
-            {effective && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${trialActive ? "bg-sky-400/10 text-sky-300" : badge[effective]}`}>{trialActive ? "Prueba" : labels[effective]}</span>}
+            {effective && <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${trialActive ? "bg-sky-400/10 text-sky-300" : badge[effective]}`}>{commercialLabel}</span>}
           </div>
           {subscription ? <>
             <section data-membership-section="commercial-overview" aria-label="Resumen comercial" className="mt-4 grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Plan</p><p className="mt-1 text-lg font-black text-white">{subscription.plan}</p>{trialActive && <p className="text-[11px] text-sky-300">Beneficios PREMIUM durante la prueba</p>}</div>
-              <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Estado</p><p className="mt-1 font-bold">{trialActive ? "Período de prueba" : effective ? labels[effective] : "Sin definir"}</p></div>
+              <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Estado</p><p className="mt-1 font-bold">{commercialLabel}</p></div>
               <div className="col-span-2 rounded-xl border border-yellow-400/20 bg-yellow-400/[.04] p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-yellow-400">Próximo vencimiento</p><p className="mt-1 text-xl font-black">{showDate(subscription.nextDueAt)}</p></div>
               <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Último pago</p><p className="mt-1 font-semibold">{showDate(subscription.lastPaidAt)}</p></div>
               <div className="rounded-xl border border-zinc-800 bg-black/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Fin del período</p><p className="mt-1 font-semibold">{showDate(subscription.currentPeriodEnd)}</p></div>

@@ -145,6 +145,6 @@ test("aceptación aplica plan y período inicial configurados sin permitirlos de
   assert.match(acceptApi, /loadPlatformSettings/);
   assert.match(acceptApi, /trainerSubscription\.create/);
   assert.match(acceptApi, /settings\.defaultTrainerPlan/);
-  assert.match(acceptApi, /settings\.initialPeriodMonths/);
+  assert.match(acceptApi, /nextDueAt = trialEndsAt\(startedAt\)/);
   assert.doesNotMatch(acceptApi, /body\.defaultTrainerPlan|body\.initialPeriodMonths/);
 });

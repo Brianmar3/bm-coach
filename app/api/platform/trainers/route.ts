@@ -1,7 +1,7 @@
 import { masterStudentCounts } from "@/lib/master-student-counts";
 import { platformOwnerApiAccess } from "@/lib/platform-auth";
 import { prisma } from "@/lib/prisma";
-import { effectiveTrainerSubscriptionStatus } from "@/lib/trainer-subscription";
+import { effectiveTrainerSubscriptionStatus, trainerCommercialPhase } from "@/lib/trainer-subscription";
 import { coachedStudentsWhere } from "@/lib/coached-students";
 import { countActiveManagedStudents, trainerStudentCapacity } from "@/lib/trainer-plan-limits";
 import { effectiveTrainerPlan } from "@/lib/trainer-subscription";
@@ -26,6 +26,6 @@ export async function GET() {
       const capacity = trainerStudentCapacity(subscription ? effectiveTrainerPlan(subscription) : "FREE", used);
       return { workspace: { id: workspace.id, name: workspace.name, status: workspace.status, _count: { students: used }, studentCounts: masterStudentCounts(workspace.students), capacity } };
     });
-    return { ...trainer, memberships, effectiveSubscriptionStatus: subscription ? effectiveTrainerSubscriptionStatus(subscription) : null };
+    return { ...trainer, memberships, effectiveSubscriptionStatus: subscription ? effectiveTrainerSubscriptionStatus(subscription) : null, commercialPhase: subscription ? trainerCommercialPhase(subscription) : null };
   }), invitations }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
