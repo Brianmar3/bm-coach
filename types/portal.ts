@@ -17,6 +17,7 @@ export type PortalProfile = {
   joinedAt: string;
   status: string;
   serviceType: StudentServiceType;
+  rankingParticipation?: boolean;
   dueDate: string;
   scheduleLabels: string[];
   flexibleSchedule: string;
@@ -142,6 +143,7 @@ export type PortalData = {
     achievements: PortalAchievement[];
     points: StudentPointSummary;
     weeklyMission: CelebratableWeeklyMission | null;
+    weeklyPoints?: number | null;
   };
 };
 

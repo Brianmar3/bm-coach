@@ -216,7 +216,7 @@ function PortalOverview({ data }: { data: PortalData }) {
       </div>
     </PortalHeroFrame>
     <PortalEventAnnouncement events={data.events} studentId={data.profile.id} />
-    {(groupClassesEnabled || data.home.sportsPoints) && !weeklyCelebrated && data.home.weeklyMission && <WeeklyObjectiveCard mission={data.home.weeklyMission} />}
+    {(groupClassesEnabled || data.home.sportsPoints) && data.home.weeklyMission && (!weeklyCelebrated || data.home.weeklyMission.state === "COMPLETED") && <WeeklyObjectiveCard mission={data.home.weeklyMission} showSummary={weeklyCelebrated} weeklyPoints={data.home.weeklyPoints ?? 0} rankingParticipation={data.profile.rankingParticipation !== false} monthlyPoints={data.home.points.monthlyTotal} />}
     <div className="portal-home-main-card portal-home-enter">{homePlan ? <RoutineHomeCard plan={homePlan} /> : groupClassesEnabled && <PortalClasses compact />}</div>
     {routineFocused && <HomeLoadEvolution sessions={data.workoutSessions} />}
     <HomeQuickStats data={data} />
@@ -291,9 +291,10 @@ function RoutineHomeCard({ plan }: { plan: PersonalizedHomePlan }) {
 }
 
 
-function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["home"]["weeklyMission"]> }) {
+function WeeklyObjectiveCard({ mission, showSummary, weeklyPoints, rankingParticipation, monthlyPoints }: { mission: NonNullable<PortalData["home"]["weeklyMission"]>; showSummary: boolean; weeklyPoints: number; rankingParticipation: boolean; monthlyPoints: number }) {
   const completed = mission.state === "COMPLETED";
   const expired = mission.state === "EXPIRED";
+  const [rankingPosition, setRankingPosition] = useState<number | null>(null);
 
   const [advancing, setAdvancing] = useState(false);
   const previousMission = useRef({ id: mission.id, state: mission.state, progress: mission.progress, target: mission.target, percentage: mission.percentage });
@@ -311,6 +312,16 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
           : `Te faltan ${mission.remaining} clases para ganar +${mission.completionBonus} pts`;
 
   useEffect(() => {
+    if (!completed || !showSummary || !rankingParticipation) return;
+    const controller = new AbortController();
+    fetch("/api/portal/ranking", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => response.ok ? await response.json() as PointsRankingPreview : null)
+      .then((ranking) => { if (!controller.signal.aborted) setRankingPosition(ranking?.currentPosition ?? null); })
+      .catch(() => { if (!controller.signal.aborted) setRankingPosition(null); });
+    return () => controller.abort();
+  }, [completed, showSummary, rankingParticipation, mission.id, monthlyPoints]);
+
+  useEffect(() => {
     const previous = previousMission.current;
     previousMission.current = { id: mission.id, state: mission.state, progress: mission.progress, target: mission.target, percentage: mission.percentage };
     if (previous.id !== mission.id) return;
@@ -320,6 +331,17 @@ function WeeklyObjectiveCard({ mission }: { mission: NonNullable<PortalData["hom
     const advanceTimeout = window.setTimeout(() => setAdvancing(false), 650);
     return () => window.clearTimeout(advanceTimeout);
   }, [mission.id, mission.percentage, mission.progress, mission.state, mission.target]);
+
+  if (completed && showSummary) return <section aria-live="polite" className="bm-surface-featured portal-home-enter relative overflow-hidden rounded-[22px] border border-emerald-400/25 bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)]">
+    <div className="flex items-start gap-3">
+      <span aria-hidden="true" className="portal-home-objective-icon grid size-11 shrink-0 place-items-center rounded-full border border-emerald-400/30 bg-emerald-400/[.08] text-emerald-300"><BmCheckIcon size={22} /></span>
+      <div className="min-w-0 flex-1"><p className="text-[11px] font-black uppercase tracking-[.18em] text-[var(--brand-text)]">Objetivo semanal</p><h2 className="mt-1 text-base font-black leading-tight text-[var(--foreground)]">¡Completaste tu objetivo!</h2><p className="mt-1 text-xs text-[var(--foreground-muted)]">{mission.progress} de {mission.target} {mission.pointsPerSession ? "clases" : "entrenamientos"} esta semana</p></div>
+    </div>
+    <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-[var(--input-border)] pt-3">
+      <div><p className="text-[11px] text-[var(--foreground-muted)]">Puntos sumados esta semana</p><strong className="text-xl font-black tabular-nums text-[var(--brand-text)]">{weeklyPoints} pts</strong></div>
+      {rankingParticipation && rankingPosition !== null && <Link href="/portal/ranking" className="inline-flex min-h-10 items-center gap-1 text-sm font-bold text-[var(--brand-text)]">Puesto #{rankingPosition} · Ver ranking <BmChevronRightIcon size={16} /></Link>}
+    </div>
+  </section>;
 
   return <section aria-live="polite" className={`bm-surface-featured portal-home-enter relative overflow-hidden rounded-[22px] border bg-[linear-gradient(145deg,#151515,#090909)] px-5 py-[15px] shadow-[0_14px_34px_rgba(0,0,0,.28)] ${completed ? "border-emerald-400/25" : "border-yellow-400/35"} ${advancing ? "portal-home-objective-advancing" : ""}`}>
     <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5">

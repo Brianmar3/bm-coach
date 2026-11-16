@@ -11,7 +11,8 @@ import { serializeEvent } from "@/lib/eventos";
 import type { CoachSettings, Student } from "@/types/gestion";
 import type { PortalData } from "@/types/portal";
 import type { Prisma } from "@prisma/client";
-import { argentinaDateKey, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { argentinaDateKey, argentinaDateTimeBoundary, databaseDateKey, dateKeyToDatabase } from "@/lib/payment-dates";
+import { weekRange } from "@/lib/weekly-attendance";
 import { calculatePortalAchievements } from "@/lib/portal-achievements";
 import { loadStrengthAchievements } from "@/lib/strength-achievements";
 import { portalPaymentAccount, serializePayment } from "@/lib/payments";
@@ -111,6 +112,16 @@ async function loadHomeInsights(studentId: string, workspaceId: string, primaryS
   const weeklyGoal = includeClasses ? planDays(plan) ?? 0 : 0;
   const hasPreviousMonthData = (previousMonthAttendance?.total ?? 0) > 0;
   const weeklyMission = await withWeeklyCelebrationState(studentId, await loadCurrentWeeklyMission(studentId, todayKey));
+  const currentWeek = weekRange(todayKey);
+  const weeklyPoints = weeklyMission?.state === "COMPLETED" && currentWeek
+    ? (await prisma.studentPointTransaction.aggregate({
+        where: { studentId, active: true, occurredAt: {
+          gte: argentinaDateTimeBoundary(currentWeek.start),
+          lt: argentinaDateTimeBoundary(currentWeek.endExclusive),
+        } },
+        _sum: { points: true },
+      }))._sum.points ?? 0
+    : null;
   return {
     weeklyWorkoutCount,
     activityStats,
@@ -120,6 +131,7 @@ async function loadHomeInsights(studentId: string, workspaceId: string, primaryS
     previousMonthAttendancePercentage: previousMonthAttendance?.percentage ?? null,
     hasClassParticipation,
     weeklyMission,
+    weeklyPoints,
     achievements: [...calculatePortalAchievements({
       completedWorkoutDates: completedWorkoutDates.map((item) => item.date.toISOString().slice(0, 10)),
       attendedClassDates,
@@ -154,7 +166,7 @@ export async function GET(request: Request) {
     const student = session.credential.student.data as unknown as Student;
     const homeInsightsPromise = section === "inicio" || section === "puntos" || section === "puntos-historial"
       ? loadHomeInsights(studentId, session.credential.student.workspaceId ?? "", session.credential.student.primaryScheduleId, student.joinedAt, student.status, student.plan, todayKey, weekStart, groupClassesEnabled, serviceType, section === "puntos-historial" ? 40 : 8)
-      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
+      : Promise.resolve({ weeklyWorkoutCount: 0, classesAttendedThisMonth: 0, monthlyAttendancePercentage: null, classesAttendedPreviousMonth: null, previousMonthAttendancePercentage: null, hasClassParticipation: false, weeklyMission: null, weeklyPoints: null, achievements: [], points: { total: 0, monthlyTotal: 0, latest: null, recent: [], nextTarget: 50, pointsToNextTarget: 50 } });
     const [routine, evaluations, legacyEvaluationRecords, payments, events, workoutSessions, comments, nextClass, homeInsights, settingsRecord, studentSchedules, paymentObligationRecords, paidAmountsByPeriod] = await Promise.all([
       prisma.trainingRoutine.findFirst({ where: activePortalRoutineWhere(studentId, session.credential.student.workspaceId ?? ""), include: routineInclude, orderBy: { updatedAt: "desc" } }),
       prisma.physicalEvaluation.findMany({ where: { studentId, status: { in: ["COMPLETED", "REASSESSMENT_RECOMMENDED"] } }, include: evaluationInclude, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: fullEvaluationHistory ? undefined : section === "inicio" ? 12 : 2 }),
@@ -208,7 +220,7 @@ export async function GET(request: Request) {
     const privateRoutine = routine ? { ...serializeRoutine(routine), studentIds: [studentId], students: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }], historicalStudents: [{ id: studentId, name: `${student.firstName} ${student.lastName}`.trim() }] } : null;
     const data: PortalData = {
       exerciseMediaEnabled: await exerciseMediaAvailable(),
-      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: studentProfilePhoto(studentId, student.profileImageUrl, false, student.avatarPresetId), avatarPresetId: student.avatarPresetId ?? "", hasProfilePhoto: !!ownedStudentBlob(student.profileImageUrl, studentId, "profile"), height: storedHeightToCentimeters(student.height) || null, weight: Number(student.weight) > 0 ? Number(student.weight) : null, experienceLevel: student.experienceLevel ?? "", trainingExperience: student.trainingExperience ?? "", trainingCurrently: typeof student.trainingCurrently === "boolean" ? student.trainingCurrently : null, hasLimitations: student.hasLimitations === true, limitations: student.limitations ?? "", onboardingUpdatedAt: student.onboardingUpdatedAt ?? "" },
+      profile: { id: studentId, firstName: student.firstName, lastName: student.lastName, phone: student.phone, email: student.email, birthDate: student.birthDate, goal: student.goal, plan: student.plan, joinedAt: student.joinedAt, status: student.status, serviceType, rankingParticipation: student.rankingParticipation !== false, dueDate: student.dueDate, scheduleLabels: studentSchedules.map((assignment) => weeklyScheduleLabel(assignment.schedule)), flexibleSchedule: groupClassesEnabled ? student.flexibleSchedule ?? "" : "", profileImageUrl: studentProfilePhoto(studentId, student.profileImageUrl, false, student.avatarPresetId), avatarPresetId: student.avatarPresetId ?? "", hasProfilePhoto: !!ownedStudentBlob(student.profileImageUrl, studentId, "profile"), height: storedHeightToCentimeters(student.height) || null, weight: Number(student.weight) > 0 ? Number(student.weight) : null, experienceLevel: student.experienceLevel ?? "", trainingExperience: student.trainingExperience ?? "", trainingCurrently: typeof student.trainingCurrently === "boolean" ? student.trainingCurrently : null, hasLimitations: student.hasLimitations === true, limitations: student.limitations ?? "", onboardingUpdatedAt: student.onboardingUpdatedAt ?? "" },
       routine: privateRoutine,
       evaluations: normalizedEvaluations.map((evaluation) => ({ ...toStudentEvaluation(evaluation), notes: "", frontPhotoUrl: "", sidePhotoUrl: "", backPhotoUrl: "" })),
       payments: payments.map(serializePayment),
