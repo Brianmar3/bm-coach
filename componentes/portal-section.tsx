@@ -339,7 +339,7 @@ function WeeklyObjectiveCard({ mission, showSummary, weeklyPoints, rankingPartic
     </div>
     <div className="mt-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-[var(--input-border)] pt-3">
       <div><p className="text-[11px] text-[var(--foreground-muted)]">Puntos sumados esta semana</p><strong className="text-xl font-black tabular-nums text-[var(--brand-text)]">{weeklyPoints} pts</strong></div>
-      {rankingParticipation && rankingPosition !== null && <Link href="/portal/ranking" className="inline-flex min-h-10 items-center gap-1 text-sm font-bold text-[var(--brand-text)]">Puesto #{rankingPosition} · Ver ranking <BmChevronRightIcon size={16} /></Link>}
+      {rankingParticipation && rankingPosition !== null && <Link href="/portal/ranking" className="inline-flex min-h-10 items-center gap-1 text-sm font-bold text-[var(--brand-text)]">Puesto #{rankingPosition} · Ranking <BmChevronRightIcon size={16} /></Link>}
     </div>
   </section>;
 
