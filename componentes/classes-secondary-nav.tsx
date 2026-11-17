@@ -4,20 +4,19 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { classesView } from "@/lib/classes-navigation";
 
-type ClassTab = "calendar" | "planning" | "attendance" | "history";
+type ClassTab = "calendar" | "planning" | "attendance";
 
 export function ClassesSecondaryNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const current = classesView(pathname, searchParams);
-  const style = (tab: ClassTab) => `relative shrink-0 rounded-xl px-4 py-3 text-sm font-semibold transition ${current === tab ? "bg-yellow-400/10 text-yellow-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.04] hover:text-zinc-100"}`;
+  const style = (tab: ClassTab) => `relative shrink-0 rounded-xl px-4 py-3 text-sm font-semibold transition ${(current === "history" ? "attendance" : current) === tab ? "bg-yellow-400/10 text-yellow-300 after:absolute after:inset-x-4 after:bottom-0 after:h-0.5 after:rounded-full after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.04] hover:text-zinc-100"}`;
 
   return (
     <nav aria-label="Navegación de Clases" className="flex gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <Link href="/clases" className={style("calendar")}>Calendario semanal</Link>
       <Link href="/clases/planificacion" className={style("planning")}>Planificación semanal</Link>
       <Link href="/asistencias?view=attendance" className={style("attendance")}>Asistencias</Link>
-      <Link href="/asistencias?view=history&mode=week" className={style("history")}>Historial y estadísticas</Link>
     </nav>
   );
 }

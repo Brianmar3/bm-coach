@@ -94,6 +94,7 @@ model User {
   studentInvitations  StudentInvitation[]   @relation("StudentInvitationInviter")
   trainerSubscription TrainerSubscription?
   passwordResetTokens TrainerPasswordResetToken[]
+  groupClassDrafts    GroupClassDraft[]
 
   @@map("users")
 }
@@ -263,6 +264,7 @@ model Workspace {
   classSchedules           WeeklyClassSchedule[]
   classOccurrences         ClassOccurrence[]
   groupClassPlans          GroupClassPlan[]
+  groupClassDrafts         GroupClassDraft[]
   classSessions            ClassSession[]
 
   @@map("workspaces")
@@ -1921,6 +1923,20 @@ model GroupClassPlan {
 
   @@index([workspaceId, date])
   @@map("group_class_plans")
+}
+
+model GroupClassDraft {
+  id          String   @id @default(cuid())
+  workspaceId String
+  trainerId   String
+  draftKey    String
+  content     Json
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  trainer     User      @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, trainerId, draftKey])
+  @@map("group_class_drafts")
 }
 
 model ClassOccurrenceAttendance {
