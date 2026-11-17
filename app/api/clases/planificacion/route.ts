@@ -44,7 +44,14 @@ export async function POST(request: Request) {
           include: { days: { where: { active: true }, include: { blocks: { where: { active: true }, include: { exercises: { where: { active: true }, orderBy: { order: "asc" } } } } }, orderBy: { dayNumber: "asc" }, take: 1 } },
         }) : null;
         if (input.routineId && !routine) return { status: 404, error: "Clase guardada no encontrada en este espacio." };
-        await tx.classOccurrence.update({ where: { id: occurrence.id }, data: { plannedRoutineId: routine?.id ?? null, plannedSnapshot: routine ? classNoteSnapshot(routine) as unknown as Prisma.InputJsonValue : Prisma.DbNull } });
+        const snapshot = routine ? classNoteSnapshot(routine) as unknown as Prisma.InputJsonValue : null;
+        await tx.classOccurrence.update({ where: { id: occurrence.id }, data: { plannedRoutineId: routine?.id ?? null, plannedSnapshot: snapshot ?? Prisma.DbNull } });
+        if (routine && snapshot) await tx.groupClassPlan.upsert({
+          where: { occurrenceId: occurrence.id },
+          create: { workspaceId, date: occurrence.date, routineId: routine.id, occurrenceId: occurrence.id, snapshot },
+          update: { routineId: routine.id, snapshot },
+        });
+        else await tx.groupClassPlan.deleteMany({ where: { workspaceId, occurrenceId: occurrence.id } });
         return { status: 200, message: routine ? "Clase asignada a la fecha." : "Planificación quitada de esta fecha." };
       }
       if (!input.confirmed) return { status: 400, error: "Confirmá que esta clase se dictó realmente." };

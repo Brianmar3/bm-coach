@@ -262,6 +262,7 @@ model Workspace {
   evaluationRecords        EvaluationRecord[]
   classSchedules           WeeklyClassSchedule[]
   classOccurrences         ClassOccurrence[]
+  groupClassPlans          GroupClassPlan[]
   classSessions            ClassSession[]
 
   @@map("workspaces")
@@ -1307,6 +1308,7 @@ model TrainingRoutine {
   workoutSessions WorkoutSession[]
   versions        TrainingRoutineVersion[]
   plannedOccurrences ClassOccurrence[] @relation("PlannedClassRoutine")
+  groupClassPlans GroupClassPlan[]
   workspace       Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@index([scope, workspaceId, status])
@@ -1891,6 +1893,7 @@ model ClassOccurrence {
   updatedAt            DateTime                    @updatedAt
   schedule             WeeklyClassSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   plannedRoutine       TrainingRoutine?            @relation("PlannedClassRoutine", fields: [plannedRoutineId], references: [id], onDelete: SetNull)
+  groupClassPlan       GroupClassPlan?
   responses            ClassOccurrenceAttendance[]
   strengthBlock        ClassStrengthBlock?
   workoutLogs          ClassWorkoutLog[]
@@ -1901,6 +1904,23 @@ model ClassOccurrence {
   @@index([workspaceId, date, startTime])
   @@index([workspaceId, plannedRoutineId])
   @@map("class_occurrences")
+}
+
+model GroupClassPlan {
+  id           String           @id @default(cuid())
+  workspaceId  String
+  date         DateTime         @db.Date
+  routineId    String?
+  occurrenceId String?          @unique
+  snapshot     Json
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  routine      TrainingRoutine? @relation(fields: [routineId], references: [id], onDelete: SetNull)
+  occurrence   ClassOccurrence? @relation(fields: [occurrenceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, date])
+  @@map("group_class_plans")
 }
 
 model ClassOccurrenceAttendance {

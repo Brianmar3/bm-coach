@@ -3,6 +3,7 @@ type Query = Pick<URLSearchParams, "get">;
 /** Navigation intent lives in the URL, never in the last visited tab. */
 export function classesView(pathname: string, query: Query) {
   if (pathname === "/clases") return "calendar";
+  if (pathname === "/clases/planificacion") return "planning";
   const view = query.get("view");
   return view === "history" || view === "low-activity" ? view : "attendance";
 }
