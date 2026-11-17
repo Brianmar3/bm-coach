@@ -18,6 +18,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       where: { id },
       select: {
         id: true,
+        taughtAt: true,
         responses: { select: { studentId: true } },
       },
     });
@@ -44,6 +45,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       );
     }
     const status = typeof input.status === "string" && statusValues.includes(input.status as typeof statusValues[number]) ? input.status as typeof statusValues[number] : undefined;
+    if (status === "CANCELLED" && occurrence.taughtAt) return Response.json({ error: "La clase ya fue confirmada como dictada. Revisá el historial antes de cancelarla." }, { status: 409 });
     const startTime = typeof input.startTime === "string" && /^\d{2}:\d{2}$/.test(input.startTime) ? input.startTime : undefined;
     const endTime = typeof input.endTime === "string" && /^\d{2}:\d{2}$/.test(input.endTime) ? input.endTime : undefined;
     const capacity = input.capacity === null ? null : input.capacity === undefined ? undefined : Number(input.capacity);

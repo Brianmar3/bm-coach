@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { KeyboardDialog } from "@/componentes/keyboard-dialog";
 import { SearchWithFilters } from "@/componentes/search-with-filters";
 import { RoutineReview } from "@/componentes/routine-review";
@@ -598,7 +599,7 @@ export default function RutinasPage() {
         {([["classes", "Clases completas"], ["blocks", "Bloques"]] as const).map(([value, title]) => <button key={value} type="button" aria-current={librarySection === value ? "page" : undefined} onClick={() => setLibrarySection(value)} className={`relative min-h-11 min-w-0 px-2 text-xs font-bold transition sm:text-sm ${librarySection === value ? "bg-white/[.025] text-yellow-300 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-yellow-400" : "text-zinc-400 hover:bg-white/[.02] hover:text-zinc-200"}`}>{title}</button>)}
       </nav>
       {librarySection === "classes" ? <>
-        <div className="mb-3 flex justify-end"><button type="button" onClick={() => begin(undefined, "template")} className="min-h-10 rounded-xl border border-yellow-400/30 bg-black/20 px-3.5 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]">+ Crear clase completa</button></div>
+        <div className="mb-3 flex justify-end"><Link href="/clases#planificacion" className="inline-flex min-h-10 items-center rounded-xl border border-yellow-400/30 bg-black/20 px-3.5 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/[.06]">Planificar clases en Gestión de clases →</Link></div>
         <section className="mb-4 rounded-2xl border border-zinc-800 bg-[#121212] p-3"><SearchWithFilters search={<input data-keyboard-results-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar clase completa…" className={inputClass} />} activeCount={Number(objectiveFilter !== "todos")}><div className="filter-fields"><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><button type="button" className="trainer-filter-clear" onClick={()=>{setObjectiveFilter("todos");}}>Limpiar filtros</button></div></SearchWithFilters></section>
         <RoutineManagementPanel routines={visible} mode="plantillas" ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), manageAssignments: setAssignmentTarget, archive, restore, history: openHistory, remove }} />
       </> : <>

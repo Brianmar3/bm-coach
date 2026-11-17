@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { ClassOccurrenceAdmin } from "@/componentes/class-occurrence-admin";
+import { GroupClassPlanning } from "@/componentes/group-class-planning";
 import { ClassOpinionsPanel } from "@/componentes/class-opinions-panel";
 import { EmptyState, ErrorState } from "@/componentes/async-states";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
@@ -192,6 +193,7 @@ export default function ClasesPage() {
         {!ready ? <div aria-hidden="true" className="grid grid-cols-3 gap-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-14 animate-pulse rounded-xl bg-zinc-800/70"/>)}</div> : <div className="grid grid-cols-3 divide-x divide-zinc-800"><Metric label="Horarios activos" value={activeCount} /><Metric label="Alumnos con horario" value={assignedCount} /><Metric label="Bloques semanales" value={schedules.length} /></div>}
       </section>
 
+      <div id="planificacion"><GroupClassPlanning /></div>
       <ClassOccurrenceAdmin />
       <ClassOpinionsPanel />
 

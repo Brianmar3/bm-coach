@@ -1306,6 +1306,7 @@ model TrainingRoutine {
   assignments     TrainingRoutineAssignment[]
   workoutSessions WorkoutSession[]
   versions        TrainingRoutineVersion[]
+  plannedOccurrences ClassOccurrence[] @relation("PlannedClassRoutine")
   workspace       Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@index([scope, workspaceId, status])
@@ -1881,10 +1882,15 @@ model ClassOccurrence {
   suppressedBySchedule Boolean                     @default(false)
   capacityOverride     Int?
   internalNotes        String                      @default("")
+  plannedRoutineId     String?
+  plannedSnapshot      Json?
+  taughtSnapshot       Json?
+  taughtAt             DateTime?
   strengthEnabled      Boolean                     @default(false)
   createdAt            DateTime                    @default(now())
   updatedAt            DateTime                    @updatedAt
   schedule             WeeklyClassSchedule?        @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  plannedRoutine       TrainingRoutine?            @relation("PlannedClassRoutine", fields: [plannedRoutineId], references: [id], onDelete: SetNull)
   responses            ClassOccurrenceAttendance[]
   strengthBlock        ClassStrengthBlock?
   workoutLogs          ClassWorkoutLog[]
@@ -1893,6 +1899,7 @@ model ClassOccurrence {
 
   @@unique([scheduleId, date])
   @@index([workspaceId, date, startTime])
+  @@index([workspaceId, plannedRoutineId])
   @@map("class_occurrences")
 }
 
