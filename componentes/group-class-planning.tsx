@@ -143,7 +143,7 @@ export function GroupClassPlanning() {
     if (continueList(event.currentTarget)) event.preventDefault();
   }
   const control = "min-h-11 rounded-lg border border-zinc-700 bg-zinc-950 px-3";
-  return <section aria-label="Planificación semanal de clases" className="text-zinc-100">
+  return <section data-group-class-planning aria-label="Planificación semanal de clases" className="text-zinc-100">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div className="flex gap-2"><button onClick={() => { setDraftKey(null); setView("week"); }} className={view === "week" ? "min-h-11 rounded-xl bg-yellow-400/15 px-3 text-sm text-yellow-300" : "min-h-11 rounded-xl border border-zinc-700 px-3 text-sm"}>Mi semana</button><button onClick={() => { setDraftKey(null); setView("library"); }} className={view === "library" ? "min-h-11 rounded-xl bg-yellow-400/15 px-3 text-sm text-yellow-300" : "min-h-11 rounded-xl border border-zinc-700 px-3 text-sm"}>Biblioteca de clases</button></div><button onClick={() => beginEditor()} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-bold text-zinc-950">+ Nueva clase</button></div>
     {error && <p role="alert" className="mb-3 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     {notice && <p role="status" className="mb-3 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">{notice}</p>}

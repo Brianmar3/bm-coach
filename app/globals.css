@@ -1043,6 +1043,18 @@ html[data-theme="light"] .portal-routine-day:not([aria-pressed="true"]) { backgr
 html[data-theme="light"] [role="dialog"]:not(.onboarding-shell):not([class*="bg-black/"]) { color: var(--foreground); }
 html[data-theme="light"] .portal-mobile-nav { background: color-mix(in srgb, var(--surface-elevated) 93%, transparent); box-shadow: 0 16px 40px rgba(30, 29, 22, .15); }
 html[data-theme="light"] .trainer-sidebar { background: linear-gradient(180deg, #fffefa, #eeece5); box-shadow: 4px 0 22px rgba(30, 29, 22, .06); }
+/* La planificación semanal conserva su estructura; sólo corrige superficies y contraste en claro. */
+html[data-theme="light"] .admin-panel [data-group-class-planning] { color: var(--foreground); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="bg-zinc-900/85"]) { background-color: var(--surface-elevated); border-color: var(--border-soft); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="bg-zinc-950/65"]) { background-color: var(--surface-soft); border-color: var(--border-soft); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="bg-zinc-950/60"],[class~="bg-zinc-900"]) { background-color: var(--surface); border-color: var(--border-soft); color: var(--foreground); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="bg-zinc-950"]) { background-color: var(--input-bg); border-color: var(--input-border); color: var(--foreground); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="border-zinc-700"],[class~="border-zinc-800"]) { border-color: var(--border-soft); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="text-zinc-100"],[class~="text-zinc-300"]) { color: var(--foreground); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="text-zinc-400"],[class~="text-zinc-500"]) { color: var(--foreground-muted); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where([class~="text-yellow-200"],[class~="text-yellow-300"]) { color: var(--brand-text); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where(button[class~="border-dashed"]) { border-color: color-mix(in srgb, var(--brand-text) 45%, var(--border-soft)); background: var(--surface); color: var(--brand-text); }
+html[data-theme="light"] .admin-panel [data-group-class-planning] :where(input,select,textarea) { color-scheme: light; color: var(--foreground); }
 html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="bg-black/20"],[class~="bg-black/25"],[class~="bg-black/30"],[class~="bg-black/35"],[class~="bg-black/40"],[class~="bg-black/45"],[class~="bg-black/55"]):not([class~="fixed"]):not(.onboarding-shell *) { background-color: color-mix(in srgb, var(--surface-soft) 88%, transparent); }
 html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class~="border-white/5"],[class~="border-white/10"],[class~="border-white/15"],[class~="border-white/20"]):not(.onboarding-shell *) { border-color: var(--border-soft); }
 html[data-theme="light"] :is(.admin-panel,.workspace-brand) :where([class*="bg-[#111]"],[class*="bg-[#121212]"],[class*="bg-[#151517]"],[class*="bg-[#1B1B1E]"],[class*="bg-[#171717]"],[class*="bg-[#18181a]"],[class*="bg-[#0b0b0b]"]):not(.onboarding-shell *) { background: var(--surface-elevated); }

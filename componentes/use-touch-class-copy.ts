@@ -42,6 +42,8 @@ function scrollTargetFor(element: HTMLElement) {
 
 function createPreview(element: HTMLElement, mode: DragVisual["mode"]): DragVisual {
   const preview = element.cloneNode(true) as HTMLElement;
+  const accent = getComputedStyle(element).getPropertyValue("--bm-accent").trim() || "#e7b93d";
+  preview.style.setProperty("--bm-accent", accent);
   preview.removeAttribute("id");
   preview.removeAttribute("tabindex");
   preview.setAttribute("aria-hidden", "true");
@@ -50,7 +52,7 @@ function createPreview(element: HTMLElement, mode: DragVisual["mode"]): DragVisu
     position: "fixed", zIndex: "10000", pointerEvents: "none", boxSizing: "border-box",
     width: `${Math.min(Math.max(element.getBoundingClientRect().width, 200), 260)}px`,
     maxHeight: "170px", overflow: "hidden", opacity: "0.96",
-    borderColor: "rgba(234, 179, 8, 0.9)", boxShadow: "0 14px 36px rgba(0, 0, 0, 0.6)",
+    borderColor: accent, boxShadow: "0 14px 36px rgba(0, 0, 0, 0.6)",
   });
   document.body.appendChild(preview);
   return { mode, preview, target: null, previousOutline: "", previousOffset: "" };
@@ -71,7 +73,7 @@ function updateVisual(visual: DragVisual, x: number, y: number, targetAttribute:
   if (target) {
     visual.previousOutline = target.style.outline;
     visual.previousOffset = target.style.outlineOffset;
-    target.style.outline = "2px solid rgba(234, 179, 8, 0.75)";
+    target.style.outline = "2px solid var(--bm-accent, #e7b93d)";
     target.style.outlineOffset = "-2px";
   }
 }

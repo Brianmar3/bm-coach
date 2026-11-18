@@ -4,23 +4,23 @@
   .nav { position: fixed; z-index: 80; inset-inline: 0; bottom: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); align-items: start; height: calc(4.9rem + env(safe-area-inset-bottom)); padding: .35rem max(.45rem,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(.45rem,env(safe-area-inset-left)); border: 1px solid rgba(160,160,170,.2); border-bottom: 0; border-radius: 1.65rem 1.65rem 0 0; background: #080809; box-shadow: 0 -12px 32px rgba(0,0,0,.55); }
   .navItem { display: flex; min-width: 0; height: 4.25rem; flex-direction: column; align-items: center; justify-content: center; gap: .18rem; border-radius: 1rem; color: #c4c4ca; font-size: .66rem; line-height: 1.1; white-space: nowrap; transition: background .2s,color .2s; }
   .navItem svg { width: 1.45rem; height: 1.45rem; }
-  .navActive { background: linear-gradient(145deg,rgba(190,140,36,.27),rgba(190,140,36,.1)); color: #e7b93d; font-weight: 650; }
+  .navActive { background: linear-gradient(145deg,color-mix(in srgb,var(--bm-accent) 27%,transparent),color-mix(in srgb,var(--bm-accent) 10%,transparent)); color: color-mix(in srgb,var(--bm-accent) 85%,white); font-weight: 650; }
   .backdrop { position: fixed; z-index: 70; inset: 0 0 calc(4.9rem + env(safe-area-inset-bottom)); display: flex; align-items: flex-end; background: rgba(0,0,0,.63); animation: fadeIn .2s ease-out; }
   .backdropClosing { animation: fadeOut .18s ease-in forwards; }
   .sheet { width: 100%; max-height: min(75dvh,36rem); overflow-y: auto; border: 1px solid rgba(160,160,170,.35); border-bottom: 0; border-radius: 2rem 2rem 0 0; background: linear-gradient(135deg,#202023,#111113 65%); padding: .75rem 1rem 1.5rem; color: #f5f5f5; box-shadow: 0 -20px 50px rgba(0,0,0,.5); animation: riseIn .24s ease-out; }
   .sheetClosing { animation: fallOut .18s ease-in forwards; }
   .handle { width: 2.5rem; height: .25rem; margin: 0 auto 1.15rem; border-radius: 1rem; background: #77777d; }
   .sheetHeading { display: flex; align-items: center; gap: .85rem; margin: 0 .25rem 1.15rem; }
-  .headingIcon { display: grid; width: 2.2rem; height: 2.2rem; place-items: center; color: #e7b93d; }
+  .headingIcon { display: grid; width: 2.2rem; height: 2.2rem; place-items: center; color: color-mix(in srgb,var(--bm-accent) 85%,white); }
   .sheetHeading h2 { font-size: 1.35rem; font-weight: 750; line-height: 1.2; }
   .sheetHeading p { margin-top: .15rem; color: #a3a3a9; font-size: .76rem; }
   .sheetLinks { display: grid; gap: .35rem; }
   .sheetLink { display: flex; min-height: 3.15rem; width: 100%; align-items: center; gap: 1rem; border: 1px solid #39393d; border-radius: .9rem; background: linear-gradient(110deg,#252527,#19191b); padding: .65rem 1rem; text-align: left; font-size: .9rem; color: #f5f5f5; }
-  .sheetLink > svg:first-child { color: #e7b93d; flex: none; }
-  .sheetLink:last-child > svg:first-child { color: #c4c4ca; }
+  .sheetLink > svg:first-child { color: color-mix(in srgb,var(--bm-accent) 85%,white); flex: none; }
+  .sheet > .sheetLink > svg:first-child { color: #c4c4ca; }
   .chevron { margin-left: auto; color: #c4c4ca; }
   .separator { height: 1px; margin: 1.15rem .25rem; background: #49494d; }
-  .sheetLink:focus-visible,.navItem:focus-visible { outline: 2px solid #facc15; outline-offset: -2px; }
+  .sheetLink:focus-visible,.navItem:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: -2px; }
   :global(html[data-trainer-keyboard="open"]) .nav { display: none; }
   :global(html[data-trainer-keyboard="open"]) .backdrop { bottom: 0; }
   :global(html[data-trainer-keyboard="open"] [data-trainer-floating-trigger]), :global(html[data-trainer-more="open"] [data-trainer-floating-trigger]) { visibility: hidden; }
@@ -30,3 +30,15 @@
   @keyframes fallOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(1.5rem); opacity: .7; } }
 }
 @media (max-width: 350px) { .navItem { font-size: .59rem; } .navItem svg { width: 1.3rem; height: 1.3rem; } .sheet { padding-inline: .7rem; } }
+@media (max-width: 1023px) {
+  :global(html[data-theme="light"]) .nav { background: var(--surface); border-color: var(--border-soft); box-shadow: 0 -12px 32px color-mix(in srgb, var(--foreground) 12%, transparent); }
+  :global(html[data-theme="light"]) .navItem { color: var(--foreground); }
+  :global(html[data-theme="light"]) .navActive { background: var(--bm-accent-soft); color: var(--brand-text); }
+  :global(html[data-theme="light"]) .sheet { background: linear-gradient(135deg, var(--surface-elevated), var(--surface)); border-color: var(--border-soft); color: var(--foreground); box-shadow: 0 -20px 50px color-mix(in srgb, var(--foreground) 18%, transparent); }
+  :global(html[data-theme="light"]) .handle { background: var(--border); }
+  :global(html[data-theme="light"]) .headingIcon, :global(html[data-theme="light"]) .sheetLinks .sheetLink > svg:first-child { color: var(--brand-text); }
+  :global(html[data-theme="light"]) .sheetHeading p { color: var(--foreground-muted); }
+  :global(html[data-theme="light"]) .sheetLink { background: var(--surface-soft); border-color: var(--border-soft); color: var(--foreground); }
+  :global(html[data-theme="light"]) .sheet > .sheetLink > svg:first-child, :global(html[data-theme="light"]) .chevron { color: var(--foreground-muted); }
+  :global(html[data-theme="light"]) .separator { background: var(--border-soft); }
+}
