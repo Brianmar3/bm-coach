@@ -2,7 +2,7 @@
 import { preventImplicitSubmit } from "@/componentes/keyboard-dialog";
 
 
-import { FormEvent, useMemo, useRef, useState, type CSSProperties } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { BmBellIcon, BmDeleteIcon, BmPaymentIcon, BmPlusIcon, BmSettingsIcon, BmSlidersIcon } from "@/componentes/icons";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { AppearanceSelector } from "@/componentes/appearance-selector";
@@ -18,13 +18,25 @@ import { allowedLogoModes, BM_DEFAULT_ACCENT, MAX_WORKSPACE_NAME_LENGTH, normali
 import { workspaceLogoMetadataError } from "@/lib/workspace-logo-upload";
 
 type Section = "general" | "apariencia" | "personalizacion" | "cobros" | "planes" | "notificaciones" | "avanzado";
-const sections: Array<{ id: Section; label: string }> = [{ id: "general", label: "General" }, { id: "apariencia", label: "Apariencia" }, { id: "personalizacion", label: "Personalización" }, { id: "cobros", label: "Cobros" }, { id: "planes", label: "Planes y precios" }, { id: "notificaciones", label: "Notificaciones" }, { id: "avanzado", label: "Avanzado" }];
+const groups: Array<{ label: string; items: Array<{ id: Section; label: string; description: string }> }> = [
+  { label: "Cuenta y espacio", items: [{ id: "general", label: "General", description: "Datos del entrenador" }, { id: "personalizacion", label: "Personalización", description: "Nombre, colores y logo" }] },
+  { label: "Preferencias", items: [{ id: "apariencia", label: "Apariencia", description: "Claro, oscuro o sistema" }, { id: "notificaciones", label: "Notificaciones", description: "Avisos del dispositivo" }] },
+  { label: "Gestión del negocio", items: [{ id: "cobros", label: "Cobros", description: "Vencimientos y métodos de pago" }, { id: "planes", label: "Planes y precios", description: "Servicios y cuotas" }] },
+  { label: "Sistema", items: [{ id: "avanzado", label: "Avanzado", description: "Diagnósticos e información técnica" }] },
+];
+const sections = groups.flatMap((group) => group.items);
+function sectionFromUrl(): Section | null { const id = new URLSearchParams(window.location.search).get("seccion"); return sections.find((section) => section.id === id)?.id ?? null; }
+function visibleSection(): Section | null { return sectionFromUrl() ?? (window.matchMedia("(min-width: 768px)").matches ? "general" : null); }
 const defaults: CoachSettings = { id: "main", systemName: "BM Training", coachName: "", phone: "", email: "", address: "", currency: "ARS", dueDay: 10, paymentMethods: ["Transferencia", "Efectivo"], transferDetails: emptyTransferDetails, plans: [], primaryColor: "#000000", accentColor: BM_DEFAULT_ACCENT, logoMode: "DEFAULT", customLogoUrl: "", brandingPlan: "STARTER", compactMode: false };
 const accentPresets = [["Dorado BM", BM_DEFAULT_ACCENT], ["Azul", "#3B82F6"], ["Verde", "#22C55E"], ["Violeta", "#8B5CF6"], ["Rojo", "#EF4444"], ["Celeste", "#06B6D4"]] as const;
 
 export default function ConfiguracionPage() {
   const { items, save, ready } = useBrowserStore<CoachSettings>("bm-coach-settings", []);
-  const [active, setActive] = useState<Section>("general");
+  const [active, setActive] = useState<Section | null>(null);
+  const [navigated, setNavigated] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const activeRef = useRef<Section | null>(null);
+  const dirtyRef = useRef(false);
   const [settings, setSettings] = useState<CoachSettings | null>(null);
   const [savedSection, setSavedSection] = useState<Section | null>(null);
   const [saving, setSaving] = useState(false);
@@ -33,14 +45,42 @@ export default function ConfiguracionPage() {
   const stored = items[0];
   const hydratedPlans = useMemo(() => stored?.plans.map((plan) => ({ ...plan, id: planId(plan) || crypto.randomUUID() })) ?? [], [stored]);
   const value = settings ?? (stored ? { ...defaults, ...stored, id: stored.id ?? "main", plans: hydratedPlans, transferDetails: normalizeTransferDetails(stored.transferDetails) } : defaults);
-  function update<K extends keyof CoachSettings>(key: K, next: CoachSettings[K]) { setSettings({ ...value, [key]: next }); setSavedSection(null); setError(""); }
-  function updateBranding(next: Partial<CoachSettings>) { const updated = { ...value, ...next }; setSettings(updated); setSavedSection(null); setError(""); window.dispatchEvent(new CustomEvent(WORKSPACE_BRANDING_EVENT, { detail: updated })); }
+  useEffect(() => { const initial = visibleSection(); activeRef.current = initial; setActive(initial); setNavigated(true); }, []);
+  useEffect(() => { activeRef.current = active; dirtyRef.current = dirty; }, [active, dirty]);
+  useEffect(() => {
+    function onPopState() {
+      const next = visibleSection();
+      if (dirtyRef.current && next !== activeRef.current && !window.confirm("Tenés cambios sin guardar. ¿Querés salir sin guardarlos?")) {
+        const url = new URL(window.location.href);
+        if (activeRef.current) url.searchParams.set("seccion", activeRef.current); else url.searchParams.delete("seccion");
+        window.history.pushState(null, "", url);
+        return;
+      }
+      if (next !== activeRef.current) { dirtyRef.current = false; setDirty(false); setSettings(null); setError(""); setSavedSection(null); }
+      activeRef.current = next;
+      setActive(next);
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) { if (dirtyRef.current) { event.preventDefault(); event.returnValue = ""; } }
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => { window.removeEventListener("popstate", onPopState); window.removeEventListener("beforeunload", onBeforeUnload); };
+  }, []);
+  function navigate(next: Section | null) {
+    if (next === active || !navigated) return;
+    if (dirty && !window.confirm("Tenés cambios sin guardar. ¿Querés salir sin guardarlos?")) return;
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.set("seccion", next); else url.searchParams.delete("seccion");
+    window.history.pushState(null, "", url);
+    setSettings(null); dirtyRef.current = false; setDirty(false); activeRef.current = next; setActive(next); setError(""); setSavedSection(null);
+  }
+  function update<K extends keyof CoachSettings>(key: K, next: CoachSettings[K]) { setSettings({ ...value, [key]: next }); dirtyRef.current = true; setDirty(true); setSavedSection(null); setError(""); }
+  function updateBranding(next: Partial<CoachSettings>) { const updated = { ...value, ...next }; setSettings(updated); dirtyRef.current = true; setDirty(true); setSavedSection(null); setError(""); window.dispatchEvent(new CustomEvent(WORKSPACE_BRANDING_EVENT, { detail: updated })); }
   async function submit(event: FormEvent) {
     event.preventDefault();
     const validationError = (value.brandingPlan === "PREMIUM" && !normalizeWorkspaceName(value.systemName) ? "El nombre de tu espacio debe tener entre 1 y 36 caracteres." : null) ?? validateCoachPlans(value.plans) ?? validatePaymentMethods(value.paymentMethods) ?? validateTransferDetails(value.transferDetails);
     if (validationError) { setError(validationError); setSavedSection(null); return; }
     setSaving(true); setError("");
-    try { const result = await save([value]); const saved = result.settings ?? value; setSettings(saved); window.dispatchEvent(new CustomEvent(WORKSPACE_BRANDING_EVENT, { detail: saved })); setSavedSection(active); }
+    try { const result = await save([value]); const saved = result.settings ?? value; setSettings(saved); dirtyRef.current = false; setDirty(false); window.dispatchEvent(new CustomEvent(WORKSPACE_BRANDING_EVENT, { detail: saved })); setSavedSection(active); }
     catch (saveError) { setError(saveError instanceof Error ? saveError.message : "No se pudieron guardar los cambios."); setSavedSection(null); }
     finally { setSaving(false); }
   }
@@ -48,10 +88,13 @@ export default function ConfiguracionPage() {
   function addMethod() { setMethodKeys((current) => current.map((key, index) => index === value.paymentMethods.length ? crypto.randomUUID() : key)); update("paymentMethods", [...value.paymentMethods, "Nuevo método"]); }
   const currency = (amount: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: value.currency || "ARS", maximumFractionDigits: 2 }).format(amount);
 
-  return <ModuleShell title="Configuración" subtitle="Administrá los datos y preferencias de tu espacio.">
-    <nav aria-label="Secciones de configuración" className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 md:grid-cols-3 xl:grid-cols-7">
-      {sections.map((section) => <button key={section.id} type="button" onClick={() => { setActive(section.id); setError(""); setSavedSection(null); }} aria-current={active === section.id ? "page" : undefined} className={`min-h-11 min-w-0 rounded-xl px-2 text-sm font-semibold transition ${active === section.id ? "bg-yellow-400 text-zinc-950" : "text-zinc-400 hover:bg-zinc-800 hover:text-white"}`}>{section.label}</button>)}
+  return <ModuleShell title="Configuración" subtitle="Administrá los datos y preferencias de tu espacio." hideHeader>
+    <div className="settings-layout">
+    <nav aria-label="Secciones de configuración" className={`settings-menu ${active ? "settings-menu-mobile-hidden" : ""}`}>
+      <h1 className="settings-menu-title">Configuración</h1>
+      {groups.map((group) => <div key={group.label} className="settings-menu-group"><h2>{group.label}</h2><div className="settings-menu-items">{group.items.map((section) => <button key={section.id} type="button" onClick={() => navigate(section.id)} aria-current={active === section.id ? "page" : undefined} className="settings-menu-item"><span className="settings-menu-icon">{section.id === "notificaciones" ? <BmBellIcon className="size-5" /> : section.id === "cobros" ? <BmPaymentIcon className="size-5" /> : section.id === "general" ? <BmSettingsIcon className="size-5" /> : <BmSlidersIcon className="size-5" />}</span><span className="settings-menu-copy"><strong>{section.label}</strong><small>{section.description}</small></span><span aria-hidden="true" className="settings-menu-chevron">›</span></button>)}</div></div>)}
     </nav>
+    {active && <div className="settings-detail"><div className="settings-detail-heading"><button type="button" onClick={() => navigate(null)} aria-label="Volver a Configuración">←</button><h1>{sections.find((item) => item.id === active)?.label}</h1></div>
     <form onKeyDown={preventImplicitSubmit} id="settings-form" onSubmit={submit} className="min-w-0 space-y-4">
       {savedSection === active && <p className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-200">Cambios de {sections.find((item) => item.id === active)?.label} guardados correctamente.</p>}
       {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
@@ -73,7 +116,8 @@ export default function ConfiguracionPage() {
       {active === "notificaciones" && <div className="space-y-4"><SectionTitle icon={<BmBellIcon className="size-5" />} title="Notificaciones" text="Activá o desactivá los avisos de asistencia en este dispositivo." /><PushNotificationsCard audience="trainer" /></div>}
       {active === "avanzado" && <div className="space-y-4"><SectionTitle icon={<BmSlidersIcon className="size-5" />} title="Avanzado" text="Información técnica para revisar entregas de notificaciones." /><PushDiagnostics /></div>}
       {!ready && <p className="text-sm text-zinc-500">Cargando configuración…</p>}
-    </form>
+    </form></div>}
+    </div>
   </ModuleShell>;
 }
 
