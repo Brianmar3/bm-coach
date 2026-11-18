@@ -2,7 +2,7 @@
 import { StudentAssignmentOptions } from "@/componentes/student-assignment-options";
 import { KeyboardDialog, preventImplicitSubmit } from "@/componentes/keyboard-dialog";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
@@ -10,6 +10,7 @@ import { ClassOccurrenceAdmin } from "@/componentes/class-occurrence-admin";
 import { ClassOpinionsPanel } from "@/componentes/class-opinions-panel";
 import { EmptyState, ErrorState } from "@/componentes/async-states";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
+import { useTouchClassCopy } from "@/componentes/use-touch-class-copy";
 
 const days: Array<{ value: WeeklyClassDay; label: string; short: string }> = [
   { value: "MONDAY", label: "Lunes", short: "Lun" },
@@ -75,6 +76,34 @@ export default function ClasesPage() {
   const [studentQuery, setStudentQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const copying = useRef(false);
+  const lastDrop = useRef({ key: "", at: 0 });
+  const scheduleCopy = useTouchClassCopy((id, day, at) => void copySchedule(id, day as WeeklyClassDay, at), "data-schedule-day");
+
+  async function copySchedule(id: string, day: WeeklyClassDay, at: number) {
+    const source = schedules.find((item) => item.id === id);
+    if (!source || !days.some((item) => item.value === day) || source.dayOfWeek === day || copying.current) return;
+    const key = `${id}:${day}`;
+    if (lastDrop.current.key === key && at - lastDrop.current.at < 1000) return;
+    lastDrop.current = { key, at };
+    const duplicate = schedules.some((item) => item.dayOfWeek === day && item.startTime === source.startTime && item.endTime === source.endTime && item.classType.trim().toLocaleLowerCase("es") === source.classType.trim().toLocaleLowerCase("es"));
+    if (duplicate) { setError("Ese horario ya existe en el día elegido."); return; }
+    copying.current = true;
+    setError("");
+    try {
+      const response = await fetch("/api/clases", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...scheduleInput(source), dayOfWeek: day, studentIds: [] }),
+      });
+      if (!response.ok) throw new Error(await responseError(response, "No se pudo copiar el horario."));
+      const saved = await response.json() as WeeklyClassSchedule;
+      setSchedules((current) => [...current, saved]);
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "No se pudo copiar el horario.");
+    } finally {
+      copying.current = false;
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -211,10 +240,10 @@ export default function ClasesPage() {
         {!ready ? <LoadingCalendar /> : loadError && schedules.length === 0 ? <div className="p-4"><ErrorState title="No pudimos cargar los horarios." description="La agenda no cambió. Intentá nuevamente." retry={retryLoad}/></div> : schedules.length === 0 ? <div className="p-4"><EmptyState title="Todavía no hay horarios semanales." description="Creá el primer horario para organizar clases y asistencias." action={<button type="button" onClick={() => begin()} className="min-h-11 px-4 text-sm font-bold text-yellow-300">Crear horario</button>}/></div> : (
           <>
             <div className="hidden grid-cols-5 divide-x divide-zinc-800 lg:grid">
-              {days.map((day) => <DayColumn key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} />)}
+              {days.map((day) => <DayColumn key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
             </div>
             <div className="divide-y divide-zinc-800 lg:hidden">
-              {days.map((day) => <MobileDay key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} />)}
+              {days.map((day) => <MobileDay key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
             </div>
           </>
         )}
@@ -231,11 +260,14 @@ function Metric({ label, value }: { label: string; value: number }) {
   return <div className="flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center px-1 py-1 text-center sm:min-h-0 sm:px-2"><p className="flex min-h-8 items-center justify-center text-[8px] uppercase leading-[1.2] tracking-[.08em] text-zinc-500 min-[390px]:text-[9px] sm:min-h-0 sm:text-[10px] sm:tracking-wide">{label}</p><p className="mt-1 text-xl font-bold leading-none text-yellow-400">{value}</p></div>;
 }
 
-function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void }) {
+type ScheduleDrag = ReturnType<typeof useTouchClassCopy>;
+type ScheduleDayProps = { day: (typeof days)[number]; schedules: WeeklyClassSchedule[]; open: (schedule: WeeklyClassSchedule) => void; create: () => void; drag: ScheduleDrag; copy: (id: string, day: WeeklyClassDay, at: number) => void };
+
+function ScheduleBlock({ schedule, open, drag }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void; drag: ScheduleDrag }) {
   const attendanceDate = nextScheduleDate(schedule.dayOfWeek);
   return (
-    <article className={`w-full rounded-xl border p-3 text-left transition ${schedule.active ? "border-zinc-800 bg-zinc-950/80" : "border-zinc-800 bg-zinc-950/60 opacity-65"}`}>
-      <button onClick={() => open(schedule)} className="w-full text-left">
+    <article draggable onDragStart={(event) => { if (drag.isTouchPending() || (event.target as HTMLElement).closest("a")) { event.preventDefault(); return; } event.dataTransfer.setData("text/plain", schedule.id); drag.startMouse(event); }} onDragEnd={drag.stopMouse} onTouchStart={(event) => { if (!(event.target as HTMLElement).closest("a")) drag.start(event, schedule.id); }} onTouchMove={drag.moveBeforeActivation} onTouchEnd={drag.endBeforeActivation} onTouchCancel={drag.endBeforeActivation} onContextMenu={(event) => { if (drag.isTouchPending()) event.preventDefault(); }} className={`w-full rounded-xl border p-3 text-left transition ${schedule.active ? "border-zinc-800 bg-zinc-950/80" : "border-zinc-800 bg-zinc-950/60 opacity-65"}`}>
+      <button onClick={(event) => { if (drag.consumeClick()) { event.preventDefault(); return; } open(schedule); }} className="w-full text-left">
         <div className="flex items-start justify-between gap-2">
           <span className="text-xs font-bold text-yellow-400">{schedule.startTime} – {schedule.endTime}</span>
           <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${schedule.active ? "bg-emerald-400" : "bg-zinc-600"}`} title={schedule.active ? "Activo" : "Inactivo"} />
@@ -249,14 +281,14 @@ function ScheduleBlock({ schedule, open }: { schedule: WeeklyClassSchedule; open
   );
 }
 
-function DayColumn({ day, schedules, open, create }: { day: (typeof days)[number]; schedules: WeeklyClassSchedule[]; open: (schedule: WeeklyClassSchedule) => void; create: () => void }) {
+function DayColumn({ day, schedules, open, create, drag, copy }: ScheduleDayProps) {
   const ordered = [...schedules].sort((left, right) => left.startTime.localeCompare(right.startTime));
-  return <section className="min-h-[430px] p-3"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">{day.label}</h3><button onClick={create} className="rounded-lg px-2 py-1 text-lg text-zinc-500 hover:bg-yellow-400/10 hover:text-yellow-400" aria-label={`Crear horario el ${day.label}`}>+</button></div><div className="space-y-3">{ordered.length ? ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} />) : <button onClick={create} className="w-full rounded-xl border border-dashed border-zinc-800 px-2 py-8 text-xs text-zinc-600 hover:border-zinc-700 hover:text-zinc-400">Sin horarios<br />Agregar bloque</button>}</div></section>;
+  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="min-h-[430px] p-3"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">{day.label}</h3><button onClick={create} className="rounded-lg px-2 py-1 text-lg text-zinc-500 hover:bg-yellow-400/10 hover:text-yellow-400" aria-label={`Crear horario el ${day.label}`}>+</button></div><div className="space-y-3">{ordered.length ? ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} drag={drag} />) : <button onClick={create} className="w-full rounded-xl border border-dashed border-zinc-800 px-2 py-8 text-xs text-zinc-600 hover:border-zinc-700 hover:text-zinc-400">Sin horarios<br />Agregar bloque</button>}</div></section>;
 }
 
-function MobileDay({ day, schedules, open, create }: { day: (typeof days)[number]; schedules: WeeklyClassSchedule[]; open: (schedule: WeeklyClassSchedule) => void; create: () => void }) {
+function MobileDay({ day, schedules, open, create, drag, copy }: ScheduleDayProps) {
   const ordered = [...schedules].sort((left, right) => left.startTime.localeCompare(right.startTime));
-  return <section className="p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-yellow-400">{day.label}</h3><button onClick={create} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300">+ Agregar</button></div>{ordered.length ? <div className="grid gap-2 sm:grid-cols-2">{ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} />)}</div> : <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-sm text-zinc-600">Sin horarios</p>}</section>;
+  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-yellow-400">{day.label}</h3><button onClick={create} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300">+ Agregar</button></div>{ordered.length ? <div className="grid gap-2 sm:grid-cols-2">{ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} drag={drag} />)}</div> : <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-sm text-zinc-600">Sin horarios</p>}</section>;
 }
 
 function LoadingCalendar() {

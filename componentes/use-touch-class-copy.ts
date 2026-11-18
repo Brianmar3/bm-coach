@@ -56,12 +56,12 @@ function createPreview(element: HTMLElement, mode: DragVisual["mode"]): DragVisu
   return { mode, preview, target: null, previousOutline: "", previousOffset: "" };
 }
 
-function updateVisual(visual: DragVisual, x: number, y: number) {
+function updateVisual(visual: DragVisual, x: number, y: number, targetAttribute: string) {
   const width = visual.preview.getBoundingClientRect().width || 260;
   const height = visual.preview.getBoundingClientRect().height || 170;
   visual.preview.style.left = `${Math.max(8, Math.min(x + 14, window.innerWidth - width - 8))}px`;
   visual.preview.style.top = `${Math.max(8, Math.min(y - height - 16, window.innerHeight - height - 8))}px`;
-  const target = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-plan-day]") ?? null;
+  const target = document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${targetAttribute}]`) ?? null;
   if (target === visual.target) return;
   if (visual.target) {
     visual.target.style.outline = visual.previousOutline;
@@ -84,7 +84,7 @@ function removeVisual(visual: DragVisual) {
   visual.preview.remove();
 }
 
-export function useTouchClassCopy(onCopy: (id: string, date: string, at: number) => void) {
+export function useTouchClassCopy(onCopy: (id: string, date: string, at: number) => void, targetAttribute = "data-plan-day") {
   const drag = useRef<ActiveDrag | null>(null);
   const onCopyRef = useRef(onCopy);
   const suppressClick = useRef(false);
@@ -99,14 +99,14 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
   }
 
   function moveMouse(event: DragEvent) {
-    if (visual.current?.mode === "mouse" && (event.clientX || event.clientY)) updateVisual(visual.current, event.clientX, event.clientY);
+    if (visual.current?.mode === "mouse" && (event.clientX || event.clientY)) updateVisual(visual.current, event.clientX, event.clientY, targetAttribute);
   }
 
   function startMouse(event: ReactDragEvent<HTMLElement>) {
     if (drag.current) { event.preventDefault(); return; }
     stopMouse();
     visual.current = createPreview(event.currentTarget, "mouse");
-    updateVisual(visual.current, event.clientX, event.clientY);
+    updateVisual(visual.current, event.clientX, event.clientY, targetAttribute);
     const transparent = document.createElement("canvas");
     transparent.width = 1;
     transparent.height = 1;
@@ -139,7 +139,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
       if (speed) {
         if (current.scrollTarget === root) window.scrollBy(0, speed);
         else current.scrollTarget.scrollTop += speed;
-        if (visual.current?.mode === "touch") updateVisual(visual.current, current.x, current.y);
+        if (visual.current?.mode === "touch") updateVisual(visual.current, current.x, current.y, targetAttribute);
         current.frame = requestAnimationFrame(frame);
       } else current.frame = 0;
     };
@@ -149,13 +149,13 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
       native.preventDefault();
       current.x = finger.clientX;
       current.y = finger.clientY;
-      if (visual.current?.mode === "touch") updateVisual(visual.current, current.x, current.y);
+      if (visual.current?.mode === "touch") updateVisual(visual.current, current.x, current.y, targetAttribute);
       if (!current.frame) current.frame = requestAnimationFrame(frame);
     };
     const finish = (native: TouchEvent) => {
       const finger = Array.from(native.changedTouches).find((item) => item.identifier === current.touchId);
       if (!finger) return;
-      const date = document.elementFromPoint(finger.clientX, finger.clientY)?.closest<HTMLElement>("[data-plan-day]")?.dataset.planDay;
+      const date = document.elementFromPoint(finger.clientX, finger.clientY)?.closest<HTMLElement>(`[${targetAttribute}]`)?.getAttribute(targetAttribute);
       current.cancel();
       suppressClick.current = true;
       window.setTimeout(() => { suppressClick.current = false; }, 500);
@@ -177,7 +177,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
       if (drag.current !== current) return;
       current.active = true;
       visual.current = createPreview(element, "touch");
-      updateVisual(visual.current, current.x, current.y);
+      updateVisual(visual.current, current.x, current.y, targetAttribute);
       document.addEventListener("touchmove", move, { passive: false });
       document.addEventListener("touchend", finish);
       document.addEventListener("touchcancel", cancel);
