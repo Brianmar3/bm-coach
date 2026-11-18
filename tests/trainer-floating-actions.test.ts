@@ -20,7 +20,7 @@ test("el acceso flotante reutiliza exactamente el lenguaje del Dashboard", () =>
   assert.match(component, /data-trainer-floating-trigger/);
   assert.match(component, /rounded-full/);
   assert.match(component, /bg-yellow-400/);
-  assert.match(component, /bottom-\[calc\(env\(safe-area-inset-bottom\)\+1rem\)\]/);
+  assert.match(component, /bottom-\[calc\(env\(safe-area-inset-bottom\)\+5\.8rem\)\]/);
   assert.match(component, /shadow-\[0_10px_35px_rgba\(250,204,21,\.28\)\]/);
   assert.match(component, /function PlusIcon/);
   assert.match(component, /M12 5v14M5 12h14/);

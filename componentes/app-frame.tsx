@@ -24,7 +24,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
           <Sidebar />
           <TrainerCommandPalette />
           <NativePushOnboarding audience="trainer" />
-          <div className="min-h-full min-w-0 max-w-full pt-[calc(env(safe-area-inset-top)+4.5rem)] lg:pl-64">
+          <div className="min-h-full min-w-0 max-w-full pb-[calc(4.9rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top)+4.5rem)] lg:pb-0 lg:pl-64">
             {classesModule && <ClassesModuleHeader />}
             {children}
           </div>

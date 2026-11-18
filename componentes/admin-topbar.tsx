@@ -14,7 +14,7 @@ export function AdminTopbar() {
       <div className="flex h-[4.5rem] min-w-0 items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
         <Link
           href="/dashboard"
-          className="flex min-w-0 items-center gap-2 pl-12 sm:gap-3 lg:pl-0"
+          className="flex min-w-0 items-center gap-2 sm:gap-3"
           aria-label={`Ir al Dashboard de ${branding.displayName}`}
         >
           <AppBrandIdentity branding={branding} />

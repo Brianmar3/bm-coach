@@ -48,7 +48,7 @@ export function TrainerFloatingActions({
 
   if (!enabled || actions.length === 0) return null;
   const directAction = actions[0];
-  const floatingClassName = "fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-[65] grid h-14 w-14 place-items-center rounded-full border border-yellow-100/30 bg-yellow-400 text-zinc-950 shadow-[0_10px_35px_rgba(250,204,21,.28)] transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-100 focus-visible:ring-offset-2 focus-visible:ring-offset-black active:scale-95 md:bottom-6 md:right-6 md:h-16 md:w-16";
+  const floatingClassName = "fixed bottom-[calc(env(safe-area-inset-bottom)+5.8rem)] right-4 z-[65] grid h-14 w-14 place-items-center rounded-full border border-yellow-100/30 bg-yellow-400 text-zinc-950 shadow-[0_10px_35px_rgba(250,204,21,.28)] transition hover:bg-yellow-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-100 focus-visible:ring-offset-2 focus-visible:ring-offset-black active:scale-95 md:right-6 md:h-16 md:w-16 lg:bottom-6";
   if (mode === "direct") return <>
     <div className="h-20" aria-hidden="true" />
     {directAction.href
