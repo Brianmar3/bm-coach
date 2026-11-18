@@ -1,5 +1,6 @@
 "use client";
 import { TrainerFilters } from "@/componentes/trainer-filters";
+import { MoneyVisibilityButton, useMoneyVisibility } from "@/componentes/money-visibility";
 
 import { type FormEvent, type ReactNode, type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -84,6 +85,7 @@ function currentPeriod(dateKey: string) {
 }
 
 export default function PagosPage() {
+  const visibility = useMoneyVisibility();
   const [data, setData] = useState(emptyDashboard);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -265,13 +267,13 @@ export default function PagosPage() {
     {loadError && <div className="mb-4"><ErrorState compact title="No pudimos actualizar los pagos." description="Seguís viendo la última información disponible." retry={retryLoad}/></div>}
 
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-lg shadow-black/10 sm:p-5">
-      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-zinc-500">Cobrado este mes</p><p className="mt-1 text-3xl font-bold tracking-tight text-emerald-300 sm:text-4xl">{ready ? money(summary.collectedThisMonth) : <span className="inline-block h-9 w-40 animate-pulse rounded bg-zinc-800" />}</p></div><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-yellow-400/15 bg-yellow-400/5 text-yellow-300"><PaymentIcon name="trend" /></span></div>
+      <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-zinc-500">Cobrado este mes</p><div className="mt-1 flex items-center gap-1"><p className="text-3xl font-bold tracking-tight text-emerald-300 sm:text-4xl">{ready ? visibility.amount(money(summary.collectedThisMonth)) : <span className="inline-block h-9 w-40 animate-pulse rounded bg-zinc-800" />}</p><MoneyVisibilityButton {...visibility} /></div></div><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-yellow-400/15 bg-yellow-400/5 text-yellow-300"><PaymentIcon name="trend" /></span></div>
       <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <MiniSummary label="Vencidos" value={summary.overdueCount} tone="text-red-300" icon="overdue" ready={ready} />
         <MiniSummary label="Vencen pronto" value={summary.dueSoonCount} tone="text-orange-300" icon="calendar" ready={ready} />
         <MiniSummary label="Al día" value={summary.currentCount} tone="text-emerald-300" icon="check" ready={ready} />
         <MiniSummary label="Sin pagos" value={summary.noPaymentCount} tone="text-yellow-200" icon="student" ready={ready} />
-        <div className="col-span-2 flex min-h-16 items-center justify-between rounded-xl border border-yellow-400/10 bg-black/25 px-3.5 py-3 lg:col-span-4"><div><p className="text-xs text-zinc-500">Pendiente estimado</p>{ready ? <p className="mt-0.5 text-lg font-bold text-yellow-300">{money(summary.estimatedOutstanding)}</p> : <span className="mt-1 block h-5 w-24 animate-pulse rounded bg-zinc-800" />}</div><span className="text-yellow-300/60"><PaymentIcon name="wallet" /></span></div>
+        <div className="col-span-2 flex min-h-16 items-center justify-between rounded-xl border border-yellow-400/10 bg-black/25 px-3.5 py-3 lg:col-span-4"><div><p className="text-xs text-zinc-500">Pendiente estimado</p>{ready ? <p className="mt-0.5 text-lg font-bold text-yellow-300">{visibility.amount(money(summary.estimatedOutstanding))}</p> : <span className="mt-1 block h-5 w-24 animate-pulse rounded bg-zinc-800" />}</div><span className="text-yellow-300/60"><PaymentIcon name="wallet" /></span></div>
       </div>
     </section>
 
