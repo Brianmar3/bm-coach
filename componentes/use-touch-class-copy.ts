@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
+import { useEffect, useRef, type DragEvent as ReactDragEvent, type TouchEvent as ReactTouchEvent } from "react";
 
 type ActiveDrag = {
   id: string;
@@ -14,6 +14,14 @@ type ActiveDrag = {
   frame: number;
   scrollTarget: HTMLElement;
   cancel: () => void;
+};
+
+type DragVisual = {
+  mode: "touch" | "mouse";
+  preview: HTMLElement;
+  target: HTMLElement | null;
+  previousOutline: string;
+  previousOffset: string;
 };
 
 export function edgeScrollSpeed(y: number, top: number, bottom: number) {
@@ -32,12 +40,81 @@ function scrollTargetFor(element: HTMLElement) {
   return (document.scrollingElement ?? document.documentElement) as HTMLElement;
 }
 
+function createPreview(element: HTMLElement, mode: DragVisual["mode"]): DragVisual {
+  const preview = element.cloneNode(true) as HTMLElement;
+  preview.removeAttribute("id");
+  preview.removeAttribute("tabindex");
+  preview.setAttribute("aria-hidden", "true");
+  preview.setAttribute("data-class-drag-preview", "");
+  Object.assign(preview.style, {
+    position: "fixed", zIndex: "10000", pointerEvents: "none", boxSizing: "border-box",
+    width: `${Math.min(Math.max(element.getBoundingClientRect().width, 200), 260)}px`,
+    maxHeight: "170px", overflow: "hidden", opacity: "0.96",
+    borderColor: "rgba(234, 179, 8, 0.9)", boxShadow: "0 14px 36px rgba(0, 0, 0, 0.6)",
+  });
+  document.body.appendChild(preview);
+  return { mode, preview, target: null, previousOutline: "", previousOffset: "" };
+}
+
+function updateVisual(visual: DragVisual, x: number, y: number) {
+  const width = visual.preview.getBoundingClientRect().width || 260;
+  const height = visual.preview.getBoundingClientRect().height || 170;
+  visual.preview.style.left = `${Math.max(8, Math.min(x + 14, window.innerWidth - width - 8))}px`;
+  visual.preview.style.top = `${Math.max(8, Math.min(y - height - 16, window.innerHeight - height - 8))}px`;
+  const target = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-plan-day]") ?? null;
+  if (target === visual.target) return;
+  if (visual.target) {
+    visual.target.style.outline = visual.previousOutline;
+    visual.target.style.outlineOffset = visual.previousOffset;
+  }
+  visual.target = target;
+  if (target) {
+    visual.previousOutline = target.style.outline;
+    visual.previousOffset = target.style.outlineOffset;
+    target.style.outline = "2px solid rgba(234, 179, 8, 0.75)";
+    target.style.outlineOffset = "-2px";
+  }
+}
+
+function removeVisual(visual: DragVisual) {
+  if (visual.target) {
+    visual.target.style.outline = visual.previousOutline;
+    visual.target.style.outlineOffset = visual.previousOffset;
+  }
+  visual.preview.remove();
+}
+
 export function useTouchClassCopy(onCopy: (id: string, date: string, at: number) => void) {
   const drag = useRef<ActiveDrag | null>(null);
   const onCopyRef = useRef(onCopy);
   const suppressClick = useRef(false);
+  const visual = useRef<DragVisual | null>(null);
   useEffect(() => { onCopyRef.current = onCopy; }, [onCopy]);
-  useEffect(() => () => drag.current?.cancel(), []);
+  useEffect(() => () => { drag.current?.cancel(); if (visual.current) removeVisual(visual.current); }, []);
+
+  function stopMouse() {
+    document.removeEventListener("dragover", moveMouse);
+    document.removeEventListener("dragend", stopMouse);
+    if (visual.current?.mode === "mouse") { removeVisual(visual.current); visual.current = null; }
+  }
+
+  function moveMouse(event: DragEvent) {
+    if (visual.current?.mode === "mouse" && (event.clientX || event.clientY)) updateVisual(visual.current, event.clientX, event.clientY);
+  }
+
+  function startMouse(event: ReactDragEvent<HTMLElement>) {
+    if (drag.current) { event.preventDefault(); return; }
+    stopMouse();
+    visual.current = createPreview(event.currentTarget, "mouse");
+    updateVisual(visual.current, event.clientX, event.clientY);
+    const transparent = document.createElement("canvas");
+    transparent.width = 1;
+    transparent.height = 1;
+    event.dataTransfer.setDragImage(transparent, 0, 0);
+    event.dataTransfer.effectAllowed = "copy";
+    document.addEventListener("dragover", moveMouse);
+    document.addEventListener("dragend", stopMouse);
+  }
 
   function start(event: ReactTouchEvent<HTMLElement>, id: string) {
     if (event.touches.length !== 1) return;
@@ -62,6 +139,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
       if (speed) {
         if (current.scrollTarget === root) window.scrollBy(0, speed);
         else current.scrollTarget.scrollTop += speed;
+        if (visual.current?.mode === "touch") updateVisual(visual.current, current.x, current.y);
         current.frame = requestAnimationFrame(frame);
       } else current.frame = 0;
     };
@@ -71,6 +149,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
       native.preventDefault();
       current.x = finger.clientX;
       current.y = finger.clientY;
+      if (visual.current?.mode === "touch") updateVisual(visual.current, current.x, current.y);
       if (!current.frame) current.frame = requestAnimationFrame(frame);
     };
     const finish = (native: TouchEvent) => {
@@ -86,6 +165,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
     current.cancel = () => {
       window.clearTimeout(current.timer);
       if (current.frame) cancelAnimationFrame(current.frame);
+      if (visual.current?.mode === "touch") { removeVisual(visual.current); visual.current = null; }
       current.active = false;
       document.removeEventListener("touchmove", move);
       document.removeEventListener("touchend", finish);
@@ -96,6 +176,8 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
     current.timer = window.setTimeout(() => {
       if (drag.current !== current) return;
       current.active = true;
+      visual.current = createPreview(element, "touch");
+      updateVisual(visual.current, current.x, current.y);
       document.addEventListener("touchmove", move, { passive: false });
       document.addEventListener("touchend", finish);
       document.addEventListener("touchcancel", cancel);
@@ -113,5 +195,5 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
 
   function endBeforeActivation() { if (drag.current && !drag.current.active) drag.current.cancel(); }
 
-  return { start, moveBeforeActivation, endBeforeActivation, isTouchPending: () => Boolean(drag.current), consumeClick: () => suppressClick.current };
+  return { start, startMouse, stopMouse, moveBeforeActivation, endBeforeActivation, isTouchPending: () => Boolean(drag.current), consumeClick: () => suppressClick.current };
 }
