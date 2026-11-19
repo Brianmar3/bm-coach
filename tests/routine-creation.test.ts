@@ -13,9 +13,12 @@ function routine(overrides: Partial<TrainingRoutine> = {}): TrainingRoutine {
 }
 
 test("el selector ofrece los tres orígenes y conserva accesibilidad de diálogo", () => {
+  assert.match(dialog, /Con bloques/);
+  assert.match(dialog, /Copiar rutina/);
   assert.match(dialog, /Desde cero/);
   assert.match(dialog, /Desde clase completa/);
-  assert.match(dialog, /Desde rutina existente/);
+  assert.match(dialog, /Biblioteca de bloques/);
+  assert.match(dialog, /Rutina en armado/);
   assert.match(dialog, /role="dialog"/);
   assert.match(dialog, /aria-modal="true"/);
   assert.match(dialog, /useDialogKeyboard\(dialogRef, true, close/);

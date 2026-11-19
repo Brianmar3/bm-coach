@@ -23,6 +23,7 @@ import { RoutineTableView } from "@/componentes/routine-table-view";
 import { RoutineManagementPanel } from "@/componentes/routine-management-panel";
 import { RoutineDuplicatesReview } from "@/componentes/routine-duplicates-review";
 import { RoutineCreationDialog, type NewRoutineBasics } from "@/componentes/routine-creation-dialog";
+import type { RoutineAssemblyDayDetails } from "@/lib/routine-block-builder";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { TrainingLibraryBlocksPanel } from "@/componentes/training-library-blocks";
 import { TrainingLibraryBlockPicker } from "@/componentes/training-library-block-picker";
@@ -46,6 +47,7 @@ import { routineValidationIssues, type RoutineInput, type RoutineValidationIssue
 import type { Student, TrainingBlockType, TrainingEffortType, TrainingRoutine, TrainingRoutineKind, TrainingRoutineLevel, TrainingRoutineStatus } from "@/types/gestion";
 import type { BMExercise } from "@/types/exercise-library";
 import type { TrainingLibraryBlock, TrainingLibraryBlockPayload, TrainingLibraryFolder } from "@/types/training-library";
+import type { SuggestedTrainingBlock } from "@/lib/suggested-training-blocks";
 
 type ExerciseDraft = RoutineExerciseDraft;
 type BlockDraft = EditableTrainingBlockDraft;
@@ -191,6 +193,7 @@ export default function RutinasPage() {
   const [routineSection, setRoutineSection] = useState<RoutineStatusSection>("activas");
   const [librarySection, setLibrarySection] = useState<"classes" | "blocks">("classes");
   const [libraryBlocks, setLibraryBlocks] = useState<TrainingLibraryBlock[]>([]);
+  const [suggestedBlocks, setSuggestedBlocks] = useState<SuggestedTrainingBlock[]>([]);
   const [libraryFolders, setLibraryFolders] = useState<TrainingLibraryFolder[]>([]);
   const [libraryReady, setLibraryReady] = useState(false);
   const [libraryLoadError, setLibraryLoadError] = useState("");
@@ -266,7 +269,8 @@ export default function RutinasPage() {
     Promise.all([
       fetch("/api/training-library/blocks", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los bloques.")); return response.json() as Promise<TrainingLibraryBlock[]>; }),
       fetch("/api/training-library/folders", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar las carpetas.")); return response.json() as Promise<TrainingLibraryFolder[]>; }),
-    ]).then(([blocks, folders]) => { setLibraryBlocks(blocks); setLibraryFolders(folders); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setLibraryLoadError(loadError.message); }).finally(() => setLibraryReady(true));
+      fetch("/api/training-library/suggested", { signal: controller.signal, cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error(await responseError(response, "No se pudieron cargar los bloques sugeridos.")); return response.json() as Promise<SuggestedTrainingBlock[]>; }),
+    ]).then(([blocks, folders, suggested]) => { setLibraryBlocks(blocks); setLibraryFolders(folders); setSuggestedBlocks(suggested); }).catch((loadError: unknown) => { if (loadError instanceof Error && loadError.name !== "AbortError") setLibraryLoadError(loadError.message); }).finally(() => setLibraryReady(true));
     return () => controller.abort();
   }, [libraryReload]);
 
@@ -315,6 +319,18 @@ export default function RutinasPage() {
     setCreationOpen(false);
     begin(undefined, "assigned");
     setForm({ ...blankRoutine("assigned"), name: basics.name, objective: basics.objective, level: basics.level, days: Array.from({ length: basics.dayCount }, (_, index) => ({ clientId: crypto.randomUUID(), dayNumber: index + 1, name: `Día ${index + 1}`, objective: "", warmup: "", observations: "", estimatedMinutes: null, blocks: [], exercises: [] })) });
+  }
+
+  function startRoutineWithBlocks(basics: NewRoutineBasics, dayBlocks: TrainingLibraryBlock[][], dayDetails: RoutineAssemblyDayDetails[]) {
+    setCreationOpen(false);
+    begin(undefined, "assigned");
+    setForm({ ...blankRoutine("assigned"), name: basics.name, objective: basics.objective, level: basics.level,
+      days: dayBlocks.map((blocks, index) => ({ clientId: crypto.randomUUID(), dayNumber: index + 1,
+        name: dayDetails[index]?.name ?? `Día ${index + 1}`, objective: dayDetails[index]?.objective ?? "",
+        warmup: dayDetails[index]?.warmup ?? "", observations: dayDetails[index]?.observations ?? "",
+        estimatedMinutes: dayDetails[index]?.estimatedMinutes ?? null,
+        blocks: blocks.map((block, blockIndex) => librarySnapshotToEditableBlock(block.content, blockIndex + 1)), exercises: [] })) });
+    setEditorNotice("Rutina armada con copias independientes. Revisá y ajustá cada bloque antes de guardar o asignar.");
   }
 
   function startRoutineFromClass(source: TrainingRoutine) {
@@ -556,6 +572,16 @@ export default function RutinasPage() {
     setLibraryDialogOpen(true);
   }
 
+  function duplicateLibraryBlock(block: TrainingLibraryBlock) {
+    setLibraryDialogMode("manage");
+    setLibraryEditing(null);
+    setLibraryBlockDraft({ ...librarySnapshotToEditableBlock(block.content, 1), name: `${block.name} (copia)` });
+    setLibraryFolderId(block.folder?.id ?? "");
+    setLibraryTags(block.tags);
+    setLibraryError("");
+    setLibraryDialogOpen(true);
+  }
+
   function saveBlockFromEditor(block: BlockDraft) {
     setLibraryDialogMode("saveCopy");
     setLibraryEditing(null);
@@ -603,7 +629,7 @@ export default function RutinasPage() {
         <section className="mb-4 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface)] p-3"><SearchWithFilters search={<input data-keyboard-results-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar clase completa…" className={inputClass} />} activeCount={Number(objectiveFilter !== "todos")}><div className="filter-fields"><select aria-label="Objetivo" value={objectiveFilter} onChange={(event) => setObjectiveFilter(event.target.value)} className={inputClass}><option value="todos">Todos los objetivos</option>{objectiveOptions.map((objective) => <option key={objective}>{objective}</option>)}</select><button type="button" className="trainer-filter-clear" onClick={()=>{setObjectiveFilter("todos");}}>Limpiar filtros</button></div></SearchWithFilters></section>
         <RoutineManagementPanel routines={visible} mode="plantillas" ready={ready} busyId={actionId} duplicatingId={duplicatingId} actions={{ openPlan: setViewing, openTracking: () => setActiveTab("seguimiento"), edit: begin, duplicate, saveAsTemplate: (routine) => setCopyFlow({ source: routine, mode: "saveAsTemplate" }), useAsBase: setBaseSource, useTemplate: (routine) => setCopyFlow({ source: routine, mode: "useTemplate" }), manageAssignments: setAssignmentTarget, archive, restore, history: openHistory, remove }} />
       </> : <>
-        <TrainingLibraryBlocksPanel blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} loadError={libraryLoadError} retry={() => { setLibraryLoadError(""); if (!libraryBlocks.length) setLibraryReady(false); setLibraryReload((value) => value + 1); }} onNew={() => beginLibraryBlock()} onEdit={beginLibraryBlock} onBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} onBlockDeleted={(blockId) => setLibraryBlocks((current) => current.filter((item) => item.id !== blockId))} onFoldersChanged={setLibraryFolders} />
+        <TrainingLibraryBlocksPanel blocks={libraryBlocks} folders={libraryFolders} ready={libraryReady} loadError={libraryLoadError} retry={() => { setLibraryLoadError(""); if (!libraryBlocks.length) setLibraryReady(false); setLibraryReload((value) => value + 1); }} onNew={() => beginLibraryBlock()} onEdit={beginLibraryBlock} onDuplicate={duplicateLibraryBlock} onBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} onBlockDeleted={(blockId) => setLibraryBlocks((current) => current.filter((item) => item.id !== blockId))} onFoldersChanged={setLibraryFolders} />
       </>}
     </> : <>
       <div className="mb-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setDuplicatesOpen(true)} className="min-h-11 rounded-xl border border-zinc-700 px-3.5 text-xs font-bold text-zinc-300 transition hover:border-yellow-400/30 hover:text-yellow-300">Revisar duplicados</button><button type="button" onClick={() => setCreationOpen(true)} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-yellow-300">+ Nueva rutina</button></div>
@@ -613,7 +639,7 @@ export default function RutinasPage() {
     </>}
     {open && <RoutineValidationContext.Provider value={{ issues: validationIssues, activeDay }}>{form.kind === "template" && form.days.length === 1
       ? <ClassTemplateEditor form={form} setForm={updateEditorForm} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editing={Boolean(editing)} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />
-      : <RoutineEditor showValidation={setValidationIssues} resourceId={editing?.id ?? "new-assigned"} savedRevision={savedRevision} form={form} setForm={updateEditorForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />}</RoutineValidationContext.Provider>}
+      : <RoutineEditor showValidation={setValidationIssues} resourceId={editing?.id ?? "new-assigned"} savedRevision={savedRevision} form={form} setForm={updateEditorForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={[...suggestedBlocks, ...libraryBlocks]} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />}</RoutineValidationContext.Provider>}
     {libraryDialogOpen && libraryBlockDraft && <LibraryBlockDialog block={libraryBlockDraft} setBlock={setLibraryBlockDraft} folders={libraryFolders} folderId={libraryFolderId} setFolderId={setLibraryFolderId} tags={libraryTags} setTags={setLibraryTags} error={libraryError} saving={librarySaving} editing={Boolean(libraryEditing)} compact={libraryDialogMode === "saveCopy"} close={() => { if (!librarySaving) { setLibraryDialogOpen(false); setLibraryEditing(null); setLibraryBlockDraft(null); } }} submit={saveLibraryBlock} />}
     {viewing && <RoutineTableView
       routine={viewing}
@@ -631,7 +657,7 @@ export default function RutinasPage() {
     {duplicatesOpen && <RoutineDuplicatesReview close={() => setDuplicatesOpen(false)} onDeleted={(ids) => { setItems((current) => current.filter((routine) => !ids.includes(routine.id))); setNotice(`${ids.length} rutina${ids.length === 1 ? "" : "s"} duplicada${ids.length === 1 ? "" : "s"} vacía${ids.length === 1 ? "" : "s"} eliminada${ids.length === 1 ? "" : "s"}.`); }} onArchived={(routine) => setItems((current) => current.map((item) => item.id === routine.id ? routine : item))} />}
     {baseSource && <ClassBaseChoiceDialog source={baseSource} close={() => setBaseSource(null)} choose={beginFromClassBase} />}
     {historyRoutine && <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><section className="mx-auto my-10 max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">Historial de {historyRoutine.name}</h2><p className="text-sm text-zinc-400">Las versiones más recientes aparecen primero.</p></div><button onClick={() => setHistoryRoutine(null)} className="text-zinc-400">Cerrar</button></div><div className="mt-5 space-y-3">{versions.length === 0 ? <p className="rounded-xl bg-zinc-950 p-5 text-sm text-zinc-500">Todavía no hay versiones guardadas.</p> : versions.map((version) => <article key={version.id} className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold">Versión {version.version}</p><p className="text-sm text-zinc-400">{version.summary} · {new Date(version.createdAt).toLocaleString("es-AR")}</p></div><button disabled={actionId === historyRoutine.id} onClick={() => restoreVersion(version.id)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300 disabled:opacity-50">Restaurar versión</button></article>)}</div></section></div>}
-    {creationOpen && <RoutineCreationDialog routines={items} busyId={duplicatingId} close={() => setCreationOpen(false)} createFromScratch={startRoutineFromScratch} createFromClass={startRoutineFromClass} copyRoutine={duplicateForEditing} />}
+    {creationOpen && <RoutineCreationDialog routines={items} blocks={libraryBlocks} suggestedBlocks={suggestedBlocks} libraryReady={libraryReady} libraryError={libraryLoadError} busyId={duplicatingId} close={() => setCreationOpen(false)} createFromScratch={startRoutineFromScratch} createWithBlocks={startRoutineWithBlocks} createFromClass={startRoutineFromClass} copyRoutine={duplicateForEditing} onNewBlock={() => { setCreationOpen(false); beginLibraryBlock(); }} onManageBlocks={() => { setCreationOpen(false); setActiveTab("plantillas"); setLibrarySection("blocks"); }} />}
     <TrainerFloatingActions mode="direct" enabled={!open && !libraryDialogOpen && !viewing && !copyFlow && !assignmentTarget && !baseSource && !historyRoutine && !duplicatesOpen && !creationOpen} actions={[{ label: "Nueva rutina", symbol: "+", onSelect: () => { setActiveTab("rutinas"); setCreationOpen(true); } }]} />
   </ModuleShell>;
 }
@@ -751,6 +777,7 @@ function BlockAdder({ blocks, folders, ready, error, addNew, addFromLibrary, onB
     setBusyId(block.id);
     addFromLibrary(block);
     if (!integrated) setPickerOpen(false);
+    if (block.id.startsWith("suggested:")) { insertionInFlight.current = false; setBusyId(""); return; }
     void fetch(`/api/training-library/blocks/${block.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "markUsed" }) }).then(async (response) => { if (response.ok) onBlockChanged(await response.json() as TrainingLibraryBlock); }).catch(() => undefined).finally(() => { insertionInFlight.current = false; setBusyId(""); });
   }
   return <>
