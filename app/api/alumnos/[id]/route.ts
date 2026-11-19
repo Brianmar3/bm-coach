@@ -49,7 +49,7 @@ export async function PUT(request: Request, context: RouteContext<"/api/alumnos/
       await recordStudentHistoryChange(transaction, id, current.data, current.serviceType, input);
       await transaction.studentRecord.update({
         where: { id, workspaceId, AND: [coachedStudentsWhere] },
-        data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: { ...(current.data as Prisma.JsonObject), ...studentJsonData(input) } },
+        data: { phoneNormalized: normalizedPhone || null, primaryScheduleId: input.scheduleIds[0] ?? null, serviceType: input.serviceType, data: { ...(current.data as Prisma.JsonObject), ...studentJsonData(input), quickEnrollmentPending: false } },
       });
       await resolveStudentPaymentReminders(transaction, id);
       await transaction.weeklyClassAssignment.updateMany({ where: { studentId: id, active: true, scheduleId: { notIn: input.scheduleIds } }, data: { active: false, endedAt: new Date() } });

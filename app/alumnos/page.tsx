@@ -9,6 +9,7 @@ import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { ErrorState, ListSkeleton } from "@/componentes/async-states";
 import { TrainerFloatingActions } from "@/componentes/trainer-floating-actions";
 import { StudentInvitations } from "@/componentes/student-invitations";
+import { QuickStudentEnrollment } from "@/componentes/quick-student-enrollment";
 import { StudentHealthObservations } from "@/componentes/student-health-observations";
 import { StudentAccessControls } from "@/componentes/student-access-controls";
 import { StudentAccountDeletionRequests } from "@/componentes/student-account-deletion-requests";
@@ -84,6 +85,7 @@ export default function AlumnosPage() {
     const [open, setOpen] = useState(false);
     const [chooseEnrollment, setChooseEnrollment] = useState(false);
     const [inviteOpen, setInviteOpen] = useState(false);
+    const [quickOpen, setQuickOpen] = useState(false);
     const [editing, setEditing] = useState<Student | null>(null);
     const [viewing, setViewing] = useState<Student | null>(null);
     const [notificationFocus, setNotificationFocus] = useState<StudentNotificationFocus | null>(null);
@@ -308,13 +310,14 @@ export default function AlumnosPage() {
       <StudentAccountDeletionRequests onViewStudent={(id) => { const selected = items.find((item) => item.id === id); if (selected) setViewing(selected); }} />
     </div>
     <StudentInvitations open={inviteOpen} onClose={() => setInviteOpen(false)} />
-    {chooseEnrollment && <div className="fixed inset-0 z-[120] flex items-end bg-black/85 p-0 sm:grid sm:place-items-center sm:p-4"><KeyboardDialog as="section" onClose={() => setChooseEnrollment(false)} role="dialog" aria-modal="true" aria-label="Nuevo alumno" className="w-full max-w-md rounded-t-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-5 pb-[calc(1rem+env(safe-area-inset-bottom))] text-[var(--foreground)] sm:rounded-2xl sm:pb-5"><div className="flex items-center justify-between"><h2 className="text-xl font-black">Nuevo alumno</h2><button type="button" onClick={() => setChooseEnrollment(false)} className="p-2 text-[var(--foreground-muted)]">Cerrar</button></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => { setChooseEnrollment(false); setInviteOpen(true); }} className="rounded-xl border border-yellow-400/50 bg-yellow-400/10 p-4 text-left"><strong className="block text-[var(--brand-text)]">Invitar alumno</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">El alumno completa sus datos desde un enlace.</span></button><button type="button" onClick={() => { setChooseEnrollment(false); void begin(); }} className="rounded-xl border border-zinc-700 p-4 text-left"><strong className="block">Cargar manualmente</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">Completá vos los datos del alumno.</span></button></div></KeyboardDialog></div>}
+    {quickOpen && <QuickStudentEnrollment existing={items} close={() => setQuickOpen(false)} created={(students) => { setItems((current) => [...students, ...current]); setQuickOpen(false); setNotice(`${students.length} alumnos guardados. Completá sus fichas para activarlos.`); }} />}
+    {chooseEnrollment && <div className="fixed inset-0 z-[120] flex items-end bg-black/85 p-0 sm:grid sm:place-items-center sm:p-4"><KeyboardDialog as="section" onClose={() => setChooseEnrollment(false)} role="dialog" aria-modal="true" aria-label="Nuevo alumno" className="w-full max-w-md rounded-t-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-5 pb-[calc(1rem+env(safe-area-inset-bottom))] text-[var(--foreground)] sm:rounded-2xl sm:pb-5"><div className="flex items-center justify-between"><h2 className="text-xl font-black">Nuevo alumno</h2><button type="button" onClick={() => setChooseEnrollment(false)} className="p-2 text-[var(--foreground-muted)]">Cerrar</button></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => { setChooseEnrollment(false); setInviteOpen(true); }} className="rounded-xl border border-yellow-400/50 bg-yellow-400/10 p-4 text-left"><strong className="block text-[var(--brand-text)]">Invitar alumno</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">El alumno completa sus datos desde un enlace.</span></button><button type="button" onClick={() => { setChooseEnrollment(false); void begin(); }} className="rounded-xl border border-zinc-700 p-4 text-left"><strong className="block">Cargar manualmente</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">Completá vos los datos del alumno.</span></button><button type="button" onClick={() => { setChooseEnrollment(false); setQuickOpen(true); }} className="rounded-xl border border-[var(--border-soft)] p-4 text-left"><strong className="block">Carga rápida</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">Pegá varios nombres y revisalos antes de guardar.</span></button></div></KeyboardDialog></div>}
     {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
     {viewing && <StudentDetail item={viewing} onRankingChange={(rankingParticipation) => {
         setItems((current) => current.map((item) => item.id === viewing.id ? { ...item, rankingParticipation } : item));
         setViewing((current) => current?.id === viewing.id ? { ...current, rankingParticipation } : current);
     }} attendanceReturnTo={attendanceReturnTo} focus={notificationFocus} close={() => { setViewing(null); setNotificationFocus(null); }} edit={() => begin(viewing)}/>}
-    <TrainerFloatingActions mode="direct" enabled={!open && !viewing && !chooseEnrollment && !inviteOpen} actions={[{ label: "Nuevo alumno", symbol: "+", onSelect: () => setChooseEnrollment(true) }]} />
+    <TrainerFloatingActions mode="direct" enabled={!open && !viewing && !chooseEnrollment && !inviteOpen && !quickOpen} actions={[{ label: "Nuevo alumno", symbol: "+", onSelect: () => setChooseEnrollment(true) }]} />
   </ModuleShell>;
 }
 
