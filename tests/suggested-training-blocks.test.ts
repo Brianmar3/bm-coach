@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildSuggestedTrainingBlocks, SUGGESTED_BLOCK_DEFINITIONS } from "../lib/suggested-training-blocks.ts";
-import { librarySnapshotToEditableBlock } from "../lib/training-library-block-draft.ts";
+import { editableBlockToLibrarySnapshot, librarySnapshotToEditableBlock } from "../lib/training-library-block-draft.ts";
 import { validateBlock, validateRoutine, type RoutineInput } from "../lib/rutinas.ts";
 import { libraryExerciseIdFromMediaUrl } from "../lib/routine-exercise-media.ts";
 import { routineDayAsBlocks } from "../lib/routine-block-builder.ts";
@@ -16,6 +16,7 @@ test("los doce bloques sugeridos usan ejercicios reales y parámetros válidos",
   assert.equal(blocks.length, 12);
   assert.equal(new Set(blocks.map(block => block.name)).size, 12);
   assert.deepEqual(blocks.map(block => block.name), SUGGESTED_BLOCK_DEFINITIONS.map(block => block.name));
+  assert.ok(blocks.every(block => block.icon && !/[♧◇⊕↔↟⌃▤⊞◉✧]/u.test(block.icon)));
   for (const block of blocks) {
     assert.ok(block.content.exercises.length >= 3);
     assert.equal(validateBlock(block.content), null, block.name);
@@ -25,6 +26,22 @@ test("los doce bloques sugeridos usan ejercicios reales y parámetros válidos",
       assert.equal(exercise.effortValue, null);
     }
   }
+});
+
+test("volver del editor y continuar conserva la prescripción editada sin reutilizar IDs", () => {
+  const source = buildSuggestedTrainingBlocks(catalog)[0];
+  const edited = librarySnapshotToEditableBlock(source.content, 1);
+  edited.exercises[0].sets = 4;
+  edited.exercises[0].repetitions = "10";
+  edited.exercises[0].restSeconds = 90;
+  edited.exercises[0].tempo = "3-1-1";
+  edited.exercises[0].observations = "Controlar la técnica";
+  const assembled = editableBlockToLibrarySnapshot(edited);
+  const continued = librarySnapshotToEditableBlock(assembled, 1);
+  const prescription = (exercises: typeof edited.exercises) => exercises.map(exercise => [exercise.name, exercise.sets, exercise.repetitions, exercise.restSeconds, exercise.tempo, exercise.observations]);
+  assert.deepEqual(prescription(continued.exercises), prescription(edited.exercises));
+  assert.notEqual(continued.clientId, edited.clientId);
+  assert.equal(source.content.exercises[0].sets, 2);
 });
 
 test("cada inserción crea IDs independientes y no altera la plantilla", () => {

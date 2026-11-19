@@ -8,7 +8,7 @@ import { BmBookIcon } from "@/componentes/icons/bm-premium/support";
 import { RoutineFloatingActions } from "@/componentes/routine-floating-actions";
 import { RoutineLibraryDrag, LibraryDropZone } from "@/componentes/routine-library-drag";
 
-import { createContext, FormEvent, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RoutineExerciseBulkEditor } from "@/componentes/routine-exercise-bulk-editor";
 import { RoutineExerciseQuickFields } from "@/componentes/routine-exercise-quick-fields";
 import { RoutineDayNavigator, RoutineLiveSummary, RoutineEditorDialog } from "@/componentes/routine-editor-workspace";
@@ -233,6 +233,8 @@ export default function RutinasPage() {
   const [replaceOnActivate, setReplaceOnActivate] = useState(false);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [creationOpen, setCreationOpen] = useState(false);
+  const [blockEditorOpen, setBlockEditorOpen] = useState(false);
+  const [blockReturnRevision, setBlockReturnRevision] = useState(0);
   const copyRequestInFlight = useRef(false);
 
   function updateEditorForm(nextForm: RoutineDraft) {
@@ -322,9 +324,10 @@ export default function RutinasPage() {
   }
 
   function startRoutineWithBlocks(basics: NewRoutineBasics, dayBlocks: TrainingLibraryBlock[][], dayDetails: RoutineAssemblyDayDetails[]) {
-    setCreationOpen(false);
-    begin(undefined, "assigned");
-    setForm({ ...blankRoutine("assigned"), name: basics.name, objective: basics.objective, level: basics.level,
+    setBlockEditorOpen(true);
+    if (!blockReturnRevision) begin(undefined, "assigned");
+    else setOpen(true);
+    setForm({ ...(blockReturnRevision ? form : blankRoutine("assigned")), name: basics.name, objective: basics.objective, level: basics.level,
       days: dayBlocks.map((blocks, index) => ({ clientId: crypto.randomUUID(), dayNumber: index + 1,
         name: dayDetails[index]?.name ?? `Día ${index + 1}`, objective: dayDetails[index]?.objective ?? "",
         warmup: dayDetails[index]?.warmup ?? "", observations: dayDetails[index]?.observations ?? "",
@@ -332,6 +335,12 @@ export default function RutinasPage() {
         blocks: blocks.map((block, blockIndex) => librarySnapshotToEditableBlock(block.content, blockIndex + 1)), exercises: [] })) });
     setEditorNotice("Rutina armada con copias independientes. Revisá y ajustá cada bloque antes de guardar o asignar.");
   }
+
+  const returnToBlockBuilder = useCallback(() => {
+    setBlockReturnRevision(value => value + 1);
+    setBlockEditorOpen(false);
+    setOpen(false);
+  }, []);
 
   function startRoutineFromClass(source: TrainingRoutine) {
     setCreationOpen(false);
@@ -422,7 +431,7 @@ export default function RutinasPage() {
       if (intent === "draft-stay" || intent === "update-stay") {
         setEditing(saved); setForm(adoptSavedRoutine(form, routineDraft(saved))); setSavedRevision(value => value + 1); setEditorNotice("Guardado en el servidor"); return;
       }
-      setOpen(false); setEditing(null); setBaseDraftDestination(null); setNotice(classTemplate ? editing ? "Clase actualizada correctamente." : "Clase guardada en Biblioteca." : updatingActiveRoutine ? "Rutina actualizada correctamente" : requestedStatus === "activa" ? "Rutina activada correctamente." : "Rutina guardada correctamente.");
+      setOpen(false); setEditing(null); setBaseDraftDestination(null); if (blockEditorOpen) { setCreationOpen(false); setBlockEditorOpen(false); setBlockReturnRevision(0); } setNotice(classTemplate ? editing ? "Clase actualizada correctamente." : "Clase guardada en Biblioteca." : updatingActiveRoutine ? "Rutina actualizada correctamente" : requestedStatus === "activa" ? "Rutina activada correctamente." : "Rutina guardada correctamente.");
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : classTemplate ? "No se pudo guardar la clase." : "No se pudo guardar la rutina en Neon."); }
     finally { saveInFlight.current = false; setSaving(false); }
   }
@@ -639,7 +648,7 @@ export default function RutinasPage() {
     </>}
     {open && <RoutineValidationContext.Provider value={{ issues: validationIssues, activeDay }}>{form.kind === "template" && form.days.length === 1
       ? <ClassTemplateEditor form={form} setForm={updateEditorForm} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editing={Boolean(editing)} saving={saving} libraryBlocks={libraryBlocks} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />
-      : <RoutineEditor showValidation={setValidationIssues} resourceId={editing?.id ?? "new-assigned"} savedRevision={savedRevision} form={form} setForm={updateEditorForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={[...suggestedBlocks, ...libraryBlocks]} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />}</RoutineValidationContext.Provider>}
+      : <RoutineEditor showValidation={setValidationIssues} resourceId={editing?.id ?? "new-assigned"} savedRevision={savedRevision} form={form} setForm={updateEditorForm} students={students} activeDay={activeDay} setActiveDay={setActiveDay} error={error} validationIssues={validationIssues} notice={editorNotice} close={() => { setOpen(false); setBaseDraftDestination(null); }} backToBlocks={blockEditorOpen ? returnToBlockBuilder : undefined} submit={submit} editingStatus={editing?.status ?? null} saving={saving} libraryBlocks={[...suggestedBlocks, ...libraryBlocks]} libraryFolders={libraryFolders} libraryReady={libraryReady} libraryLoadError={libraryLoadError} saveBlockToLibrary={saveBlockFromEditor} onLibraryBlockChanged={(block) => setLibraryBlocks((current) => current.map((item) => item.id === block.id ? block : item))} />}</RoutineValidationContext.Provider>}
     {libraryDialogOpen && libraryBlockDraft && <LibraryBlockDialog block={libraryBlockDraft} setBlock={setLibraryBlockDraft} folders={libraryFolders} folderId={libraryFolderId} setFolderId={setLibraryFolderId} tags={libraryTags} setTags={setLibraryTags} error={libraryError} saving={librarySaving} editing={Boolean(libraryEditing)} compact={libraryDialogMode === "saveCopy"} close={() => { if (!librarySaving) { setLibraryDialogOpen(false); setLibraryEditing(null); setLibraryBlockDraft(null); } }} submit={saveLibraryBlock} />}
     {viewing && <RoutineTableView
       routine={viewing}
@@ -657,7 +666,7 @@ export default function RutinasPage() {
     {duplicatesOpen && <RoutineDuplicatesReview close={() => setDuplicatesOpen(false)} onDeleted={(ids) => { setItems((current) => current.filter((routine) => !ids.includes(routine.id))); setNotice(`${ids.length} rutina${ids.length === 1 ? "" : "s"} duplicada${ids.length === 1 ? "" : "s"} vacía${ids.length === 1 ? "" : "s"} eliminada${ids.length === 1 ? "" : "s"}.`); }} onArchived={(routine) => setItems((current) => current.map((item) => item.id === routine.id ? routine : item))} />}
     {baseSource && <ClassBaseChoiceDialog source={baseSource} close={() => setBaseSource(null)} choose={beginFromClassBase} />}
     {historyRoutine && <div className="fixed inset-0 z-50 overflow-auto bg-black/80 p-4"><section className="mx-auto my-10 max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 p-6"><div className="flex justify-between gap-4"><div><h2 className="text-xl font-bold">Historial de {historyRoutine.name}</h2><p className="text-sm text-zinc-400">Las versiones más recientes aparecen primero.</p></div><button onClick={() => setHistoryRoutine(null)} className="text-zinc-400">Cerrar</button></div><div className="mt-5 space-y-3">{versions.length === 0 ? <p className="rounded-xl bg-zinc-950 p-5 text-sm text-zinc-500">Todavía no hay versiones guardadas.</p> : versions.map((version) => <article key={version.id} className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold">Versión {version.version}</p><p className="text-sm text-zinc-400">{version.summary} · {new Date(version.createdAt).toLocaleString("es-AR")}</p></div><button disabled={actionId === historyRoutine.id} onClick={() => restoreVersion(version.id)} className="rounded-lg border border-yellow-400/40 px-3 py-2 text-sm text-yellow-300 disabled:opacity-50">Restaurar versión</button></article>)}</div></section></div>}
-    {creationOpen && <RoutineCreationDialog routines={items} blocks={libraryBlocks} suggestedBlocks={suggestedBlocks} libraryReady={libraryReady} libraryError={libraryLoadError} busyId={duplicatingId} close={() => setCreationOpen(false)} createFromScratch={startRoutineFromScratch} createWithBlocks={startRoutineWithBlocks} createFromClass={startRoutineFromClass} copyRoutine={duplicateForEditing} onNewBlock={() => { setCreationOpen(false); beginLibraryBlock(); }} onManageBlocks={() => { setCreationOpen(false); setActiveTab("plantillas"); setLibrarySection("blocks"); }} />}
+    {creationOpen && <RoutineCreationDialog routines={items} blocks={libraryBlocks} suggestedBlocks={suggestedBlocks} libraryReady={libraryReady} libraryError={libraryLoadError} busyId={duplicatingId} hidden={blockEditorOpen} returnDraft={blockEditorOpen ? null : form} returnRevision={blockReturnRevision} close={() => { setCreationOpen(false); setBlockReturnRevision(0); }} createFromScratch={startRoutineFromScratch} createWithBlocks={startRoutineWithBlocks} createFromClass={startRoutineFromClass} copyRoutine={duplicateForEditing} onNewBlock={() => { setCreationOpen(false); beginLibraryBlock(); }} onManageBlocks={() => { setCreationOpen(false); setActiveTab("plantillas"); setLibrarySection("blocks"); }} />}
     <TrainerFloatingActions mode="direct" enabled={!open && !libraryDialogOpen && !viewing && !copyFlow && !assignmentTarget && !baseSource && !historyRoutine && !duplicatesOpen && !creationOpen} actions={[{ label: "Nueva rutina", symbol: "+", onSelect: () => { setActiveTab("rutinas"); setCreationOpen(true); } }]} />
   </ModuleShell>;
 }
@@ -846,7 +855,7 @@ function ClassTemplateEditor({ form, setForm, error, notice, close, submit, edit
   </div>;
 }
 
-function RoutineEditor({ showValidation, form, setForm: applyForm, resourceId, savedRevision, students, activeDay, setActiveDay, error, notice, close, submit, editingStatus, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary, onLibraryBlockChanged }: { showValidation: (issues: RoutineValidationIssue[]) => void; resourceId: string; savedRevision: number; form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; validationIssues: RoutineValidationIssue[]; notice: string; close: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean } & EditorLibraryProps) {
+function RoutineEditor({ showValidation, form, setForm: applyForm, resourceId, savedRevision, students, activeDay, setActiveDay, error, notice, close, backToBlocks, submit, editingStatus, saving, libraryBlocks, libraryFolders, libraryReady, libraryLoadError, saveBlockToLibrary, onLibraryBlockChanged }: { showValidation: (issues: RoutineValidationIssue[]) => void; resourceId: string; savedRevision: number; form: RoutineDraft; setForm: (form: RoutineDraft) => void; students: Student[]; activeDay: number; setActiveDay: (day: number) => void; error: string; validationIssues: RoutineValidationIssue[]; notice: string; close: () => void; backToBlocks?: () => void; submit: (event: FormEvent) => void; editingStatus: TrainingRoutineStatus | null; saving: boolean } & EditorLibraryProps) {
   const updatingActiveRoutine = editingStatus === "activa";
   const selectedStudent = form.studentIds.length === 1 ? students.find((student) => student.id === form.studentIds[0]) : undefined;
   const { context: evaluationContext, loading: evaluationLoading } = useRoutineEvaluation(selectedStudent);
@@ -859,7 +868,8 @@ function RoutineEditor({ showValidation, form, setForm: applyForm, resourceId, s
   const setForm = session.change;
   const [closing, setClosing] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  function requestClose() { if (!saving) { if (session.dirty) setClosing(true); else close(); } }
+  function requestClose() { if (!saving) { if (backToBlocks) window.history.back(); else if (session.dirty) setClosing(true); else close(); } }
+  useEffect(() => { if (!backToBlocks) return; window.history.pushState({ bmRoutineStage: "editor" }, ""); const handleBack = () => backToBlocks(); window.addEventListener("popstate", handleBack); return () => window.removeEventListener("popstate", handleBack); }, [backToBlocks]);
   function saveAndExit() { const button = formRef.current?.querySelector<HTMLButtonElement>('[data-save-exit]'); if (button) formRef.current?.requestSubmit(button); }
   useEffect(() => {
     const previous = document.body.style.overflow; document.body.style.overflow = "hidden";
@@ -900,7 +910,7 @@ function RoutineEditor({ showValidation, form, setForm: applyForm, resourceId, s
   const routineExercises = form.days.flatMap((day) => day.blocks.flatMap((block) => block.exercises.map((exercise) => ({ name: exercise.name, muscleGroup: exercise.muscleGroup }))));
   const reminders = uncoveredPriorityReminders(interpretation?.priorities ?? [], routineExercises).filter((item) => !reviewedReminders.includes(item.id));
   return <RoutineExerciseLibrarySession><RoutineLibraryDrag><div className="routine-editor-workspace"><form ref={formRef} noValidate onSubmit={(event) => { setConfirmUnassignedActivation(false); submit(event); }} onKeyDownCapture={handleKeyboardNavigation}>
-    <header className="routine-workspace-header"><button type="button" onClick={requestClose}>← Rutinas</button><div className="routine-workspace-title"><strong>{form.name || "Nueva rutina"}</strong><small>{updatingActiveRoutine ? "Activa" : "Borrador"} · {form.studentIds.length ? form.studentIds.length + " alumnos" : "Sin asignar"}</small></div><p role="status" className="routine-save-status">{saving ? "Guardando…" : session.dirty ? session.localState : "Sin cambios pendientes"}</p><div className="routine-workspace-tools"><button type="button" disabled={!session.canUndo || saving} onClick={session.undo} title="Ctrl/Cmd + Z">Deshacer</button><button type="button" disabled={!session.canRedo || saving} onClick={session.redo} title="Ctrl/Cmd + Shift + Z">Rehacer</button><button data-save-stay name="intent" value={updatingActiveRoutine ? "update-stay" : "draft-stay"} disabled={saving}>Guardar</button><button type="button" className="routine-primary" disabled={saving} onClick={() => setConfirmUnassignedActivation(true)}>{updatingActiveRoutine ? "Revisar cambios" : "Revisar y activar"}</button></div></header>
+    <header className="routine-workspace-header"><button type="button" onClick={requestClose}>{backToBlocks ? "← Volver a bloques" : "← Rutinas"}</button><div className="routine-workspace-title"><strong>{form.name || "Nueva rutina"}</strong><small>{updatingActiveRoutine ? "Activa" : "Borrador"} · {form.studentIds.length ? form.studentIds.length + " alumnos" : "Sin asignar"}</small></div><p role="status" className="routine-save-status">{saving ? "Guardando…" : session.dirty ? session.localState : "Sin cambios pendientes"}</p><div className="routine-workspace-tools"><button type="button" disabled={!session.canUndo || saving} onClick={session.undo} title="Ctrl/Cmd + Z">Deshacer</button><button type="button" disabled={!session.canRedo || saving} onClick={session.redo} title="Ctrl/Cmd + Shift + Z">Rehacer</button><button data-save-stay name="intent" value={updatingActiveRoutine ? "update-stay" : "draft-stay"} disabled={saving}>Guardar</button><button type="button" className="routine-primary" disabled={saving} onClick={() => setConfirmUnassignedActivation(true)}>{updatingActiveRoutine ? "Revisar cambios" : "Revisar y activar"}</button></div></header>
     {error && <p role="alert" className="routine-workspace-error">{error}</p>}
     {notice && <p role="status" className="routine-workspace-notice">{notice}</p>}
     <fieldset disabled={saving} className="routine-workspace-layout">

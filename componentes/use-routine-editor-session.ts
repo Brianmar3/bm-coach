@@ -62,6 +62,17 @@ export function useRoutineEditorSession(form: Draft, apply: (next: Draft) => voi
     window.addEventListener("beforeunload", leave);
     return () => window.removeEventListener("beforeunload", leave);
   }, [resourceId]);
+  useEffect(() => {
+    if (!ready || recovery) return;
+    const preserve = () => {
+      if (!key.current || !latest.current.days.length || (!resourceId.startsWith("new-") && draftSignature(latest.current) === baseline.current)) return;
+      try { localStorage.setItem(key.current, JSON.stringify({ draft: latest.current, baseline: baseline.current, savedAt: new Date().toISOString() })); } catch { /* Keep the in-memory draft. */ }
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") preserve(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", preserve);
+    return () => { document.removeEventListener("visibilitychange", onVisibility); window.removeEventListener("pagehide", preserve); };
+  }, [ready, recovery, resourceId]);
   const inputIds = useRef(new WeakMap<Element, string>());
   useEffect(() => {
     const saved = () => { try { if (key.current) localStorage.removeItem(key.current); } catch { /* Server saved successfully. */ } };

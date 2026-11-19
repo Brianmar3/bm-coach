@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { cleanRoutineCopyName, routineCreationClasses, routineCreationSources } from "../lib/routine-creation.ts";
+import { previousRoutineCreationStep } from "../lib/routine-creation-stage.ts";
 import type { TrainingRoutine } from "../types/gestion.ts";
 
 const page = readFileSync(new URL("../app/rutinas/page.tsx", import.meta.url), "utf8");
@@ -21,9 +22,22 @@ test("el selector ofrece los tres orígenes y conserva accesibilidad de diálogo
   assert.match(dialog, /Rutina en armado/);
   assert.match(dialog, /role="dialog"/);
   assert.match(dialog, /aria-modal="true"/);
-  assert.match(dialog, /useDialogKeyboard\(dialogRef, true, close/);
+  assert.match(dialog, /useDialogKeyboard\(dialogRef, !hidden, requestClose/);
+  assert.match(dialog, /Vista previa · solo consulta/);
+  assert.match(dialog, /Agregar al Día/);
+  assert.match(dialog, /Recuperar rutina en armado/);
+  assert.match(page, /backToBlocks=\{blockEditorOpen \? returnToBlockBuilder/);
   assert.match(dialog, /dialogKeyboard\(event\)/);
   assert.match(dialog, /actionInFlight\.current/);
+});
+
+test("Atrás recorre editor, armado, biblioteca y origen sin abandonar el armado de inmediato", () => {
+  assert.equal(previousRoutineCreationStep("blockBasics"), "assembly");
+  assert.equal(previousRoutineCreationStep("assembly"), "blocks");
+  assert.equal(previousRoutineCreationStep("blocks"), "origin");
+  assert.equal(previousRoutineCreationStep("origin"), null);
+  assert.match(page, /window\.history\.pushState\(\{ bmRoutineStage: "editor" \}/);
+  assert.match(page, /window\.addEventListener\("popstate", handleBack\)/);
 });
 
 test("clases y rutinas elegibles se filtran sin mezclar fuentes", () => {
