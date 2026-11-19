@@ -2265,6 +2265,28 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
 }
 .trainer-unified .admin-page-header h1 { margin-top: .35rem; }
 .trainer-unified .admin-page-header p:last-child { line-height: 1.45; }
+.trainer-unified nav.routine-main-tabs,
+.trainer-unified nav[aria-label="Estado de las rutinas"],
+.trainer-unified nav[aria-label="Contenido de la Biblioteca"] { border-color: var(--border-soft); background: var(--surface); }
+.trainer-unified nav.routine-main-tabs button,
+.trainer-unified nav[aria-label="Estado de las rutinas"] button,
+.trainer-unified nav[aria-label="Contenido de la Biblioteca"] button { color: var(--foreground-muted); }
+.trainer-unified nav.routine-main-tabs button[aria-current="page"],
+.trainer-unified nav[aria-label="Estado de las rutinas"] button[aria-current="page"],
+.trainer-unified nav[aria-label="Contenido de la Biblioteca"] button[aria-current="page"] { color: var(--brand-text); }
+.routine-editor-workspace .routine-sortable-block article { border-color: var(--border-soft); }
+@media (max-width: 767px) {
+  .routine-editor-workspace { padding-bottom: env(safe-area-inset-bottom); }
+  .routine-workspace-header { gap: .5rem; padding: .75rem; }
+  .routine-workspace-title strong { font-size: 1.0625rem; }
+  .routine-workspace-days { gap: .375rem; scroll-snap-type: x proximity; }
+  .routine-workspace-day { min-width: 130px; scroll-snap-align: start; }
+  .routine-workspace-canvas { width: 100%; }
+  .routine-exercise-quick { gap: .375rem; }
+  .routine-exercise-quick label { font-size: .75rem; }
+  .routine-exercise-quick input { border-radius: .625rem; }
+  .routine-exercise-actions > div { justify-content: flex-start; }
+}
 @media (max-width: 639px) {
   .trainer-unified .admin-page-header { padding: 1.1rem 1.25rem; }
   .trainer-unified .admin-page-header h1 { font-size: 1.55rem; line-height: 1.2; }
