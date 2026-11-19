@@ -49,8 +49,8 @@ export function weeklyScheduleLabel(schedule: { dayOfWeek: keyof typeof DAY_LABE
   return `${DAY_LABELS[schedule.dayOfWeek]} ${schedule.startTime}–${schedule.endTime} · ${schedule.classType}`;
 }
 
-export async function getStudentPlanOptions(): Promise<StudentPlanOption[]> {
-  const settingsRecord = await prisma.coachSettingsRecord.findFirst({ where: { workspaceId: (await requireTrainerWorkspace()).workspaceId }, orderBy: { updatedAt: "desc" }, select: { data: true } });
+export async function getStudentPlanOptions(client: Prisma.TransactionClient | typeof prisma = prisma, workspaceId?: string): Promise<StudentPlanOption[]> {
+  const settingsRecord = await client.coachSettingsRecord.findFirst({ where: { workspaceId: workspaceId ?? (await requireTrainerWorkspace()).workspaceId }, orderBy: { updatedAt: "desc" }, select: { data: true } });
   const settings = settingsRecord?.data as unknown as CoachSettings | undefined;
   return studentPlanOptions(settings);
 }
@@ -94,7 +94,7 @@ export function serializeStudent(record: StudentWithSchedule): Student {
 
 export type ParsedStudentInput = Omit<Student, "id" | "scheduleLabel" | "scheduleLabels"> & { frequencyDays?: 2 | 3 | 4 | 5 | null; scheduleId: string; scheduleIds: string[]; flexibleSchedule: string };
 
-export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): { data: ParsedStudentInput; error: null } | { data: null; error: string } {
+export function parseStudentInput(value: unknown, plans: StudentPlanOption[], allowExistingMissingPhone = false): { data: ParsedStudentInput; error: null } | { data: null; error: string } {
   if (!value || typeof value !== "object") return { data: null, error: "Los datos del alumno no son válidos." };
   const input = value as Record<string, unknown>;
   const firstName = typeof input.firstName === "string" ? input.firstName.trim() : "";
@@ -116,7 +116,7 @@ export function parseStudentInput(value: unknown, plans: StudentPlanOption[]): {
   const requestedPlanId = typeof input.planId === "string" ? input.planId : "";
   const requestedPlanName = typeof input.plan === "string" ? input.plan.trim() : "";
   if (!firstName || !lastName) return { data: null, error: "Ingresá nombre y apellido." };
-  if (studentType === "Adulto" && (!phone || normalizePhone(phone).length < 6)) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
+  if (studentType === "Adulto" && ((!phone && !allowExistingMissingPhone) || (phone && normalizePhone(phone).length < 6))) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (studentType === "Kids" && phone && normalizePhone(phone).length < 6) return { data: null, error: "Ingresá un teléfono válido de al menos 6 dígitos." };
   if (!serviceType) return { data: null, error: "Seleccioná un tipo de servicio." };
   if (!requestedPlanName && !requestedPlanId) return { data: null, error: "Seleccioná un plan mensual." };
