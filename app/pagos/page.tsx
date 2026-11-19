@@ -261,8 +261,8 @@ export default function PagosPage() {
     setReload((value) => value + 1);
   }
   if (ready && loadError && data.students.length === 0)
-    return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial."><ErrorState title="No pudimos cargar los pagos." description="Revisá la conexión e intentá nuevamente." retry={retryLoad}/></ModuleShell>;
-  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial.">
+    return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." unified><ErrorState title="No pudimos cargar los pagos." description="Revisá la conexión e intentá nuevamente." retry={retryLoad}/></ModuleShell>;
+  return <ModuleShell title="Pagos" subtitle="Cuotas, cobros e historial." unified>
     {(error || notice) && !form && <p role={error ? "alert" : "status"} className={`mb-4 rounded-xl border p-3 text-sm ${error ? "border-red-400/30 bg-red-400/10 text-red-200" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"}`}>{error || notice}</p>}
     {loadError && <div className="mb-4"><ErrorState compact title="No pudimos actualizar los pagos." description="Seguís viendo la última información disponible." retry={retryLoad}/></div>}
 
@@ -424,14 +424,14 @@ function StudentCombobox({ form, accounts, setForm, disabled, inputRef, onSelect
     setForm({ ...form, studentId: "", amount: 0, dueDate: "" });
   }
   const { attachRoot, attachList, attachInput, ...navigation } = useComboboxNavigation({ items: results, itemKey: account => account.studentId, queryKey: query, onSelect: choose, enabled: !disabled });
-  return <div ref={attachRoot} {...navigation.rootProps} className="relative sm:col-span-2">
+  return <div ref={attachRoot} {...navigation.rootProps} className={`relative sm:col-span-2 ${navigation.open ? "z-[120]" : ""}`}>
     <label htmlFor="payment-student-search" className="text-sm">Alumno</label>
     <div className="relative mt-1">
       <input ref={node => { inputRef.current = node; attachInput(node); }} id="payment-student-search" {...navigation.inputProps} disabled={disabled} value={query} onChange={(event) => { setQuery(event.target.value); navigation.changed(); if (form.studentId) setForm({ ...form, studentId: "" }); }} placeholder="Buscar por nombre, apellido o teléfono" className={`${inputClass} pr-20`} />
       {!disabled && query && <button type="button" onClick={clear} aria-label="Limpiar alumno seleccionado" className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800">Limpiar</button>}
     </div>
     {selected && <p className="mt-2 text-xs text-yellow-200">Alumno elegido: <strong>{selected.student}</strong></p>}
-    {navigation.open && <div ref={attachList} {...navigation.listProps} aria-label="Alumnos para registrar pago" className="absolute z-[110] mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-950 p-1.5 shadow-2xl">
+    {navigation.open && <div ref={attachList} {...navigation.listProps} aria-label="Alumnos para registrar pago" className="absolute z-[120] mt-2 max-h-64 w-full overflow-y-auto overscroll-contain rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)] p-1.5 shadow-[0_20px_50px_rgba(0,0,0,.8)]">
       {results.length ? results.map((account) => <button {...navigation.optionProps(account)} key={account.studentId} type="button" className={`block w-full rounded-lg px-3 py-3 text-left ${navigation.activeKey === account.studentId || account.studentId === form.studentId ? "bg-yellow-400/10 text-yellow-100" : "text-zinc-200 hover:bg-zinc-800"}`}><span className="block font-semibold">{account.student}</span><span className="mt-0.5 block text-xs text-zinc-500">{account.phone || "Sin teléfono"} · {account.plan || "Sin plan"}</span></button>) : <p className="p-4 text-center text-sm text-zinc-500">No se encontraron alumnos.</p>}
     </div>}
   </div>;
@@ -451,7 +451,7 @@ function PaymentModal({ form, accounts, setForm, error, saving, close, submit }:
     });
   }, [form.studentId]);
   function focusAmount() { formRef.current?.querySelector<HTMLInputElement>('input[name="payment-amount"]')?.focus(); }
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3"><form ref={formRef} onSubmit={submit} onKeyDownCapture={handleEnterNavigation} onKeyDown={dialogKeyboard} role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-10">
+  return <div className="fixed inset-0 z-[120] overflow-y-auto bg-zinc-950 p-0 sm:bg-black/85 sm:p-3"><form ref={formRef} onSubmit={submit} onKeyDownCapture={handleEnterNavigation} onKeyDown={dialogKeyboard} role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" className="mx-auto min-h-dvh w-full max-w-lg border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-5 pb-[calc(2rem+env(safe-area-inset-bottom))] text-[var(--foreground)] shadow-2xl sm:my-10 sm:min-h-0 sm:rounded-2xl sm:pb-5">
     <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-yellow-400">{title}</p><h2 id="payment-modal-title" className="mt-1 text-lg font-bold">{account?.student ?? "Seleccioná un alumno"}</h2>{form.mode === "quick" && <p className="mt-1 text-xs text-zinc-400">Revisá importe y fecha antes de confirmar.</p>}</div><button type="button" onClick={close} disabled={saving} className="p-2 text-zinc-400">Cerrar</button></div>
     {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     <div className="mt-5 grid gap-4 sm:grid-cols-2">

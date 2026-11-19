@@ -7,6 +7,7 @@ export function ModuleShell({
   action,
   hideHeader = false,
   flushTop = false,
+  unified = false,
   children,
 }: {
   title: string;
@@ -14,10 +15,11 @@ export function ModuleShell({
   action?: ReactNode;
   hideHeader?: boolean;
   flushTop?: boolean;
+  unified?: boolean;
   children: ReactNode;
 }) {
   return (
-    <main className={`admin-page min-h-screen px-4 pb-8 text-[var(--foreground)] sm:px-6 md:px-8 md:pb-12 xl:px-10 ${flushTop ? "pt-5 md:pt-7" : "pt-6 md:pt-9"}`}>
+    <main className={`admin-page ${unified ? "trainer-unified" : ""} min-h-screen px-4 pb-8 text-[var(--foreground)] sm:px-6 md:px-8 md:pb-12 xl:px-10 ${flushTop ? "pt-5 md:pt-7" : "pt-6 md:pt-9"}`}>
       <div className="mx-auto min-w-0 max-w-7xl">
         {!hideHeader && (
           <header className="bm-surface bm-card-pad admin-page-header mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">

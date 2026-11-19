@@ -209,6 +209,7 @@ export default function ClasesPage() {
 
   return (
     <ModuleShell
+      unified
       title=""
       subtitle=""
       hideHeader
@@ -328,8 +329,8 @@ function ScheduleEditor({ form, setForm, students, studentQuery, setStudentQuery
   const atCapacity = form.capacity !== null && form.studentIds.length >= form.capacity;
 
   return (
-    <KeyboardDialog onClose={close} dismissible={!saving} aria-label={editing ? "Editar horario semanal" : "Crear horario semanal"} className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 sm:p-4">
-      <form onSubmit={save} onKeyDown={preventImplicitSubmit} className="mx-auto my-3 w-full max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-white shadow-2xl sm:my-8 sm:p-6">
+    <KeyboardDialog onClose={close} dismissible={!saving} aria-label={editing ? "Editar horario semanal" : "Crear horario semanal"} className="fixed inset-0 z-[120] overflow-y-auto bg-zinc-950 p-0 sm:bg-black/85 sm:p-4">
+      <form onSubmit={save} onKeyDown={preventImplicitSubmit} className="mx-auto min-h-dvh w-full max-w-3xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-5 pb-[calc(2rem+env(safe-area-inset-bottom))] text-[var(--foreground)] shadow-2xl sm:my-8 sm:min-h-0 sm:rounded-2xl sm:p-6">
         <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">Plantilla recurrente</p><h2 className="mt-1 text-xl font-bold">{editing ? "Editar horario semanal" : "Crear horario semanal"}</h2></div><button type="button" onClick={close} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800">Cerrar</button></div>
         {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
         <div className="mt-5 grid gap-4 sm:grid-cols-2">

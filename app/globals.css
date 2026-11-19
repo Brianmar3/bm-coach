@@ -2258,3 +2258,14 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
 .settings-detail-heading h1 { color: var(--foreground); font-size: 1.25rem; font-weight: 750; }
 @media (max-width: 767px) { .settings-menu-mobile-hidden { display: none; } }
 @media (min-width: 768px) { .settings-layout { grid-template-columns: minmax(230px, 285px) minmax(0, 1fr); } .settings-detail-heading button { display: none; } .settings-detail-heading { margin-bottom: .6rem; } }
+/* A shared rhythm for the trainer's day-to-day modules. */
+.trainer-unified .admin-page-header {
+  margin-bottom: 1.25rem;
+  padding-block: 1.25rem;
+}
+.trainer-unified .admin-page-header h1 { margin-top: .35rem; }
+.trainer-unified .admin-page-header p:last-child { line-height: 1.45; }
+@media (max-width: 639px) {
+  .trainer-unified .admin-page-header { padding: 1.1rem 1.25rem; }
+  .trainer-unified .admin-page-header h1 { font-size: 1.55rem; line-height: 1.2; }
+}
