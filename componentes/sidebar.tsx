@@ -97,7 +97,7 @@ export function Sidebar() {
       <button type="button" onClick={logout} disabled={signingOut} className="mt-6 flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium text-zinc-500 hover:bg-red-400/[.06] hover:text-red-300"><BmLogoutIcon size={20} />Cerrar sesión</button>
     </aside>
 
-    <nav className={styles.nav} aria-label="Navegación móvil del entrenador">
+    <nav className={styles.nav} data-trainer-bottom-nav aria-label="Navegación móvil del entrenador">
       {primary.map(([label, href, icon]) => { const active = (pathname.startsWith(href) || (href === "/clases" && pathname.startsWith("/asistencias"))) && !open; return <Link key={href} href={href} aria-current={active ? "page" : undefined} onClick={() => { if (open) navigateFromMore(); }} className={`${styles.navItem} ${active ? styles.navActive : ""}`}><NavIcon name={icon} active={active} /><span>{label}</span></Link>; })}
       <button ref={moreRef} type="button" aria-label="Más" aria-expanded={open} aria-controls="trainer-more-panel" onClick={() => open ? closeMore() : openMore()} className={`${styles.navItem} ${open || moreActive ? styles.navActive : ""}`}><MoreIcon /><span>Más</span></button>
     </nav>

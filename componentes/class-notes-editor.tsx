@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { classRichPlainText, decodeClassRichText, encodeClassRichText, type ClassRichNode } from "@/lib/class-rich-text";
 
 const blockTags = new Set(["DIV", "P", "H1", "H2", "H3", "BLOCKQUOTE", "UL", "OL", "LI"]);
@@ -89,17 +89,77 @@ const tools: Tool[] = [
 
 export function ClassNotesEditor({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const selectedRange = useRef<Range | null>(null);
   const emitted = useRef<string | null>(null);
   const numberHandled = useRef(false);
-  useEffect(() => { if (editorRef.current && value !== emitted.current) fillEditor(editorRef.current, value); }, [value]);
+  const history = useRef<{ past: { value: string; start: number; end: number }[]; current: { value: string; start: number; end: number }; future: { value: string; start: number; end: number }[] }>({ past: [], current: { value, start: 0, end: 0 }, future: [] });
+  const [historyState, setHistoryState] = useState({ undo: false, redo: false });
+  useEffect(() => { if (editorRef.current && value !== emitted.current) { fillEditor(editorRef.current, value); history.current = { past: [], current: { value, start: 0, end: 0 }, future: [] }; setHistoryState({ undo: false, redo: false }); } }, [value]);
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!viewport) return;
-    const adjust = () => { if (editorRef.current?.contains(document.activeElement)) requestAnimationFrame(ensureCaretVisible); };
-    viewport.addEventListener("resize", adjust);
-    return () => viewport.removeEventListener("resize", adjust);
+    const root = document.documentElement;
+    let baseline = Math.max(window.innerHeight, viewport?.height ?? 0);
+    let frame = 0;
+    const adjust = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const focused = document.activeElement === editorRef.current;
+        const visibleHeight = (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0);
+        if (!focused) baseline = Math.max(window.innerHeight, visibleHeight);
+        const gap = Math.max(0, window.innerHeight - visibleHeight);
+        const open = focused && window.matchMedia("(max-width: 639px)").matches && Math.max(baseline - visibleHeight, gap) > 120;
+        root.classList.toggle("class-notes-keyboard-open", open);
+        if (open) {
+          root.style.setProperty("--class-notes-keyboard-gap", `${gap}px`);
+          root.style.setProperty("--class-notes-toolbar-height", `${toolbarRef.current?.offsetHeight ?? 56}px`);
+          ensureCaretVisible();
+        } else {
+          root.style.removeProperty("--class-notes-keyboard-gap");
+          root.style.removeProperty("--class-notes-toolbar-height");
+        }
+      });
+    };
+    viewport?.addEventListener("resize", adjust);
+    viewport?.addEventListener("scroll", adjust);
+    window.addEventListener("resize", adjust);
+    window.addEventListener("focusin", adjust);
+    window.addEventListener("focusout", adjust);
+    window.addEventListener("orientationchange", adjust);
+    return () => { cancelAnimationFrame(frame); viewport?.removeEventListener("resize", adjust); viewport?.removeEventListener("scroll", adjust); window.removeEventListener("resize", adjust); window.removeEventListener("focusin", adjust); window.removeEventListener("focusout", adjust); window.removeEventListener("orientationchange", adjust); root.classList.remove("class-notes-keyboard-open"); root.style.removeProperty("--class-notes-keyboard-gap"); root.style.removeProperty("--class-notes-toolbar-height"); };
   }, []);
+  function selectionOffsets() {
+    const element = editorRef.current;
+    const selection = window.getSelection();
+    if (!element || !selection?.rangeCount || !element.contains(selection.anchorNode)) return { start: 0, end: 0 };
+    const range = selection.getRangeAt(0);
+    const start = range.cloneRange(); start.selectNodeContents(element); start.setEnd(range.startContainer, range.startOffset);
+    const end = range.cloneRange(); end.selectNodeContents(element); end.setEnd(range.endContainer, range.endOffset);
+    return { start: start.toString().length, end: end.toString().length };
+  }
+  function restoreOffsets(start: number, end: number) {
+    const element = editorRef.current;
+    if (!element) return;
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const locate = (offset: number) => { let node: Node | null; let remaining = offset; while ((node = walker.nextNode())) { const length = node.textContent?.length ?? 0; if (remaining <= length) return { node, offset: remaining }; remaining -= length; } return null; };
+    const first = locate(start); walker.currentNode = element; const last = locate(end);
+    const range = document.createRange();
+    if (first && last) { range.setStart(first.node, first.offset); range.setEnd(last.node, last.offset); }
+    else { range.selectNodeContents(element); range.collapse(false); }
+    const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range);
+    selectedRange.current = range.cloneRange();
+  }
+  function travel(direction: "undo" | "redo") {
+    const state = history.current;
+    const source = direction === "undo" ? state.past : state.future;
+    const target = direction === "undo" ? state.future : state.past;
+    const previous = source.pop(); if (!previous || !editorRef.current) return;
+    target.push(state.current); state.current = previous;
+    fillEditor(editorRef.current, previous.value); editorRef.current.focus(); restoreOffsets(previous.start, previous.end);
+    emitted.current = previous.value; onChange(previous.value);
+    setHistoryState({ undo: state.past.length > 0, redo: state.future.length > 0 });
+    requestAnimationFrame(ensureCaretVisible);
+  }
   function ensureCaretVisible() {
     if (!window.matchMedia("(max-width: 639px)").matches) return;
     const selection = window.getSelection();
@@ -108,23 +168,35 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     const viewport = window.visualViewport;
     const top = viewport?.offsetTop ?? 0;
     const bottom = top + (viewport?.height ?? window.innerHeight);
-    if (rect.bottom > bottom - 24) window.scrollBy({ top: rect.bottom - bottom + 32, behavior: "instant" });
+    const toolbarHeight = document.documentElement.classList.contains("class-notes-keyboard-open") ? (toolbarRef.current?.offsetHeight ?? 56) : 0;
+    if (rect.bottom > bottom - toolbarHeight - 24) window.scrollBy({ top: rect.bottom - bottom + toolbarHeight + 32, behavior: "instant" });
     else if (rect.top < top + 58) window.scrollBy({ top: rect.top - top - 66, behavior: "instant" });
   }
   function emit() {
     if (!editorRef.current) return;
     const next = encodeClassRichText([...editorRef.current.childNodes].flatMap(fromDom));
     if (next.length > 36000 || classRichPlainText(next).length > 12000) { fillEditor(editorRef.current, emitted.current ?? value); return; }
+    if (next !== history.current.current.value) {
+      history.current.past.push(history.current.current);
+      if (history.current.past.length > 100) history.current.past.shift();
+      history.current.current = { value: next, ...selectionOffsets() };
+      history.current.future = [];
+      setHistoryState({ undo: true, redo: false });
+    }
     emitted.current = next;
     onChange(next);
     requestAnimationFrame(ensureCaretVisible);
   }
   function rememberSelection() {
     const selection = window.getSelection();
-    if (selection?.rangeCount && editorRef.current?.contains(selection.anchorNode)) selectedRange.current = selection.getRangeAt(0).cloneRange();
+    if (selection?.rangeCount && editorRef.current?.contains(selection.anchorNode)) {
+      selectedRange.current = selection.getRangeAt(0).cloneRange();
+      Object.assign(history.current.current, selectionOffsets());
+    }
   }
   function command(tool: Tool) {
     if (disabled || !editorRef.current) return;
+    if (tool.command === "undo" || tool.command === "redo") { travel(tool.command); return; }
     editorRef.current.focus();
     const selection = window.getSelection();
     if (selection && selectedRange.current && editorRef.current.contains(selectedRange.current.commonAncestorContainer)) { selection.removeAllRanges(); selection.addRange(selectedRange.current); }
@@ -151,17 +223,20 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     block.after(next); const cursor = document.createRange(); cursor.selectNodeContents(next); cursor.collapse(false); selection.removeAllRanges(); selection.addRange(cursor); emit(); return true;
   }
   function onNumberKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); travel(event.shiftKey ? "redo" : "undo"); return; }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") { event.preventDefault(); travel("redo"); return; }
     if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
     if (continueManualNumbering(() => event.preventDefault())) { numberHandled.current = true; window.setTimeout(() => { numberHandled.current = false; }, 0); }
   }
   function onNumberBeforeInput(event: FormEvent<HTMLDivElement>) {
     const input = event.nativeEvent as InputEvent;
+    if (input.inputType === "historyUndo" || input.inputType === "historyRedo") { event.preventDefault(); travel(input.inputType === "historyUndo" ? "undo" : "redo"); return; }
     if (input.isComposing || !["insertLineBreak", "insertParagraph"].includes(input.inputType)) return;
     if (numberHandled.current) { event.preventDefault(); return; }
     continueManualNumbering(() => event.preventDefault());
   }
   return <div className="class-notes-editor">
-    <div role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} disabled={disabled} onPointerDown={rememberSelection} onMouseDown={(event) => event.preventDefault()} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
+    <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
     <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={emit} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={() => requestAnimationFrame(ensureCaretVisible)} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); emit(); }} className="class-notes-writing" />
     <p className="class-notes-count">{classRichPlainText(value).length}/12.000 caracteres</p>
   </div>;
