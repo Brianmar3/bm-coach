@@ -15,7 +15,7 @@ import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type StudentSummaryRecord = { id: string; serviceType: "CLASSES" | "PERSONALIZED" | "MIXED"; data: unknown; primarySchedule: { id: string; workspaceId: string; dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY"; startTime: string; endTime: string; classType: string } | null; weeklyClasses: Array<{ schedule: { id: string; workspaceId: string; dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY"; startTime: string; endTime: string; classType: string } }> };
+type StudentSummaryRecord = { id: string; serviceType: "CLASSES" | "PERSONALIZED" | "MIXED"; data: unknown; primarySchedule: { id: string; workspaceId: string; dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY"; startTime: string; endTime: string; classType: string } | null; weeklyClasses: Array<{ schedule: { id: string; workspaceId: string; dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY"; startTime: string; endTime: string; classType: string } }> };
 
 function studentSummary(record: StudentSummaryRecord, workspaceId: string): EvaluationStudentSummary {
   const data = record.data && typeof record.data === "object" && !Array.isArray(record.data) ? record.data as Record<string, unknown> : {};

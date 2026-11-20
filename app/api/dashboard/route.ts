@@ -32,7 +32,7 @@ import { requireTrainerWorkspace } from "@/lib/trainer-workspace";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const WEEKDAY: Partial<Record<number, ClassWeekday>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
+const WEEKDAY: Partial<Record<number, ClassWeekday>> = { 0: "SUNDAY", 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY", 6: "SATURDAY" };
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const STATUS_ORDER: Record<PaymentAccountStatus, number> = { SIN_CONFIGURAR: 0, SIN_PAGOS: 1, VENCIDA: 2, VENCE_PRONTO: 3, AL_DIA: 4 };
 

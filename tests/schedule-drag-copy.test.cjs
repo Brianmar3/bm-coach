@@ -14,6 +14,10 @@ test('el arrastre de horarios reutiliza vista visible, destino y auto-scroll par
   assert.match(page, /studentIds: \[\]/);
   assert.match(page, /onDrop=\{\(event\) => \{ event\.preventDefault\(\);/);
   assert.match(hook, /document\.body\.appendChild\(preview\)/);
+  assert.match(hook, /opacity: "0\.72"/);
+  const mouseDrag = hook.slice(hook.indexOf('function startMouse'), hook.indexOf('function start(event:'));
+  assert.match(mouseDrag, /setDragImage\(event\.currentTarget/);
+  assert.doesNotMatch(mouseDrag, /createPreview\(/);
   assert.match(hook, /window\.scrollBy\(0, speed\)/);
   const js = ts.transpileModule(hook, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const dom = new JSDOM('<div data-schedule-day="MONDAY"><article id="source">Funcional</article></div><div data-schedule-day="TUESDAY"></div>');

@@ -11,6 +11,7 @@ import { ClassOpinionsPanel } from "@/componentes/class-opinions-panel";
 import { EmptyState, ErrorState } from "@/componentes/async-states";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule } from "@/types/gestion";
 import { useTouchClassCopy } from "@/componentes/use-touch-class-copy";
+import { BmCalendarIcon } from "@/componentes/icons";
 
 const days: Array<{ value: WeeklyClassDay; label: string; short: string }> = [
   { value: "MONDAY", label: "Lunes", short: "Lun" },
@@ -18,6 +19,8 @@ const days: Array<{ value: WeeklyClassDay; label: string; short: string }> = [
   { value: "WEDNESDAY", label: "Miércoles", short: "Mié" },
   { value: "THURSDAY", label: "Jueves", short: "Jue" },
   { value: "FRIDAY", label: "Viernes", short: "Vie" },
+  { value: "SATURDAY", label: "Sábado", short: "Sáb" },
+  { value: "SUNDAY", label: "Domingo", short: "Dom" },
 ];
 
 const classTypes = ["Entrenamiento funcional", "Fuerza", "Movilidad", "Personalizada", "Rehabilitación", "Running", "Stretching"];
@@ -52,7 +55,7 @@ function nextScheduleDate(day: WeeklyClassDay) {
     timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date());
   const date = new Date(`${today}T12:00:00Z`);
-  const targetWeekday = days.findIndex((item) => item.value === day) + 1;
+  const targetWeekday = (days.findIndex((item) => item.value === day) + 1) % 7;
   const daysUntilTarget = (targetWeekday - date.getUTCDay() + 7) % 7;
   date.setUTCDate(date.getUTCDate() + daysUntilTarget);
   return date.toISOString().slice(0, 10);
@@ -73,10 +76,12 @@ export default function ClasesPage() {
   const [editing, setEditing] = useState<WeeklyClassSchedule | null>(null);
   const [viewing, setViewing] = useState<WeeklyClassSchedule | null>(null);
   const [form, setForm] = useState<WeeklyClassInput>(emptySchedule());
+  const [selectedDays, setSelectedDays] = useState<WeeklyClassDay[]>(["MONDAY"]);
   const [studentQuery, setStudentQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const copying = useRef(false);
+  const savingRef = useRef(false);
   const lastDrop = useRef({ key: "", at: 0 });
   const scheduleCopy = useTouchClassCopy((id, day, at) => void copySchedule(id, day as WeeklyClassDay, at), "data-schedule-day");
 
@@ -121,7 +126,7 @@ export default function ClasesPage() {
         setSchedules(weeklySchedules); setStudents(realStudents);
         setLoadError("");
         if (new URLSearchParams(window.location.search).get("accion") === "nueva") {
-          setEditing(null); setForm(emptySchedule()); setStudentQuery(""); setEditorOpen(true);
+          setEditing(null); setForm(emptySchedule()); setSelectedDays(["MONDAY"]); setStudentQuery(""); setEditorOpen(true);
         }
       })
       .catch((value: unknown) => { if (value instanceof Error && value.name !== "AbortError") setLoadError("No pudimos cargar los horarios semanales."); })
@@ -141,6 +146,7 @@ export default function ClasesPage() {
   function begin(schedule?: WeeklyClassSchedule, preferredDay?: WeeklyClassDay) {
     setEditing(schedule ?? null);
     setForm(schedule ? scheduleInput(schedule) : { ...emptySchedule(), dayOfWeek: preferredDay ?? "MONDAY" });
+    setSelectedDays([schedule?.dayOfWeek ?? preferredDay ?? "MONDAY"]);
     setStudentQuery("");
     setError("");
     setViewing(null);
@@ -156,23 +162,25 @@ export default function ClasesPage() {
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (savingRef.current) return;
+    if (!editing && selectedDays.length === 0) { setError("Seleccioná al menos un día."); return; }
     if (!form.classType.trim() || form.endTime <= form.startTime) { setError("Completá el tipo de clase y revisá el horario."); return; }
     if (form.capacity !== null && form.studentIds.length > form.capacity) { setError("La cantidad de alumnos supera el cupo configurado."); return; }
-    setSaving(true); setError("");
+    savingRef.current = true; setSaving(true); setError("");
     try {
       const response = await fetch(editing ? `/api/clases/${editing.id}` : "/api/clases", {
         method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, classType: form.classType.trim() }),
+        body: JSON.stringify({ ...form, classType: form.classType.trim(), ...(!editing ? { dayOfWeeks: selectedDays } : {}) }),
       });
       if (!response.ok) throw new Error(await responseError(response, "No se pudo guardar el horario."));
-      const saved = await response.json() as WeeklyClassSchedule;
-      setSchedules((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved]);
+      const saved = await response.json() as WeeklyClassSchedule | WeeklyClassSchedule[];
+      setSchedules((current) => editing ? current.map((item) => item.id === (saved as WeeklyClassSchedule).id ? saved as WeeklyClassSchedule : item) : [...current, ...(Array.isArray(saved) ? saved : [saved])]);
       setEditorOpen(false); setEditing(null);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "No se pudo guardar el horario en Neon.");
     } finally {
-      setSaving(false);
+      savingRef.current = false; setSaving(false);
     }
   }
 
@@ -218,18 +226,18 @@ export default function ClasesPage() {
       {error && !editorOpen && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
       {loadError && schedules.length > 0 && <div className="mb-5"><ErrorState compact title="No pudimos actualizar los horarios." retry={retryLoad}/></div>}
 
-      <section className="mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3">
+      <section className="mb-5 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-3">
         {!ready ? <div aria-hidden="true" className="grid grid-cols-3 gap-3">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-14 animate-pulse rounded-xl bg-zinc-800/70"/>)}</div> : <div className="grid grid-cols-3 divide-x divide-zinc-800"><Metric label="Horarios activos" value={activeCount} /><Metric label="Alumnos con horario" value={assignedCount} /><Metric label="Bloques semanales" value={schedules.length} /></div>}
       </section>
 
       <ClassOccurrenceAdmin />
       <ClassOpinionsPanel />
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-        <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] text-[var(--foreground)]">
+        <div className="flex flex-col gap-3 border-b border-[var(--border-soft)] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold">Calendario semanal</h2>
-            <p className="mt-1 text-xs text-zinc-500">Tocá cualquier bloque para ver alumnos y acciones.</p>
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">Tocá cualquier bloque para ver alumnos y acciones.</p>
           </div>
           <select value={filter} onChange={(event) => setFilter(event.target.value as StatusFilter)} className={`${inputClass} sm:w-48`}>
             <option value="activos">Solo activos</option>
@@ -240,7 +248,7 @@ export default function ClasesPage() {
 
         {!ready ? <LoadingCalendar /> : loadError && schedules.length === 0 ? <div className="p-4"><ErrorState title="No pudimos cargar los horarios." description="La agenda no cambió. Intentá nuevamente." retry={retryLoad}/></div> : schedules.length === 0 ? <div className="p-4"><EmptyState title="Todavía no hay horarios semanales." description="Creá el primer horario para organizar clases y asistencias." action={<button type="button" onClick={() => begin()} className="min-h-11 px-4 text-sm font-bold text-yellow-300">Crear horario</button>}/></div> : (
           <>
-            <div className="hidden grid-cols-5 divide-x divide-zinc-800 lg:grid">
+            <div className="hidden gap-px bg-[var(--border-soft)] lg:grid lg:grid-cols-4 2xl:grid-cols-7">
               {days.map((day) => <DayColumn key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
             </div>
             <div className="divide-y divide-zinc-800 lg:hidden">
@@ -251,14 +259,14 @@ export default function ClasesPage() {
       </section>
 
       {viewing && <ScheduleDetail schedule={viewing} close={() => setViewing(null)} edit={() => begin(viewing)} changeActive={() => changeActive(viewing)} remove={() => remove(viewing)} />}
-      {editorOpen && <ScheduleEditor form={form} setForm={setForm} students={students} studentQuery={studentQuery} setStudentQuery={setStudentQuery} error={error} saving={saving} editing={Boolean(editing)} close={closeEditor} save={save} />}
+      {editorOpen && <ScheduleEditor form={form} setForm={setForm} selectedDays={selectedDays} setSelectedDays={setSelectedDays} students={students} studentQuery={studentQuery} setStudentQuery={setStudentQuery} error={error} saving={saving} editing={Boolean(editing)} close={closeEditor} save={save} />}
       <TrainerFloatingActions mode="direct" enabled={!editorOpen && !viewing} actions={[{ label: "Crear horario", symbol: "+", onSelect: () => begin() }]} />
     </ModuleShell>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center px-1 py-1 text-center sm:min-h-0 sm:px-2"><p className="flex min-h-8 items-center justify-center text-[8px] uppercase leading-[1.2] tracking-[.08em] text-zinc-500 min-[390px]:text-[9px] sm:min-h-0 sm:text-[10px] sm:tracking-wide">{label}</p><p className="mt-1 text-xl font-bold leading-none text-yellow-400">{value}</p></div>;
+  return <div className="flex min-h-[4.75rem] min-w-0 flex-col items-center justify-center px-1 py-1 text-center sm:min-h-0 sm:px-2"><p className="flex min-h-8 items-center justify-center text-[8px] uppercase leading-[1.2] tracking-[.08em] text-[var(--foreground-muted)] min-[390px]:text-[9px] sm:min-h-0 sm:text-[10px] sm:tracking-wide">{label}</p><p className="mt-1 text-xl font-bold leading-none text-[var(--brand-text)]">{value}</p></div>;
 }
 
 type ScheduleDrag = ReturnType<typeof useTouchClassCopy>;
@@ -267,24 +275,24 @@ type ScheduleDayProps = { day: (typeof days)[number]; schedules: WeeklyClassSche
 function ScheduleBlock({ schedule, open, drag }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void; drag: ScheduleDrag }) {
   const attendanceDate = nextScheduleDate(schedule.dayOfWeek);
   return (
-    <article draggable onDragStart={(event) => { if (drag.isTouchPending() || (event.target as HTMLElement).closest("a")) { event.preventDefault(); return; } event.dataTransfer.setData("text/plain", schedule.id); drag.startMouse(event); }} onDragEnd={drag.stopMouse} onTouchStart={(event) => { if (!(event.target as HTMLElement).closest("a")) drag.start(event, schedule.id); }} onTouchMove={drag.moveBeforeActivation} onTouchEnd={drag.endBeforeActivation} onTouchCancel={drag.endBeforeActivation} onContextMenu={(event) => { if (drag.isTouchPending()) event.preventDefault(); }} className={`w-full rounded-xl border p-3 text-left transition ${schedule.active ? "border-zinc-800 bg-zinc-950/80" : "border-zinc-800 bg-zinc-950/60 opacity-65"}`}>
+    <article draggable tabIndex={0} aria-label={`${schedule.classType}, ${schedule.startTime} a ${schedule.endTime}`} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); open(schedule); } }} onDragStart={(event) => { if (drag.isTouchPending() || (event.target as HTMLElement).closest("a")) { event.preventDefault(); return; } event.dataTransfer.setData("text/plain", schedule.id); drag.startMouse(event); }} onDragEnd={drag.stopMouse} onTouchStart={(event) => { if (!(event.target as HTMLElement).closest("a")) drag.start(event, schedule.id); }} onTouchMove={drag.moveBeforeActivation} onTouchEnd={drag.endBeforeActivation} onTouchCancel={drag.endBeforeActivation} onContextMenu={(event) => { if (drag.isTouchPending()) event.preventDefault(); }} className={`w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-2.5 text-left shadow-sm transition hover:border-[var(--bm-accent)] focus-visible:outline-2 focus-visible:outline-[var(--bm-accent)] ${schedule.active ? "" : "opacity-65"}`}>
       <button onClick={(event) => { if (drag.consumeClick()) { event.preventDefault(); return; } open(schedule); }} className="w-full text-left">
         <div className="flex items-start justify-between gap-2">
-          <span className="text-xs font-bold text-yellow-400">{schedule.startTime} – {schedule.endTime}</span>
+          <span className="text-xs font-bold text-[var(--brand-text)]">{schedule.startTime} – {schedule.endTime}</span>
           <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${schedule.active ? "bg-emerald-400" : "bg-zinc-600"}`} title={schedule.active ? "Activo" : "Inactivo"} />
         </div>
-        <p className="mt-1 font-semibold leading-tight text-white">{schedule.classType}</p>
-        <p className="mt-1.5 text-xs text-zinc-400">{occupancy(schedule)}</p>
-        {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-zinc-500">{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
+        <p className="mt-1 break-words text-sm font-semibold leading-tight text-[var(--foreground)]">{schedule.classType}</p>
+        <p className="mt-1 text-xs text-[var(--foreground-muted)]">{occupancy(schedule)}</p>
+        {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-[var(--foreground-muted)]" title={schedule.students.map((student) => student.name).join(", ")}>{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
       </button>
-      <Link href={`/asistencias?view=attendance&scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-2.5 block min-h-10 rounded-lg border border-emerald-400/30 px-3 py-2 text-center text-xs font-bold text-emerald-300 hover:bg-emerald-400/10">Tomar asistencia</Link>
+      <Link href={`/asistencias?view=attendance&scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-2 block min-h-9 rounded-lg border border-emerald-400/35 px-2 py-2 text-center text-xs font-bold text-emerald-400 hover:bg-emerald-400/10">Tomar asistencia</Link>
     </article>
   );
 }
 
 function DayColumn({ day, schedules, open, create, drag, copy }: ScheduleDayProps) {
   const ordered = [...schedules].sort((left, right) => left.startTime.localeCompare(right.startTime));
-  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="min-h-[430px] p-3"><div className="mb-3 flex items-center justify-between"><h3 className="font-bold">{day.label}</h3><button onClick={create} className="rounded-lg px-2 py-1 text-lg text-zinc-500 hover:bg-yellow-400/10 hover:text-yellow-400" aria-label={`Crear horario el ${day.label}`}>+</button></div><div className="space-y-3">{ordered.length ? ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} drag={drag} />) : <button onClick={create} className="w-full rounded-xl border border-dashed border-zinc-800 px-2 py-8 text-xs text-zinc-600 hover:border-zinc-700 hover:text-zinc-400">Sin horarios<br />Agregar bloque</button>}</div></section>;
+  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="min-h-[220px] min-w-0 bg-[var(--surface-elevated)] p-2.5"><div className="mb-2 flex items-center justify-between gap-1"><h3 className="truncate text-sm font-bold text-[var(--foreground)]">{day.label}</h3><button onClick={create} className="rounded-lg px-2 py-1 text-lg text-[var(--brand-text)] hover:bg-[var(--surface)]" aria-label={`Crear horario el ${day.label}`}>+</button></div><div className="space-y-2">{ordered.length ? ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} drag={drag} />) : <button onClick={create} className="w-full rounded-xl border border-dashed border-[var(--border-soft)] px-2 py-6 text-xs text-[var(--foreground-muted)]">Sin horarios<br />Agregar bloque</button>}</div></section>;
 }
 
 function MobileDay({ day, schedules, open, create, drag, copy }: ScheduleDayProps) {
@@ -321,7 +329,7 @@ function DetailValue({ label, value, highlight = false }: { label: string; value
   return <div className="rounded-xl bg-zinc-950 p-4"><dt className="text-xs uppercase tracking-wide text-zinc-500">{label}</dt><dd className={`mt-1 font-semibold ${highlight ? "text-emerald-400" : "text-white"}`}>{value}</dd></div>;
 }
 
-function ScheduleEditor({ form, setForm, students, studentQuery, setStudentQuery, error, saving, editing, close, save }: { form: WeeklyClassInput; setForm: (form: WeeklyClassInput) => void; students: Student[]; studentQuery: string; setStudentQuery: (value: string) => void; error: string; saving: boolean; editing: boolean; close: () => void; save: (event: FormEvent) => void }) {
+function ScheduleEditor({ form, setForm, selectedDays, setSelectedDays, students, studentQuery, setStudentQuery, error, saving, editing, close, save }: { form: WeeklyClassInput; setForm: (form: WeeklyClassInput) => void; selectedDays: WeeklyClassDay[]; setSelectedDays: (days: WeeklyClassDay[]) => void; students: Student[]; studentQuery: string; setStudentQuery: (value: string) => void; error: string; saving: boolean; editing: boolean; close: () => void; save: (event: FormEvent) => void }) {
   function set<K extends keyof WeeklyClassInput>(key: K, value: WeeklyClassInput[K]) { setForm({ ...form, [key]: value }); }
   function toggle(studentId: string) { set("studentIds", form.studentIds.includes(studentId) ? form.studentIds.filter((id) => id !== studentId) : [...form.studentIds, studentId]); }
   const normalizedQuery = studentQuery.trim().toLocaleLowerCase("es");
@@ -331,21 +339,21 @@ function ScheduleEditor({ form, setForm, students, studentQuery, setStudentQuery
   return (
     <KeyboardDialog onClose={close} dismissible={!saving} aria-label={editing ? "Editar horario semanal" : "Crear horario semanal"} className="fixed inset-0 z-[120] overflow-y-auto bg-zinc-950 p-0 sm:bg-black/85 sm:p-4">
       <form onSubmit={save} onKeyDown={preventImplicitSubmit} className="mx-auto min-h-dvh w-full max-w-3xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-5 pb-[calc(2rem+env(safe-area-inset-bottom))] text-[var(--foreground)] shadow-2xl sm:my-8 sm:min-h-0 sm:rounded-2xl sm:p-6">
-        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-yellow-400">Plantilla recurrente</p><h2 className="mt-1 text-xl font-bold">{editing ? "Editar horario semanal" : "Crear horario semanal"}</h2></div><button type="button" onClick={close} className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-800">Cerrar</button></div>
+        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--brand-text)]">Plantilla recurrente</p><h2 className="mt-1 text-xl font-bold">{editing ? "Editar horario semanal" : "Crear horario semanal"}</h2><p className="mt-1 text-sm text-[var(--foreground-muted)]">{editing ? "Modificá este horario sin alterar los demás." : "Creá uno o varios horarios con la misma configuración."}</p></div><div className="flex shrink-0 items-center gap-2"><span className="hidden rounded-xl border border-[var(--border-soft)] p-2 text-[var(--brand-text)] sm:block"><BmCalendarIcon size={22} /></span><button type="button" onClick={close} className="rounded-lg p-2 text-[var(--foreground-muted)] hover:bg-[var(--surface)]">Cerrar</button></div></div>
         {error && <p className="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm sm:col-span-2">Tipo de clase<input required maxLength={120} list="class-types" value={form.classType} onChange={(event) => set("classType", event.target.value)} placeholder="Ej. Entrenamiento funcional" className={`${inputClass} mt-1`} /><datalist id="class-types">{classTypes.map((type) => <option key={type} value={type} />)}</datalist></label>
-          <label className="text-sm">Día de la semana<select value={form.dayOfWeek} onChange={(event) => set("dayOfWeek", event.target.value as WeeklyClassDay)} className={`${inputClass} mt-1`}>{days.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}</select></label>
-          <label className="text-sm">Estado<select value={form.active ? "activo" : "inactivo"} onChange={(event) => set("active", event.target.value === "activo")} className={`${inputClass} mt-1`}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4">
+          <label className="col-span-2 text-sm">Tipo de clase<input required maxLength={120} list="class-types" value={form.classType} onChange={(event) => set("classType", event.target.value)} placeholder="Ej. Entrenamiento funcional" className={`${inputClass} mt-1`} /><datalist id="class-types">{classTypes.map((type) => <option key={type} value={type} />)}</datalist></label>
+          {editing ? <label className="text-sm">Día de la semana<select value={form.dayOfWeek} onChange={(event) => set("dayOfWeek", event.target.value as WeeklyClassDay)} className={`${inputClass} mt-1`}>{days.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}</select></label> : <fieldset className="col-span-2"><legend className="mb-2 text-sm font-medium">Seleccioná los días</legend><div className="grid grid-cols-4 gap-2 sm:grid-cols-7">{days.map((day) => { const active = selectedDays.includes(day.value); return <button key={day.value} type="button" aria-pressed={active} aria-label={day.label} onClick={() => setSelectedDays(active ? selectedDays.filter((value) => value !== day.value) : days.filter((value) => value.value === day.value || selectedDays.includes(value.value)).map((value) => value.value))} className={`min-h-11 rounded-xl border px-2 text-sm font-semibold transition ${active ? "border-[var(--bm-accent)] bg-[color-mix(in_srgb,var(--bm-accent)_20%,var(--surface))] text-[var(--brand-text)]" : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)]"}`}>{day.short}{active ? " ✓" : ""}</button>; })}</div><p className="mt-2 text-xs text-[var(--foreground-muted)]">{selectedDays.length} {selectedDays.length === 1 ? "día seleccionado" : "días seleccionados"}</p></fieldset>}
+          <label className="col-span-2 text-sm">Estado<select value={form.active ? "activo" : "inactivo"} onChange={(event) => set("active", event.target.value === "activo")} className={`${inputClass} mt-1`}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label>
           <label className="text-sm">Hora de inicio<input required type="time" value={form.startTime} onChange={(event) => set("startTime", event.target.value)} className={`${inputClass} mt-1`} /></label>
           <label className="text-sm">Hora de finalización<input required type="time" value={form.endTime} onChange={(event) => set("endTime", event.target.value)} className={`${inputClass} mt-1`} /></label>
-          <label className="text-sm sm:col-span-2">Cupo opcional<input type="number" min={1} max={500} value={form.capacity ?? ""} onChange={(event) => set("capacity", event.target.value === "" ? null : Number(event.target.value))} placeholder="Sin límite" className={`${inputClass} mt-1`} /><span className="mt-1 block text-xs text-zinc-500">Dejalo vacío si el grupo no tiene límite.</span></label>
+          <label className="col-span-2 text-sm">Cupo opcional<input type="number" min={1} max={500} value={form.capacity ?? ""} onChange={(event) => set("capacity", event.target.value === "" ? null : Number(event.target.value))} placeholder="Sin límite" className={`${inputClass} mt-1`} /><span className="mt-1 block text-xs text-[var(--foreground-muted)]">Dejalo vacío si el grupo no tiene límite.</span></label>
         </div>
 
-        <section className="mt-6"><h3 className="font-semibold">Alumnos asignados <span className="text-sm font-normal text-zinc-500">({form.studentIds.length}{form.capacity === null ? "" : `/${form.capacity}`})</span></h3>
+        <details className="mt-5 rounded-xl border border-[var(--border-soft)] p-3"><summary className="cursor-pointer font-semibold">Alumnos asignados <span className="text-sm font-normal text-[var(--foreground-muted)]">({form.studentIds.length}{form.capacity === null ? "" : `/${form.capacity}`})</span></summary><p className="mt-2 truncate text-sm text-[var(--foreground-muted)]">{form.studentIds.length ? students.filter((student) => form.studentIds.includes(student.id)).map((student) => `${student.firstName} ${student.lastName}`).join(", ") : "Sin alumnos asignados"}</p>
           <StudentAssignmentOptions detailed students={visibleStudents} query={studentQuery} onQueryChange={setStudentQuery} selectedIds={form.studentIds} toggle={toggle} isDisabled={student => !form.studentIds.includes(student.id) && atCapacity} />
-        </section>
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={close} disabled={saving} className="rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300">Cancelar</button><button disabled={saving} className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar horario"}</button></div>
+        </details>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={close} disabled={saving} className="rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300">Cancelar</button><button disabled={saving || (!editing && selectedDays.length === 0)} className="rounded-xl bg-[var(--bm-accent)] px-5 py-3 font-bold text-[var(--bm-accent-contrast)] disabled:opacity-50">{saving ? "Guardando…" : editing ? "Guardar horario" : selectedDays.length === 1 ? "Crear horario" : `Crear ${selectedDays.length} horarios`}</button></div>
       </form>
     </KeyboardDialog>
   );

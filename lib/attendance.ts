@@ -8,7 +8,7 @@ export type AttendanceWithStudent = Prisma.ClassAttendanceGetPayload<{ include: 
 
 const STATUS_TO_DB: Record<AttendanceStatus, PrismaAttendanceStatus> = { presente: "PRESENT", ausente: "ABSENT", justificado: "JUSTIFIED" };
 const STATUS_FROM_DB: Record<PrismaAttendanceStatus, AttendanceStatus> = { PRESENT: "presente", ABSENT: "ausente", JUSTIFIED: "justificado" };
-const JS_DAY_TO_CLASS: Partial<Record<number, ClassWeekday>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
+const JS_DAY_TO_CLASS: Partial<Record<number, ClassWeekday>> = { 0: "SUNDAY", 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY", 6: "SATURDAY" };
 
 export function attendanceDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
