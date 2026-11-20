@@ -51,7 +51,7 @@ function createPreview(element: HTMLElement): DragVisual {
   Object.assign(preview.style, {
     position: "fixed", zIndex: "10000", pointerEvents: "none", boxSizing: "border-box",
     width: `${Math.min(Math.max(element.getBoundingClientRect().width, 200), 260)}px`,
-    maxHeight: "170px", overflow: "hidden", opacity: "0.96",
+    maxHeight: "170px", overflow: "hidden", opacity: "0.72",
     borderColor: accent, boxShadow: "0 14px 36px rgba(0, 0, 0, 0.6)",
   });
   document.body.appendChild(preview);

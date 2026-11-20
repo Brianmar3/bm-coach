@@ -14,6 +14,7 @@ test('el arrastre de horarios reutiliza vista visible, destino y auto-scroll par
   assert.match(page, /studentIds: \[\]/);
   assert.match(page, /onDrop=\{\(event\) => \{ event\.preventDefault\(\);/);
   assert.match(hook, /document\.body\.appendChild\(preview\)/);
+  assert.match(hook, /opacity: "0\.72"/);
   const mouseDrag = hook.slice(hook.indexOf('function startMouse'), hook.indexOf('function start(event:'));
   assert.match(mouseDrag, /setDragImage\(event\.currentTarget/);
   assert.doesNotMatch(mouseDrag, /createPreview\(/);
