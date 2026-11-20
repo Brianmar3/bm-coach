@@ -13,7 +13,7 @@ const validContent = (value: unknown): value is DraftContent => {
   const draft = value as Partial<DraftContent>;
   return typeof draft.name === "string" && draft.name.length <= 120
     && typeof draft.modality === "string" && draft.modality.length <= 65
-    && typeof draft.text === "string" && draft.text.length <= 12000;
+    && typeof draft.text === "string" && draft.text.length <= 36000;
 };
 
 export async function GET(request: Request) {

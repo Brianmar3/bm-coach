@@ -15,7 +15,7 @@ function validNote(value: unknown): value is ClassNote {
   const note = value as Partial<ClassNote>;
   return typeof note.name === "string" && note.name.length <= 120 && typeof note.modality === "string" && note.modality.length <= 65
     && Array.isArray(note.blocks) && note.blocks.length <= 30
-    && note.blocks.every((block) => typeof block?.name === "string" && block.name.length <= 120 && typeof block.text === "string" && block.text.length <= 12000);
+    && note.blocks.every((block) => typeof block?.name === "string" && block.name.length <= 120 && typeof block.text === "string" && block.text.length <= 36000);
 }
 
 const occurrenceSelect = { id: true, date: true, startTime: true, endTime: true, classNameSnapshot: true, status: true, taughtAt: true, taughtSnapshot: true, suppressedBySchedule: true } as const;

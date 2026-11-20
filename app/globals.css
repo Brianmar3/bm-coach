@@ -2419,3 +2419,22 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
   .routine-workspace-day-list .routine-workspace-day strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; overflow-wrap:normal; }
   .routine-workspace-day-list .routine-workspace-add-day { flex:0 0 76px; min-width:76px; min-height:76px; }
 }
+.class-notes-editor { min-width:0; color:var(--foreground); }
+.class-note-meta-input { border-color:var(--border-soft); background:var(--surface); color:var(--foreground); }
+.class-notes-toolbar { position:sticky; top:0; z-index:12; display:flex; align-items:center; gap:.3rem; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:thin; padding:.4rem; border:1px solid var(--border-soft); border-radius:12px 12px 0 0; background:var(--surface-elevated); }
+.class-notes-toolbar button { flex:none; min-width:40px; min-height:40px; border:1px solid transparent; border-radius:9px; padding:0 .55rem; color:var(--foreground); font-size:.85rem; font-weight:700; }
+.class-notes-toolbar button:hover, .class-notes-toolbar button:focus-visible { border-color:var(--bm-accent); background:color-mix(in srgb,var(--bm-accent) 10%,var(--surface)); color:var(--brand-text); }
+.class-notes-toolbar button:disabled { opacity:.45; }
+.class-notes-writing { min-height:360px; width:100%; overflow-wrap:anywhere; padding:1rem; border:1px solid var(--border-soft); border-top:0; border-radius:0 0 12px 12px; background:var(--surface); color:var(--foreground); font-size:1rem; line-height:1.65; outline:none; white-space:pre-wrap; }
+.class-notes-writing:focus { border-color:var(--bm-accent); box-shadow:inset 0 0 0 1px var(--bm-accent); }
+.class-notes-count { margin-top:.4rem; text-align:right; color:var(--foreground-muted); font-size:.7rem; }
+.class-notes-writing :is(p,div), .class-notes-content p { min-height:1.5em; margin:0 0 .35rem; }
+.class-notes-writing h1, .class-notes-content h1 { margin:.8rem 0 .4rem; font-size:1.5rem; font-weight:800; }
+.class-notes-writing h2, .class-notes-content h2 { margin:.7rem 0 .35rem; font-size:1.25rem; font-weight:800; }
+.class-notes-writing h3, .class-notes-content h3 { margin:.6rem 0 .3rem; font-size:1.1rem; font-weight:700; }
+.class-notes-writing :is(ul,ol), .class-notes-content :is(ul,ol) { margin:.4rem 0 .7rem; padding-left:1.6rem; }
+.class-notes-writing ul, .class-notes-content ul { list-style:disc; }
+.class-notes-writing ol, .class-notes-content ol { list-style:decimal; }
+.class-notes-writing blockquote, .class-notes-content blockquote { margin:.55rem 0; padding:.4rem .75rem; border-left:3px solid var(--bm-accent); background:color-mix(in srgb,var(--bm-accent) 7%,var(--surface)); }
+.class-notes-content { line-height:1.6; white-space:pre-wrap; }
+@media(max-width:639px) { .class-notes-toolbar { top:0; margin-inline:-.25rem; } .class-notes-toolbar button { min-width:42px; min-height:44px; } .class-notes-writing { min-height:55dvh; padding:.9rem; scroll-margin-bottom:calc(env(safe-area-inset-bottom) + 7rem); } }

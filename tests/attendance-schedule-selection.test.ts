@@ -55,7 +55,7 @@ test("la URL decide la vista, sin heredar poca actividad de entradas anteriores"
     ["/asistencias?view=attendance", "attendance"],
     ["/asistencias", "attendance"],
     ["/clases?view=low-activity", "calendar"],
-    ["/clases/biblioteca", "library"],
+    ["/clases/biblioteca", "planning"],
     ["/asistencias?view=history", "history"],
     ["/asistencias?view=unknown", "attendance"],
     ["/asistencias?view=low-activity", "low-activity"],

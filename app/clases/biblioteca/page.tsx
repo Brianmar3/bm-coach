@@ -1,5 +1,5 @@
-import RutinasPage from "@/app/rutinas/page";
+import { redirect } from "next/navigation";
 
 export default function ClassLibraryPage() {
-  return <RutinasPage classLibraryOnly />;
+  redirect("/clases/planificacion?clases=completas");
 }
