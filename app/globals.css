@@ -2454,3 +2454,7 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
   html.class-notes-keyboard-open [data-trainer-bottom-nav] { visibility:hidden; pointer-events:none; }
   .class-notes-toolbar button:disabled { cursor:default; }
 }
+@media(max-width:1023px) {
+  html[data-trainer-keyboard="open"] [data-trainer-floating-trigger],
+  html[data-trainer-more="open"] [data-trainer-floating-trigger] { visibility:hidden; }
+}

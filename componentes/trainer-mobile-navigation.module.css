@@ -23,7 +23,6 @@
   .sheetLink:focus-visible,.navItem:focus-visible { outline: 2px solid var(--bm-accent); outline-offset: -2px; }
   :global(html[data-trainer-keyboard="open"]) .nav { display: none; }
   :global(html[data-trainer-keyboard="open"]) .backdrop { bottom: 0; }
-  :global(html[data-trainer-keyboard="open"] [data-trainer-floating-trigger]), :global(html[data-trainer-more="open"] [data-trainer-floating-trigger]) { visibility: hidden; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
   @keyframes riseIn { from { transform: translateY(1.5rem); opacity: .7; } to { transform: translateY(0); opacity: 1; } }
