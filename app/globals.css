@@ -2358,3 +2358,48 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
   .trainer-unified .admin-page-header { padding: 1.1rem 1.25rem; }
   .trainer-unified .admin-page-header h1 { font-size: 1.55rem; line-height: 1.2; }
 }
+/* Routine module: compact day navigation and list cards. */
+.routine-workspace-day-list { display:flex; flex-direction:column; gap:.5rem; min-width:0; }
+.routine-management-panel .routine-list-row { border:1px solid var(--border-soft); border-radius:16px; background:var(--surface-elevated); overflow:hidden; }
+.routine-management-panel .routine-list-row[data-selected="true"] { border-color:var(--bm-accent); }
+.routine-management-panel .routine-list-row:hover { background:color-mix(in srgb,var(--bm-accent) 3%,var(--surface-elevated)); }
+.routine-management-panel .routine-list-icon { display:grid; flex:none; place-items:center; width:40px; height:40px; border:1px solid color-mix(in srgb,var(--bm-accent) 55%,transparent); border-radius:50%; background:color-mix(in srgb,var(--bm-accent) 9%,var(--surface)); color:var(--bm-accent); }
+.routine-management-panel .routine-list-primary { background:var(--bm-accent); color:var(--bm-accent-contrast); border:1px solid var(--bm-accent); font-weight:800; }
+.routine-management-panel .routine-list-icon-action { color:var(--bm-accent); border:1px solid var(--border-soft); }
+.routine-management-panel .routine-list-status { white-space:nowrap; }
+.routine-management-panel .routine-list-mobile { display:none; }
+.routine-management-panel .routine-list-desktop { display:grid; }
+.routine-management-panel > section > div:first-child { border:1px solid var(--border-soft); border-radius:12px; background:var(--surface); }
+.routine-management-panel > section > footer { margin-top:.75rem; border:0; color:var(--foreground-muted); }
+.trainer-unified nav.routine-main-tabs { border-radius:12px; padding:.25rem; }
+.trainer-unified nav.routine-main-tabs button[aria-current="page"],
+.trainer-unified nav[aria-label="Estado de las rutinas"] button[aria-current="page"] { background:color-mix(in srgb,var(--bm-accent) 12%,var(--surface)); border-radius:10px; }
+.trainer-unified nav[aria-label="Estado de las rutinas"] { border:1px solid var(--border-soft); border-radius:12px; padding:.25rem; }
+.routine-blocks-library article { background:var(--surface-elevated); border-color:var(--border-soft); }
+.routine-blocks-library > div:first-child > div, .routine-blocks-library > nav, .routine-blocks-library > section { background:var(--surface); border-color:var(--border-soft); }
+.routine-blocks-library article > div:first-child { flex-wrap:wrap; }
+.routine-blocks-library article > div:first-child > div:last-child { flex-wrap:wrap; }
+.routine-blocks-library article h3 { color:var(--foreground); }
+.routine-blocks-library article .text-zinc-500, .routine-blocks-library article .text-zinc-400 { color:var(--foreground-muted); }
+.routine-blocks-library article .text-yellow-300 { color:var(--brand-text); }
+.routine-blocks-library article button:not(.text-red-300) { color:var(--foreground); }
+.routine-blocks-library nav button[aria-current="page"] { background:color-mix(in srgb,var(--bm-accent) 12%,var(--surface)); color:var(--brand-text); }
+.routine-blocks-library > div:first-child > div button.bg-yellow-400 { background:var(--bm-accent); color:var(--bm-accent-contrast); }
+.routine-blocks-library article .bg-yellow-400\/\[\.09\] { background:color-mix(in srgb,var(--bm-accent) 10%,var(--surface)); }
+.routine-editor-workspace .routine-workspace-day[data-selected="true"] { box-shadow:inset 0 0 0 1px var(--bm-accent); }
+@media(max-width:1023px) {
+  .routine-management-panel .routine-list-desktop { display:none; }
+  .routine-management-panel .routine-list-mobile { display:block; }
+  .routine-management-panel .routine-list-row { margin-bottom:.75rem; }
+  .routine-management-panel .routine-list-row:last-child { margin-bottom:0; }
+  .routine-management-panel .routine-list-mobile-actions { display:grid; grid-template-columns:minmax(0,1fr) 44px 44px; gap:.5rem; }
+  .routine-management-panel .routine-list-mobile-actions:has(> button:nth-child(2):last-of-type) { grid-template-columns:minmax(0,1fr) 44px; }
+  .routine-management-panel .routine-list-mobile-actions button { min-height:44px; }
+  .routine-workspace-days { display:block; width:100%; min-width:0; overflow:visible; }
+  .routine-editor-workspace .routine-workspace-days > .routine-workspace-eyebrow { display:block; width:auto; margin:0 0 .5rem; white-space:normal; }
+  .routine-workspace-day-list { flex-direction:row; align-items:stretch; overflow-x:auto; width:100%; gap:.5rem; padding:0 0 .5rem; scroll-snap-type:x proximity; }
+  .routine-workspace-day-list .routine-workspace-day { flex:0 0 145px; width:145px; min-width:145px; min-height:76px; align-self:stretch; scroll-snap-align:start; }
+  .routine-workspace-day-list .routine-workspace-day > button:not(.routine-day-grip) { display:flex; flex-direction:column; justify-content:center; padding:.5rem .7rem; }
+  .routine-workspace-day-list .routine-workspace-day strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; overflow-wrap:normal; }
+  .routine-workspace-day-list .routine-workspace-add-day { flex:0 0 76px; min-width:76px; min-height:76px; }
+}

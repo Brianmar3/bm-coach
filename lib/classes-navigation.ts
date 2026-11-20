@@ -4,6 +4,7 @@ type Query = Pick<URLSearchParams, "get">;
 export function classesView(pathname: string, query: Query) {
   if (pathname === "/clases") return "calendar";
   if (pathname === "/clases/planificacion") return "planning";
+  if (pathname === "/clases/biblioteca") return "library";
   const view = query.get("view");
   return view === "history" || view === "low-activity" ? view : "attendance";
 }

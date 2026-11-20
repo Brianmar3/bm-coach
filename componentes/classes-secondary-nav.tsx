@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { classesView } from "@/lib/classes-navigation";
 
-type ClassTab = "calendar" | "planning" | "attendance";
+type ClassTab = "calendar" | "planning" | "attendance" | "library";
 
 export function ClassesSecondaryNav() {
   const pathname = usePathname();
@@ -16,6 +16,7 @@ export function ClassesSecondaryNav() {
     <nav aria-label="Navegación de Clases" className="flex gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <Link href="/clases" className={style("calendar")}>Calendario semanal</Link>
       <Link href="/clases/planificacion" className={style("planning")}>Planificación semanal</Link>
+      <Link href="/clases/biblioteca" className={style("library")}>Clases completas</Link>
       <Link href="/asistencias?view=attendance" className={style("attendance")}>Asistencias</Link>
     </nav>
   );
