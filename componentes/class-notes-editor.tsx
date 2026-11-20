@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { classRichPlainText, decodeClassRichText, encodeClassRichText, type ClassRichNode } from "@/lib/class-rich-text";
+import { renumberManualLines } from "@/lib/class-manual-numbering";
 
 const blockTags = new Set(["DIV", "P", "H1", "H2", "H3", "BLOCKQUOTE", "UL", "OL", "LI"]);
 const allowedTags = new Set(["p", "h1", "h2", "h3", "blockquote", "ul", "ol", "li", "strong", "em", "u", "s", "br"]);
@@ -93,41 +94,10 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
   const selectedRange = useRef<Range | null>(null);
   const emitted = useRef<string | null>(null);
   const numberHandled = useRef(false);
+  const caretFrame = useRef(0);
   const history = useRef<{ past: { value: string; start: number; end: number }[]; current: { value: string; start: number; end: number }; future: { value: string; start: number; end: number }[] }>({ past: [], current: { value, start: 0, end: 0 }, future: [] });
   const [historyState, setHistoryState] = useState({ undo: false, redo: false });
   useEffect(() => { if (editorRef.current && value !== emitted.current) { fillEditor(editorRef.current, value); history.current = { past: [], current: { value, start: 0, end: 0 }, future: [] }; setHistoryState({ undo: false, redo: false }); } }, [value]);
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    const root = document.documentElement;
-    let baseline = Math.max(window.innerHeight, viewport?.height ?? 0);
-    let frame = 0;
-    const adjust = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const focused = document.activeElement === editorRef.current;
-        const visibleHeight = (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0);
-        if (!focused) baseline = Math.max(window.innerHeight, visibleHeight);
-        const gap = Math.max(0, window.innerHeight - visibleHeight);
-        const open = focused && window.matchMedia("(max-width: 639px)").matches && Math.max(baseline - visibleHeight, gap) > 120;
-        root.classList.toggle("class-notes-keyboard-open", open);
-        if (open) {
-          root.style.setProperty("--class-notes-keyboard-gap", `${gap}px`);
-          root.style.setProperty("--class-notes-toolbar-height", `${toolbarRef.current?.offsetHeight ?? 56}px`);
-          ensureCaretVisible();
-        } else {
-          root.style.removeProperty("--class-notes-keyboard-gap");
-          root.style.removeProperty("--class-notes-toolbar-height");
-        }
-      });
-    };
-    viewport?.addEventListener("resize", adjust);
-    viewport?.addEventListener("scroll", adjust);
-    window.addEventListener("resize", adjust);
-    window.addEventListener("focusin", adjust);
-    window.addEventListener("focusout", adjust);
-    window.addEventListener("orientationchange", adjust);
-    return () => { cancelAnimationFrame(frame); viewport?.removeEventListener("resize", adjust); viewport?.removeEventListener("scroll", adjust); window.removeEventListener("resize", adjust); window.removeEventListener("focusin", adjust); window.removeEventListener("focusout", adjust); window.removeEventListener("orientationchange", adjust); root.classList.remove("class-notes-keyboard-open"); root.style.removeProperty("--class-notes-keyboard-gap"); root.style.removeProperty("--class-notes-toolbar-height"); };
-  }, []);
   function selectionOffsets() {
     const element = editorRef.current;
     const selection = window.getSelection();
@@ -158,19 +128,75 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     fillEditor(editorRef.current, previous.value); editorRef.current.focus(); restoreOffsets(previous.start, previous.end);
     emitted.current = previous.value; onChange(previous.value);
     setHistoryState({ undo: state.past.length > 0, redo: state.future.length > 0 });
-    requestAnimationFrame(ensureCaretVisible);
+    scheduleCaretVisible();
+  }
+  function scheduleCaretVisible() {
+    cancelAnimationFrame(caretFrame.current);
+    caretFrame.current = requestAnimationFrame(() => { caretFrame.current = requestAnimationFrame(ensureCaretVisible); });
   }
   function ensureCaretVisible() {
     if (!window.matchMedia("(max-width: 639px)").matches) return;
     const selection = window.getSelection();
     if (!selection?.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return;
-    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    const editor = editorRef.current;
+    const range = selection.getRangeAt(0);
+    const raw = range.getBoundingClientRect();
+    const block = selection.anchorNode instanceof HTMLElement ? selection.anchorNode : selection.anchorNode?.parentElement;
+    const line = block?.closest("div,p,h1,h2,h3,li,blockquote");
+    const rect = raw.height > 0 ? raw : line?.getBoundingClientRect() ?? raw;
     const viewport = window.visualViewport;
     const top = viewport?.offsetTop ?? 0;
     const bottom = top + (viewport?.height ?? window.innerHeight);
-    const toolbarHeight = document.documentElement.classList.contains("class-notes-keyboard-open") ? (toolbarRef.current?.offsetHeight ?? 56) : 0;
-    if (rect.bottom > bottom - toolbarHeight - 24) window.scrollBy({ top: rect.bottom - bottom + toolbarHeight + 32, behavior: "instant" });
-    else if (rect.top < top + 58) window.scrollBy({ top: rect.top - top - 66, behavior: "instant" });
+    const toolbarTop = document.documentElement.classList.contains("class-notes-keyboard-open") ? (toolbarRef.current?.getBoundingClientRect().top ?? bottom) : bottom;
+    const visibleBottom = Math.min(bottom, toolbarTop) - 16;
+    const editorRect = editor.getBoundingClientRect();
+    const lower = Math.min(visibleBottom, editorRect.bottom - 12);
+    if (rect.bottom > lower && editor.scrollHeight > editor.clientHeight) {
+      const before = editor.scrollTop;
+      editor.scrollTop += rect.bottom - lower + 8;
+      if (editor.scrollTop !== before) { scheduleCaretVisible(); return; }
+    }
+    if (rect.bottom > visibleBottom) window.scrollBy({ top: rect.bottom - visibleBottom + 8, behavior: "instant" });
+    else if (rect.top < Math.max(top + 12, editorRect.top + 8)) {
+      const delta = Math.max(top + 12, editorRect.top + 8) - rect.top;
+      if (editor.scrollTop > 0) editor.scrollTop -= delta;
+      else window.scrollBy({ top: -delta, behavior: "instant" });
+    }
+  }
+  function manualBlock(node: Node | null): HTMLElement | null {
+    let block = node instanceof HTMLElement ? node : node?.parentElement;
+    if (block?.closest("li")) return null;
+    while (block && block.parentElement !== editorRef.current) block = block.parentElement;
+    return block?.parentElement === editorRef.current ? block : null;
+  }
+  function renumberManualBlocks(block: HTMLElement | null) {
+    if (!block) return;
+    const parse = (element: Element | null) => element instanceof HTMLElement ? /^(\s*)(\d+)([.-])(\s+|$)/.exec(element.textContent ?? "") : null;
+    let first = block;
+    let match = parse(first);
+    if (!match) { first = block.previousElementSibling as HTMLElement; match = parse(first); }
+    if (!first || !match) return;
+    while (first.previousElementSibling) {
+      const previous = parse(first.previousElementSibling);
+      if (!previous || previous[1] !== match[1] || previous[3] !== match[3]) break;
+      first = first.previousElementSibling as HTMLElement;
+      match = previous;
+    }
+    const items: HTMLElement[] = [];
+    for (let item: Element | null = first; item; item = item.nextElementSibling) {
+      const current = parse(item);
+      if (!current || current[1] !== match[1] || current[3] !== match[3]) break;
+      items.push(item as HTMLElement);
+    }
+    const normalized = renumberManualLines(items.map((item) => item.textContent ?? ""));
+    items.forEach((item, index) => {
+      if (item.textContent !== normalized[index]) {
+        const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+        const textNode = walker.nextNode();
+        const expected = /^(\s*)(\d+)[.-]/.exec(normalized[index]);
+        if (textNode?.textContent && expected) textNode.textContent = textNode.textContent.replace(/^(\s*)\d+(?=[.-])/, `$1${expected[2]}`);
+      }
+    });
   }
   function emit() {
     if (!editorRef.current) return;
@@ -185,7 +211,7 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     }
     emitted.current = next;
     onChange(next);
-    requestAnimationFrame(ensureCaretVisible);
+    scheduleCaretVisible();
   }
   function rememberSelection() {
     const selection = window.getSelection();
@@ -206,10 +232,8 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
   function continueManualNumbering(preventDefault: () => void) {
     const selection = window.getSelection();
     if (!selection?.rangeCount || !selection.isCollapsed) return false;
-    let block = selection.anchorNode instanceof HTMLElement ? selection.anchorNode : selection.anchorNode?.parentElement;
-    if (!block || block.closest("li")) return false;
-    while (block && block !== editorRef.current && !blockTags.has(block.tagName)) block = block.parentElement;
-    if (!block || block === editorRef.current) return false;
+    const block = manualBlock(selection.anchorNode);
+    if (!block || !blockTags.has(block.tagName)) return false;
     const range = selection.getRangeAt(0);
     const before = range.cloneRange(); before.selectNodeContents(block); before.setEnd(range.startContainer, range.startOffset);
     const after = range.cloneRange(); after.selectNodeContents(block); after.setStart(range.startContainer, range.startOffset);
@@ -218,9 +242,9 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     if (!match) return false;
     preventDefault();
     const [, indent, number, separator, spacing, item] = match;
-    if (!item.trim()) { block.textContent = indent; const end = document.createRange(); end.selectNodeContents(block); end.collapse(false); selection.removeAllRanges(); selection.addRange(end); emit(); return true; }
+    if (!item.trim()) { block.textContent = indent; const end = document.createRange(); end.selectNodeContents(block); end.collapse(false); selection.removeAllRanges(); selection.addRange(end); renumberManualBlocks(block.nextElementSibling as HTMLElement); emit(); return true; }
     const next = document.createElement("div"); next.textContent = `${indent}${Number(number) + 1}${separator}${spacing || " "}`;
-    block.after(next); const cursor = document.createRange(); cursor.selectNodeContents(next); cursor.collapse(false); selection.removeAllRanges(); selection.addRange(cursor); emit(); return true;
+    block.after(next); const cursor = document.createRange(); cursor.selectNodeContents(next); cursor.collapse(false); selection.removeAllRanges(); selection.addRange(cursor); renumberManualBlocks(next); emit(); return true;
   }
   function onNumberKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); travel(event.shiftKey ? "redo" : "undo"); return; }
@@ -235,9 +259,45 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     if (numberHandled.current) { event.preventDefault(); return; }
     continueManualNumbering(() => event.preventDefault());
   }
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const root = document.documentElement;
+    let baseline = Math.max(window.innerHeight, viewport?.height ?? 0);
+    let frame = 0;
+    const adjust = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const focused = document.activeElement === editorRef.current;
+        const visibleHeight = (viewport?.height ?? window.innerHeight) + (viewport?.offsetTop ?? 0);
+        if (!focused) baseline = Math.max(window.innerHeight, visibleHeight);
+        const gap = Math.max(0, window.innerHeight - visibleHeight);
+        const open = focused && window.matchMedia("(max-width: 639px)").matches && Math.max(baseline - visibleHeight, gap) > 120;
+        root.classList.toggle("class-notes-keyboard-open", open);
+        if (open) {
+          root.style.setProperty("--class-notes-keyboard-gap", `${gap}px`);
+          root.style.setProperty("--class-notes-toolbar-height", `${toolbarRef.current?.offsetHeight ?? 56}px`);
+          root.style.setProperty("--class-notes-visible-height", `${viewport?.height ?? window.innerHeight}px`);
+          requestAnimationFrame(ensureCaretVisible);
+        } else {
+          root.style.removeProperty("--class-notes-keyboard-gap");
+          root.style.removeProperty("--class-notes-toolbar-height");
+          root.style.removeProperty("--class-notes-visible-height");
+        }
+      });
+    };
+    viewport?.addEventListener("resize", adjust);
+    viewport?.addEventListener("scroll", adjust);
+    window.addEventListener("resize", adjust);
+    window.addEventListener("focusin", adjust);
+    window.addEventListener("focusout", adjust);
+    window.addEventListener("orientationchange", adjust);
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(caretFrame.current); viewport?.removeEventListener("resize", adjust); viewport?.removeEventListener("scroll", adjust); window.removeEventListener("resize", adjust); window.removeEventListener("focusin", adjust); window.removeEventListener("focusout", adjust); window.removeEventListener("orientationchange", adjust); root.classList.remove("class-notes-keyboard-open"); root.style.removeProperty("--class-notes-keyboard-gap"); root.style.removeProperty("--class-notes-toolbar-height"); root.style.removeProperty("--class-notes-visible-height"); };
+    // The viewport listeners read live DOM state; reattaching them on every text edit would interrupt Android scrolling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return <div className="class-notes-editor">
     <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
-    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={emit} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={() => requestAnimationFrame(ensureCaretVisible)} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); emit(); }} className="class-notes-writing" />
+    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { if ((event.nativeEvent as InputEvent).inputType?.startsWith("delete")) renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); emit(); }} className="class-notes-writing" />
     <p className="class-notes-count">{classRichPlainText(value).length}/12.000 caracteres</p>
   </div>;
 }

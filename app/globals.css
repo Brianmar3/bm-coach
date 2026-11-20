@@ -2441,6 +2441,7 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
 @media(max-width:639px) {
   html.class-notes-keyboard-open .class-notes-toolbar { position:fixed; top:auto; bottom:var(--class-notes-keyboard-gap, 0px); left:0; right:0; z-index:80; margin:0; border-radius:12px 12px 0 0; box-shadow:0 -8px 24px #0004; }
   html.class-notes-keyboard-open .class-notes-editor { padding-bottom:var(--class-notes-toolbar-height, 56px); }
+  html.class-notes-keyboard-open .class-notes-writing { min-height:160px; max-height:max(160px, calc(var(--class-notes-visible-height, 100dvh) - var(--class-notes-toolbar-height, 56px) - 28px)); overflow-y:auto; overscroll-behavior-y:contain; }
   html.class-notes-keyboard-open [data-trainer-bottom-nav] { visibility:hidden; pointer-events:none; }
   .class-notes-toolbar button:disabled { cursor:default; }
 }
