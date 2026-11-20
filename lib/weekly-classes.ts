@@ -4,7 +4,7 @@ import { coachedStudentsWhere } from "@/lib/coached-students";
 import { Prisma } from "@prisma/client";
 import type { Student, WeeklyClassDay, WeeklyClassInput, WeeklyClassSchedule, WeeklyClassStudent } from "@/types/gestion";
 
-export const WEEKDAYS: WeeklyClassDay[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
+export const WEEKDAYS: WeeklyClassDay[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
 export const weeklyClassInclude = {
   assignments: { where: { active: true }, include: { student: true } },
@@ -53,7 +53,7 @@ export function parseWeeklyClassInput(value: unknown): { data: WeeklyClassInput;
     ? [...new Set(input.studentIds.map((id) => id.trim()).filter(Boolean))]
     : null;
 
-  if (!WEEKDAYS.includes(dayOfWeek as WeeklyClassDay)) return { data: null, error: "Seleccioná un día de lunes a viernes." };
+  if (!WEEKDAYS.includes(dayOfWeek as WeeklyClassDay)) return { data: null, error: "Seleccioná un día de la semana." };
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime)) return { data: null, error: "Ingresá horarios válidos." };
   if (endTime <= startTime) return { data: null, error: "La hora de finalización debe ser posterior al inicio." };
   if (!classType || classType.length > 120) return { data: null, error: "Ingresá un tipo de clase de hasta 120 caracteres." };

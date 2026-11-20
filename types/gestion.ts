@@ -79,7 +79,7 @@ export type CoachPlan = {
   price: number;
 };
 
-export type WeeklyClassDay = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY";
+export type WeeklyClassDay = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
 
 export type WeeklyClassStudent = {
   id: string;

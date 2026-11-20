@@ -17,7 +17,7 @@ type ActiveDrag = {
 };
 
 type DragVisual = {
-  mode: "touch" | "mouse";
+  mode: "touch";
   preview: HTMLElement;
   target: HTMLElement | null;
   previousOutline: string;
@@ -40,7 +40,7 @@ function scrollTargetFor(element: HTMLElement) {
   return (document.scrollingElement ?? document.documentElement) as HTMLElement;
 }
 
-function createPreview(element: HTMLElement, mode: DragVisual["mode"]): DragVisual {
+function createPreview(element: HTMLElement): DragVisual {
   const preview = element.cloneNode(true) as HTMLElement;
   const accent = getComputedStyle(element).getPropertyValue("--bm-accent").trim() || "#e7b93d";
   preview.style.setProperty("--bm-accent", accent);
@@ -55,7 +55,7 @@ function createPreview(element: HTMLElement, mode: DragVisual["mode"]): DragVisu
     borderColor: accent, boxShadow: "0 14px 36px rgba(0, 0, 0, 0.6)",
   });
   document.body.appendChild(preview);
-  return { mode, preview, target: null, previousOutline: "", previousOffset: "" };
+  return { mode: "touch", preview, target: null, previousOutline: "", previousOffset: "" };
 }
 
 function updateVisual(visual: DragVisual, x: number, y: number, targetAttribute: string) {
@@ -91,28 +91,28 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
   const onCopyRef = useRef(onCopy);
   const suppressClick = useRef(false);
   const visual = useRef<DragVisual | null>(null);
+  const mouseTarget = useRef<{ element: HTMLElement; outline: string; offset: string } | null>(null);
   useEffect(() => { onCopyRef.current = onCopy; }, [onCopy]);
   useEffect(() => () => { drag.current?.cancel(); if (visual.current) removeVisual(visual.current); }, []);
 
   function stopMouse() {
     document.removeEventListener("dragover", moveMouse);
     document.removeEventListener("dragend", stopMouse);
-    if (visual.current?.mode === "mouse") { removeVisual(visual.current); visual.current = null; }
+    if (mouseTarget.current) { mouseTarget.current.element.style.outline = mouseTarget.current.outline; mouseTarget.current.element.style.outlineOffset = mouseTarget.current.offset; mouseTarget.current = null; }
   }
 
   function moveMouse(event: DragEvent) {
-    if (visual.current?.mode === "mouse" && (event.clientX || event.clientY)) updateVisual(visual.current, event.clientX, event.clientY, targetAttribute);
+    const target = (event.clientX || event.clientY) ? document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>(`[${targetAttribute}]`) ?? null : null;
+    if (target === mouseTarget.current?.element) return;
+    if (mouseTarget.current) { mouseTarget.current.element.style.outline = mouseTarget.current.outline; mouseTarget.current.element.style.outlineOffset = mouseTarget.current.offset; mouseTarget.current = null; }
+    if (target) { mouseTarget.current = { element: target, outline: target.style.outline, offset: target.style.outlineOffset }; target.style.outline = "2px solid var(--bm-accent)"; target.style.outlineOffset = "-2px"; }
   }
 
   function startMouse(event: ReactDragEvent<HTMLElement>) {
     if (drag.current) { event.preventDefault(); return; }
     stopMouse();
-    visual.current = createPreview(event.currentTarget, "mouse");
-    updateVisual(visual.current, event.clientX, event.clientY, targetAttribute);
-    const transparent = document.createElement("canvas");
-    transparent.width = 1;
-    transparent.height = 1;
-    event.dataTransfer.setDragImage(transparent, 0, 0);
+    const rect = event.currentTarget.getBoundingClientRect();
+    event.dataTransfer.setDragImage(event.currentTarget, event.clientX - rect.left, event.clientY - rect.top);
     event.dataTransfer.effectAllowed = "copy";
     document.addEventListener("dragover", moveMouse);
     document.addEventListener("dragend", stopMouse);
@@ -178,7 +178,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
     current.timer = window.setTimeout(() => {
       if (drag.current !== current) return;
       current.active = true;
-      visual.current = createPreview(element, "touch");
+      visual.current = createPreview(element);
       updateVisual(visual.current, current.x, current.y, targetAttribute);
       document.addEventListener("touchmove", move, { passive: false });
       document.addEventListener("touchend", finish);

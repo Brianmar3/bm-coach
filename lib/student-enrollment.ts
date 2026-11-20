@@ -12,7 +12,7 @@ import { isStudentServiceType } from "@/lib/student-service";
 import { isPersistentPlanId, resolveStudentPlan, studentPlanOptions } from "@/lib/coach-plans";
 import { findWorkspacePhoneDuplicate } from "@/lib/student-phone-identity";
 
-const DAY_LABELS = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" } as const;
+const DAY_LABELS = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes", SATURDAY: "Sábado", SUNDAY: "Domingo" } as const;
 
 export const studentInclude = {
   primarySchedule: true,

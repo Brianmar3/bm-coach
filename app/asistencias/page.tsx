@@ -17,8 +17,8 @@ import { apiRequest } from "@/lib/client-api";
 import type { AttendanceGeneralSummary, AttendanceRoster, AttendanceRosterStudent, AttendanceStatus, Student, WeeklyClassDay, WeeklyClassSchedule } from "@/types/gestion";
 import type { DashboardData, DashboardLowActivityStudent } from "@/types/dashboard";
 
-const DAY_FROM_JS: Partial<Record<number, WeeklyClassDay>> = { 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY" };
-const DAY_LABEL: Record<WeeklyClassDay, string> = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes" };
+const DAY_FROM_JS: Partial<Record<number, WeeklyClassDay>> = { 0: "SUNDAY", 1: "MONDAY", 2: "TUESDAY", 3: "WEDNESDAY", 4: "THURSDAY", 5: "FRIDAY", 6: "SATURDAY" };
+const DAY_LABEL: Record<WeeklyClassDay, string> = { MONDAY: "Lunes", TUESDAY: "Martes", WEDNESDAY: "Miércoles", THURSDAY: "Jueves", FRIDAY: "Viernes", SATURDAY: "Sábado", SUNDAY: "Domingo" };
 const STATUS_LABEL: Record<AttendanceStatus, string> = { presente: "Presente", ausente: "Ausente", justificado: "Justificado" };
 const STATUS_OPTIONS: AttendanceStatus[] = ["presente", "ausente", "justificado"];
 const CONFIRMATION_LABEL = {

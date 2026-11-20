@@ -1819,6 +1819,8 @@ enum ClassWeekday {
   WEDNESDAY
   THURSDAY
   FRIDAY
+  SATURDAY
+  SUNDAY
 }
 
 model WeeklyClassSchedule {

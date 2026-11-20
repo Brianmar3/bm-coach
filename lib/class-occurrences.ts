@@ -20,6 +20,8 @@ const weekdayNumber: Record<ClassWeekday, number> = {
   WEDNESDAY: 3,
   THURSDAY: 4,
   FRIDAY: 5,
+  SATURDAY: 6,
+  SUNDAY: 0,
 };
 
 export function addDateKeyDays(value: string, days: number) {

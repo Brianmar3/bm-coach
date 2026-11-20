@@ -34,10 +34,10 @@ export type WeeklyMissionAssignment = {
   endedAt: string | null;
   active: boolean;
   scheduleActive: boolean;
-  dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY";
+  dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
 };
 
-const WEEKDAY = { MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5 } as const;
+const WEEKDAY = { MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6, SUNDAY: 0 } as const;
 
 export function weeklyMissionTitle(target: number) {
   return target === 1 ? "Completá tu entrenamiento semanal" : `Completá tus ${target} entrenamientos semanales`;

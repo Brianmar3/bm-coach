@@ -33,7 +33,7 @@ export type PortalAttendanceMembership = {
 };
 
 export type PortalAttendanceScheduleAssignment = {
-  dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY";
+  dayOfWeek: "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
   assignedAt: string;
   endedAt: string | null;
 };
