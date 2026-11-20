@@ -2437,6 +2437,15 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
 .class-notes-writing ol, .class-notes-content ol { list-style:decimal; }
 .class-notes-writing blockquote, .class-notes-content blockquote { margin:.55rem 0; padding:.4rem .75rem; border-left:3px solid var(--bm-accent); background:color-mix(in srgb,var(--bm-accent) 7%,var(--surface)); }
 .class-notes-content { line-height:1.6; white-space:pre-wrap; }
+@media(min-width:1024px) {
+  .class-notes-editor { display:grid; grid-template-columns:minmax(0,1fr) 68px; grid-template-rows:auto auto; align-items:start; column-gap:1rem; }
+  .class-notes-writing { grid-column:1; grid-row:1; min-width:0; min-height:60dvh; border-top:1px solid var(--border-soft); border-radius:12px; }
+  .class-notes-count { grid-column:1; grid-row:2; }
+  .class-notes-toolbar { grid-column:2; grid-row:1 / span 2; position:sticky; top:calc(env(safe-area-inset-top) + 8rem); align-self:start; flex-direction:column; width:68px; max-height:calc(100dvh - env(safe-area-inset-top) - 9rem); overflow-y:auto; overflow-x:hidden; gap:.12rem; padding:.4rem; border-color:color-mix(in srgb,var(--bm-accent) 55%,var(--border-soft)); border-radius:16px; box-shadow:0 6px 24px #0002; }
+  .class-notes-toolbar button { width:100%; min-width:0; min-height:34px; padding:0 .25rem; font-size:.9rem; }
+  .class-notes-toolbar button:nth-child(3), .class-notes-toolbar button:nth-child(7), .class-notes-toolbar button:nth-child(11), .class-notes-toolbar button:nth-child(13), .class-notes-toolbar button:nth-child(15), .class-notes-toolbar button:nth-child(18) { margin-top:.28rem; border-top:1px solid var(--border-soft); border-radius:0 0 9px 9px; }
+  .class-notes-toolbar button[aria-pressed="true"] { border-color:var(--bm-accent); background:color-mix(in srgb,var(--bm-accent) 18%,var(--surface-elevated)); color:var(--brand-text); }
+}
 @media(max-width:639px) { .class-notes-toolbar { top:0; margin-inline:-.25rem; } .class-notes-toolbar button { min-width:42px; min-height:44px; } .class-notes-writing { min-height:55dvh; padding:.9rem; scroll-margin-bottom:calc(env(safe-area-inset-bottom) + 7rem); } }
 @media(max-width:639px) {
   html.class-notes-keyboard-open .class-notes-toolbar { position:fixed; top:auto; bottom:var(--class-notes-keyboard-gap, 0px); left:0; right:0; z-index:80; margin:0; border-radius:12px 12px 0 0; box-shadow:0 -8px 24px #0004; }

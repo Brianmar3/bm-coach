@@ -97,6 +97,7 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
   const caretFrame = useRef(0);
   const history = useRef<{ past: { value: string; start: number; end: number }[]; current: { value: string; start: number; end: number }; future: { value: string; start: number; end: number }[] }>({ past: [], current: { value, start: 0, end: 0 }, future: [] });
   const [historyState, setHistoryState] = useState({ undo: false, redo: false });
+  const [activeTools, setActiveTools] = useState<Record<string, boolean>>({});
   useEffect(() => { if (editorRef.current && value !== emitted.current) { fillEditor(editorRef.current, value); history.current = { past: [], current: { value, start: 0, end: 0 }, future: [] }; setHistoryState({ undo: false, redo: false }); } }, [value]);
   function selectionOffsets() {
     const element = editorRef.current;
@@ -218,6 +219,15 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     if (selection?.rangeCount && editorRef.current?.contains(selection.anchorNode)) {
       selectedRange.current = selection.getRangeAt(0).cloneRange();
       Object.assign(history.current.current, selectionOffsets());
+      const active: Record<string, boolean> = {};
+      for (const tool of tools) {
+        if (["bold", "italic", "underline", "strikeThrough", "insertOrderedList", "insertUnorderedList", "justifyLeft", "justifyCenter", "justifyRight"].includes(tool.command)) {
+          try { active[tool.command] = document.queryCommandState(tool.command); } catch { active[tool.command] = false; }
+        } else if (tool.command === "formatBlock") {
+          try { active[tool.argument ?? ""] = document.queryCommandValue("formatBlock").replace(/[<>]/g, "").toLowerCase() === tool.argument; } catch { active[tool.argument ?? ""] = false; }
+        }
+      }
+      setActiveTools(active);
     }
   }
   function command(tool: Tool) {
@@ -296,7 +306,7 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return <div className="class-notes-editor">
-    <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
+    <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} aria-pressed={activeTools[tool.argument ?? tool.command]} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
     <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { if ((event.nativeEvent as InputEvent).inputType?.startsWith("delete")) renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); emit(); }} className="class-notes-writing" />
     <p className="class-notes-count">{classRichPlainText(value).length}/12.000 caracteres</p>
   </div>;
