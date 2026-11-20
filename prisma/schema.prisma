@@ -263,6 +263,7 @@ model Workspace {
   evaluationRecords        EvaluationRecord[]
   classSchedules           WeeklyClassSchedule[]
   classOccurrences         ClassOccurrence[]
+  classDaySuspensions       ClassDaySuspension[]
   groupClassPlans          GroupClassPlan[]
   groupClassDrafts         GroupClassDraft[]
   classSessions            ClassSession[]
@@ -1844,6 +1845,16 @@ model WeeklyClassSchedule {
   @@index([workspaceId, dayOfWeek, startTime])
   @@index([archivedAt])
   @@map("weekly_class_schedules")
+}
+
+model ClassDaySuspension {
+  workspaceId String
+  date        DateTime  @db.Date
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@id([workspaceId, date])
+  @@map("class_day_suspensions")
 }
 
 enum ClassOccurrenceStatus {

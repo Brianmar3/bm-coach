@@ -6,6 +6,7 @@ import {
   classHasEnded,
   classIsEligibleForStudent,
   classIsInProgress,
+  excludeSuspendedClassDays,
   PORTAL_HOME_PREVIEW_COUNT,
   selectActivePortalSchedules,
   selectPortalClassAgenda,
@@ -20,6 +21,18 @@ import {
 function occurrence(id: string, date: string, startTime: string, endTime: string, status: PortalClassCandidate["status"] = "SCHEDULED", scheduleId = id): PortalClassCandidate {
   return { id, scheduleId, date, startTime, endTime, status };
 }
+
+test("una suspensión por fecha salta el lunes sin afectar el martes ni el lunes siguiente", () => {
+  const classes = [
+    { ...occurrence("lunes", "2026-11-23", "09:00", "10:00"), category: "Funcional" },
+    { ...occurrence("martes", "2026-11-24", "09:00", "10:00"), category: "Funcional" },
+    { ...occurrence("lunes-siguiente", "2026-11-30", "09:00", "10:00"), category: "Funcional" },
+  ];
+  const suspended = excludeSuspendedClassDays(classes, new Set(["2026-11-23"]));
+  assert.deepEqual(suspended.map((item) => item.id), ["martes", "lunes-siguiente"]);
+  assert.equal(selectPortalClassAgenda(suspended, "Adulto", new Date("2026-11-22T15:00:00Z")).focus.date, "2026-11-24");
+  assert.equal(selectPortalClassAgenda(excludeSuspendedClassDays(classes, new Set()), "Adulto", new Date("2026-11-22T15:00:00Z")).focus.date, "2026-11-23");
+});
 
 function assignment(
   scheduleId: string,
@@ -261,7 +274,7 @@ test("la API deriva el alumno desde sesión y consulta la agenda general activa"
 test("la API materializa recurrencias y devuelve una única agenda elegible calculada en servidor", () => {
   const source = readFileSync(new URL("../app/api/portal/clases/route.ts", import.meta.url), "utf8");
   assert.ok(source.indexOf("ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS)") < source.indexOf("prisma.classOccurrence.findMany"));
-  assert.match(source, /selectPortalClassAgenda\(occurrences\.map\(\(occurrence\) => serializeOccurrence\(occurrence, session\.studentId, effectiveSessions\)\), student\.studentType\)/);
+  assert.match(source, /selectPortalClassAgenda\(availableOccurrences\.map\(\(occurrence\) => serializeOccurrence\(occurrence, session\.studentId, effectiveSessions\)\), student\.studentType\)/);
   assert.match(source, /selectActivePortalSchedules\(assignments\)/);
   assert.match(source, /summary: agenda\.summary/);
   const query = source.slice(source.indexOf("prisma.classOccurrence.findMany"), source.indexOf("const agenda = selectPortalClassAgenda"));

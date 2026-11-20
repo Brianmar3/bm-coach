@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { apiAttendanceStatus, attendanceDate, attendanceStatus, classDayForDate, databaseAttendanceStatus, studentName } from "@/lib/attendance";
 import { ensureClassOccurrences } from "@/lib/class-occurrences";
+import { classDayIsSuspended, lockClassDay } from "@/lib/class-day-suspensions";
+import { databaseDateKey } from "@/lib/payment-dates";
 import { weeklyScheduleLabel } from "@/lib/student-enrollment";
 import type { AttendanceRoster, AttendanceStatus, Student } from "@/types/gestion";
 import { achievementCelebrationPayload, notifyNewAchievements } from "@/lib/push-notifications";
@@ -40,6 +42,9 @@ export async function GET(request: Request) {
     const dateValue = url.searchParams.get("date") ?? "";
     const date = attendanceDate(dateValue);
     if (!date) return Response.json({ error: "Seleccioná una fecha válida." }, { status: 400 });
+    if (await prisma.classDaySuspension.findUnique({ where: { workspaceId_date: { workspaceId, date } }, select: { date: true } })) {
+      return Response.json({ error: "Las clases de este día están suspendidas. El historial se conserva." }, { status: 409 });
+    }
 
     if (!scheduleId) {
       const students = await prisma.studentRecord.findMany({ where: { workspaceId, AND: [coachedStudentsWhere] }, include: { primarySchedule: true }, orderBy: { updatedAt: "desc" } });
@@ -166,6 +171,11 @@ export async function PUT(request: Request) {
     if (new Set(parsedRecords.map((record) => record.studentId)).size !== parsedRecords.length) return Response.json({ error: "Un alumno no puede repetirse en la misma clase y fecha." }, { status: 400 });
 
     const result = await prisma.$transaction(async (transaction) => {
+      if (parsedRecords.some((record) => record.status !== null)) {
+        const dateKey = databaseDateKey(date);
+        await lockClassDay(transaction, workspaceId, dateKey);
+        if (await classDayIsSuspended(transaction, workspaceId, dateKey)) throw new Error("DAY_SUSPENDED");
+      }
       const schedule = body.scheduleId
         ? await transaction.weeklyClassSchedule.findUnique({ where: { id: body.scheduleId, workspaceId }, select: { id: true, dayOfWeek: true, startTime: true, endTime: true, classType: true } })
         : null;
@@ -269,6 +279,7 @@ export async function PUT(request: Request) {
     if (error instanceof SyntaxError) return Response.json({ error: "Los datos enviados no son válidos." }, { status: 400 });
     if (error instanceof Error && error.message === "SCHEDULE_NOT_FOUND") return Response.json({ error: "El horario seleccionado ya no existe." }, { status: 404 });
     if (error instanceof Error && error.message === "DAY_MISMATCH") return Response.json({ error: "La fecha no corresponde al día semanal del horario." }, { status: 400 });
+    if (error instanceof Error && error.message === "DAY_SUSPENDED") return Response.json({ error: "Las clases de este día están suspendidas." }, { status: 409 });
     if (error instanceof Error && error.message === "STUDENT_NOT_FOUND") return Response.json({ error: "Uno o más alumnos ya no existen." }, { status: 400 });
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return Response.json({ error: "Ya existe una asistencia para ese alumno, horario y fecha." }, { status: 409 });
     return Response.json({ error: databaseUnavailable(error) ? "Neon no está disponible temporalmente." : "No se pudieron guardar las asistencias." }, { status: databaseUnavailable(error) ? 503 : 500 });

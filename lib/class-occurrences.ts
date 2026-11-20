@@ -102,9 +102,15 @@ export async function ensureClassOccurrences(daysAhead: number, workspaceId: str
     where: { workspaceId, active: true, archivedAt: null },
     select: { id: true, workspaceId: true, dayOfWeek: true, startTime: true, endTime: true, classType: true, capacity: true },
   });
+  const suspensions = await client.classDaySuspension.findMany({
+    where: { workspaceId, date: { gte: dateKeyToDatabase(today), lte: dateKeyToDatabase(end) } },
+    select: { date: true },
+  });
+  const suspendedDates = new Set(suspensions.map((item) => databaseDateKey(item.date)));
   const rows: Prisma.ClassOccurrenceCreateManyInput[] = [];
   for (let offset = 0; offset <= daysAhead; offset += 1) {
     const dateKey = addDateKeyDays(today, offset);
+    if (suspendedDates.has(dateKey)) continue;
     const day = dateKeyToDatabase(dateKey).getUTCDay();
     for (const schedule of schedules) {
       if (weekdayNumber[schedule.dayOfWeek] !== day) continue;

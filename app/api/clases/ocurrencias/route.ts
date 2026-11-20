@@ -30,6 +30,11 @@ export async function GET(request: Request) {
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
       take: date ? 50 : 250,
     });
+    const suspensions = await prisma.classDaySuspension.findMany({
+      where: { workspaceId, date: { in: occurrences.map((item) => item.date) } },
+      select: { date: true },
+    });
+    const suspendedDates = new Set(suspensions.map((item) => databaseDateKey(item.date)));
     const effectiveSessions = effectiveSessionForStudentsOnDate(occurrences.map((occurrence) => ({
       id: occurrence.id,
       scheduleId: occurrence.scheduleId,
@@ -40,6 +45,7 @@ export async function GET(request: Request) {
     })));
     return Response.json(occurrences.map((occurrence) => {
       const occurrenceDate = databaseDateKey(occurrence.date);
+      const daySuspended = suspendedDates.has(occurrenceDate);
       const effectiveResponses = occurrence.responses.filter((item) => effectiveOccurrenceId(effectiveSessions, item.studentId, occurrenceDate) === occurrence.id);
       const responses = new Map(effectiveResponses.map((item) => [item.studentId, item]));
       const assigned = occurrence.schedule?.assignments
@@ -61,8 +67,8 @@ export async function GET(request: Request) {
         endTime: occurrence.endTime,
         name: occurrenceClassName(occurrence),
         category: occurrenceClassName(occurrence),
-        status: occurrence.status,
-        statusLabel: occurrenceStatusLabel(occurrence.status, started, ended),
+        status: daySuspended ? "CANCELLED" : occurrence.status,
+        statusLabel: daySuspended ? "Clases suspendidas" : occurrenceStatusLabel(occurrence.status, started, ended),
         capacity: occurrence.capacityOverride,
         confirmedCount: effectiveResponses.filter((item) => item.response === "GOING").length,
         response: null,
