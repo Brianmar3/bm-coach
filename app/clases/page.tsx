@@ -164,7 +164,8 @@ export default function ClasesPage() {
   }, [weekStart, reload]);
 
   async function changeSuspension(date: string, suspended: boolean) {
-    if (suspensionBusy || suspensionError) return;
+    if (suspensionBusy) return;
+setSuspensionError("");
     if (suspended && !window.confirm(`¿Suspender todas las clases del ${shortDate(date)}?\n\nSolo afecta esta fecha; los horarios y las asistencias se conservan.`)) return;
     setSuspensionBusy(true);
     try {
@@ -294,10 +295,10 @@ export default function ClasesPage() {
         {!ready ? <LoadingCalendar /> : loadError && schedules.length === 0 ? <div className="p-4"><ErrorState title="No pudimos cargar los horarios." description="La agenda no cambió. Intentá nuevamente." retry={retryLoad}/></div> : schedules.length === 0 ? <div className="p-4"><EmptyState title="Todavía no hay horarios semanales." description="Creá el primer horario para organizar clases y asistencias." action={<button type="button" onClick={() => begin()} className="min-h-11 px-4 text-sm font-bold text-yellow-300">Crear horario</button>}/></div> : (
           <>
             <div className="hidden gap-px bg-[var(--border-soft)] lg:grid lg:grid-cols-4 2xl:grid-cols-7">
-              {days.map((day, index) => <DayColumn key={day.value} day={day} date={shiftDate(weekStart, index)} suspended={suspendedDates.includes(shiftDate(weekStart, index))} suspensionBusy={suspensionBusy || Boolean(suspensionError)} changeSuspension={changeSuspension} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
+              {days.map((day, index) => <DayColumn key={day.value} day={day} date={shiftDate(weekStart, index)} suspended={suspendedDates.includes(shiftDate(weekStart, index))} suspensionBusy={suspensionBusy} changeSuspension={changeSuspension} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
             </div>
             <div className="divide-y divide-zinc-800 lg:hidden">
-              {days.map((day, index) => <MobileDay key={day.value} day={day} date={shiftDate(weekStart, index)} suspended={suspendedDates.includes(shiftDate(weekStart, index))} suspensionBusy={suspensionBusy || Boolean(suspensionError)} changeSuspension={changeSuspension} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
+              {days.map((day, index) => <MobileDay key={day.value} day={day} date={shiftDate(weekStart, index)} suspended={suspendedDates.includes(shiftDate(weekStart, index))} suspensionBusy={suspensionBusy} changeSuspension={changeSuspension} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
             </div>
           </>
         )}
@@ -317,11 +318,87 @@ function Metric({ label, value }: { label: string; value: number }) {
 type ScheduleDrag = ReturnType<typeof useTouchClassCopy>;
 type ScheduleDayProps = { day: (typeof days)[number]; date: string; suspended: boolean; suspensionBusy: boolean; changeSuspension: (date: string, suspended: boolean) => Promise<void>; schedules: WeeklyClassSchedule[]; open: (schedule: WeeklyClassSchedule) => void; create: () => void; drag: ScheduleDrag; copy: (id: string, day: WeeklyClassDay, at: number) => void };
 
-function DaySuspensionMenu({ date, suspended, busy, change }: { date: string; suspended: boolean; busy: boolean; change: (date: string, suspended: boolean) => Promise<void> }) {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
-  return <details className="relative z-10"><summary aria-label={`Acciones del ${shortDate(date)}`} className="flex min-h-9 min-w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-[var(--border-soft)] text-[var(--foreground-muted)] marker:hidden hover:text-[var(--brand-text)]">⋯</summary><div className="absolute right-0 top-full z-20 mt-1 w-52 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-1 shadow-xl"><button type="button" disabled={busy || date < today} onClick={() => void change(date, !suspended)} className="min-h-10 w-full rounded-lg px-3 text-left text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface)] disabled:opacity-50">{suspended ? "Reactivar clases del día" : "Suspender clases del día"}</button></div></details>;
-}
+function DaySuspensionMenu({
+  date,
+  suspended,
+  busy,
+  change,
+}: {
+  date: string;
+  suspended: boolean;
+  busy: boolean;
+  change: (date: string, suspended: boolean) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
 
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date());
+
+  const isPast = date < today;
+
+  async function handleChange() {
+    if (busy || isPast) return;
+    setOpen(false);
+    await change(date, !suspended);
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Acciones del ${shortDate(date)}`}
+        className="flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-[var(--border-soft)] text-[var(--foreground-muted)] hover:bg-[var(--surface)]"
+      >
+        ⋯
+      </button>
+
+      {open && (
+        <KeyboardDialog
+          onClose={() => setOpen(false)}
+          aria-label={`Acciones del ${shortDate(date)}`}
+          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-4"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-5 text-[var(--foreground)] shadow-2xl">
+            <h2 className="text-lg font-bold">
+              Acciones del día
+            </h2>
+
+            <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+              {shortDate(date)}
+            </p>
+
+            {isPast ? (
+              <p className="mt-4 text-sm text-[var(--foreground-muted)]">
+                No se pueden modificar suspensiones de fechas anteriores.
+              </p>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleChange()}
+                className="mt-5 w-full rounded-xl border border-[var(--border-soft)] px-4 py-3 text-left text-sm font-semibold hover:bg-[var(--surface)] disabled:opacity-50"
+              >
+                {suspended
+                  ? "Reactivar clases del día"
+                  : "Suspender clases del día"}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="mt-3 w-full rounded-xl border border-[var(--border-soft)] px-4 py-3 text-sm font-medium"
+            >
+              Cancelar
+            </button>
+          </div>
+        </KeyboardDialog>
+      )}
+    </>
+  );
+}
 function ScheduleBlock({ schedule, date, suspended, open, drag }: { schedule: WeeklyClassSchedule; date: string; suspended: boolean; open: (schedule: WeeklyClassSchedule) => void; drag: ScheduleDrag }) {
   return (
     <article draggable tabIndex={0} aria-label={`${schedule.classType}, ${schedule.startTime} a ${schedule.endTime}`} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); open(schedule); } }} onDragStart={(event) => { if (drag.isTouchPending() || (event.target as HTMLElement).closest("a")) { event.preventDefault(); return; } event.dataTransfer.setData("text/plain", schedule.id); drag.startMouse(event); }} onDragEnd={drag.stopMouse} onTouchStart={(event) => { if (!(event.target as HTMLElement).closest("a")) drag.start(event, schedule.id); }} onTouchMove={drag.moveBeforeActivation} onTouchEnd={drag.endBeforeActivation} onTouchCancel={drag.endBeforeActivation} onContextMenu={(event) => { if (drag.isTouchPending()) event.preventDefault(); }} className={`w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-2.5 text-left shadow-sm transition hover:border-[var(--bm-accent)] focus-visible:outline-2 focus-visible:outline-[var(--bm-accent)] ${schedule.active ? "" : "opacity-65"}`}>
