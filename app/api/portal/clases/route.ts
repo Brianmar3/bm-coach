@@ -13,8 +13,10 @@ import {
 import type { Student } from "@/types/gestion";
 import { hasGroupClasses } from "@/lib/student-service";
 import { effectiveOccurrenceId, effectiveSessionForStudentsOnDate } from "@/lib/effective-class-session";
+import { classDayIsSuspended, lockClassDay } from "@/lib/class-day-suspensions";
 import {
   classIsEligibleForStudent,
+  excludeSuspendedClassDays,
   PORTAL_CLASS_SEARCH_DAYS,
   selectActivePortalSchedules,
   selectPortalClassAgenda,
@@ -90,6 +92,8 @@ export async function GET() {
       }, { headers });
     }
     const range = await ensureClassOccurrences(PORTAL_CLASS_SEARCH_DAYS, workspaceId);
+    const suspensions = await prisma.classDaySuspension.findMany({ where: { workspaceId, date: { gte: dateKeyToDatabase(range.from), lte: dateKeyToDatabase(range.to) } }, select: { date: true } });
+    const suspendedDates = new Set(suspensions.map((item) => databaseDateKey(item.date)));
     const occurrences = await prisma.classOccurrence.findMany({
       where: {
         workspaceId,
@@ -99,14 +103,15 @@ export async function GET() {
       include: occurrenceInclude,
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     });
-    const effectiveSessions = effectiveSessionForStudentsOnDate(occurrences.map((occurrence) => ({
+    const availableOccurrences = excludeSuspendedClassDays(occurrences, suspendedDates);
+    const effectiveSessions = effectiveSessionForStudentsOnDate(availableOccurrences.map((occurrence) => ({
       id: occurrence.id,
       scheduleId: occurrence.scheduleId,
       date: databaseDateKey(occurrence.date),
       startTime: occurrence.startTime,
       responses: occurrence.responses,
     })));
-    const agenda = selectPortalClassAgenda(occurrences.map((occurrence) => serializeOccurrence(occurrence, session.studentId, effectiveSessions)), student.studentType);
+    const agenda = selectPortalClassAgenda(availableOccurrences.map((occurrence) => serializeOccurrence(occurrence, session.studentId, effectiveSessions)), student.studentType);
     return Response.json({
       availability,
       scheduleLabels,
@@ -139,6 +144,11 @@ export async function POST(request: Request) {
     const occurrenceId = input.occurrenceId;
     const requestedResponse = input.response === "GOING" ? "GOING" : "NOT_GOING";
     const result = await prisma.$transaction(async (transaction) => {
+      const target = await transaction.classOccurrence.findUnique({ where: { id: occurrenceId, workspaceId }, select: { date: true } });
+      if (!target) throw new Error("NOT_FOUND");
+      const targetDate = databaseDateKey(target.date);
+      await lockClassDay(transaction, workspaceId, targetDate);
+      if (await classDayIsSuspended(transaction, workspaceId, targetDate)) throw new Error("SUSPENDED");
       const occurrence = await transaction.classOccurrence.findUnique({
         where: { id: occurrenceId, workspaceId },
         include: {
@@ -232,6 +242,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "";
     if (message === "NOT_FOUND") return Response.json({ error: "La clase ya no existe." }, { status: 404 });
     if (message === "CLOSED") return Response.json({ error: "La respuesta ya no puede modificarse porque la clase comenzó o finalizó." }, { status: 409 });
+    if (message === "SUSPENDED") return Response.json({ error: "Las clases de este día están suspendidas." }, { status: 409 });
     if (message === "FULL") return Response.json({ error: "La clase ya alcanzó el cupo disponible." }, { status: 409 });
     console.error("No se pudo guardar la confirmación de clase", error);
     return Response.json({ error: "No se pudo guardar tu respuesta." }, { status: 500 });

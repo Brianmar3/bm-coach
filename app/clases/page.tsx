@@ -61,6 +61,22 @@ function nextScheduleDate(day: WeeklyClassDay) {
   return date.toISOString().slice(0, 10);
 }
 
+function shiftDate(value: string, daysToAdd: number) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + daysToAdd);
+  return date.toISOString().slice(0, 10);
+}
+
+function currentWeekStart() {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+  return shiftDate(today, -((weekday + 6) % 7));
+}
+
+function shortDate(value: string) {
+  return new Date(`${value}T12:00:00Z`).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" });
+}
+
 async function responseError(response: Response, fallback: string) {
   try { return ((await response.json()) as { error?: string }).error ?? fallback; } catch { return fallback; }
 }
@@ -72,6 +88,10 @@ export default function ClasesPage() {
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [reload, setReload] = useState(0);
+  const [weekStart, setWeekStart] = useState(currentWeekStart);
+  const [suspendedDates, setSuspendedDates] = useState<string[]>([]);
+  const [suspensionError, setSuspensionError] = useState("");
+  const [suspensionBusy, setSuspensionBusy] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<WeeklyClassSchedule | null>(null);
   const [viewing, setViewing] = useState<WeeklyClassSchedule | null>(null);
@@ -133,6 +153,29 @@ export default function ClasesPage() {
       .finally(() => setReady(true));
     return () => controller.abort();
   }, [reload]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`/api/clases/suspensiones?from=${weekStart}&to=${shiftDate(weekStart, 6)}`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => { if (!response.ok) throw new Error("No se pudieron cargar las suspensiones."); return response.json() as Promise<string[]>; })
+      .then((dates) => { setSuspendedDates(dates); setSuspensionError(""); })
+      .catch((reason: unknown) => { if (reason instanceof Error && reason.name !== "AbortError") setSuspensionError("No se pudo verificar la suspensión de esta semana."); });
+    return () => controller.abort();
+  }, [weekStart, reload]);
+
+  async function changeSuspension(date: string, suspended: boolean) {
+    if (suspensionBusy || suspensionError) return;
+    if (suspended && !window.confirm(`¿Suspender todas las clases del ${shortDate(date)}?\n\nSolo afecta esta fecha; los horarios y las asistencias se conservan.`)) return;
+    setSuspensionBusy(true);
+    try {
+      const response = await fetch("/api/clases/suspensiones", { method: suspended ? "POST" : "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date }) });
+      if (!response.ok) throw new Error(await responseError(response, "No se pudo actualizar el día."));
+      setSuspendedDates((current) => suspended ? [...new Set([...current, date])] : current.filter((item) => item !== date));
+      setSuspensionError("");
+    } catch (reason) {
+      setSuspensionError(reason instanceof Error ? reason.message : "No se pudo actualizar el día.");
+    } finally { setSuspensionBusy(false); }
+  }
 
   const visible = useMemo(() => schedules.filter((schedule) => filter === "todos" || (filter === "activos" ? schedule.active : !schedule.active)), [filter, schedules]);
   const activeCount = schedules.filter((schedule) => schedule.active).length;
@@ -224,6 +267,7 @@ export default function ClasesPage() {
       flushTop
     >
       {error && !editorOpen && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
+      {suspensionError && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-[var(--foreground)]">{suspensionError} <button type="button" onClick={() => { setSuspensionError(""); setReload((value) => value + 1); }} className="underline">Reintentar</button></p>}
       {loadError && schedules.length > 0 && <div className="mb-5"><ErrorState compact title="No pudimos actualizar los horarios." retry={retryLoad}/></div>}
 
       <section className="mb-5 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-3">
@@ -233,11 +277,12 @@ export default function ClasesPage() {
       <ClassOccurrenceAdmin />
       <ClassOpinionsPanel />
 
-      <section className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] text-[var(--foreground)]">
+      <section className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] text-[var(--foreground)]">
         <div className="flex flex-col gap-3 border-b border-[var(--border-soft)] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold">Calendario semanal</h2>
             <p className="mt-1 text-xs text-[var(--foreground-muted)]">Tocá cualquier bloque para ver alumnos y acciones.</p>
+            <div className="mt-2 flex items-center gap-2 text-xs"><button type="button" onClick={() => setWeekStart((value) => shiftDate(value, -7))} aria-label="Semana anterior" className="rounded-lg border border-[var(--border-soft)] px-2 py-1.5">←</button><span>{shortDate(weekStart)} – {shortDate(shiftDate(weekStart, 6))}</span><button type="button" onClick={() => setWeekStart((value) => shiftDate(value, 7))} aria-label="Semana siguiente" className="rounded-lg border border-[var(--border-soft)] px-2 py-1.5">→</button></div>
           </div>
           <select value={filter} onChange={(event) => setFilter(event.target.value as StatusFilter)} className={`${inputClass} sm:w-48`}>
             <option value="activos">Solo activos</option>
@@ -249,10 +294,10 @@ export default function ClasesPage() {
         {!ready ? <LoadingCalendar /> : loadError && schedules.length === 0 ? <div className="p-4"><ErrorState title="No pudimos cargar los horarios." description="La agenda no cambió. Intentá nuevamente." retry={retryLoad}/></div> : schedules.length === 0 ? <div className="p-4"><EmptyState title="Todavía no hay horarios semanales." description="Creá el primer horario para organizar clases y asistencias." action={<button type="button" onClick={() => begin()} className="min-h-11 px-4 text-sm font-bold text-yellow-300">Crear horario</button>}/></div> : (
           <>
             <div className="hidden gap-px bg-[var(--border-soft)] lg:grid lg:grid-cols-4 2xl:grid-cols-7">
-              {days.map((day) => <DayColumn key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
+              {days.map((day, index) => <DayColumn key={day.value} day={day} date={shiftDate(weekStart, index)} suspended={suspendedDates.includes(shiftDate(weekStart, index))} suspensionBusy={suspensionBusy || Boolean(suspensionError)} changeSuspension={changeSuspension} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
             </div>
             <div className="divide-y divide-zinc-800 lg:hidden">
-              {days.map((day) => <MobileDay key={day.value} day={day} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
+              {days.map((day, index) => <MobileDay key={day.value} day={day} date={shiftDate(weekStart, index)} suspended={suspendedDates.includes(shiftDate(weekStart, index))} suspensionBusy={suspensionBusy || Boolean(suspensionError)} changeSuspension={changeSuspension} schedules={visible.filter((item) => item.dayOfWeek === day.value)} open={setViewing} create={() => begin(undefined, day.value)} drag={scheduleCopy} copy={copySchedule} />)}
             </div>
           </>
         )}
@@ -270,10 +315,14 @@ function Metric({ label, value }: { label: string; value: number }) {
 }
 
 type ScheduleDrag = ReturnType<typeof useTouchClassCopy>;
-type ScheduleDayProps = { day: (typeof days)[number]; schedules: WeeklyClassSchedule[]; open: (schedule: WeeklyClassSchedule) => void; create: () => void; drag: ScheduleDrag; copy: (id: string, day: WeeklyClassDay, at: number) => void };
+type ScheduleDayProps = { day: (typeof days)[number]; date: string; suspended: boolean; suspensionBusy: boolean; changeSuspension: (date: string, suspended: boolean) => Promise<void>; schedules: WeeklyClassSchedule[]; open: (schedule: WeeklyClassSchedule) => void; create: () => void; drag: ScheduleDrag; copy: (id: string, day: WeeklyClassDay, at: number) => void };
 
-function ScheduleBlock({ schedule, open, drag }: { schedule: WeeklyClassSchedule; open: (schedule: WeeklyClassSchedule) => void; drag: ScheduleDrag }) {
-  const attendanceDate = nextScheduleDate(schedule.dayOfWeek);
+function DaySuspensionMenu({ date, suspended, busy, change }: { date: string; suspended: boolean; busy: boolean; change: (date: string, suspended: boolean) => Promise<void> }) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  return <details className="relative z-10"><summary aria-label={`Acciones del ${shortDate(date)}`} className="flex min-h-9 min-w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-[var(--border-soft)] text-[var(--foreground-muted)] marker:hidden hover:text-[var(--brand-text)]">⋯</summary><div className="absolute right-0 top-full z-20 mt-1 w-52 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-1 shadow-xl"><button type="button" disabled={busy || date < today} onClick={() => void change(date, !suspended)} className="min-h-10 w-full rounded-lg px-3 text-left text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface)] disabled:opacity-50">{suspended ? "Reactivar clases del día" : "Suspender clases del día"}</button></div></details>;
+}
+
+function ScheduleBlock({ schedule, date, suspended, open, drag }: { schedule: WeeklyClassSchedule; date: string; suspended: boolean; open: (schedule: WeeklyClassSchedule) => void; drag: ScheduleDrag }) {
   return (
     <article draggable tabIndex={0} aria-label={`${schedule.classType}, ${schedule.startTime} a ${schedule.endTime}`} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); open(schedule); } }} onDragStart={(event) => { if (drag.isTouchPending() || (event.target as HTMLElement).closest("a")) { event.preventDefault(); return; } event.dataTransfer.setData("text/plain", schedule.id); drag.startMouse(event); }} onDragEnd={drag.stopMouse} onTouchStart={(event) => { if (!(event.target as HTMLElement).closest("a")) drag.start(event, schedule.id); }} onTouchMove={drag.moveBeforeActivation} onTouchEnd={drag.endBeforeActivation} onTouchCancel={drag.endBeforeActivation} onContextMenu={(event) => { if (drag.isTouchPending()) event.preventDefault(); }} className={`w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-2.5 text-left shadow-sm transition hover:border-[var(--bm-accent)] focus-visible:outline-2 focus-visible:outline-[var(--bm-accent)] ${schedule.active ? "" : "opacity-65"}`}>
       <button onClick={(event) => { if (drag.consumeClick()) { event.preventDefault(); return; } open(schedule); }} className="w-full text-left">
@@ -285,19 +334,19 @@ function ScheduleBlock({ schedule, open, drag }: { schedule: WeeklyClassSchedule
         <p className="mt-1 text-xs text-[var(--foreground-muted)]">{occupancy(schedule)}</p>
         {schedule.students.length > 0 && <p className="mt-1 truncate text-xs text-[var(--foreground-muted)]" title={schedule.students.map((student) => student.name).join(", ")}>{schedule.students.slice(0, 2).map((student) => student.name).join(", ")}{schedule.students.length > 2 ? ` +${schedule.students.length - 2}` : ""}</p>}
       </button>
-      <Link href={`/asistencias?view=attendance&scheduleId=${encodeURIComponent(schedule.id)}&date=${attendanceDate}`} className="mt-2 block min-h-9 rounded-lg border border-emerald-400/35 px-2 py-2 text-center text-xs font-bold text-emerald-400 hover:bg-emerald-400/10">Tomar asistencia</Link>
+      {suspended ? <span className="mt-2 block rounded-lg border border-[var(--border-soft)] px-2 py-2 text-center text-xs text-[var(--foreground-muted)]">Sin asistencia disponible</span> : <Link href={`/asistencias?view=attendance&scheduleId=${encodeURIComponent(schedule.id)}&date=${date}`} className="mt-2 block min-h-9 rounded-lg border border-emerald-400/35 px-2 py-2 text-center text-xs font-bold text-emerald-400 hover:bg-emerald-400/10">Tomar asistencia</Link>}
     </article>
   );
 }
 
-function DayColumn({ day, schedules, open, create, drag, copy }: ScheduleDayProps) {
+function DayColumn({ day, date, suspended, suspensionBusy, changeSuspension, schedules, open, create, drag, copy }: ScheduleDayProps) {
   const ordered = [...schedules].sort((left, right) => left.startTime.localeCompare(right.startTime));
-  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="min-h-[220px] min-w-0 bg-[var(--surface-elevated)] p-2.5"><div className="mb-2 flex items-center justify-between gap-1"><h3 className="truncate text-sm font-bold text-[var(--foreground)]">{day.label}</h3><button onClick={create} className="rounded-lg px-2 py-1 text-lg text-[var(--brand-text)] hover:bg-[var(--surface)]" aria-label={`Crear horario el ${day.label}`}>+</button></div><div className="space-y-2">{ordered.length ? ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} drag={drag} />) : <button onClick={create} className="w-full rounded-xl border border-dashed border-[var(--border-soft)] px-2 py-6 text-xs text-[var(--foreground-muted)]">Sin horarios<br />Agregar bloque</button>}</div></section>;
+  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="min-h-[220px] min-w-0 bg-[var(--surface-elevated)] p-2.5"><div className="mb-2 flex items-center justify-between gap-1"><h3 className="min-w-0 truncate text-sm font-bold text-[var(--foreground)]">{day.label} <span className="text-xs font-normal text-[var(--foreground-muted)]">{shortDate(date)}</span></h3><div className="flex shrink-0 items-center"><DaySuspensionMenu date={date} suspended={suspended} busy={suspensionBusy} change={changeSuspension}/><button onClick={create} className="rounded-lg px-2 py-1 text-lg text-[var(--brand-text)] hover:bg-[var(--surface)]" aria-label={`Crear horario el ${day.label}`}>+</button></div></div>{suspended && <p className="mb-2 rounded-lg border border-[var(--border-soft)] px-2 py-1 text-xs text-[var(--brand-text)]">Clases suspendidas</p>}<div className="space-y-2">{ordered.length ? ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} date={date} suspended={suspended} open={open} drag={drag} />) : <button onClick={create} className="w-full rounded-xl border border-dashed border-[var(--border-soft)] px-2 py-6 text-xs text-[var(--foreground-muted)]">Sin horarios<br />Agregar bloque</button>}</div></section>;
 }
 
-function MobileDay({ day, schedules, open, create, drag, copy }: ScheduleDayProps) {
+function MobileDay({ day, date, suspended, suspensionBusy, changeSuspension, schedules, open, create, drag, copy }: ScheduleDayProps) {
   const ordered = [...schedules].sort((left, right) => left.startTime.localeCompare(right.startTime));
-  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-bold text-yellow-400">{day.label}</h3><button onClick={create} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300">+ Agregar</button></div>{ordered.length ? <div className="grid gap-2 sm:grid-cols-2">{ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} open={open} drag={drag} />)}</div> : <p className="rounded-xl border border-dashed border-zinc-800 p-4 text-center text-sm text-zinc-600">Sin horarios</p>}</section>;
+  return <section data-schedule-day={day.value} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); drag.stopMouse(); if (id) void copy(id, day.value, event.timeStamp); }} className="p-3"><div className="mb-2 flex items-center justify-between gap-2"><h3 className="font-bold text-[var(--brand-text)]">{day.label} <span className="text-xs font-normal text-[var(--foreground-muted)]">{shortDate(date)}</span></h3><div className="flex items-center gap-1"><DaySuspensionMenu date={date} suspended={suspended} busy={suspensionBusy} change={changeSuspension}/><button onClick={create} className="min-h-9 rounded-lg border border-[var(--border-soft)] px-2 text-xs text-[var(--foreground)]">+ Agregar</button></div></div>{suspended && <p className="mb-2 rounded-lg border border-[var(--border-soft)] px-2 py-1 text-xs text-[var(--brand-text)]">Clases suspendidas</p>}{ordered.length ? <div className="grid gap-2 sm:grid-cols-2">{ordered.map((schedule) => <ScheduleBlock key={schedule.id} schedule={schedule} date={date} suspended={suspended} open={open} drag={drag} />)}</div> : <p className="rounded-xl border border-dashed border-[var(--border-soft)] p-4 text-center text-sm text-[var(--foreground-muted)]">Sin horarios</p>}</section>;
 }
 
 function LoadingCalendar() {

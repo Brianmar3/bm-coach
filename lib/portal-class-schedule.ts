@@ -3,6 +3,10 @@ export const PORTAL_UPCOMING_DAYS = 7;
 export const PORTAL_HOME_PREVIEW_COUNT = 2;
 export const ARGENTINA_TIME_ZONE = "America/Argentina/Buenos_Aires";
 
+export function excludeSuspendedClassDays<T extends { date: string | Date }>(occurrences: T[], suspendedDates: ReadonlySet<string>): T[] {
+  return occurrences.filter((item) => !suspendedDates.has(item.date instanceof Date ? item.date.toISOString().slice(0, 10) : item.date));
+}
+
 export type PortalClassCandidate = {
   id: string;
   scheduleId: string | null;
