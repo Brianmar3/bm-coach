@@ -241,10 +241,24 @@ export function QuickStudentEnrollment({
           </div>
 
           {mode === "active" && (selectedPlan?.price ?? 0) > 0 && (
-            <label className="flex items-start gap-3 rounded-xl border border-[var(--warning)]/40 p-3 text-sm">
-              <input type="checkbox" className="mt-1" checked={confirmFinancial} onChange={(event) => setConfirmFinancial(event.target.checked)}/>
-              <span>Confirmo la cuota de {money(selectedPlan!.price)} por alumno. La activación puede generar obligaciones de pago según las reglas existentes.</span>
-            </label>
+          <label
+  className={`flex cursor-pointer items-start gap-4 rounded-xl border-2 p-4 text-sm transition-colors ${
+    confirmFinancial
+      ? "border-[var(--bm-accent)] bg-[var(--bm-accent)]/10"
+      : "border-[var(--warning)]/40"
+  }`}
+>
+  <input
+    type="checkbox"
+    className="mt-0.5 h-7 w-7 shrink-0 cursor-pointer accent-[var(--bm-accent)]"
+    checked={confirmFinancial}
+    onChange={(event) => setConfirmFinancial(event.target.checked)}
+  />
+  <span>
+    Confirmo la cuota de {money(selectedPlan!.price)} por alumno. La activación puede generar obligaciones de pago según las reglas existentes.
+  </span>
+</label>
+
           )}
 
           <div className="flex flex-wrap gap-2">
