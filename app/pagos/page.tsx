@@ -370,7 +370,7 @@ function AccountActions({ account, saving, canMessage, begin, paidToday, history
         <button role="menuitem" onClick={() => run(begin)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Agregar pago</button>
         <button role="menuitem" onClick={() => run(paidToday)} disabled={saving || account.monthlyFee <= 0} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800 disabled:opacity-40">Pagó hoy</button>
         <button role="menuitem" onClick={() => run(history)} className="block w-full rounded-lg px-3 py-3 text-left hover:bg-zinc-800">Ver historial</button>
-        <Link role="menuitem" onClick={() => close(false)} href={`/alumnos?buscar=${encodeURIComponent(account.student)}`} className="block rounded-lg px-3 py-3 hover:bg-zinc-800">Editar configuración de pago</Link>
+        <Link role="menuitem" onClick={() => close(false)} href={`/alumnos?studentId=${encodeURIComponent(account.studentId)}&editar=pago`} className="block rounded-lg px-3 py-3 hover:bg-zinc-800">Editar configuración de pago</Link>
         {canMessage && (whatsappHref
           ? <a role="menuitem" onClick={() => close(false)} href={whatsappHref} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-3 text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</a>
           : <button role="menuitem" onClick={() => window.alert("No hay un número de WhatsApp válido para este alumno.")} className="block w-full rounded-lg px-3 py-3 text-left text-emerald-300 hover:bg-zinc-800">Abrir WhatsApp</button>)}

@@ -3,7 +3,7 @@ import { useComboboxNavigation } from "@/componentes/use-combobox-navigation";
 import { KeyboardDialog } from "@/componentes/keyboard-dialog";
 import { TrainerFilters } from "@/componentes/trainer-filters";
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ModuleShell, inputClass } from "@/componentes/module-shell";
 import { ErrorState, ListSkeleton } from "@/componentes/async-states";
@@ -26,7 +26,7 @@ import { studentMatchesSearch } from "@/lib/student-search";
 import { bmiFromCentimeters } from "@/lib/height";
 import { STUDENT_TYPES } from "@/types/gestion";
 import type { TrainerNotificationSection } from "@/lib/trainer-notification-destination";
-import type { Student, StudentPlanOption, StudentServiceType, StudentStatus, StudentType } from "@/types/gestion";
+import type { Payment, Student, StudentPlanOption, StudentServiceType, StudentStatus, StudentType } from "@/types/gestion";
 type StudentNotificationFocus = { section: TrainerNotificationSection; entityId: string | null };
 type StudentFormValue = Omit<Student, "id" | "scheduleId" | "scheduleLabel" | "scheduleLabels"> & {
     scheduleId: string;
@@ -98,6 +98,7 @@ export default function AlumnosPage() {
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
     const [saving, setSaving] = useState(false);
+    const [editSection, setEditSection] = useState<"payment" | null>(null);
     useEffect(() => {
         const controller = new AbortController();
         Promise.all([
@@ -122,7 +123,12 @@ export default function AlumnosPage() {
             if (params.get("studentId")) {
                 const selectedStudent = students.find((student) => student.id === params.get("studentId"));
                 if (selectedStudent) {
-                    setViewing(selectedStudent);
+                    if (params.get("editar") === "pago") {
+                        setEditing(selectedStudent);
+                        setForm(editValue(selectedStudent, enrollmentOptions));
+                        setEditSection("payment");
+                        setOpen(true);
+                    } else setViewing(selectedStudent);
                     const section = params.get("section");
                     if (section === "achievements" || section === "records" || section === "routines" || section === "attendance")
                         setNotificationFocus({ section, entityId: params.get("entityId") });
@@ -147,9 +153,10 @@ export default function AlumnosPage() {
             if (value && value !== "todos") params.set(key, value); else params.delete(key);
         }
         if (viewing) params.set("studentId", viewing.id);
-        else { params.delete("studentId"); params.delete("section"); params.delete("entityId"); }
+        else if (open && editing) params.set("studentId", editing.id);
+        else { params.delete("studentId"); params.delete("editar"); params.delete("section"); params.delete("entityId"); }
         window.history.replaceState(window.history.state, "", "/alumnos?" + params);
-    }, [ready, loadError, query, status, plan, serviceType, viewing]);
+    }, [ready, loadError, query, status, plan, serviceType, viewing, open, editing]);
     useEffect(() => {
         if (!ready) return;
         const restore = () => {
@@ -217,6 +224,7 @@ export default function AlumnosPage() {
             const latestOptions = await response.json() as EnrollmentOptions;
             setOptions(latestOptions);
             setEditing(item ?? null);
+            setEditSection(null);
             setForm(item ? editValue(item, latestOptions) : blank(latestOptions));
             setNotice(""); setViewing(null); setNotificationFocus(null); setOpen(true);
         }
@@ -324,7 +332,7 @@ export default function AlumnosPage() {
     {quickOpen && <QuickStudentEnrollment existing={items} plans={options.plans} close={() => setQuickOpen(false)} created={(students) => { setItems((current) => [...students, ...current]); }} updated={(students) => { const byId = new Map(students.map((student) => [student.id, student])); setItems((current) => current.map((student) => byId.get(student.id) ?? student)); }} />}
     {bulkOpen && <StudentBulkPlan students={selectedStudents} plans={options.plans} close={() => setBulkOpen(false)} applied={(students) => { const byId = new Map(students.map((student) => [student.id, student])); setItems((current) => current.map((student) => byId.get(student.id) ?? student)); setSelectedIds([]); setSelectionMode(false); setBulkOpen(false); setBulkNotice(`${students.length} alumnos activados con plan.`); }}/>}
     {chooseEnrollment && <div className="fixed inset-0 z-[120] flex items-end bg-black/85 p-0 sm:grid sm:place-items-center sm:p-4"><KeyboardDialog as="section" onClose={() => setChooseEnrollment(false)} role="dialog" aria-modal="true" aria-label="Nuevo alumno" className="w-full max-w-md rounded-t-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-5 pb-[calc(1rem+env(safe-area-inset-bottom))] text-[var(--foreground)] sm:rounded-2xl sm:pb-5"><div className="flex items-center justify-between"><h2 className="text-xl font-black">Nuevo alumno</h2><button type="button" onClick={() => setChooseEnrollment(false)} className="p-2 text-[var(--foreground-muted)]">Cerrar</button></div><div className="mt-5 grid gap-3"><button type="button" onClick={() => { setChooseEnrollment(false); setInviteOpen(true); }} className="rounded-xl border border-yellow-400/50 bg-yellow-400/10 p-4 text-left"><strong className="block text-[var(--brand-text)]">Invitar alumno</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">El alumno completa sus datos desde un enlace.</span></button><button type="button" onClick={() => { setChooseEnrollment(false); void begin(); }} className="rounded-xl border border-zinc-700 p-4 text-left"><strong className="block">Cargar manualmente</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">Completá vos los datos del alumno.</span></button><button type="button" onClick={() => { setChooseEnrollment(false); setQuickOpen(true); }} className="rounded-xl border border-[var(--border-soft)] p-4 text-left"><strong className="block">Carga rápida</strong><span className="mt-1 block text-sm text-[var(--foreground-muted)]">Pegá varios nombres y revisalos antes de guardar.</span></button></div></KeyboardDialog></div>}
-    {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => setOpen(false)} submit={submit} editing={Boolean(editing)} saving={saving}/><StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/></>}
+    {open && <><StudentForm form={form} setForm={setForm} options={options} error={error} notice={notice} close={() => { if (editing && JSON.stringify(form) !== JSON.stringify(editValue(editing, options)) && !window.confirm("Hay cambios sin guardar. ¿Descartarlos y cerrar?")) return; setOpen(false); }} submit={submit} editing={Boolean(editing)} student={editing} initialSection={editSection} saving={saving}/>{!editing && <StudentFormSections form={form} setForm={setForm} schedules={options.schedules}/>}</>}
     {viewing && <StudentDetail item={viewing} onRankingChange={(rankingParticipation) => {
         setItems((current) => current.map((item) => item.id === viewing.id ? { ...item, rankingParticipation } : item));
         setViewing((current) => current?.id === viewing.id ? { ...current, rankingParticipation } : current);
@@ -401,22 +409,22 @@ function ScheduleMultiPicker({ form, setForm, schedules }: { form: StudentFormVa
     }
     const { attachRoot, attachList, attachInput, ...navigation } = useComboboxNavigation({ items: visible, itemKey: schedule => schedule.id, queryKey: query, onSelect: schedule => toggle(schedule.id), isDisabled: schedule => !schedule.active && !form.scheduleIds.includes(schedule.id), initialOpen: true, closeOnSelect: false });
     return <div className="min-w-0">
-      <button type="button" onClick={() => setOpen(true)} aria-expanded={open} className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold sm:w-auto ${open ? "border-yellow-400 bg-yellow-400 text-zinc-950" : "border-zinc-700 bg-zinc-950 text-zinc-300"}`}>Horarios ({form.scheduleIds.length})</button>
+      <button type="button" onClick={() => setOpen(true)} aria-expanded={open} className={`min-h-11 w-full rounded-lg border px-3 py-2 text-sm font-semibold sm:w-auto ${open ? "border-[var(--bm-accent)] bg-[var(--bm-accent)] text-[var(--bm-accent-contrast)]" : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--foreground)]"}`}>Horarios ({form.scheduleIds.length})</button>
       {open && <div className="fixed inset-0 z-[70] flex items-end bg-black/75 sm:items-center sm:justify-center sm:p-4" onMouseDown={(event) => { if (event.target === event.currentTarget)
                 setOpen(false); }}>
-        <KeyboardDialog as="section" onClose={() => setOpen(false)} priority={85} aria-label="Horarios semanales" className="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-zinc-800 bg-zinc-900 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-w-lg sm:rounded-2xl">
+        <KeyboardDialog as="section" onClose={() => setOpen(false)} priority={85} aria-label="Horarios semanales" className="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-[var(--foreground)] sm:max-w-lg sm:rounded-2xl">
           <div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">Horarios semanales</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">Seleccioná ninguno, uno o varios horarios.</p></div><button type="button" onClick={() => setOpen(false)} className="text-sm text-[var(--foreground-muted)]">Cerrar</button></div>
           <input ref={attachInput} {...navigation.inputProps} type="search" value={query} onChange={(event) => { setQuery(event.target.value); navigation.changed(); }} placeholder="Buscar por día, hora o clase" className={`${inputClass} mt-4`}/>
-          <div ref={attachRoot} {...navigation.rootProps}>{navigation.open && <div ref={attachList} {...navigation.listProps} aria-label="Horarios disponibles" aria-multiselectable="true" className="mt-3 max-h-72 space-y-2 overflow-y-auto">{visible.map((schedule) => <button type="button" key={schedule.id} {...navigation.optionProps(schedule)} role="option" aria-selected={form.scheduleIds.includes(schedule.id)} className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border p-3 text-left ${form.scheduleIds.includes(schedule.id) ? "border-yellow-400/50 bg-yellow-400/5" : "border-zinc-800 bg-zinc-950"}`}><span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded border border-zinc-500 text-yellow-300">{form.scheduleIds.includes(schedule.id) ? "✓" : ""}</span><span className="min-w-0 flex-1 text-sm">{schedule.label}<span className="block text-xs text-[var(--foreground-muted)]">{schedule.capacity === null ? "Sin cupo máximo" : `${schedule.assigned}/${schedule.capacity} asignados`}</span></span></button>)}</div>}</div>
+          <div ref={attachRoot} {...navigation.rootProps}>{navigation.open && <div ref={attachList} {...navigation.listProps} aria-label="Horarios disponibles" aria-multiselectable="true" className="mt-3 max-h-72 space-y-2 overflow-y-auto">{visible.map((schedule) => <button type="button" key={schedule.id} {...navigation.optionProps(schedule)} role="option" aria-selected={form.scheduleIds.includes(schedule.id)} className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border p-3 text-left ${form.scheduleIds.includes(schedule.id) ? "border-[var(--bm-accent)] bg-[color-mix(in_srgb,var(--bm-accent)_8%,var(--surface))]" : "border-[var(--border-soft)] bg-[var(--surface)]"}`}><span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded border border-[var(--border-soft)] text-[var(--brand-text)]">{form.scheduleIds.includes(schedule.id) ? "✓" : ""}</span><span className="min-w-0 flex-1 text-sm">{schedule.label}<span className="block text-xs text-[var(--foreground-muted)]">{schedule.capacity === null ? "Sin cupo máximo" : `${schedule.assigned}/${schedule.capacity} asignados`}</span></span></button>)}</div>}</div>
           {!visible.length && <p className="mt-3 rounded-xl bg-zinc-950 p-4 text-center text-sm text-[var(--foreground-muted)]">No se encontraron horarios.</p>}
           <label className="mt-4 block text-sm">Horario flexible <span className="text-xs text-[var(--foreground-muted)]">(solo informativo)</span><input value={form.flexibleSchedule} onChange={(event) => setForm({ ...form, flexibleSchedule: event.target.value })} placeholder="Ej. Turno tarde o 18:00" className={`${inputClass} mt-1`}/><span className="mt-1 block text-xs text-[var(--foreground-muted)]">No genera clases ni asistencias automáticamente.</span></label>
-          <button type="button" onClick={() => setOpen(false)} className="mt-4 w-full rounded-xl bg-yellow-400 px-4 py-3 font-bold text-zinc-950">Confirmar horarios</button>
+          <button type="button" onClick={() => setOpen(false)} className="mt-4 w-full rounded-xl bg-[var(--bm-accent)] px-4 py-3 font-bold text-[var(--bm-accent-contrast)]">Confirmar horarios</button>
         </KeyboardDialog>
       </div>}
     </div>;
 }
 
-function StudentForm({ form, setForm, options, error, notice, close, submit, editing, saving }: {
+function StudentForm({ form, setForm, options, error, notice, close, submit, editing, student, initialSection, saving }: {
     form: StudentFormValue;
     setForm: (form: StudentFormValue) => void;
     options: EnrollmentOptions;
@@ -425,8 +433,11 @@ function StudentForm({ form, setForm, options, error, notice, close, submit, edi
     close: () => void;
     submit: (event: FormEvent<HTMLFormElement>) => void;
     editing: boolean;
+    student: Student | null;
+    initialSection: "payment" | null;
     saving: boolean;
 }) {
+    if (editing && student) return <StudentEditForm form={form} setForm={setForm} options={options} student={student} initialSection={initialSection} error={error} close={close} submit={submit} saving={saving}/>;
     function set<K extends keyof StudentFormValue>(key: K, value: StudentFormValue[K]) { setForm({ ...form, [key]: value }); }
     function choosePlan(value: string) { setForm({ ...form, ...selectedStudentPlanFormValue(value, options.plans) }); }
     function chooseStart(value: string) { setForm({ ...form, joinedAt: value }); }
@@ -435,8 +446,86 @@ function StudentForm({ form, setForm, options, error, notice, close, submit, edi
         {editing && <section className="mt-6 border-t border-zinc-800 pt-5"><h3 className="font-semibold">Datos complementarios</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">Todos estos campos son opcionales.</p><div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><label className="text-sm">Correo<input type="email" value={form.email} onChange={(event) => set("email", event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm">Fecha de nacimiento<input type="date" value={form.birthDate} onChange={(event) => set("birthDate", event.target.value)} className={`${inputClass} mt-1`}/></label><label className="text-sm">Objetivo<input value={form.goal} onChange={(event) => set("goal", event.target.value)} placeholder="Ej. Ganar fuerza" className={`${inputClass} mt-1`}/></label><label className="text-sm">Peso (kg)<input type="number" min="0" max="500" step="0.1" value={form.weight || ""} onChange={(event) => set("weight", Number(event.target.value))} className={`${inputClass} mt-1`}/></label><div><p className="text-sm">IMC automático</p><div className={`${inputClass} mt-1 border-yellow-400/50 text-[var(--brand-text)]`}>{bmi(form.weight, form.height)}</div></div></div><label className="mt-4 block text-sm">Observaciones<textarea value={form.notes} onChange={(event) => set("notes", event.target.value)} rows={3} className={`${inputClass} mt-1`}/></label></section>}
       </div><div className="flex flex-col-reverse gap-3 bg-zinc-900 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2 sm:sticky sm:bottom-0 sm:flex-row sm:justify-end sm:gap-2 sm:border-t sm:border-zinc-800 sm:p-5"><button type="button" onClick={close} disabled={saving} className="bm-button bm-button-secondary rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300">Cancelar</button>{!editing && <button type="submit" name="saveAction" value="another" disabled={saving} className="bm-button bm-button-secondary rounded-xl border border-yellow-400/50 px-5 py-3 font-bold text-[var(--brand-text)] disabled:opacity-50">Guardar y agregar otro</button>}<button type="submit" name="saveAction" value="close" disabled={saving} className="bm-button bm-button-primary rounded-xl bg-yellow-400 px-5 py-3 font-bold text-zinc-950 disabled:opacity-50">{saving ? "Guardando…" : "Guardar"}</button></div></KeyboardDialog></div>;
 }
+
+type EditSectionKey = "personal" | "service" | "payment" | "physical" | "record";
+
+function EditSection({ id, title, description, icon, active, toggle, children }: { id: EditSectionKey; title: string; description: string; icon: ReactNode; active: boolean; toggle: (id: EditSectionKey) => void; children: ReactNode }) {
+    return <section className="overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] shadow-sm">
+      <button type="button" aria-expanded={active} aria-controls={`edit-student-${id}`} onClick={() => toggle(id)} className="flex min-h-20 w-full items-center gap-4 p-4 text-left sm:p-5"><span aria-hidden="true" className="grid size-10 shrink-0 place-items-center text-[var(--brand-text)]">{icon}</span><span className="min-w-0 flex-1"><strong className="block text-base font-bold text-[var(--foreground)] sm:text-lg">{title}</strong><span className="mt-0.5 block text-xs leading-snug text-[var(--foreground-muted)] sm:text-sm">{description}</span></span><span aria-hidden="true" className={`shrink-0 text-2xl leading-none text-[var(--brand-text)] transition-transform ${active ? "rotate-180" : ""}`}>⌄</span></button>
+      {active && <div id={`edit-student-${id}`} className="grid gap-4 border-t border-[var(--border-soft)] p-4 sm:grid-cols-2 sm:p-5">{children}</div>}
+    </section>;
+}
+
+function StudentEditForm({ form, setForm, options, student, initialSection, error, close, submit, saving }: { form: StudentFormValue; setForm: (form: StudentFormValue) => void; options: EnrollmentOptions; student: Student; initialSection: "payment" | null; error: string; close: () => void; submit: (event: FormEvent<HTMLFormElement>) => void; saving: boolean }) {
+    const [activeSection, setActiveSection] = useState<EditSectionKey | null>(initialSection);
+    const [lastPayment, setLastPayment] = useState<Payment | null | undefined>(undefined);
+    const [keyboardInset, setKeyboardInset] = useState(0);
+    const dirty = JSON.stringify(form) !== JSON.stringify(editValue(student, options));
+    const selectedPlan = options.plans.find((item) => item.selectionKey === form.selectionKey);
+    const name = `${form.firstName} ${form.lastName}`.trim();
+    const initials = `${form.firstName.charAt(0)}${form.lastName.charAt(0)}`.toLocaleUpperCase("es") || "?";
+    function set<K extends keyof StudentFormValue>(key: K, value: StudentFormValue[K]) { setForm({ ...form, [key]: value }); }
+    useEffect(() => {
+        const controller = new AbortController();
+        fetch(`/api/pagos?studentId=${encodeURIComponent(student.id)}`, { cache: "no-store", signal: controller.signal })
+            .then(async (response) => response.ok ? response.json() as Promise<Payment[]> : Promise.reject(new Error("payments")))
+            .then((payments) => setLastPayment(payments.find((item) => item.status === "pagado" && !item.voidedAt) ?? null))
+            .catch(() => { if (!controller.signal.aborted) setLastPayment(null); });
+        return () => controller.abort();
+    }, [student.id]);
+    useEffect(() => {
+        const viewport = window.visualViewport;
+        if (!viewport) return;
+        const update = () => { const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop); setKeyboardInset(inset > 120 ? inset : 0); };
+        update(); viewport.addEventListener("resize", update); viewport.addEventListener("scroll", update);
+        return () => { viewport.removeEventListener("resize", update); viewport.removeEventListener("scroll", update); };
+    }, []);
+    useEffect(() => {
+        if (!dirty) return;
+        const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+        window.addEventListener("beforeunload", warn);
+        return () => window.removeEventListener("beforeunload", warn);
+    }, [dirty]);
+    useEffect(() => {
+        if (!error) return;
+        if (/nombre|apellido|teléfono|correo/i.test(error)) setActiveSection("personal");
+        else if (/plan|servicio|horario/i.test(error)) setActiveSection("service");
+        else if (/fecha|vencimiento|pago|importe/i.test(error)) setActiveSection("payment");
+    }, [error]);
+    return <div className="fixed inset-x-0 top-0 z-50 bg-black/85 p-0 sm:p-4" style={{ bottom: keyboardInset }}><KeyboardDialog as="form" onClose={close} dismissible={!saving} aria-label="Editar alumno" onSubmit={submit} className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)] shadow-2xl sm:rounded-3xl sm:border sm:border-[var(--border-soft)]">
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border-soft)] px-4 py-3 sm:px-6"><button type="button" onClick={close} disabled={saving} aria-label="Volver" className="grid size-10 shrink-0 place-items-center rounded-xl text-2xl hover:bg-[var(--surface-elevated)]">←</button><div className="min-w-0"><h2 className="text-xl font-black sm:text-2xl">Editar alumno</h2><p className="text-xs text-[var(--foreground-muted)] sm:text-sm">Actualizá los datos personales y deportivos.</p></div></header>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+        <section className="rounded-3xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-4 sm:p-5"><div className="flex min-w-0 items-center gap-3"><div className="grid size-16 shrink-0 place-items-center rounded-full border border-[var(--border-soft)] bg-[var(--surface)] text-xl font-black text-[var(--brand-text)]">{initials}</div><div className="min-w-0 flex-1"><h3 className="truncate text-lg font-black sm:text-xl">{name || "Alumno"}</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">{studentServiceLabel(form.serviceType)} · {selectedPlan?.frequencyDays ? `${selectedPlan.frequencyDays} días por semana` : form.plan || "Sin plan"}</p></div><span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${form.status === "activo" ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500" : "border-[var(--border-soft)] text-[var(--foreground-muted)]"}`}>{form.status === "activo" ? "Activo" : form.status === "inactivo" ? "Inactivo" : "Suspendido"}</span></div><div className="mt-4 grid grid-cols-3 gap-2 border-t border-[var(--border-soft)] pt-4"><EditSummary icon={<BmCalendarIcon size={18}/>} label="Próximo vencimiento" value={showDate(form.dueDate)}/><EditSummary icon={<BmPaymentIcon size={18}/>} label="Último pago" value={lastPayment === undefined ? "Consultando…" : lastPayment ? showDate(lastPayment.paidDate) : "Sin pagos"}/><EditSummary icon={<BmWorkoutIcon size={18}/>} label="Plan / Importe" value={`${form.plan || "Sin plan"} · ${money(form.monthlyFee)}`}/></div></section>
+        {error && <p role="alert" className="rounded-xl border border-red-400/40 bg-red-400/10 p-3 text-sm text-red-500">{error}</p>}
+        <EditSection id="personal" title="Datos personales" description="Nombre, apellido, contacto y fecha de nacimiento." icon={<BmUserIcon size={27}/>} active={activeSection === "personal"} toggle={(id) => setActiveSection(activeSection === id ? null : id)}>
+          <EditField label="Nombre *"><input required value={form.firstName} onChange={(event) => set("firstName", event.target.value)} className={inputClass}/></EditField><EditField label="Apellido *"><input required value={form.lastName} onChange={(event) => set("lastName", event.target.value)} className={inputClass}/></EditField><EditField label="Tipo de alumno"><select value={form.studentType} onChange={(event) => set("studentType", event.target.value as StudentType)} className={inputClass}>{STUDENT_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}</select></EditField><EditField label={`Teléfono${form.studentType === "Kids" ? "" : " *"}`}><input type="tel" required={form.studentType !== "Kids"} value={form.phone} onChange={(event) => set("phone", event.target.value)} className={inputClass}/></EditField><EditField label="Correo"><input type="email" value={form.email} onChange={(event) => set("email", event.target.value)} className={inputClass}/></EditField><EditField label="Fecha de nacimiento"><input type="date" value={form.birthDate} onChange={(event) => set("birthDate", event.target.value)} className={inputClass}/></EditField>{form.studentType === "Kids" && <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3"><EditField label="Responsable"><input value={form.responsibleName ?? ""} onChange={(event) => set("responsibleName", event.target.value)} className={inputClass}/></EditField><EditField label="Teléfono responsable"><input type="tel" value={form.responsiblePhone ?? ""} onChange={(event) => set("responsiblePhone", event.target.value)} className={inputClass}/></EditField><EditField label="Vínculo"><select value={form.responsibleRelation ?? ""} onChange={(event) => set("responsibleRelation", event.target.value)} className={inputClass}><option value="">Seleccioná</option>{["Madre", "Padre", "Tutor", "Otro"].map((value) => <option key={value}>{value}</option>)}</select></EditField></div>}
+        </EditSection>
+        <EditSection id="service" title="Servicio y plan" description="Tipo de servicio, plan mensual, estado y horario." icon={<BmWorkoutIcon size={27}/>} active={activeSection === "service"} toggle={(id) => setActiveSection(activeSection === id ? null : id)}>
+          <div className="sm:col-span-2"><ServiceTypeSelector value={form.serviceType} setValue={(value) => set("serviceType", value)}/></div><EditField label="Plan mensual *"><select required value={form.selectionKey} onChange={(event) => setForm({ ...form, ...selectedStudentPlanFormValue(event.target.value, options.plans) })} className={inputClass}><option value="">Seleccioná un plan</option>{options.plans.map((item) => <option key={item.selectionKey} value={item.selectionKey}>{item.name} · {money(item.price)}</option>)}</select></EditField><EditField label="Estado"><select value={form.status} onChange={(event) => set("status", event.target.value as StudentStatus)} className={inputClass}><option value="activo">Activo</option><option value="inactivo">Inactivo</option><option value="suspendido">Suspendido (histórico)</option></select></EditField><div className="sm:col-span-2"><ScheduleMultiPicker form={form} setForm={setForm} schedules={options.schedules}/></div>{form.scheduleIds.length > 1 && <EditField label="Horario principal"><select value={form.scheduleId} onChange={(event) => { const id = event.target.value; setForm({ ...form, scheduleId: id, scheduleIds: [id, ...form.scheduleIds.filter((item) => item !== id)] }); }} className={inputClass}>{form.scheduleIds.map((id) => <option key={id} value={id}>{options.schedules.find((schedule) => schedule.id === id)?.label ?? id}</option>)}</select></EditField>}
+        </EditSection>
+        <EditSection id="payment" title="Pago y vencimientos" description="Importe, fechas y gestión de pagos." icon={<BmPaymentIcon size={27}/>} active={activeSection === "payment"} toggle={(id) => setActiveSection(activeSection === id ? null : id)}>
+          <EditField label="Importe del plan"><div className={`${inputClass} font-bold text-[var(--brand-text)]`}>{money(form.monthlyFee)}</div></EditField><EditField label="Fecha de ingreso *"><input required type="date" value={form.joinedAt} onChange={(event) => set("joinedAt", event.target.value)} className={inputClass}/></EditField><EditField label="Primer vencimiento"><div className={inputClass}>{showDate(form.firstDueDate ?? "")}</div></EditField><EditField label="Próximo vencimiento"><input type="date" value={form.dueDate} onChange={(event) => set("dueDate", event.target.value)} className={inputClass}/></EditField><button type="button" disabled={!form.joinedAt} onClick={() => set("dueDate", nextMonthlyDate(form.joinedAt))} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-sm font-semibold text-[var(--brand-text)] disabled:opacity-50">Calcular un mes después</button><div className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-soft)] p-3 text-sm"><span>Último pago: {lastPayment === undefined ? "Consultando…" : lastPayment ? `${showDate(lastPayment.paidDate)} · ${money(lastPayment.amount)}` : "Sin pagos"}</span></div><Link href={`/pagos?accion=nuevo&studentId=${encodeURIComponent(student.id)}`} onClick={(event) => { if (dirty && !window.confirm("Hay cambios sin guardar. ¿Salir para registrar un pago?")) event.preventDefault(); }} className="flex min-h-11 items-center justify-center rounded-xl border border-[var(--border-soft)] px-4 text-sm font-bold text-[var(--brand-text)] sm:col-span-2">Registrar pago →</Link>
+        </EditSection>
+        <EditSection id="physical" title="Datos físicos y objetivo" description="Altura, peso, IMC, objetivo y observaciones." icon={<BmMeasurementsIcon size={27}/>} active={activeSection === "physical"} toggle={(id) => setActiveSection(activeSection === id ? null : id)}>
+          <EditField label="Altura (cm)"><input type="number" inputMode="numeric" min="50" max="300" step="1" value={form.height || ""} onChange={(event) => set("height", Number(event.target.value))} className={inputClass}/></EditField><EditField label="Peso (kg)"><input type="number" inputMode="decimal" min="0" max="500" step="0.1" value={form.weight || ""} onChange={(event) => set("weight", Number(event.target.value))} className={inputClass}/></EditField><EditField label="IMC automático"><div className={`${inputClass} font-bold text-[var(--brand-text)]`}>{bmi(form.weight, form.height)}</div></EditField><EditField label="Objetivo"><input value={form.goal} onChange={(event) => set("goal", event.target.value)} className={inputClass}/></EditField><EditField label="Observaciones" wide><textarea rows={4} value={form.notes} onChange={(event) => set("notes", event.target.value)} className={inputClass}/></EditField>
+        </EditSection>
+        <EditSection id="record" title="Secciones de la ficha" description="Fechas, horarios y estado histórico." icon={<BmClassesIcon size={27}/>} active={activeSection === "record"} toggle={(id) => setActiveSection(activeSection === id ? null : id)}>
+          <p className="text-sm text-[var(--foreground-muted)] sm:col-span-2">Ingreso original: {showDate(student.joinedAt)} · Estado actual: {form.status}. Las asistencias y pagos anteriores se conservan.</p><button type="button" onClick={() => setActiveSection("payment")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-left text-sm text-[var(--brand-text)]">Editar fechas y vencimientos →</button><button type="button" onClick={() => setActiveSection("service")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-left text-sm text-[var(--brand-text)]">Editar horarios y estado →</button>
+        </EditSection>
+      </div>
+      <footer className="shrink-0 border-t border-[var(--border-soft)] bg-[var(--background)] px-4 pb-[calc(.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-6"><button type="submit" disabled={saving} className="min-h-12 w-full rounded-xl bg-[var(--bm-accent)] px-5 text-base font-black text-[var(--bm-accent-contrast)] disabled:opacity-50">{saving ? "Guardando…" : "Guardar cambios"}</button></footer>
+    </KeyboardDialog></div>;
+}
+
+function EditField({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
+    return <label className={`min-w-0 text-sm font-medium ${wide ? "sm:col-span-2" : ""}`}><span className="mb-1.5 block">{label}</span>{children}</label>;
+}
+
+function EditSummary({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+    return <div className="min-w-0"><div className="mb-1 text-[var(--brand-text)]">{icon}</div><p className="text-[10px] leading-tight text-[var(--foreground-muted)] sm:text-xs">{label}</p><p className="mt-1 break-words text-xs font-bold leading-tight sm:text-sm">{value}</p></div>;
+}
 function ServiceTypeSelector({ value, setValue }: { value: StudentServiceType; setValue: (value: StudentServiceType) => void }) {
-    return <fieldset><legend className="text-sm font-semibold">Tipo de servicio *</legend><div className="mt-2 grid gap-2 sm:grid-cols-3">{STUDENT_SERVICE_OPTIONS.map((option) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 transition ${value === option.value ? "border-yellow-400/55 bg-yellow-400/[.07]" : "border-zinc-800 bg-zinc-950"}`}><span className="flex items-center gap-2"><input required type="radio" name="serviceType" value={option.value} checked={value === option.value} onChange={() => setValue(option.value)} className="accent-yellow-400"/><span className="font-bold text-zinc-100">{option.label}</span></span><span className="mt-2 block text-xs leading-relaxed text-[var(--foreground-muted)]">{option.description}</span></label>)}</div></fieldset>;
+    return <fieldset><legend className="text-sm font-semibold">Tipo de servicio *</legend><div className="mt-2 grid gap-2 sm:grid-cols-3">{STUDENT_SERVICE_OPTIONS.map((option) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 transition ${value === option.value ? "border-[var(--bm-accent)] bg-[color-mix(in_srgb,var(--bm-accent)_8%,var(--surface))]" : "border-[var(--border-soft)] bg-[var(--surface)]"}`}><span className="flex items-center gap-2"><input required type="radio" name="serviceType" value={option.value} checked={value === option.value} onChange={() => setValue(option.value)} className="accent-[var(--bm-accent)]"/><span className="font-bold text-[var(--foreground)]">{option.label}</span></span><span className="mt-2 block text-xs leading-relaxed text-[var(--foreground-muted)]">{option.description}</span></label>)}</div></fieldset>;
 }
 
 function ServiceBadge({ value }: { value: StudentServiceType }) {
