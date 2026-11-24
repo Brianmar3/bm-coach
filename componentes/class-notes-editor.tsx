@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { classRichPlainText, decodeClassRichText, encodeClassRichText, type ClassRichNode } from "@/lib/class-rich-text";
 import { renumberManualLines } from "@/lib/class-manual-numbering";
+import { listShortcut, separatorShortcut } from "@/lib/class-writing-shortcuts";
 
 const blockTags = new Set(["DIV", "P", "H1", "H2", "H3", "BLOCKQUOTE", "UL", "OL", "LI"]);
-const allowedTags = new Set(["p", "h1", "h2", "h3", "blockquote", "ul", "ol", "li", "strong", "em", "u", "s", "br"]);
+const allowedTags = new Set(["p", "h1", "h2", "h3", "blockquote", "ul", "ol", "li", "strong", "em", "u", "s", "br", "hr"]);
 
 function fromDom(node: Node): ClassRichNode[] {
   if (node.nodeType === Node.TEXT_NODE) return [{ t: "text", x: node.textContent ?? "" }];
@@ -28,13 +29,14 @@ function fromDom(node: Node): ClassRichNode[] {
     if (node.style.textDecoration.includes("line-through")) marks.push("s");
     return marks.reduceRight<ClassRichNode[]>((current, mark) => [{ t: mark as "strong", c: current }], children);
   }
-  if (allowedTags.has(tag)) return [{ t: tag as Exclude<ClassRichNode["t"], "text">, c: children, a, i }];
+  if (allowedTags.has(tag)) return [{ t: tag as Exclude<ClassRichNode["t"], "text">, c: children, a, i, n: tag === "ol" && node instanceof HTMLOListElement && node.start > 1 ? node.start : undefined }];
   return children;
 }
 
 function makeDom(node: ClassRichNode): Node {
   if (node.t === "text") return document.createTextNode(node.x);
   const element = document.createElement(node.t);
+  if (node.t === "ol" && node.n) (element as HTMLOListElement).start = node.n;
   if (node.a) element.style.textAlign = node.a;
   if (node.i) element.style.marginLeft = `${node.i * 40}px`;
   node.c.forEach((child) => element.appendChild(makeDom(child)));
@@ -60,13 +62,14 @@ function renderNodes(nodes: ClassRichNode[]): ReactNode {
       case "h3": return <h3 key={index} style={style}>{children}</h3>;
       case "blockquote": return <blockquote key={index} style={style}>{children}</blockquote>;
       case "ul": return <ul key={index} style={style}>{children}</ul>;
-      case "ol": return <ol key={index} style={style}>{children}</ol>;
+      case "ol": return <ol key={index} style={style} start={node.n}>{children}</ol>;
       case "li": return <li key={index} style={style}>{children}</li>;
       case "strong": return <strong key={index}>{children}</strong>;
       case "em": return <em key={index}>{children}</em>;
       case "u": return <u key={index}>{children}</u>;
       case "s": return <s key={index}>{children}</s>;
       case "br": return <br key={index} />;
+      case "hr": return <hr key={index} />;
     }
   });
 }
@@ -94,6 +97,7 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
   const selectedRange = useRef<Range | null>(null);
   const emitted = useRef<string | null>(null);
   const numberHandled = useRef(false);
+  const shortcutInProgress = useRef(false);
   const caretFrame = useRef(0);
   const focusedRequest = useRef(0);
   const history = useRef<{ past: { value: string; start: number; end: number }[]; current: { value: string; start: number; end: number }; future: { value: string; start: number; end: number }[] }>({ past: [], current: { value, start: 0, end: 0 }, future: [] });
@@ -284,17 +288,77 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
     next.append(document.createTextNode(`${indent}${Number(number) + 1}${separator}${spacing || " "}`), after.extractContents());
     block.after(next); const cursor = document.createRange(); cursor.selectNodeContents(next); cursor.collapse(false); selection.removeAllRanges(); selection.addRange(cursor); renumberManualBlocks(next); emit(); return true;
   }
+  function convertListShortcut(preventDefault: () => void, spaceAlreadyInserted = false) {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !selection.isCollapsed) return false;
+    const block = manualBlock(selection.anchorNode);
+    if (!block || !["DIV", "P"].includes(block.tagName)) return false;
+    const caret = selection.getRangeAt(0);
+    const before = caret.cloneRange(); before.selectNodeContents(block); before.setEnd(caret.startContainer, caret.startOffset);
+    const prefix = before.toString();
+    const shortcut = listShortcut(spaceAlreadyInserted && prefix.endsWith(" ") ? prefix.slice(0, -1) : prefix);
+    if (!shortcut) return false;
+    if (spaceAlreadyInserted && !prefix.endsWith(" ")) return false;
+    if (!spaceAlreadyInserted) {
+      preventDefault();
+      shortcutInProgress.current = true;
+      try { document.execCommand("insertText", false, " "); }
+      finally { shortcutInProgress.current = false; }
+    }
+    emit(); // Undo first restores the typed prefix and space.
+    const current = selection.getRangeAt(0);
+    const after = current.cloneRange(); after.selectNodeContents(block); after.setStart(current.startContainer, current.startOffset);
+    const remainder = after.extractContents();
+    const list = shortcut.kind === "bullet" ? document.createElement("ul") : document.createElement("ol");
+    if (shortcut.kind === "ordered") (list as HTMLOListElement).start = shortcut.start;
+    const item = document.createElement("li");
+    item.append(remainder);
+    if (!item.hasChildNodes()) item.appendChild(document.createElement("br"));
+    list.appendChild(item);
+    block.replaceWith(list);
+    const next = document.createRange(); next.selectNodeContents(item); next.collapse(true);
+    selection.removeAllRanges(); selection.addRange(next);
+    emit();
+    return true;
+  }
+  function insertSeparator(preventDefault: () => void) {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !selection.isCollapsed) return false;
+    const block = manualBlock(selection.anchorNode);
+    if (!block || !["DIV", "P"].includes(block.tagName)) return false;
+    const caret = selection.getRangeAt(0);
+    const before = caret.cloneRange(); before.selectNodeContents(block); before.setEnd(caret.startContainer, caret.startOffset);
+    const after = caret.cloneRange(); after.selectNodeContents(block); after.setStart(caret.startContainer, caret.startOffset);
+    if (!separatorShortcut(before.toString(), after.toString())) return false;
+    preventDefault();
+    const line = document.createElement("div"); line.appendChild(document.createElement("br"));
+    block.replaceWith(document.createElement("hr"), line);
+    const next = document.createRange(); next.selectNodeContents(line); next.collapse(true);
+    selection.removeAllRanges(); selection.addRange(next);
+    emit();
+    return true;
+  }
   function onNumberKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); travel(event.shiftKey ? "redo" : "undo"); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") { event.preventDefault(); travel("redo"); return; }
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    if (event.nativeEvent.isComposing) return;
+    const anchor = window.getSelection()?.anchorNode;
+    if (event.key === "Tab" && (anchor instanceof Element ? anchor.closest("li") : anchor?.parentElement?.closest("li"))) {
+      event.preventDefault(); document.execCommand(event.shiftKey ? "outdent" : "indent"); emit(); rememberSelection(); return;
+    }
+    if (event.key === " " && !event.ctrlKey && !event.metaKey && !event.altKey && convertListShortcut(() => event.preventDefault())) return;
+    if (event.key !== "Enter") return;
+    if (insertSeparator(() => event.preventDefault())) { numberHandled.current = true; window.setTimeout(() => { numberHandled.current = false; }, 0); return; }
     if (continueManualNumbering(() => event.preventDefault())) { numberHandled.current = true; window.setTimeout(() => { numberHandled.current = false; }, 0); }
   }
   function onNumberBeforeInput(event: FormEvent<HTMLDivElement>) {
     const input = event.nativeEvent as InputEvent;
+    if (shortcutInProgress.current) return;
     if (input.inputType === "historyUndo" || input.inputType === "historyRedo") { event.preventDefault(); travel(input.inputType === "historyUndo" ? "undo" : "redo"); return; }
+    if (!input.isComposing && input.inputType === "insertText" && input.data === " " && !numberHandled.current) { convertListShortcut(() => event.preventDefault()); return; }
     if (input.isComposing || !["insertLineBreak", "insertParagraph"].includes(input.inputType)) return;
     if (numberHandled.current) { event.preventDefault(); return; }
+    if (insertSeparator(() => event.preventDefault())) return;
     continueManualNumbering(() => event.preventDefault());
   }
   useEffect(() => {
@@ -335,7 +399,7 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
   }, []);
   return <div className="class-notes-editor">
     <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} aria-pressed={activeTools[tool.argument ?? tool.command]} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
-    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { const inputType = (event.nativeEvent as InputEvent).inputType ?? ""; if (inputType.startsWith("delete") || inputType === "insertParagraph" || inputType === "insertLineBreak" || inputType === "insertFromPaste") renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} className="class-notes-writing" />
+    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { const input = event.nativeEvent as InputEvent; const inputType = input.inputType ?? ""; if (!shortcutInProgress.current && !input.isComposing && input.data === " " && convertListShortcut(() => {}, true)) return; if (inputType.startsWith("delete") || inputType === "insertParagraph" || inputType === "insertLineBreak" || inputType === "insertFromPaste") renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} className="class-notes-writing" />
     <p className="class-notes-count">{classRichPlainText(value).length}/12.000 caracteres</p>
   </div>;
 }
