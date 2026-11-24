@@ -22,6 +22,8 @@ type DragVisual = {
   target: HTMLElement | null;
   previousOutline: string;
   previousOffset: string;
+  source: HTMLElement | null;
+  previousVisibility: string;
 };
 
 export function edgeScrollSpeed(y: number, top: number, bottom: number) {
@@ -40,7 +42,7 @@ function scrollTargetFor(element: HTMLElement) {
   return (document.scrollingElement ?? document.documentElement) as HTMLElement;
 }
 
-function createPreview(element: HTMLElement): DragVisual {
+function createPreview(element: HTMLElement, cardTarget: boolean): DragVisual {
   const preview = element.cloneNode(true) as HTMLElement;
   const accent = getComputedStyle(element).getPropertyValue("--bm-accent").trim() || "#e7b93d";
   preview.style.setProperty("--bm-accent", accent);
@@ -55,7 +57,10 @@ function createPreview(element: HTMLElement): DragVisual {
     borderColor: accent, boxShadow: "0 14px 36px rgba(0, 0, 0, 0.6)",
   });
   document.body.appendChild(preview);
-  return { mode: "touch", preview, target: null, previousOutline: "", previousOffset: "" };
+  const source = cardTarget ? element : null;
+  const previousVisibility = source?.style.visibility ?? "";
+  if (source) source.style.visibility = "hidden";
+  return { mode: "touch", preview, target: null, previousOutline: "", previousOffset: "", source, previousVisibility };
 }
 
 function updateVisual(visual: DragVisual, x: number, y: number, targetAttribute: string) {
@@ -64,10 +69,14 @@ function updateVisual(visual: DragVisual, x: number, y: number, targetAttribute:
   visual.preview.style.left = `${Math.max(8, Math.min(x + 14, window.innerWidth - width - 8))}px`;
   visual.preview.style.top = `${Math.max(8, Math.min(y - height - 16, window.innerHeight - height - 8))}px`;
   const target = document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${targetAttribute}]`) ?? null;
-  if (target === visual.target) return;
+  if (target === visual.target) {
+    if (targetAttribute === "data-plan-card" && target) target.setAttribute("data-class-drop-placement", y < target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2 ? "before" : "after");
+    return;
+  }
   if (visual.target) {
     visual.target.style.outline = visual.previousOutline;
     visual.target.style.outlineOffset = visual.previousOffset;
+    visual.target.removeAttribute("data-class-drop-placement");
   }
   visual.target = target;
   if (target) {
@@ -76,17 +85,20 @@ function updateVisual(visual: DragVisual, x: number, y: number, targetAttribute:
     target.style.outline = "2px solid var(--bm-accent, #e7b93d)";
     target.style.outlineOffset = "-2px";
   }
+  if (targetAttribute === "data-plan-card" && target) target.setAttribute("data-class-drop-placement", y < target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2 ? "before" : "after");
 }
 
 function removeVisual(visual: DragVisual) {
   if (visual.target) {
     visual.target.style.outline = visual.previousOutline;
     visual.target.style.outlineOffset = visual.previousOffset;
+    visual.target.removeAttribute("data-class-drop-placement");
   }
+  if (visual.source) visual.source.style.visibility = visual.previousVisibility;
   visual.preview.remove();
 }
 
-export function useTouchClassCopy(onCopy: (id: string, date: string, at: number) => void, targetAttribute = "data-plan-day") {
+export function useTouchClassCopy(onCopy: (id: string, date: string, at: number, y?: number) => void, targetAttribute = "data-plan-day") {
   const drag = useRef<ActiveDrag | null>(null);
   const onCopyRef = useRef(onCopy);
   const suppressClick = useRef(false);
@@ -161,7 +173,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
       current.cancel();
       suppressClick.current = true;
       window.setTimeout(() => { suppressClick.current = false; }, 500);
-      if (date) onCopyRef.current(current.id, date, native.timeStamp);
+      if (date) onCopyRef.current(current.id, date, native.timeStamp, finger.clientY);
     };
     const cancel = () => current.cancel();
     current.cancel = () => {
@@ -178,7 +190,7 @@ export function useTouchClassCopy(onCopy: (id: string, date: string, at: number)
     current.timer = window.setTimeout(() => {
       if (drag.current !== current) return;
       current.active = true;
-      visual.current = createPreview(element);
+      visual.current = createPreview(element, targetAttribute === "data-plan-card");
       updateVisual(visual.current, current.x, current.y, targetAttribute);
       document.addEventListener("touchmove", move, { passive: false });
       document.addEventListener("touchend", finish);

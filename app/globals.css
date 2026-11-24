@@ -2458,3 +2458,26 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
   html[data-trainer-keyboard="open"] [data-trainer-floating-trigger],
   html[data-trainer-more="open"] [data-trainer-floating-trigger] { visibility:hidden; }
 }
+
+.class-plan-card { position:relative; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+.class-plan-card[data-drop-before]::before, .class-plan-card[data-class-drop-placement="before"]::before,
+.class-plan-card[data-drop-after]::after, .class-plan-card[data-class-drop-placement="after"]::after {
+  content:""; position:absolute; left:0; right:0; height:4px; border-radius:4px;
+  background:var(--bm-accent); box-shadow:0 0 12px var(--bm-accent); pointer-events:none;
+}
+.class-plan-card[data-drop-before]::before, .class-plan-card[data-class-drop-placement="before"]::before { top:-6px; }
+.class-plan-card[data-drop-after]::after, .class-plan-card[data-class-drop-placement="after"]::after { bottom:-6px; }
+.class-plan-toast {
+  position:fixed; z-index:90; top:calc(env(safe-area-inset-top) + 6.5rem); right:1rem;
+  display:flex; align-items:center; gap:.7rem; max-width:min(26rem,calc(100vw - 2rem));
+  padding:.75rem .9rem; border:1px solid color-mix(in srgb,var(--bm-accent) 55%,var(--border-soft));
+  border-radius:14px; background:var(--surface-elevated); color:var(--foreground);
+  box-shadow:0 14px 36px #0005; animation:class-plan-toast-in .22s ease-out, class-plan-toast-out .22s ease-in 2.78s forwards;
+}
+.class-plan-toast-icon { display:grid; place-items:center; flex:none; width:1.7rem; height:1.7rem; border-radius:50%; background:var(--bm-accent); color:var(--bm-accent-contrast); font-weight:700; }
+.class-plan-toast-close { display:grid; place-items:center; flex:none; min-width:2rem; min-height:2rem; border-radius:8px; color:var(--foreground-muted); font-size:1.3rem; }
+.class-plan-toast-close:hover { background:var(--surface); color:var(--foreground); }
+@keyframes class-plan-toast-in { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes class-plan-toast-out { to { opacity:0; transform:translateY(-8px); } }
+@media(max-width:639px) { .class-plan-toast { top:auto; right:auto; left:.75rem; bottom:calc(env(safe-area-inset-bottom) + 6.5rem); max-width:calc(100vw - 6rem); } }
+@media(prefers-reduced-motion:reduce) { .class-plan-toast { animation:none; } }

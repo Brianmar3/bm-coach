@@ -88,17 +88,45 @@ const tools: Tool[] = [
   { label: "Cita", mark: "❝", command: "formatBlock", argument: "blockquote" },
 ];
 
-export function ClassNotesEditor({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) {
+export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }: { value: string; onChange: (value: string) => void; disabled: boolean; focusRequest?: number }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const selectedRange = useRef<Range | null>(null);
   const emitted = useRef<string | null>(null);
   const numberHandled = useRef(false);
   const caretFrame = useRef(0);
+  const focusedRequest = useRef(0);
   const history = useRef<{ past: { value: string; start: number; end: number }[]; current: { value: string; start: number; end: number }; future: { value: string; start: number; end: number }[] }>({ past: [], current: { value, start: 0, end: 0 }, future: [] });
   const [historyState, setHistoryState] = useState({ undo: false, redo: false });
   const [activeTools, setActiveTools] = useState<Record<string, boolean>>({});
   useEffect(() => { if (editorRef.current && value !== emitted.current) { fillEditor(editorRef.current, value); history.current = { past: [], current: { value, start: 0, end: 0 }, future: [] }; setHistoryState({ undo: false, redo: false }); } }, [value]);
+  useEffect(() => {
+    if (!focusRequest || disabled || focusedRequest.current === focusRequest) return;
+    const frame = requestAnimationFrame(() => {
+      const editor = editorRef.current;
+      if (!editor || focusedRequest.current === focusRequest) return;
+      focusedRequest.current = focusRequest;
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      editor.scrollIntoView({ block: "end", behavior: "instant" });
+      editor.focus({ preventScroll: true });
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      editor.scrollTop = editor.scrollHeight;
+      requestAnimationFrame(() => {
+        const caret = range.getBoundingClientRect();
+        const viewport = window.visualViewport;
+        const bottom = (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight);
+        if (caret.bottom > bottom - 24) window.scrollBy({ top: caret.bottom - bottom + 24, behavior: "instant" });
+        scheduleCaretVisible();
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  // The focus request is consumed once; text edits must not move the cursor again.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest, disabled]);
   function selectionOffsets() {
     const element = editorRef.current;
     const selection = window.getSelection();
