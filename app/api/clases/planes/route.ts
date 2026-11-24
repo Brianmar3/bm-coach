@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     await ensureClassOccurrences(35, workspaceId);
     const date = { gte: dateKeyToDatabase(start), lte: dateKeyToDatabase(addDateKeyDays(start, 6)) };
     const [plans, occurrences, recent] = await Promise.all([
-      prisma.groupClassPlan.findMany({ where: { workspaceId, date }, include: { occurrence: { select: occurrenceSelect } }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+      prisma.groupClassPlan.findMany({ where: { workspaceId, date }, include: { occurrence: { select: occurrenceSelect } }, orderBy: [{ date: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }] }),
       prisma.classOccurrence.findMany({ where: { workspaceId, date, suppressedBySchedule: false }, select: occurrenceSelect, orderBy: [{ date: "asc" }, { startTime: "asc" }] }),
       prisma.groupClassPlan.findMany({ where: { workspaceId, date: { lt: dateKeyToDatabase(start) } }, select: { id: true, date: true, snapshot: true }, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 20 }),
     ]);
@@ -65,7 +65,8 @@ export async function POST(request: Request) {
     } else if (validNote(input.snapshot)) {
       snapshot = input.snapshot;
     } else return Response.json({ error: "Contenido de clase inválido." }, { status: 400 });
-    const plan = await prisma.groupClassPlan.create({ data: { workspaceId, date: dateKeyToDatabase(input.date), routineId, snapshot: snapshot as unknown as Prisma.InputJsonValue } });
+    const last = await prisma.groupClassPlan.aggregate({ where: { workspaceId, date: dateKeyToDatabase(input.date) }, _max: { sortOrder: true } });
+    const plan = await prisma.groupClassPlan.create({ data: { workspaceId, date: dateKeyToDatabase(input.date), sortOrder: (last._max.sortOrder ?? -1) + 1, routineId, snapshot: snapshot as unknown as Prisma.InputJsonValue } });
     return Response.json({ id: plan.id }, { status: 201 });
   } catch {
     return Response.json({ error: "No se pudo guardar la clase." }, { status: 500 });
@@ -76,7 +77,17 @@ export async function PATCH(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   try {
     const { workspaceId } = await requireTrainerWorkspace();
-    const input = await request.json() as { id?: string; date?: string; snapshot?: unknown; occurrenceId?: string | null };
+    const input = await request.json() as { id?: string; date?: string; snapshot?: unknown; occurrenceId?: string | null; orderedIds?: string[] };
+    if (input.orderedIds !== undefined) {
+      if (!input.date || !isDateKey(input.date) || !Array.isArray(input.orderedIds) || input.orderedIds.length > 100 || !input.orderedIds.every((id) => typeof id === "string") || new Set(input.orderedIds).size !== input.orderedIds.length) return Response.json({ error: "Orden inválido." }, { status: 400 });
+      const result = await prisma.$transaction(async (tx) => {
+        const existing = await tx.groupClassPlan.findMany({ where: { workspaceId, date: dateKeyToDatabase(input.date!) }, select: { id: true } });
+        if (existing.length !== input.orderedIds!.length || existing.some((plan) => !input.orderedIds!.includes(plan.id))) return false;
+        for (const [sortOrder, id] of input.orderedIds!.entries()) await tx.groupClassPlan.update({ where: { id, workspaceId }, data: { sortOrder } });
+        return true;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return Response.json(result ? { message: "Orden guardado." } : { error: "La planificación cambió. Actualizá e intentá de nuevo." }, { status: result ? 200 : 409 });
+    }
     if (!input.id || (input.date !== undefined && !isDateKey(input.date)) || (input.snapshot !== undefined && !validNote(input.snapshot))) return Response.json({ error: "Cambios inválidos." }, { status: 400 });
     const result = await prisma.$transaction(async (tx) => {
       const plan = await tx.groupClassPlan.findFirst({ where: { id: input.id, workspaceId }, include: { occurrence: true } });
@@ -92,7 +103,10 @@ export async function PATCH(request: Request) {
       }
       if (plan.occurrenceId && plan.occurrenceId !== nextOccurrenceId) await tx.classOccurrence.update({ where: { id: plan.occurrenceId }, data: { plannedRoutineId: null, plannedSnapshot: Prisma.DbNull } });
       const snapshot = input.snapshot !== undefined ? input.snapshot as ClassNote : plan.snapshot as unknown as ClassNote;
-      await tx.groupClassPlan.update({ where: { id: plan.id }, data: { date, occurrenceId: nextOccurrenceId, snapshot: snapshot as unknown as Prisma.InputJsonValue, routineId: input.snapshot !== undefined ? null : plan.routineId } });
+      const destinationOrder = input.date && input.date !== databaseDateKey(plan.date)
+        ? ((await tx.groupClassPlan.aggregate({ where: { workspaceId, date }, _max: { sortOrder: true } }))._max.sortOrder ?? -1) + 1
+        : plan.sortOrder;
+      await tx.groupClassPlan.update({ where: { id: plan.id }, data: { date, sortOrder: destinationOrder, occurrenceId: nextOccurrenceId, snapshot: snapshot as unknown as Prisma.InputJsonValue, routineId: input.snapshot !== undefined ? null : plan.routineId } });
       if (nextOccurrenceId) await tx.classOccurrence.update({ where: { id: nextOccurrenceId }, data: { plannedRoutineId: input.snapshot !== undefined ? null : plan.routineId, plannedSnapshot: snapshot as unknown as Prisma.InputJsonValue } });
       return { status: 200, message: "Planificación actualizada." };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

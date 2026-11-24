@@ -2428,7 +2428,7 @@ html[data-theme="light"] .sports-podium-plate { --sports-shade:#aaa093; }
 .class-notes-writing { min-height:360px; width:100%; overflow-wrap:anywhere; padding:1rem; border:1px solid var(--border-soft); border-top:0; border-radius:0 0 12px 12px; background:var(--surface); color:var(--foreground); font-size:1rem; line-height:1.65; outline:none; white-space:pre-wrap; }
 .class-notes-writing:focus { border-color:var(--bm-accent); box-shadow:inset 0 0 0 1px var(--bm-accent); }
 .class-notes-count { margin-top:.4rem; text-align:right; color:var(--foreground-muted); font-size:.7rem; }
-.class-notes-writing :is(p,div), .class-notes-content p { min-height:1.5em; margin:0 0 .35rem; }
+.class-notes-writing :is(p,div), .class-notes-content p { min-height:1.5em; margin:0; }
 .class-notes-writing h1, .class-notes-content h1 { margin:.8rem 0 .4rem; font-size:1.5rem; font-weight:800; }
 .class-notes-writing h2, .class-notes-content h2 { margin:.7rem 0 .35rem; font-size:1.25rem; font-weight:800; }
 .class-notes-writing h3, .class-notes-content h3 { margin:.6rem 0 .3rem; font-size:1.1rem; font-weight:700; }

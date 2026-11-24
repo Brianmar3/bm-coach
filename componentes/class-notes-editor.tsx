@@ -247,13 +247,13 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
     const range = selection.getRangeAt(0);
     const before = range.cloneRange(); before.selectNodeContents(block); before.setEnd(range.startContainer, range.startOffset);
     const after = range.cloneRange(); after.selectNodeContents(block); after.setStart(range.startContainer, range.startOffset);
-    if (after.toString().trim()) return false;
     const match = /^(\s*)(\d+)([.-])(\s*)(.*)$/.exec(before.toString());
     if (!match) return false;
     preventDefault();
     const [, indent, number, separator, spacing, item] = match;
     if (!item.trim()) { block.textContent = indent; const end = document.createRange(); end.selectNodeContents(block); end.collapse(false); selection.removeAllRanges(); selection.addRange(end); renumberManualBlocks(block.nextElementSibling as HTMLElement); emit(); return true; }
-    const next = document.createElement("div"); next.textContent = `${indent}${Number(number) + 1}${separator}${spacing || " "}`;
+    const next = document.createElement("div");
+    next.append(document.createTextNode(`${indent}${Number(number) + 1}${separator}${spacing || " "}`), after.extractContents());
     block.after(next); const cursor = document.createRange(); cursor.selectNodeContents(next); cursor.collapse(false); selection.removeAllRanges(); selection.addRange(cursor); renumberManualBlocks(next); emit(); return true;
   }
   function onNumberKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -307,7 +307,7 @@ export function ClassNotesEditor({ value, onChange, disabled }: { value: string;
   }, []);
   return <div className="class-notes-editor">
     <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} aria-pressed={activeTools[tool.argument ?? tool.command]} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
-    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { if ((event.nativeEvent as InputEvent).inputType?.startsWith("delete")) renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); emit(); }} className="class-notes-writing" />
+    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { const inputType = (event.nativeEvent as InputEvent).inputType ?? ""; if (inputType.startsWith("delete") || inputType === "insertParagraph" || inputType === "insertLineBreak" || inputType === "insertFromPaste") renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} className="class-notes-writing" />
     <p className="class-notes-count">{classRichPlainText(value).length}/12.000 caracteres</p>
   </div>;
 }

@@ -1925,6 +1925,7 @@ model GroupClassPlan {
   id           String           @id @default(cuid())
   workspaceId  String
   date         DateTime         @db.Date
+  sortOrder    Int              @default(0)
   routineId    String?
   occurrenceId String?          @unique
   snapshot     Json
@@ -1935,6 +1936,7 @@ model GroupClassPlan {
   occurrence   ClassOccurrence? @relation(fields: [occurrenceId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, date])
+  @@index([workspaceId, date, sortOrder])
   @@map("group_class_plans")
 }
 
