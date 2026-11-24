@@ -8,7 +8,7 @@ import { ClassNotesEditor, ClassNotesView } from "@/componentes/class-notes-edit
 import RutinasPage from "@/app/rutinas/page";
 import { useGroupClassDraft, type ClassDraftContent } from "@/componentes/use-group-class-draft";
 import { useTouchClassCopy } from "@/componentes/use-touch-class-copy";
-import { canDropClassPlan, classPlanDropIndex } from "@/lib/class-plan-drag";
+import { classPlanMoveIndex } from "@/lib/class-plan-drag";
 
 type Occurrence = { id: string; date: string; startTime: string; classNameSnapshot: string; status: string; taughtAt: string | null; taughtSnapshot: ClassNote | null };
 type Plan = { id: string; date: string; sortOrder: number; routineId: string | null; occurrenceId: string | null; snapshot: ClassNote; occurrence: Occurrence | null };
@@ -30,31 +30,57 @@ function routinePayload(name: string, modality: string, text: string, original?:
   return { name: name.trim() || "Clase sin título", kind: "template", status: "borrador", objective: "Clase grupal", level: "principiante", trainerNotificationsEnabled: false, description: "", startDate: "", durationWeeks: null, priorityMuscles: [], location: "", equipment: [], studentIds: [], tags: ["Tipo de clase: " + (modality.trim() || "Otra"), "Clase libre"], expectedUpdatedAt: original?.updatedAt, days: [{ dayNumber: 1, name: name.trim() || "Clase sin título", objective: "", warmup: "", observations: "", estimatedMinutes: null, exercises: [], blocks: chunks.map((chunk, index) => ({ type: "FREE", name: "Clase", order: index + 1, rounds: null, durationSeconds: null, workSeconds: null, restSeconds: null, restBetweenRoundsSeconds: null, targetRounds: null, instructions: chunk, exercises: [] })) }] };
 }
 
-function PlanningDay({ date, plans, history, busy, touchCopy, open, add, reorder }: {
+function PlanningDay({ date, plans, history, busy, touchCopy, dragSourceRef, open, add, reorder, dropPlan }: {
   date: string; plans: Plan[]; history: boolean; busy: boolean;
   touchCopy: ReturnType<typeof useTouchClassCopy>;
+  dragSourceRef: { current: string | null };
   open: (plan: Plan) => void; add: () => void;
   reorder: (id: string, target: number) => void;
+  dropPlan: (id: string, date: string, position: number) => void;
 }) {
   const visible = plans.filter((plan) => !history || plan.occurrence?.taughtAt).sort((a, b) => a.sortOrder - b.sortOrder);
-  const dragged = useRef<string | null>(null);
   const draggedElement = useRef<HTMLElement | null>(null);
   const suppressClick = useRef(false);
   const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
-  function finishDrag() { if (draggedElement.current) draggedElement.current.style.visibility = ""; draggedElement.current = null; dragged.current = null; setDrop(null); window.setTimeout(() => { suppressClick.current = false; }, 400); }
-  function dropOn(id: string, after: boolean) {
-    const source = visible.findIndex((plan) => plan.id === dragged.current);
-    const destination = visible.findIndex((plan) => plan.id === id);
-    if (source >= 0 && destination >= 0 && !busy && !history) reorder(visible[source].id, classPlanDropIndex(source, destination, after));
-    finishDrag();
+  const [dropDay, setDropDay] = useState(false);
+  function finishDrag() {
+    if (draggedElement.current) draggedElement.current.style.visibility = "";
+    draggedElement.current = null;
+    dragSourceRef.current = null;
+    setDrop(null);
+    setDropDay(false);
+    window.setTimeout(() => { suppressClick.current = false; }, 400);
   }
-  return <div data-plan-day={date} className="min-w-0 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-2">
+  return <div data-plan-day={date} data-plan-card={date} data-drop-day={dropDay || undefined}
+    onDragOver={(event) => { if (!dragSourceRef.current || busy || history) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; if (!(event.target as Element).closest("article[data-plan-card]")) { setDrop(null); setDropDay(true); } }}
+    onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) { setDrop(null); setDropDay(false); } }}
+    onDrop={(event) => { if (!dragSourceRef.current || busy || history) return; event.preventDefault(); setDropDay(false); setDrop(null); dropPlan(dragSourceRef.current, date, visible.length); }}
+    className="class-plan-day min-w-0 rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] p-2">
     <h2 className="mb-2 text-sm font-bold capitalize text-[var(--brand-text)]">{dateLabel(date)}</h2>
-    <div className="space-y-2">{visible.map((plan, index) => <article key={plan.id} data-plan-card={plan.id} draggable={!busy && !history && !plan.occurrence?.taughtAt && visible.length > 1} tabIndex={0} role="button" aria-label={`Abrir ${plan.snapshot.name}`} aria-describedby={visible.length > 1 && !history ? `class-plan-sort-help-${date}` : undefined} onDragStart={(event) => { if (touchCopy.isTouchPending()) { event.preventDefault(); return; } dragged.current = plan.id; draggedElement.current = event.currentTarget; suppressClick.current = true; event.dataTransfer.effectAllowed = "move"; window.setTimeout(() => { if (dragged.current === plan.id && draggedElement.current) draggedElement.current.style.visibility = "hidden"; }, 0); event.dataTransfer.setData("application/x-bm-class-plan", plan.id); }} onDragOver={(event) => { if (!dragged.current) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDrop({ id: plan.id, after: event.clientY >= event.currentTarget.getBoundingClientRect().top + event.currentTarget.getBoundingClientRect().height / 2 }); }} onDrop={(event) => { if (!dragged.current) return; event.preventDefault(); event.stopPropagation(); dropOn(plan.id, event.clientY >= event.currentTarget.getBoundingClientRect().top + event.currentTarget.getBoundingClientRect().height / 2); }} onDragEnd={finishDrag} onTouchStart={(event) => { if (!busy && !history && !plan.occurrence?.taughtAt && visible.length > 1) touchCopy.start(event, plan.id); }} onTouchMove={touchCopy.moveBeforeActivation} onTouchEnd={touchCopy.endBeforeActivation} onTouchCancel={touchCopy.endBeforeActivation} onContextMenu={(event) => { if (touchCopy.isTouchPending()) event.preventDefault(); }} onClick={(event) => { if (suppressClick.current || touchCopy.consumeClick()) { event.preventDefault(); return; } open(plan); }} onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); open(plan); } else if (!busy && !history && !plan.occurrence?.taughtAt && ["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) { event.preventDefault(); const target = event.key === "Home" ? 0 : event.key === "End" ? visible.length - 1 : index + (event.key === "ArrowUp" ? -1 : 1); if (target >= 0 && target < visible.length) reorder(plan.id, target); } }} data-drop-before={drop?.id === plan.id && !drop.after || undefined} data-drop-after={drop?.id === plan.id && drop.after || undefined} className="class-plan-card cursor-grab rounded-lg border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-2 text-xs text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-[var(--bm-accent)] active:cursor-grabbing">
+    <div className="space-y-2">{visible.map((plan, index) => <article key={plan.id} data-plan-card={plan.id}
+      draggable={!busy && !history && !plan.occurrence?.taughtAt} tabIndex={0} role="button"
+      aria-label={`Abrir ${plan.snapshot.name}`} aria-describedby={!history ? `class-plan-sort-help-${date}` : undefined}
+      onDragStart={(event) => {
+        if (touchCopy.isTouchPending()) { event.preventDefault(); return; }
+        dragSourceRef.current = plan.id; draggedElement.current = event.currentTarget; suppressClick.current = true;
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("application/x-bm-class-plan", plan.id);
+        window.setTimeout(() => { if (dragSourceRef.current === plan.id && draggedElement.current) draggedElement.current.style.visibility = "hidden"; }, 0);
+      }}
+      onDragOver={(event) => { if (!dragSourceRef.current || busy || history) return; event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "move"; setDropDay(false); setDrop({ id: plan.id, after: event.clientY >= event.currentTarget.getBoundingClientRect().top + event.currentTarget.getBoundingClientRect().height / 2 }); }}
+      onDrop={(event) => { if (!dragSourceRef.current || busy || history) return; event.preventDefault(); event.stopPropagation(); setDrop(null); dropPlan(dragSourceRef.current, date, index + (event.clientY >= event.currentTarget.getBoundingClientRect().top + event.currentTarget.getBoundingClientRect().height / 2 ? 1 : 0)); }}
+      onDragEnd={finishDrag}
+      onTouchStart={(event) => { if (!busy && !history && !plan.occurrence?.taughtAt) touchCopy.start(event, plan.id); }}
+      onTouchMove={touchCopy.moveBeforeActivation} onTouchEnd={touchCopy.endBeforeActivation} onTouchCancel={touchCopy.endBeforeActivation}
+      onContextMenu={(event) => { if (touchCopy.isTouchPending()) event.preventDefault(); }}
+      onClick={(event) => { if (suppressClick.current || touchCopy.consumeClick()) { event.preventDefault(); return; } open(plan); }}
+      onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); open(plan); } else if (!busy && !history && !plan.occurrence?.taughtAt && ["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) { event.preventDefault(); const target = event.key === "Home" ? 0 : event.key === "End" ? visible.length - 1 : index + (event.key === "ArrowUp" ? -1 : 1); if (target >= 0 && target < visible.length) reorder(plan.id, target); } }}
+      data-drop-before={drop?.id === plan.id && !drop.after || undefined} data-drop-after={drop?.id === plan.id && drop.after || undefined}
+      className="class-plan-card cursor-grab rounded-lg border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-2 text-xs text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-[var(--bm-accent)] active:cursor-grabbing">
       <p className="text-[var(--brand-text)]">{plan.snapshot.modality}{plan.occurrence ? " · " + plan.occurrence.startTime : ""}</p><h3 className="mt-1 break-words font-semibold">{plan.snapshot.name}</h3>
       <p className="mt-1 line-clamp-2 whitespace-pre-line text-[var(--foreground-muted)]">{classRichPlainText(noteText(plan.snapshot))}</p>
     </article>)}</div>
-    {visible.length > 1 && !history && <p id={`class-plan-sort-help-${date}`} className="sr-only">Arrastrá la tarjeta dentro del día para reordenar. En celular, mantené presionado. Con teclado, usá las flechas, Inicio o Fin.</p>}
+    {!history && visible.length > 0 && <p id={`class-plan-sort-help-${date}`} className="sr-only">Arrastrá la tarjeta para cambiar el día o la posición. En celular, mantené presionado. Con teclado, usá las flechas, Inicio o Fin para ordenar dentro del día.</p>}
     {history && !visible.length && <p className="text-xs text-[var(--foreground-muted)]">Sin clases dictadas</p>}
     <button onClick={add} className="mt-2 min-h-12 w-full rounded-lg border border-dashed border-[var(--bm-accent)] px-2 py-2 text-xs font-semibold text-[var(--brand-text)]">+ Agregar clase</button>
   </div>;
@@ -76,6 +102,7 @@ export function GroupClassPlanning() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [picker, setPicker] = useState<"actions" | "library" | "previous">("actions");
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const dragSourceRef = useRef<string | null>(null);
   const selectedPlanDialogRef = useRef<HTMLDivElement>(null);
   const touchCopy = useTouchClassCopy((id, targetId, _at, y) => touchPlanDrop(id, targetId, y), "data-plan-card");
   const [transfer, setTransfer] = useState<{ id: string; action: "move" | "copy"; date: string } | null>(null);
@@ -157,14 +184,34 @@ export function GroupClassPlanning() {
   function touchPlanDrop(id: string, targetId: string, y?: number) {
     const source = plans.find((plan) => plan.id === id);
     const target = plans.find((plan) => plan.id === targetId);
-    if (!source || !target || source.occurrence?.taughtAt || !canDropClassPlan(source.date, target.date) || busy || history) return;
-    const ordered = plans.filter((plan) => plan.date === source.date).sort((a, b) => a.sortOrder - b.sortOrder);
-    const from = ordered.findIndex((plan) => plan.id === id);
-    const destination = ordered.findIndex((plan) => plan.id === targetId);
-    const targetCard = [...document.querySelectorAll<HTMLElement>("[data-plan-card]")].find((element) => element.dataset.planCard === targetId);
-    if (from < 0 || destination < 0 || !targetCard || y === undefined) return;
+    if (!source || source.occurrence?.taughtAt || busy || history) return;
+    const targetDate = target?.date ?? (days.includes(targetId) ? targetId : null);
+    if (!targetDate) return;
+    const destination = plans.filter((plan) => plan.date === targetDate).sort((a, b) => a.sortOrder - b.sortOrder);
+    if (!target) {
+      const sourceCard = [...document.querySelectorAll<HTMLElement>("article[data-plan-card]")].find((element) => element.dataset.planCard === id);
+      const bounds = sourceCard?.getBoundingClientRect();
+      if (targetDate === source.date && bounds && y !== undefined && y >= bounds.top && y <= bounds.bottom) return;
+      dropPlan(id, targetDate, destination.length);
+      return;
+    }
+    if (y === undefined) return;
+    const targetCard = [...document.querySelectorAll<HTMLElement>("article[data-plan-card]")].find((element) => element.dataset.planCard === targetId);
+    if (!targetCard) return;
     const bounds = targetCard.getBoundingClientRect();
-    reorderDay(source.date, id, classPlanDropIndex(from, destination, y >= bounds.top + bounds.height / 2));
+    dropPlan(id, targetDate, destination.findIndex((plan) => plan.id === targetId) + (y >= bounds.top + bounds.height / 2 ? 1 : 0));
+  }
+  function dropPlan(id: string, date: string, position: number) {
+    const source = plans.find((plan) => plan.id === id);
+    if (!source || source.occurrence?.taughtAt || busy || history || !days.includes(date)) return;
+    const destination = plans.filter((plan) => plan.date === date).sort((a, b) => a.sortOrder - b.sortOrder);
+    if (position < 0 || position > destination.length) return;
+    if (source.date === date) {
+      const from = destination.findIndex((plan) => plan.id === id);
+      if (from >= 0) reorderDay(date, id, classPlanMoveIndex(source.date, date, from, position));
+      return;
+    }
+    void run(async () => { await request("/api/clases/planes", "PATCH", { id, date, position }); setNotice("Clase movida."); });
   }
   async function deletePlan(plan: Plan) { if (!window.confirm("¿Eliminar esta planificación?")) return; await run(async () => { await request("/api/clases/planes", "DELETE", { id: plan.id }); setSelectedPlan(null); setNotice("Planificación eliminada."); }); }
   async function linkOccurrence(plan: Plan, occurrenceId: string | null) { await run(async () => { await request("/api/clases/planes", "PATCH", { id: plan.id, occurrenceId }); setSelectedPlan(null); setNotice(occurrenceId ? "Horario vinculado." : "Horario desvinculado."); }); }
@@ -186,7 +233,7 @@ export function GroupClassPlanning() {
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><div className="flex gap-2"><button onClick={() => { setDraftKey(null); setView("week"); }} className={view === "week" ? "min-h-11 rounded-xl bg-yellow-400/15 px-3 text-sm text-yellow-300" : "min-h-11 rounded-xl border border-zinc-700 px-3 text-sm"}>Mi semana</button><button onClick={() => { setDraftKey(null); setView("library"); }} className={view === "library" ? "min-h-11 rounded-xl bg-yellow-400/15 px-3 text-sm text-yellow-300" : "min-h-11 rounded-xl border border-zinc-700 px-3 text-sm"}>Biblioteca de clases</button></div><button onClick={() => beginEditor()} className="min-h-11 rounded-xl bg-yellow-400 px-4 text-sm font-bold text-zinc-950">+ Nueva clase</button></div>
     {error && <p role="alert" className="mb-3 rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     {notice && <div role="status" aria-live="polite" className="class-plan-toast"><span aria-hidden="true" className="class-plan-toast-icon">✓</span><span className="min-w-0 flex-1">{notice}</span><button type="button" aria-label="Cerrar notificación" onClick={() => setNotice("")} className="class-plan-toast-close">×</button></div>}
-    {view === "week" && <div className="rounded-2xl border border-zinc-800 bg-zinc-900/85 p-3 sm:p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><button aria-label="Semana anterior" onClick={() => setWeek(addDays(week, -7))} className={control}>←</button><button aria-label="Semana siguiente" onClick={() => setWeek(addDays(week, 7))} className={control}>→</button><strong className="ml-1 text-sm">{dateLabel(week)} al {dateLabel(addDays(week, 6))}</strong></div><button onClick={() => setHistory((value) => !value)} className="min-h-10 text-sm text-yellow-300">{history ? "Ver planificadas" : "Ver dictadas"}</button></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-7">{days.map((day) => <PlanningDay key={day} date={day} plans={plans.filter((plan) => plan.date === day)} history={history} busy={busy} touchCopy={touchCopy} open={setSelectedPlan} add={() => openAdd(day)} reorder={(id, target) => reorderDay(day, id, target)} />)}</div></div>}
+    {view === "week" && <div className="rounded-2xl border border-zinc-800 bg-zinc-900/85 p-3 sm:p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><button aria-label="Semana anterior" onClick={() => setWeek(addDays(week, -7))} className={control}>←</button><button aria-label="Semana siguiente" onClick={() => setWeek(addDays(week, 7))} className={control}>→</button><strong className="ml-1 text-sm">{dateLabel(week)} al {dateLabel(addDays(week, 6))}</strong></div><button onClick={() => setHistory((value) => !value)} className="min-h-10 text-sm text-yellow-300">{history ? "Ver planificadas" : "Ver dictadas"}</button></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-7">{days.map((day) => <PlanningDay key={day} date={day} plans={plans.filter((plan) => plan.date === day)} history={history} busy={busy} touchCopy={touchCopy} dragSourceRef={dragSourceRef} open={setSelectedPlan} add={() => openAdd(day)} reorder={(id, target) => reorderDay(day, id, target)} dropPlan={dropPlan} />)}</div></div>}
     {view === "library" && <div className="rounded-2xl border border-zinc-800 bg-zinc-900/85 p-3 sm:p-4"><div className="flex flex-wrap gap-2"><input aria-label="Buscar clase" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar clase" className={control + " min-w-0 flex-1"}/><select aria-label="Filtrar modalidad" value={filter} onChange={(event) => setFilter(event.target.value)} className={control}><option value="">Todas las modalidades</option>{modalities.map((item) => <option key={item}>{item}</option>)}</select></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{filtered.map((item) => <article key={item.id} className="rounded-xl border border-zinc-700 bg-zinc-950/60 p-3"><p className="text-xs text-yellow-300">{modality(item)} · {item.status === "borrador" ? "Borrador" : "Guardada"}</p><h3 className="mt-1 font-semibold">{item.name}</h3><p className="mt-2 line-clamp-3 whitespace-pre-line text-xs text-zinc-400">{classRichPlainText(routineText(item))}</p><div className="mt-3 flex flex-wrap gap-2"><button onClick={() => beginEditor(null, undefined, item)} className={control + " text-xs"}>{item.tags.includes("Clase libre") ? "Editar" : "Usar como base"}</button><button onClick={() => beginEditor(null, undefined, item, true)} className={control + " text-xs text-yellow-300"}>Crear variante</button></div></article>)}</div>{!filtered.length && <p className="mt-4 text-sm text-zinc-400">Todavía no hay clases guardadas.</p>}</div>}
     {view === "editor" && <div className="mx-auto max-w-3xl rounded-2xl lg:max-w-none border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-3 text-[var(--foreground)] sm:p-5"><div className="mb-3 flex items-center justify-between gap-2"><button onClick={() => { setDraftKey(null); setView(editorDate ? "week" : "library"); }} className="min-h-10 text-sm text-[var(--foreground-muted)]">← Volver</button><span className="text-xs text-[var(--brand-text)]">{editorDate ? dateLabel(editorDate) : "Biblioteca"}</span></div><div className="grid gap-2 sm:grid-cols-2"><label className="text-sm">Nombre de la clase<input value={name} disabled={!draftReady || busy} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="Clase sin título" className={control + " class-note-meta-input mt-1 w-full"}/></label><label className="text-sm">Modalidad<input list="class-modalities" value={type} disabled={!draftReady || busy} onChange={(event) => setType(event.target.value)} maxLength={65} className={control + " class-note-meta-input mt-1 w-full"}/><datalist id="class-modalities">{modalities.map((item) => <option key={item} value={item}/>)}</datalist></label></div><div className="mt-3 text-sm"><p className="mb-1">Tu clase</p><ClassNotesEditor value={text} onChange={setText} disabled={!draftReady || busy} focusRequest={editorFocusRequest} /></div><div className="mt-3 flex items-center justify-between gap-2"><span role="status" className="text-xs text-[var(--foreground-muted)]">{draftStatus === "loading" ? "Recuperando borrador…" : draftStatus === "unavailable" ? "Sin conexión: reconectá para recuperar el borrador" : draftStatus === "pending" ? "Cambios pendientes de sincronización" : draftStatus === "saved" ? "Borrador guardado" : ""}</span><button disabled={busy || !draftReady} onClick={() => void saveEditor()} className="min-h-11 rounded-xl bg-[var(--bm-accent)] px-5 font-bold text-[var(--bm-accent-contrast)] disabled:opacity-50">{busy ? "Guardando…" : "Guardar clase"}</button></div></div>}
     {selectedDate && <div role="presentation" className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3" onClick={(event) => { if (event.target === event.currentTarget) setSelectedDate(null); }}><div role="dialog" aria-modal="true" aria-label={"Agregar clase el " + dateLabel(selectedDate)} className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-yellow-400/30 bg-zinc-900 p-4"><div className="flex items-center justify-between"><h2 className="font-bold capitalize">{dateLabel(selectedDate)}</h2><button aria-label="Cerrar" onClick={() => setSelectedDate(null)} className="min-h-10 min-w-10">×</button></div>{picker !== "actions" && <button onClick={() => setPicker("actions")} className="my-2 min-h-10 text-sm text-yellow-300">← Opciones</button>}{picker === "actions" && <div className="mt-3 grid gap-2"><button onClick={() => beginEditor(selectedDate)} className={control + " text-left"}>Crear clase nueva →</button><button onClick={() => setPicker("library")} className={control + " text-left"}>Seleccionar de la biblioteca →</button><button onClick={() => setPicker("previous")} className={control + " text-left"}>Copiar planificación anterior →</button></div>}{picker === "library" && <div className="mt-2 grid gap-2">{routines.map((item) => <button key={item.id} disabled={busy} onClick={() => void addFromLibrary(item.id)} className={control + " text-left text-sm"}>{modality(item)} · {item.name}</button>)}{!routines.length && <p className="text-sm text-zinc-400">La biblioteca está vacía.</p>}</div>}{picker === "previous" && <div className="mt-2 grid gap-2">{previous.map((item) => <button key={item.id} disabled={busy} onClick={() => void copyPlan(item.id, selectedDate)} className={control + " text-left text-sm"}>{item.date} · {item.snapshot.modality} · {item.snapshot.name}</button>)}{!previous.length && <p className="text-sm text-zinc-400">Todavía no hay planificaciones anteriores.</p>}</div>}</div></div>}

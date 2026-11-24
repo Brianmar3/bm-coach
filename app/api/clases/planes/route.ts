@@ -77,7 +77,7 @@ export async function PATCH(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   try {
     const { workspaceId } = await requireTrainerWorkspace();
-    const input = await request.json() as { id?: string; date?: string; snapshot?: unknown; occurrenceId?: string | null; orderedIds?: string[] };
+    const input = await request.json() as { id?: string; date?: string; position?: number; snapshot?: unknown; occurrenceId?: string | null; orderedIds?: string[] };
     if (input.orderedIds !== undefined) {
       if (!input.date || !isDateKey(input.date) || !Array.isArray(input.orderedIds) || input.orderedIds.length > 100 || !input.orderedIds.every((id) => typeof id === "string") || new Set(input.orderedIds).size !== input.orderedIds.length) return Response.json({ error: "Orden inválido." }, { status: 400 });
       const result = await prisma.$transaction(async (tx) => {
@@ -88,7 +88,7 @@ export async function PATCH(request: Request) {
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return Response.json(result ? { message: "Orden guardado." } : { error: "La planificación cambió. Actualizá e intentá de nuevo." }, { status: result ? 200 : 409 });
     }
-    if (!input.id || (input.date !== undefined && !isDateKey(input.date)) || (input.snapshot !== undefined && !validNote(input.snapshot))) return Response.json({ error: "Cambios inválidos." }, { status: 400 });
+    if (!input.id || (input.date !== undefined && !isDateKey(input.date)) || (input.position !== undefined && (!input.date || !Number.isInteger(input.position) || input.position < 0 || input.position > 100)) || (input.snapshot !== undefined && !validNote(input.snapshot))) return Response.json({ error: "Cambios inválidos." }, { status: 400 });
     const result = await prisma.$transaction(async (tx) => {
       const plan = await tx.groupClassPlan.findFirst({ where: { id: input.id, workspaceId }, include: { occurrence: true } });
       if (!plan) return { status: 404, error: "Planificación no encontrada." };
@@ -103,10 +103,20 @@ export async function PATCH(request: Request) {
       }
       if (plan.occurrenceId && plan.occurrenceId !== nextOccurrenceId) await tx.classOccurrence.update({ where: { id: plan.occurrenceId }, data: { plannedRoutineId: null, plannedSnapshot: Prisma.DbNull } });
       const snapshot = input.snapshot !== undefined ? input.snapshot as ClassNote : plan.snapshot as unknown as ClassNote;
-      const destinationOrder = input.date && input.date !== databaseDateKey(plan.date)
+      const movingDate = Boolean(input.date && input.date !== databaseDateKey(plan.date));
+      const destinationPlans = movingDate && input.position !== undefined
+        ? await tx.groupClassPlan.findMany({ where: { workspaceId, date }, select: { id: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] })
+        : [];
+      if (movingDate && input.position !== undefined && input.position > destinationPlans.length) return { status: 409, error: "La planificación cambió. Actualizá e intentá de nuevo." };
+      const destinationOrder = movingDate
         ? ((await tx.groupClassPlan.aggregate({ where: { workspaceId, date }, _max: { sortOrder: true } }))._max.sortOrder ?? -1) + 1
         : plan.sortOrder;
       await tx.groupClassPlan.update({ where: { id: plan.id }, data: { date, sortOrder: destinationOrder, occurrenceId: nextOccurrenceId, snapshot: snapshot as unknown as Prisma.InputJsonValue, routineId: input.snapshot !== undefined ? null : plan.routineId } });
+      if (movingDate && input.position !== undefined) {
+        const ordered = destinationPlans.map((item) => item.id);
+        ordered.splice(input.position, 0, plan.id);
+        for (const [sortOrder, id] of ordered.entries()) await tx.groupClassPlan.update({ where: { id, workspaceId }, data: { sortOrder } });
+      }
       if (nextOccurrenceId) await tx.classOccurrence.update({ where: { id: nextOccurrenceId }, data: { plannedRoutineId: input.snapshot !== undefined ? null : plan.routineId, plannedSnapshot: snapshot as unknown as Prisma.InputJsonValue } });
       return { status: 200, message: "Planificación actualizada." };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
