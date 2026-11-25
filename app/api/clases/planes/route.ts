@@ -46,8 +46,9 @@ export async function POST(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   try {
     const { workspaceId } = await requireTrainerWorkspace();
-    const input = await request.json() as { date?: string; routineId?: string; sourcePlanId?: string; snapshot?: unknown };
+    const input = await request.json() as { date?: string; routineId?: string; sourcePlanId?: string; snapshot?: unknown; position?: number };
     if (!input.date || !isDateKey(input.date)) return Response.json({ error: "Fecha inválida." }, { status: 400 });
+    if (input.position !== undefined && (!input.sourcePlanId || !Number.isInteger(input.position) || input.position < 0 || input.position > 100)) return Response.json({ error: "Posición inválida." }, { status: 400 });
     const sources = Number(Boolean(input.routineId)) + Number(Boolean(input.sourcePlanId)) + Number(Boolean(input.snapshot));
     if (sources !== 1) return Response.json({ error: "Seleccioná una sola clase para planificar." }, { status: 400 });
     let snapshot: ClassNote;
@@ -65,6 +66,19 @@ export async function POST(request: Request) {
     } else if (validNote(input.snapshot)) {
       snapshot = input.snapshot;
     } else return Response.json({ error: "Contenido de clase inválido." }, { status: 400 });
+    if (input.position !== undefined) {
+      const result = await prisma.$transaction(async (tx) => {
+        const date = dateKeyToDatabase(input.date!);
+        const existing = await tx.groupClassPlan.findMany({ where: { workspaceId, date }, select: { id: true, sortOrder: true }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
+        if (input.position! > existing.length) return null;
+        const plan = await tx.groupClassPlan.create({ data: { workspaceId, date, sortOrder: (existing.at(-1)?.sortOrder ?? -1) + 1, routineId, snapshot: snapshot as unknown as Prisma.InputJsonValue } });
+        const ordered = existing.map((item) => item.id);
+        ordered.splice(input.position!, 0, plan.id);
+        for (const [sortOrder, id] of ordered.entries()) await tx.groupClassPlan.update({ where: { id, workspaceId }, data: { sortOrder } });
+        return plan;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return Response.json(result ? { id: result.id } : { error: "La planificación cambió. Actualizá e intentá de nuevo." }, { status: result ? 201 : 409 });
+    }
     const last = await prisma.groupClassPlan.aggregate({ where: { workspaceId, date: dateKeyToDatabase(input.date) }, _max: { sortOrder: true } });
     const plan = await prisma.groupClassPlan.create({ data: { workspaceId, date: dateKeyToDatabase(input.date), sortOrder: (last._max.sortOrder ?? -1) + 1, routineId, snapshot: snapshot as unknown as Prisma.InputJsonValue } });
     return Response.json({ id: plan.id }, { status: 201 });

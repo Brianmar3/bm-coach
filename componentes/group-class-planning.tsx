@@ -211,7 +211,7 @@ export function GroupClassPlanning() {
       if (from >= 0) reorderDay(date, id, classPlanMoveIndex(source.date, date, from, position));
       return;
     }
-    void run(async () => { await request("/api/clases/planes", "PATCH", { id, date, position }); setNotice("Clase movida."); });
+    void run(async () => { await request("/api/clases/planes", "POST", { sourcePlanId: id, date, position }); setNotice("Copia independiente creada."); });
   }
   async function deletePlan(plan: Plan) { if (!window.confirm("¿Eliminar esta planificación?")) return; await run(async () => { await request("/api/clases/planes", "DELETE", { id: plan.id }); setSelectedPlan(null); setNotice("Planificación eliminada."); }); }
   async function linkOccurrence(plan: Plan, occurrenceId: string | null) { await run(async () => { await request("/api/clases/planes", "PATCH", { id: plan.id, occurrenceId }); setSelectedPlan(null); setNotice(occurrenceId ? "Horario vinculado." : "Horario desvinculado."); }); }
