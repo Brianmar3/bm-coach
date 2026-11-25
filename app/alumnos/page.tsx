@@ -97,6 +97,11 @@ export default function AlumnosPage() {
     const [form, setForm] = useState<StudentFormValue>(() => blank({ plans: [], schedules: [] }));
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
+    useEffect(() => {
+        if (!notice || open) return;
+        const timer = window.setTimeout(() => setNotice(""), 3000);
+        return () => window.clearTimeout(timer);
+    }, [notice, open]);
     const [saving, setSaving] = useState(false);
     const [editSection, setEditSection] = useState<"payment" | null>(null);
     useEffect(() => {
@@ -277,6 +282,7 @@ export default function AlumnosPage() {
             if (editing) {
                 setOpen(false);
                 setEditing(null);
+                setNotice(`${saved.firstName} ${saved.lastName}: cambios guardados.`);
             }
             else if (addAnother) {
                 setForm(blank(options, form));
@@ -314,6 +320,7 @@ export default function AlumnosPage() {
     if (loadError && items.length === 0)
         return <ModuleShell unified title="Alumnos" subtitle="Alta rápida, planes y seguimiento de tu cartera de alumnos."><ErrorState title="No pudimos cargar los alumnos." description="Revisá la conexión e intentá nuevamente." retry={retryLoad}/></ModuleShell>;
     return <ModuleShell unified title="Alumnos" subtitle="Alta rápida, planes y seguimiento de tu cartera de alumnos.">
+    {!open && notice && <div role="status" aria-live="polite" className="student-edit-saved-toast"><span className="flex-1">{notice}</span><button type="button" aria-label="Cerrar notificación" onClick={() => setNotice("")} className="min-h-8 min-w-8 rounded-lg text-lg text-[var(--foreground-muted)]">×</button></div>}
     {loadError && items.length > 0 && <div className="mb-5"><ErrorState compact title="No pudimos actualizar la lista de alumnos." retry={retryLoad}/></div>}
     {error && !open && <p role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</p>}
     {bulkNotice && <p role="status" className="mb-5 rounded-xl border border-[var(--success)]/40 p-4 text-sm text-[var(--success)]">{bulkNotice}</p>}
@@ -487,12 +494,22 @@ function StudentEditForm({ form, setForm, options, student, initialSection, erro
         return () => window.removeEventListener("beforeunload", warn);
     }, [dirty]);
     useEffect(() => {
+        const guardNavigation = (event: MouseEvent) => {
+            if (!(event.target instanceof Element) || !event.target.closest("[data-trainer-bottom-nav] a")) return;
+            if (saving || (dirty && !window.confirm("Hay cambios sin guardar. ¿Descartarlos y salir?"))) {
+                event.preventDefault(); event.stopPropagation();
+            }
+        };
+        document.addEventListener("click", guardNavigation, true);
+        return () => document.removeEventListener("click", guardNavigation, true);
+    }, [dirty, saving]);
+    useEffect(() => {
         if (!error) return;
         if (/nombre|apellido|teléfono|correo/i.test(error)) setActiveSection("personal");
         else if (/plan|servicio|horario/i.test(error)) setActiveSection("service");
         else if (/fecha|vencimiento|pago|importe/i.test(error)) setActiveSection("payment");
     }, [error]);
-    return <div className="fixed inset-x-0 top-0 z-50 bg-black/85 p-0 sm:p-4" style={{ bottom: keyboardInset }}><KeyboardDialog as="form" onClose={close} dismissible={!saving} aria-label="Editar alumno" onSubmit={submit} className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)] shadow-2xl sm:rounded-3xl sm:border sm:border-[var(--border-soft)]">
+    return <div className="student-edit-overlay fixed inset-x-0 top-0 z-[90] bg-black/85 p-0 sm:p-4" style={keyboardInset ? { bottom: keyboardInset } : undefined}><KeyboardDialog as="form" onClose={close} dismissible={!saving} aria-label="Editar alumno" onSubmit={submit} className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)] shadow-2xl sm:rounded-3xl sm:border sm:border-[var(--border-soft)]">
       <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border-soft)] px-4 py-3 sm:px-6"><button type="button" onClick={close} disabled={saving} aria-label="Volver" className="grid size-10 shrink-0 place-items-center rounded-xl text-2xl hover:bg-[var(--surface-elevated)]">←</button><div className="min-w-0"><h2 className="text-xl font-black sm:text-2xl">Editar alumno</h2><p className="text-xs text-[var(--foreground-muted)] sm:text-sm">Actualizá los datos personales y deportivos.</p></div></header>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
         <section className="rounded-3xl border border-[var(--border-soft)] bg-[var(--surface-elevated)] p-4 sm:p-5"><div className="flex min-w-0 items-center gap-3"><div className="grid size-16 shrink-0 place-items-center rounded-full border border-[var(--border-soft)] bg-[var(--surface)] text-xl font-black text-[var(--brand-text)]">{initials}</div><div className="min-w-0 flex-1"><h3 className="truncate text-lg font-black sm:text-xl">{name || "Alumno"}</h3><p className="mt-1 text-xs text-[var(--foreground-muted)]">{studentServiceLabel(form.serviceType)} · {selectedPlan?.frequencyDays ? `${selectedPlan.frequencyDays} días por semana` : form.plan || "Sin plan"}</p></div><span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${form.status === "activo" ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-500" : "border-[var(--border-soft)] text-[var(--foreground-muted)]"}`}>{form.status === "activo" ? "Activo" : form.status === "inactivo" ? "Inactivo" : "Suspendido"}</span></div><div className="mt-4 grid grid-cols-3 gap-2 border-t border-[var(--border-soft)] pt-4"><EditSummary icon={<BmCalendarIcon size={18}/>} label="Próximo vencimiento" value={showDate(form.dueDate)}/><EditSummary icon={<BmPaymentIcon size={18}/>} label="Último pago" value={lastPayment === undefined ? "Consultando…" : lastPayment ? showDate(lastPayment.paidDate) : "Sin pagos"}/><EditSummary icon={<BmWorkoutIcon size={18}/>} label="Plan / Importe" value={`${form.plan || "Sin plan"} · ${money(form.monthlyFee)}`}/></div></section>
@@ -513,7 +530,7 @@ function StudentEditForm({ form, setForm, options, student, initialSection, erro
           <p className="text-sm text-[var(--foreground-muted)] sm:col-span-2">Ingreso original: {showDate(student.joinedAt)} · Estado actual: {form.status}. Las asistencias y pagos anteriores se conservan.</p><button type="button" onClick={() => setActiveSection("payment")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-left text-sm text-[var(--brand-text)]">Editar fechas y vencimientos →</button><button type="button" onClick={() => setActiveSection("service")} className="min-h-11 rounded-xl border border-[var(--border-soft)] px-3 text-left text-sm text-[var(--brand-text)]">Editar horarios y estado →</button>
         </EditSection>
       </div>
-      <footer className="shrink-0 border-t border-[var(--border-soft)] bg-[var(--background)] px-4 pb-[calc(.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-6"><button type="submit" disabled={saving} className="min-h-12 w-full rounded-xl bg-[var(--bm-accent)] px-5 text-base font-black text-[var(--bm-accent-contrast)] disabled:opacity-50">{saving ? "Guardando…" : "Guardar cambios"}</button></footer>
+      <footer className="shrink-0 border-t border-[var(--border-soft)] bg-[var(--background)] px-4 pb-3 pt-3 sm:px-6"><button type="submit" disabled={saving || !dirty} className="min-h-12 w-full rounded-xl bg-[var(--bm-accent)] px-5 text-base font-black text-[var(--bm-accent-contrast)] disabled:opacity-50">{saving ? "Guardando…" : "Guardar cambios"}</button></footer>
     </KeyboardDialog></div>;
 }
 
