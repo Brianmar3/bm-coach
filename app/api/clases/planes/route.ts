@@ -46,8 +46,9 @@ export async function POST(request: Request) {
   if (!validRequestOrigin(request)) return Response.json({ error: "Origen no permitido." }, { status: 403 });
   try {
     const { workspaceId } = await requireTrainerWorkspace();
-    const input = await request.json() as { date?: string; routineId?: string; sourcePlanId?: string; snapshot?: unknown; position?: number };
+    const input = await request.json() as { date?: string; routineId?: string; sourcePlanId?: string; snapshot?: unknown; position?: number; name?: string };
     if (!input.date || !isDateKey(input.date)) return Response.json({ error: "Fecha inválida." }, { status: 400 });
+    if (input.name !== undefined && (!input.sourcePlanId || typeof input.name !== "string" || !input.name.trim() || input.name.trim().length > 120)) return Response.json({ error: "Nombre inválido." }, { status: 400 });
     if (input.position !== undefined && (!input.sourcePlanId || !Number.isInteger(input.position) || input.position < 0 || input.position > 100)) return Response.json({ error: "Posición inválida." }, { status: 400 });
     const sources = Number(Boolean(input.routineId)) + Number(Boolean(input.sourcePlanId)) + Number(Boolean(input.snapshot));
     if (sources !== 1) return Response.json({ error: "Seleccioná una sola clase para planificar." }, { status: 400 });
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     } else if (input.sourcePlanId) {
       const source = await prisma.groupClassPlan.findFirst({ where: { id: input.sourcePlanId, workspaceId } });
       if (!source || !validNote(source.snapshot)) return Response.json({ error: "Planificación anterior no encontrada." }, { status: 404 });
-      snapshot = source.snapshot;
+      snapshot = input.name === undefined ? source.snapshot : { ...source.snapshot, name: input.name.trim() };
       routineId = source.routineId;
     } else if (validNote(input.snapshot)) {
       snapshot = input.snapshot;

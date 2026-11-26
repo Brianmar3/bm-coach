@@ -74,3 +74,58 @@ test("la entrada móvil por input crea lista y Enter crea separador", () => {
   assert.equal(selection.anchorNode?.parentElement?.tagName, "DIV");
   cleanup();
 });
+
+test("título por espacio conserva el cursor y se puede deshacer", () => {
+  const screen = render(React.createElement(ClassNotesEditor, { value: "##", onChange: () => {}, disabled: false }));
+  const editor = screen.getByRole("textbox", { name: "Tu clase" });
+  const range = document.createRange(); range.selectNodeContents(editor.firstElementChild); range.collapse(false);
+  const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  fireEvent.keyDown(editor, { key: " " });
+  assert.ok(editor.querySelector("h2"));
+  assert.ok(editor.querySelector("h2")?.contains(selection.anchorNode));
+  fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
+  assert.equal(editor.textContent, "## ");
+  cleanup();
+});
+
+test("Ctrl+S usa el guardado existente sin alterar el texto", () => {
+  let saves = 0;
+  const screen = render(React.createElement(ClassNotesEditor, { value: "Clase", onChange: () => {}, disabled: false, onSave: () => { saves++; } }));
+  const editor = screen.getByRole("textbox", { name: "Tu clase" });
+  fireEvent.keyDown(editor, { key: "s", ctrlKey: true });
+  assert.equal(saves, 1);
+  assert.equal(editor.textContent, "Clase");
+  cleanup();
+});
+
+test("la entrada móvil convierte una cita y permite deshacer", () => {
+  window.matchMedia = () => ({ matches: true });
+  const screen = render(React.createElement(ClassNotesEditor, { value: ">", onChange: () => {}, disabled: false }));
+  const editor = screen.getByRole("textbox", { name: "Tu clase" });
+  const selection = window.getSelection();
+  const range = document.createRange(); range.selectNodeContents(editor.firstElementChild); range.collapse(false);
+  selection.removeAllRanges(); selection.addRange(range);
+  document.execCommand("insertText", false, " ");
+  fireEvent.input(editor, { inputType: "insertText", data: " " });
+  assert.ok(editor.querySelector("blockquote"));
+  fireEvent.keyDown(editor, { key: "z", ctrlKey: true });
+  assert.equal(editor.textContent, "> ");
+  cleanup();
+});
+
+test("los atajos de formato y salto suave usan los comandos del editor", () => {
+  const commands = [];
+  const original = document.execCommand;
+  document.execCommand = (command, ui, text) => { commands.push(command); return original(command, ui, text); };
+  try {
+    const screen = render(React.createElement(ClassNotesEditor, { value: "Clase", onChange: () => {}, disabled: false }));
+    const editor = screen.getByRole("textbox", { name: "Tu clase" });
+    const selection = window.getSelection();
+    const range = document.createRange(); range.selectNodeContents(editor.firstElementChild); range.collapse(false);
+    selection.removeAllRanges(); selection.addRange(range);
+    for (const key of ["b", "i", "u"]) fireEvent.keyDown(editor, { key, ctrlKey: true });
+    fireEvent.keyDown(editor, { key: "Enter", shiftKey: true });
+    assert.deepEqual(commands, ["bold", "italic", "underline", "insertLineBreak"]);
+    cleanup();
+  } finally { document.execCommand = original; }
+});

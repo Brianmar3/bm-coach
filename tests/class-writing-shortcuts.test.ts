@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { listShortcut, separatorShortcut } from "../lib/class-writing-shortcuts.ts";
+import { blockShortcut, listShortcut, separatorShortcut } from "../lib/class-writing-shortcuts.ts";
 import { classRichPlainText, decodeClassRichText, encodeClassRichText } from "../lib/class-rich-text.ts";
 
 test("los prefijos al comienzo del párrafo activan listas", () => {
@@ -18,4 +18,12 @@ test("el separador exige tres guiones solos y persiste en texto enriquecido", ()
   const value = encodeClassRichText([{ t: "p", c: [{ t: "text", x: "Inicio" }] }, { t: "hr", c: [] }, { t: "ol", n: 7, c: [{ t: "li", c: [{ t: "text", x: "Sigue" }] }] }]);
   assert.ok(decodeClassRichText(value));
   assert.equal(classRichPlainText(value), "Inicio\n---\n7. Sigue");
+});
+
+test("títulos y citas se activan solo al comienzo del párrafo", () => {
+  assert.equal(blockShortcut("#"), "h1");
+  assert.equal(blockShortcut("##"), "h2");
+  assert.equal(blockShortcut("###"), "h3");
+  assert.equal(blockShortcut(">"), "blockquote");
+  for (const text of ["####", "peso #", "  #", "3 >", "# título"]) assert.equal(blockShortcut(text), null);
 });

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { classRichPlainText, decodeClassRichText, encodeClassRichText, type ClassRichNode } from "@/lib/class-rich-text";
 import { renumberManualLines } from "@/lib/class-manual-numbering";
-import { listShortcut, separatorShortcut } from "@/lib/class-writing-shortcuts";
+import { blockShortcut, listShortcut, separatorShortcut } from "@/lib/class-writing-shortcuts";
 
 const blockTags = new Set(["DIV", "P", "H1", "H2", "H3", "BLOCKQUOTE", "UL", "OL", "LI"]);
 const allowedTags = new Set(["p", "h1", "h2", "h3", "blockquote", "ul", "ol", "li", "strong", "em", "u", "s", "br", "hr"]);
@@ -80,6 +80,7 @@ export function ClassNotesView({ value, className = "" }: { value: string; class
 }
 
 type Tool = { label: string; mark: string; command: string; argument?: string };
+const toolShortcuts: Record<string, string> = { Deshacer: "Ctrl+Z", Rehacer: "Ctrl+Shift+Z", Negrita: "Ctrl+B", Cursiva: "Ctrl+I", Subrayado: "Ctrl+U", "Título 1": "# + espacio", "Título 2": "## + espacio", "Título 3": "### + espacio", Cita: "> + espacio", "Aumentar sangría": "Tab", "Reducir sangría": "Shift+Tab" };
 const tools: Tool[] = [
   { label: "Deshacer", mark: "↶", command: "undo" }, { label: "Rehacer", mark: "↷", command: "redo" },
   { label: "Texto normal", mark: "Tx", command: "formatBlock", argument: "p" },
@@ -91,13 +92,14 @@ const tools: Tool[] = [
   { label: "Cita", mark: "❝", command: "formatBlock", argument: "blockquote" },
 ];
 
-export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }: { value: string; onChange: (value: string) => void; disabled: boolean; focusRequest?: number }) {
+export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0, initialCaretOffset, onSave }: { value: string; onChange: (value: string) => void; disabled: boolean; focusRequest?: number; initialCaretOffset?: number | null; onSave?: () => void }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const selectedRange = useRef<Range | null>(null);
   const emitted = useRef<string | null>(null);
   const numberHandled = useRef(false);
   const shortcutInProgress = useRef(false);
+  const shiftLineBreak = useRef(false);
   const caretFrame = useRef(0);
   const focusedRequest = useRef(0);
   const history = useRef<{ past: { value: string; start: number; end: number }[]; current: { value: string; start: number; end: number }; future: { value: string; start: number; end: number }[] }>({ past: [], current: { value, start: 0, end: 0 }, future: [] });
@@ -113,14 +115,18 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
       const range = document.createRange();
       range.selectNodeContents(editor);
       range.collapse(false);
-      editor.scrollIntoView({ block: "end", behavior: "instant" });
+      editor.scrollIntoView({ block: initialCaretOffset == null ? "end" : "center", behavior: "instant" });
       editor.focus({ preventScroll: true });
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
-      editor.scrollTop = editor.scrollHeight;
+      if (initialCaretOffset != null) restoreOffsets(initialCaretOffset, initialCaretOffset);
+      else editor.scrollTop = editor.scrollHeight;
       requestAnimationFrame(() => {
-        const caret = range.getBoundingClientRect();
+        const caret = window.getSelection()?.getRangeAt(0).getBoundingClientRect() ?? range.getBoundingClientRect();
+        const bounds = editor.getBoundingClientRect();
+        if (initialCaretOffset != null && caret.top < bounds.top + 12) editor.scrollTop -= bounds.top + 12 - caret.top;
+        else if (initialCaretOffset != null && caret.bottom > bounds.bottom - 12) editor.scrollTop += caret.bottom - bounds.bottom + 12;
         const viewport = window.visualViewport;
         const bottom = (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight);
         if (caret.bottom > bottom - 24) window.scrollBy({ top: caret.bottom - bottom + 24, behavior: "instant" });
@@ -130,7 +136,7 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
     return () => cancelAnimationFrame(frame);
   // The focus request is consumed once; text edits must not move the cursor again.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusRequest, disabled]);
+  }, [focusRequest, disabled, initialCaretOffset]);
   function selectionOffsets() {
     const element = editorRef.current;
     const selection = window.getSelection();
@@ -321,6 +327,29 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
     emit();
     return true;
   }
+  function convertBlockShortcut(preventDefault: () => void, spaceAlreadyInserted = false) {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !selection.isCollapsed) return false;
+    const block = manualBlock(selection.anchorNode);
+    if (!block || !["DIV", "P"].includes(block.tagName)) return false;
+    const caret = selection.getRangeAt(0);
+    const before = caret.cloneRange(); before.selectNodeContents(block); before.setEnd(caret.startContainer, caret.startOffset);
+    const prefix = before.toString();
+    const tag = blockShortcut(spaceAlreadyInserted && prefix.endsWith(" ") ? prefix.slice(0, -1) : prefix);
+    if (!tag || (spaceAlreadyInserted && !prefix.endsWith(" "))) return false;
+    if (!spaceAlreadyInserted) {
+      preventDefault(); shortcutInProgress.current = true;
+      try { document.execCommand("insertText", false, " "); } finally { shortcutInProgress.current = false; }
+    }
+    emit();
+    const current = selection.getRangeAt(0);
+    const after = current.cloneRange(); after.selectNodeContents(block); after.setStart(current.startContainer, current.startOffset);
+    const replacement = document.createElement(tag); replacement.append(after.extractContents());
+    if (!replacement.hasChildNodes()) replacement.appendChild(document.createElement("br"));
+    block.replaceWith(replacement);
+    const next = document.createRange(); next.selectNodeContents(replacement); next.collapse(true);
+    selection.removeAllRanges(); selection.addRange(next); emit(); return true;
+  }
   function insertSeparator(preventDefault: () => void) {
     const selection = window.getSelection();
     if (!selection?.rangeCount || !selection.isCollapsed) return false;
@@ -339,6 +368,8 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
     return true;
   }
   function onNumberKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); if (!disabled) onSave?.(); return; }
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && ["b", "i", "u"].includes(event.key.toLowerCase())) { event.preventDefault(); rememberSelection(); command(tools.find((tool) => tool.command === ({ b: "bold", i: "italic", u: "underline" } as Record<string, string>)[event.key.toLowerCase()])!); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); travel(event.shiftKey ? "redo" : "undo"); return; }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") { event.preventDefault(); travel("redo"); return; }
     if (event.nativeEvent.isComposing) return;
@@ -346,8 +377,9 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
     if (event.key === "Tab" && (anchor instanceof Element ? anchor.closest("li") : anchor?.parentElement?.closest("li"))) {
       event.preventDefault(); document.execCommand(event.shiftKey ? "outdent" : "indent"); emit(); rememberSelection(); return;
     }
-    if (event.key === " " && !event.ctrlKey && !event.metaKey && !event.altKey && convertListShortcut(() => event.preventDefault())) return;
+    if (event.key === " " && !event.ctrlKey && !event.metaKey && !event.altKey && (convertBlockShortcut(() => event.preventDefault()) || convertListShortcut(() => event.preventDefault()))) return;
     if (event.key !== "Enter") return;
+    if (event.shiftKey) { event.preventDefault(); shiftLineBreak.current = true; document.execCommand("insertLineBreak"); shiftLineBreak.current = false; emit(); return; }
     if (insertSeparator(() => event.preventDefault())) { numberHandled.current = true; window.setTimeout(() => { numberHandled.current = false; }, 0); return; }
     if (continueManualNumbering(() => event.preventDefault())) { numberHandled.current = true; window.setTimeout(() => { numberHandled.current = false; }, 0); }
   }
@@ -355,8 +387,9 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
     const input = event.nativeEvent as InputEvent;
     if (shortcutInProgress.current) return;
     if (input.inputType === "historyUndo" || input.inputType === "historyRedo") { event.preventDefault(); travel(input.inputType === "historyUndo" ? "undo" : "redo"); return; }
-    if (!input.isComposing && input.inputType === "insertText" && input.data === " " && !numberHandled.current) { convertListShortcut(() => event.preventDefault()); return; }
+    if (!input.isComposing && input.inputType === "insertText" && input.data === " " && !numberHandled.current) { if (!convertBlockShortcut(() => event.preventDefault())) convertListShortcut(() => event.preventDefault()); return; }
     if (input.isComposing || !["insertLineBreak", "insertParagraph"].includes(input.inputType)) return;
+    if (shiftLineBreak.current) return;
     if (numberHandled.current) { event.preventDefault(); return; }
     if (insertSeparator(() => event.preventDefault())) return;
     continueManualNumbering(() => event.preventDefault());
@@ -398,8 +431,8 @@ export function ClassNotesEditor({ value, onChange, disabled, focusRequest = 0 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return <div className="class-notes-editor">
-    <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label} aria-label={tool.label} aria-pressed={activeTools[tool.argument ?? tool.command]} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
-    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { const input = event.nativeEvent as InputEvent; const inputType = input.inputType ?? ""; if (!shortcutInProgress.current && !input.isComposing && input.data === " " && convertListShortcut(() => {}, true)) return; if (inputType.startsWith("delete") || inputType === "insertParagraph" || inputType === "insertLineBreak" || inputType === "insertFromPaste") renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} className="class-notes-writing" />
+    <div ref={toolbarRef} role="toolbar" aria-label="Formato de la clase" className="class-notes-toolbar">{tools.map((tool) => <button key={tool.label} type="button" title={tool.label + (toolShortcuts[tool.label] ? ` (${toolShortcuts[tool.label]})` : "")} aria-label={tool.label} aria-pressed={activeTools[tool.argument ?? tool.command]} disabled={disabled || (tool.command === "undo" && !historyState.undo) || (tool.command === "redo" && !historyState.redo)} onPointerDown={(event) => { rememberSelection(); event.preventDefault(); }} onClick={() => command(tool)} className={tool.command === "bold" ? "font-black" : tool.command === "italic" ? "italic" : tool.command === "underline" ? "underline" : tool.command === "strikeThrough" ? "line-through" : ""}>{tool.mark}</button>)}</div>
+    <div ref={editorRef} role="textbox" aria-label="Tu clase" aria-multiline="true" contentEditable={!disabled} suppressContentEditableWarning onInput={(event) => { const input = event.nativeEvent as InputEvent; const inputType = input.inputType ?? ""; if (!shortcutInProgress.current && !input.isComposing && input.data === " " && (convertBlockShortcut(() => {}, true) || convertListShortcut(() => {}, true))) return; if (inputType.startsWith("delete") || inputType === "insertParagraph" || inputType === "insertLineBreak" || inputType === "insertFromPaste") renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onKeyDown={onNumberKeyDown} onBeforeInput={onNumberBeforeInput} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onTouchEnd={rememberSelection} onFocus={scheduleCaretVisible} onPaste={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} onDrop={(event) => { event.preventDefault(); document.execCommand("insertText", false, event.dataTransfer.getData("text/plain")); renumberManualBlocks(manualBlock(window.getSelection()?.anchorNode ?? null)); emit(); }} className="class-notes-writing" />
     <p className="class-notes-count">{classRichPlainText(value).length}/12.000 caracteres</p>
   </div>;
 }

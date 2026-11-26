@@ -9,3 +9,11 @@ export function listShortcut(beforeCaret: string): ListShortcut | null {
 export function separatorShortcut(beforeCaret: string, afterCaret: string) {
   return beforeCaret === "---" && afterCaret.length === 0;
 }
+
+export function blockShortcut(beforeCaret: string): "h1" | "h2" | "h3" | "blockquote" | null {
+  if (beforeCaret === ">") return "blockquote";
+  if (beforeCaret === "#") return "h1";
+  if (beforeCaret === "##") return "h2";
+  if (beforeCaret === "###") return "h3";
+  return null;
+}
